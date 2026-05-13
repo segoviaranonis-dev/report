@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+}
+
+/* Tablas estilo informe */
+.report-table {
+  @apply w-full border-collapse text-left text-sm;
+}
+.report-table th {
+  @apply border border-report-rule bg-report-paper2 px-3 py-2 font-sans font-semibold text-report-navy;
+}
+.report-table td {
+  @apply border border-report-rule px-3 py-2 text-report-ink;
+}
