@@ -1,5 +1,7 @@
 # Memoria holding — Report (Vercel) · Sales Report + Retail multi-tienda
 
+> **Línea 1 — dogma de producto:** El encargo central es el **reporte de venta diario asociado a stock y disponibilidad de la importadora**. El idioma único del holding es **proveedor + línea + referencia + material + color + distribución/grada** (caja cerrada `34(1 2 3 3 2 1)` vs curva abierta, ej. 34=1, 35=2, 36=3, 37=3, 38=2, 39=1). **Sales Report** —misma lógica y representación visual que Streamlit— es la **estrella absoluta**. La **portada** de esta app es **misión, visión y políticas**; no compite con la analítica. **Secundario:** gestión de **stock** (retail). Orígenes tipo Tienda_1/2/3 en Excel son **puente** hasta normalizar en **nuestras** tablas de stock y movimiento, absorber la empresa importadora RIMEC y sustituir su sistema operativo actual. **No importa el nombre de la columna** en cada fuente: identificamos por pilares para fusionar todas las empresas del holding.
+
 Documento vivo para alinear producto, seguridad y entregas. **ADMIN** = referencia operativa sin restricciones; el Maestro de obras ejecuta contra este texto.
 
 ---
@@ -32,10 +34,12 @@ Documento vivo para alinear producto, seguridad y entregas. **ADMIN** = referenc
 
 ## 2. Módulos V1 (entrega < 24 h)
 
-| Módulo | Ruta app (propuesta) | Paridad con Streamlit |
-|--------|----------------------|------------------------|
-| Sales Report | `/sales-report` | Misma tubería que `QueryCenter` + `SalesLogic`; mismas tablas/vista que §3; PDF y filtros. |
-| Retail multi-tienda | `/retail` (o `/retail-multitienda`) | Staging + FK + lógica alineada a `balance_tiendas_retail` + política pilares insert-if-missing. |
+| Módulo | Ruta app | Rol en el paquete |
+|--------|----------|-------------------|
+| **Sales Report** | `/sales-report` | **Estrella** — paridad lógica y visual con Streamlit (`QueryCenter`, `SalesLogic`, PDF, filtros). |
+| **Stock / Retail** | `/retail` | **Secundario** — multi-tienda / importadora, pilares y grada hasta absorción en tablas propias. |
+| **Portada** | `/` | **Misión, visión y políticas** — una herramienta del paquete; idioma de pilares. |
+| Anexo documental | `/informes` | Formato informe institucional (PE); no sustituye a Sales Report. |
 
 ---
 

@@ -5,6 +5,7 @@ import type { NextConfig } from "next";
  * Solo rutas bajo /storage/v1/object/public/ — no abre otros hosts.
  */
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["pg"],
   images: {
     remotePatterns: [
       {

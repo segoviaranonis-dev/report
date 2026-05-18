@@ -1,0 +1,202 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import {
+  EMPTY_RETAIL_FILTERS,
+  retailFiltersToQuery,
+  type RetailFilterState,
+} from "@/lib/retail/retail-filters";
+import type { RetailFiltrosPayload } from "@/lib/retail/query-filtros";
+import { STOCK_BOARD_DEMO_COLUMNAS } from "@/lib/retail/stock-board-demo";
+import type { RetailBatchSummary, RetailMetaResponse, RetailStockBoardResponse } from "@/lib/retail/types";
+import { RetailFiltrosHeader } from "./components/RetailFiltrosHeader";
+import { RetailStockBoard } from "./components/RetailStockBoard";
+
+function fmtInt(n: number) {
+  return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
+}
+
+type Props = {
+  todayLabel: string;
+};
+
+export function RetailStockClient({ todayLabel }: Props) {
+  const [meta, setMeta] = useState<RetailMetaResponse | null>(null);
+  const [batchId, setBatchId] = useState<string>("");
+  const [filtros, setFiltros] = useState<RetailFilterState>(EMPTY_RETAIL_FILTERS);
+  const [filtrosData, setFiltrosData] = useState<RetailFiltrosPayload | null>(null);
+  const [data, setData] = useState<RetailStockBoardResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const configured = meta?.configured === true;
+  const batches: RetailBatchSummary[] = meta?.batches ?? [];
+
+  useEffect(() => {
+    fetch("/api/retail/meta")
+      .then((r) => r.json())
+      .then((j: RetailMetaResponse) => {
+        setMeta(j);
+        if (j.batches[0]?.batchId) setBatchId(j.batches[0].batchId);
+      })
+      .catch(() => setMeta({ configured: false, batches: [] }));
+  }, []);
+
+  useEffect(() => {
+    if (!configured || !batchId) return;
+    fetch(`/api/retail/filtros?batch_id=${encodeURIComponent(batchId)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.configured) setFiltrosData(j as RetailFiltrosPayload);
+      })
+      .catch(() => setFiltrosData(null));
+  }, [configured, batchId]);
+
+  const cargar = useCallback(async () => {
+    if (!configured) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const base = batchId
+        ? `?batch_id=${encodeURIComponent(batchId)}&top=12`
+        : "?top=12";
+      const r = await fetch(`/api/retail/stock-board${base}${retailFiltersToQuery(filtros)}`);
+      const j = (await r.json()) as RetailStockBoardResponse;
+      if (!r.ok) throw new Error(j.error ?? "Error al cargar stock retail");
+      setData(j);
+      if (j.error) setErr(j.error);
+    } catch (e) {
+      setData(null);
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }, [batchId, configured, filtros]);
+
+  useEffect(() => {
+    if (!configured) return;
+    void cargar();
+  }, [configured, cargar]);
+
+  const columnas =
+    configured && data && data.columnas.length > 0 ? data.columnas : STOCK_BOARD_DEMO_COLUMNAS;
+  const usandoDemo = !configured || !data?.columnas.length;
+  const kpis = data?.kpis;
+  const filas = batches.find((b) => b.batchId === batchId)?.filas;
+
+  return (
+    <>
+      <section className="border-b border-white/10 bg-[#0a0a0f] text-white">
+        <div className="mx-auto max-w-6xl px-4 pb-2 pt-6 sm:px-6">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
+            Segundo módulo · Informes
+          </p>
+          {configured && batches.length > 0 ? (
+            <RetailBatchControls
+              batches={batches}
+              batchIdSelect={batchId}
+              onBatchChange={(id) => {
+                setBatchId(id);
+                setFiltros(EMPTY_RETAIL_FILTERS);
+              }}
+              onRefresh={cargar}
+              loading={loading}
+            />
+          ) : null}
+          {data?.pilares && !usandoDemo ? (
+            <p
+              className={`mt-2 text-xs ${data.pilares.filasPendientes > 0 ? "text-amber-300" : "text-emerald-300/90"}`}
+            >
+              Pilares (FK): {data.pilares.filasOk} OK · {data.pilares.filasPendientes} pendientes —{" "}
+              {data.pilares.mensaje}
+            </p>
+          ) : null}
+          {err ? <p className="mt-2 text-xs text-red-300">{err}</p> : null}
+          <p className="mt-2 text-[11px] text-white/35">
+            {usandoDemo
+              ? `Demostración — ${todayLabel}. Fotos: bucket productos con nombre linea-ref-material_code-color_code (como RIMEC/Bazzar).`
+              : `Lote: ${data?.batchLabel || batchId?.slice(0, 8) || "—"} · ${filas ?? "—"} filas · ${todayLabel}`}
+          </p>
+        </div>
+
+        {configured && !usandoDemo ? (
+          <RetailFiltrosHeader
+            filtros={filtros}
+            onChange={setFiltros}
+            filtrosData={filtrosData}
+            totalModelos={kpis?.referenciasActivas ?? 0}
+            totalPares={kpis?.paresVentaTotal ?? 0}
+            loading={loading}
+          />
+        ) : null}
+
+        <RetailStockBoard columnas={columnas} />
+      </section>
+
+      {kpis && configured && !usandoDemo ? <KpiStrip kpis={kpis} /> : null}
+    </>
+  );
+}
+
+function RetailBatchControls({
+  batches,
+  batchIdSelect,
+  onBatchChange,
+  onRefresh,
+  loading,
+}: {
+  batches: RetailBatchSummary[];
+  batchIdSelect: string;
+  onBatchChange: (id: string) => void;
+  onRefresh: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3">
+      <label className="text-[11px] text-white/50">
+        Lote
+        <select
+          className="ml-2 rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-white"
+          value={batchIdSelect}
+          onChange={(e) => onBatchChange(e.target.value)}
+        >
+          {batches.map((b) => (
+            <option key={b.batchId} value={b.batchId}>
+              {b.batchLabel || b.archivoOrigen || b.batchId.slice(0, 8)} ({b.filas} filas)
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => onRefresh()}
+        disabled={loading}
+        className="rounded border border-white/25 px-3 py-1 text-xs text-white/80 hover:bg-white/10 disabled:opacity-40"
+      >
+        {loading ? "Cargando…" : "Actualizar"}
+      </button>
+    </div>
+  );
+}
+
+function KpiStrip({ kpis }: { kpis: NonNullable<RetailStockBoardResponse["kpis"]> }) {
+  return (
+    <div className="border-b border-report-rule bg-report-paper2">
+      <div className="mx-auto grid max-w-6xl gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-3">
+        {[
+          { k: "Pares en red (stock tiendas)", v: kpis.paresEnRed },
+          { k: "Referencias (SKU)", v: kpis.referenciasActivas },
+          { k: "Filas pilares OK", v: kpis.filasPilaresOk },
+          { k: "Filas pilares pendientes", v: kpis.filasPilaresPendientes },
+          { k: "Stock importadora", v: kpis.paresImportadora },
+          { k: "Venta total (pares)", v: kpis.paresVentaTotal },
+        ].map((x) => (
+          <div key={x.k} className="border border-report-rule bg-white px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-report-muted">{x.k}</p>
+            <p className="mt-1 font-serif text-2xl font-bold text-report-navy tabular-nums">{fmtInt(x.v)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ReportAppNav } from "@/components/report/ReportAppNav";
 import { ReportCover } from "@/components/report/ReportCover";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { publicStorageObjectUrl } from "@/lib/storage-public-url";
@@ -15,96 +16,98 @@ function resolveDemoImageUrl(): string {
 export default function HomePage() {
   const demoImage = resolveDemoImageUrl();
   const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const today = new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "long",
-  }).format(new Date());
+  const today = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date());
 
   return (
     <div className="min-h-screen">
-      <div className="bg-report-navy text-report-paper">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-2.5 text-xs font-sans tracking-wide">
-          <span className="opacity-90">RIMEC Nexus — capa ejecutiva (Vercel)</span>
-          <nav className="flex gap-4">
-            <Link className="underline decoration-report-paper/40 underline-offset-4 hover:opacity-90" href="/">
-              Portada
-            </Link>
-            <Link className="underline decoration-report-paper/40 underline-offset-4 hover:opacity-90" href="/informes">
-              Informe principal
-            </Link>
-            <Link className="underline decoration-report-paper/40 underline-offset-4 hover:opacity-90" href="/sales-report">
-              Sales Report (port)
-            </Link>
-          </nav>
-        </div>
-      </div>
+      <ReportAppNav active="home" />
 
       <ReportCover
-        title="Informe operativo de stock y ventas"
-        subtitle="Síntesis para dirección: posición de inventario, desempeño comercial por pilares y focos de riesgo. Versión demostración con datos de ejemplo hasta conectar la capa analítica final."
+        title="Misión, visión y políticas de desarrollo"
+        subtitle="Esta herramienta es una pieza del paquete completo del holding: hablamos un solo idioma — el de los pilares (proveedor, línea, referencia, material, color y distribución / grada). El pedido original es un reporte de venta diario ligado al stock y a la disponibilidad de la importadora; hoy usamos columnas y orígenes de ejemplo (Tienda_1, Tienda_2, Tienda_3) hasta normalizar en nuestras propias tablas de stock y movimiento, absorber la empresa importadora RIMEC y sustituir su sistema operativo actual."
         meta={
           <p>
-            <span className="font-semibold text-report-navy">Fecha de referencia:</span> {today}
+            <span className="font-semibold text-report-navy">Actualización:</span> {today}
             <span className="mx-2 text-report-rule">|</span>
-            <span className="font-semibold text-report-navy">Clasificación:</span> Uso interno — no distribuir
+            <span className="font-semibold text-report-navy">Clasificación:</span> Uso interno — holding
           </p>
         }
       />
 
-      <main className="mx-auto max-w-5xl space-y-12 px-6 py-12">
-        <section className="grid gap-10 lg:grid-cols-[1fr_280px] lg:items-start">
-          <div className="space-y-5 font-sans text-[15px] leading-relaxed text-report-ink">
-            <p>
-              Este documento digital replica la lectura de un{" "}
-              <strong>informe de desarrollo institucional</strong>: tipografía sobria, secciones numeradas y tablas
-              legibles. La importación y el control de proceso continúan en Streamlit; esta vista es la que verá
-              dirección en la reunión de demostración.
-            </p>
-            <p className="text-report-muted">
-              Imágenes de producto: mismo bucket público <code className="rounded bg-report-paper2 px-1.5 py-0.5 text-xs text-report-navy">productos</code> en Supabase Storage. Configurá la ruta de ejemplo en{" "}
-              <code className="rounded bg-report-paper2 px-1.5 py-0.5 text-xs text-report-navy">.env.local</code> según{" "}
-              <code className="rounded bg-report-paper2 px-1.5 py-0.5 text-xs text-report-navy">.env.example</code>.
-            </p>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <Link
-                href="/informes"
-                className="inline-flex items-center justify-center border border-report-navy bg-report-navy px-5 py-2.5 font-sans text-sm font-semibold text-report-paper transition hover:bg-report-navy2"
-              >
-                Abrir informe completo
-              </Link>
-              <a
-                className="inline-flex items-center justify-center border border-report-rule bg-white px-5 py-2.5 font-sans text-sm font-semibold text-report-navy shadow-sm transition hover:bg-report-paper2"
-                href="https://vercel.com/new"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Desplegar en Vercel
-              </a>
-            </div>
-          </div>
+      <main className="mx-auto max-w-5xl space-y-10 px-6 py-12 font-sans text-[15px] leading-relaxed text-report-ink">
+        <section className="space-y-4">
+          <h2 className="font-serif text-xl font-bold text-report-navy">1. Prioridad de producto</h2>
+          <p>
+            <strong>RIMEC</strong> — informe de ventas en <strong>Sales Report web v1.0.0</strong>: vista principal inmersiva en{" "}
+            <Link className="font-semibold underline decoration-report-navy/30 underline-offset-4" href="/rimec">
+              /rimec
+            </Link>{" "}
+            (snapshot único, KPIs, evolución, clientes, marcas, vendedores). La vista clásica de ocho tablas + PDF vive en{" "}
+            <Link className="underline decoration-report-navy/30 underline-offset-4" href="/rimec/clasico">
+              /rimec/clasico
+            </Link>
+            . Misma lógica de negocio que Streamlit sobre <code className="rounded bg-report-paper2 px-1 text-xs">v_ventas_pivot</code>.
+          </p>
+          <p>
+            <strong>Secundario:</strong> gestión de <strong>stock</strong> (retail multi-tienda / importadora).
+            Aún <strong>no</strong> hacemos el informe de ventas desglosado por tienda hasta tener esos datos con la
+            misma calidad; cuando los tengamos, fusionamos empresas del holding <strong>a través de los
+            pilares</strong>, sin depender del nombre de columna en cada Excel heredado.
+          </p>
+        </section>
 
-          <aside className="border border-report-rule bg-white p-4 shadow-sm">
-            <p className="font-serif text-xs font-bold uppercase tracking-wider text-report-gold">
-              Figura 0
+        <section className="space-y-4">
+          <h2 className="font-serif text-xl font-bold text-report-navy">2. Grada y distribución</h2>
+          <p>
+            Identificamos <strong>caja cerrada</strong> (ej. <code className="rounded bg-report-paper2 px-1 text-xs">34(1 2 3 3 2 1)</code>) y{" "}
+            <strong>curva abierta</strong> mapeada a pares por talla, por ejemplo: 34→1, 35→2, 36→3, 37→3,
+            38→2, 39→1. Es la misma semántica que pedís en operación y en informes.
+          </p>
+        </section>
+
+        <section className="flex flex-wrap gap-3 border-t border-report-rule pt-8">
+          <Link
+            href="/rimec"
+            className="inline-flex border border-report-navy bg-report-navy px-6 py-3 text-sm font-semibold text-report-paper shadow-sm transition hover:bg-report-navy2"
+          >
+            Ir a RIMEC
+          </Link>
+          <Link
+            href="/retail"
+            className="inline-flex border border-report-rule bg-white px-6 py-3 text-sm font-semibold text-report-navy shadow-sm transition hover:bg-report-paper2"
+          >
+            Stock / Retail
+          </Link>
+          <Link
+            href="/informes"
+            className="inline-flex border border-report-rule bg-report-paper2 px-6 py-3 text-sm font-semibold text-report-navy transition hover:bg-white"
+          >
+            Anexo documental (PE)
+          </Link>
+        </section>
+
+        <section className="grid gap-8 border-t border-report-rule pt-10 lg:grid-cols-[1fr_260px]">
+          <div className="space-y-3 text-report-muted">
+            <h3 className="font-serif text-lg font-semibold text-report-navy">Figura de apoyo</h3>
+            <p className="text-sm">
+              Imagen de producto vía Storage público (opcional). La estrella sigue siendo la analítica de
+              ventas.
             </p>
-            <p className="mt-1 font-sans text-xs font-semibold text-report-navy">Ilustración de producto (demo)</p>
-            <div className="relative mt-3 aspect-square w-full overflow-hidden border border-report-rule bg-report-paper2">
+          </div>
+          <aside className="border border-report-rule bg-white p-4 shadow-sm">
+            <div className="relative aspect-square w-full overflow-hidden border border-report-rule bg-report-paper2">
               {demoImage ? (
                 <Image
                   src={demoImage}
-                  alt="Producto — almacenamiento Supabase"
+                  alt="Producto — Supabase Storage"
                   fill
                   className="object-contain p-3"
-                  sizes="280px"
-                  priority
+                  sizes="260px"
                 />
               ) : (
-                <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-1 p-4 text-center font-sans text-xs text-report-muted">
-                  <p>Sin imagen configurada.</p>
-                  <p>
-                    {supabaseConfigured
-                      ? "Definí NEXT_PUBLIC_SAMPLE_PRODUCT_PATH."
-                      : "Completá NEXT_PUBLIC_SUPABASE_URL en .env.local."}
-                  </p>
+                <div className="flex h-full min-h-[160px] flex-col items-center justify-center p-4 text-center text-xs text-report-muted">
+                  <p>Sin imagen.</p>
+                  <p>{supabaseConfigured ? "NEXT_PUBLIC_SAMPLE_PRODUCT_PATH" : "NEXT_PUBLIC_SUPABASE_URL"}</p>
                 </div>
               )}
             </div>
@@ -112,7 +115,9 @@ export default function HomePage() {
         </section>
       </main>
 
-      <ReportFooter />
+      <ReportFooter
+        note="Política de pilares: si el elemento no existe en el maestro correspondiente, se inserta en importación; si existe, no se actualiza por importación — la corrección fina es por editores (rango de línea, linea_referencia, motor de precios)."
+      />
     </div>
   );
 }

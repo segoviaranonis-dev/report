@@ -20,3 +20,56 @@ body {
 .report-table td {
   @apply border border-report-rule px-3 py-2 text-report-ink;
 }
+
+/* Estilos de impresión para PDF */
+@media print {
+  @page {
+    size: landscape;
+    margin: 1.5cm;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+  }
+
+  h1 { font-size: 18pt; }
+  h2 { font-size: 14pt; }
+  h3 { font-size: 12pt; }
+
+  /* Ocultar elementos no imprimibles */
+  button,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Forzar colores para impresión */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Evitar saltos de página dentro de elementos */
+  table, tr, td, th, section {
+    page-break-inside: avoid;
+  }
+
+  /* Mejorar legibilidad de tablas */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold;
+  }
+}

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ReportAppNav } from "@/components/report/ReportAppNav";
 import { ReportCover } from "@/components/report/ReportCover";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { ReportSection } from "@/components/report/ReportSection";
@@ -8,14 +8,7 @@ const today = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new
 export default function InformesPage() {
   return (
     <div className="min-h-screen pb-16">
-      <div className="bg-report-navy text-report-paper">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-6 py-2.5 text-xs font-sans">
-          <span className="opacity-90">Informe principal</span>
-          <Link href="/" className="underline decoration-report-paper/40 underline-offset-4 hover:opacity-90">
-            ← Portada
-          </Link>
-        </div>
-      </div>
+      <ReportAppNav active="informes" title="Anexo documental (PE)" maxWidthClass="max-w-3xl" />
 
       <ReportCover
         title="Informe operativo de stock y ventas"

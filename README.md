@@ -2,7 +2,7 @@
 
 Panel ejecutivo para **ventas, stock y reposición**, con **presentación tipo informe institucional** (papel, tipografía sobria, secciones numeradas). Las imágenes de producto se sirven desde el **mismo Supabase Storage** que ya usa la operación (bucket `productos`, URLs públicas).
 
-Streamlit sigue siendo el **centro de control** de importación y proceso; este proyecto es la cara “demo dirección”.
+Streamlit sigue siendo el **centro de control** de importación y proceso; este proyecto es la cara dirección. **Sales Report web v1.0.0** (ruta `/rimec`) es la versión sellada del informe inmersivo + snapshot; `/rimec/clasico` conserva las ocho tablas estilo Streamlit.
 
 ## Roles de trabajo (juego de roles)
 

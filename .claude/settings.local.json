@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force })",
+      "PowerShell(curl http://localhost:3000/api/rimec/meta -UseBasicParsing)",
+      "PowerShell(cd \"C:\\\\Users\\\\hecto\\\\Documents\\\\Prg_locales\\\\report\"; $env:DATABASE_URL=\"postgres://postgres.extrlcvcgypwazxipvqm:IJoFJbT8Qj0Q0w5m@aws-1-sa-east-1.pooler.supabase.com:6543/postgres\"; node verify-view.js)",
+      "PowerShell(npm run start)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3001/api/consulta-pilar?pares=1214:1073,1214:1075,1388:500\" -Method Get)",
+      "PowerShell($query = \"SELECT column_name FROM information_schema.columns WHERE table_name = 'factura_interna_detalle' ORDER BY ordinal_position\"; python -c \"import psycopg2; conn = psycopg2.connect\\('postgres://postgres.extrlcvcgypwazxipvqm:IJoFJbT8Qj0Q0w5m@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'\\); cur = conn.cursor\\(\\); cur.execute\\(\\\\\"\\\\\"\\\\\"$query\\\\\"\\\\\"\\\\\"\\); print\\('\\\\n'.join\\([r[0] for r in cur.fetchall\\(\\)]\\)\\)\")",
+      "PowerShell(cd C:\\\\Users\\\\hecto\\\\Documents\\\\Prg_locales\\\\ventas_por_mes_rimec-main; python -c \"import psycopg2; conn = psycopg2.connect\\('postgres://postgres.extrlcvcgypwazxipvqm:IJoFJbT8Qj0Q0w5m@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'\\); cur = conn.cursor\\(\\); cur.execute\\('SELECT nro_factura, lista_precio_id, caso, caso_id, marca FROM factura_interna WHERE nro_factura = ''1-PV001'''\\); row = cur.fetchone\\(\\); print\\(f'FI {row[0]}: lista_precio_id={row[1]}, caso=\\\\\"{row[2]}\\\\\", caso_id={row[3]}, marca={row[4]}'\\); cur.close\\(\\); conn.close\\(\\)\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\hecto\\\\Documents\\\\Prg_locales\\\\ventas_por_mes_rimec-main\\\\modules\" -Directory | ForEach-Object { $_.Name })"
+    ]
+  }
+}
