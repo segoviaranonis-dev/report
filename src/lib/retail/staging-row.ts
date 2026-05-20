@@ -3,8 +3,8 @@ export type RetailStagingRow = {
   origen_tienda: string;
   tipo_movimiento: string;
   fecha_mov: string;
-  linea_code: string;
-  referencia_code: string;
+  linea_codigo_proveedor: string;
+  referencia_codigo_proveedor: string;
   material_id: number;
   color_id: number;
   /** Código para nombre de archivo en Storage: Excel (035) si existe; si no, maestro salvo sentinela -999001. */
@@ -37,11 +37,11 @@ export type RetailStagingRow = {
  */
 export const RETAIL_STAGING_SELECT_SQL = `
   SELECT
-    s.origen_tienda,
+    s.origen_holding AS origen_tienda,
     s.tipo_movimiento,
     s.fecha_mov::text AS fecha_mov,
-    s.linea_code,
-    s.referencia_code,
+    s.linea_codigo_proveedor,
+    s.referencia_codigo_proveedor,
     s.material_id,
     s.color_id,
     COALESCE(
@@ -91,16 +91,16 @@ export const RETAIL_STAGING_SELECT_SQL = `
   FROM public.retail_multitienda_staging s
   LEFT JOIN public.linea l
     ON (
-      trim(both from s.linea_code) ~ '^[0-9]+$'
+      trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
       AND (
-        l.id = trim(s.linea_code)::bigint
-        OR l.codigo_proveedor = trim(s.linea_code)::bigint
+        l.id = trim(s.linea_codigo_proveedor)::bigint
+        OR l.codigo_proveedor = trim(s.linea_codigo_proveedor)::bigint
       )
     )
   LEFT JOIN public.referencia r
     ON r.linea_id = l.id
-    AND trim(both from s.referencia_code) ~ '^[0-9]+$'
-    AND r.codigo_proveedor = trim(s.referencia_code)::bigint
+    AND trim(both from s.referencia_codigo_proveedor) ~ '^[0-9]+$'
+    AND r.codigo_proveedor = trim(s.referencia_codigo_proveedor)::bigint
   LEFT JOIN public.material mat ON mat.id = s.material_id
   LEFT JOIN public.color col ON col.id = s.color_id
   LEFT JOIN public.marca_v2 mv ON mv.id_marca = s.marca_id

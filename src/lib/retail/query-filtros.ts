@@ -18,7 +18,7 @@ export async function loadRetailFiltrosForBatch(batchId: string): Promise<Retail
     grupo_estilo_id: number | null;
     descp_grupo_estilo: string | null;
     linea_id: number | null;
-    linea_code: string | null;
+    linea_codigo_proveedor: string | null;
     tipo_1_id: number | null;
     descp_tipo_1: string | null;
     descp_color: string | null;
@@ -30,14 +30,14 @@ export async function loadRetailFiltrosForBatch(batchId: string): Promise<Retail
       s.grupo_estilo_id,
       ge.descp_grupo_estilo,
       l.id AS linea_id,
-      trim(s.linea_code) AS linea_code,
+      trim(s.linea_codigo_proveedor) AS linea_codigo_proveedor,
       s.tipo_1_id,
       t1.descp_tipo_1,
       col.nombre AS descp_color
-    FROM public.retail_multitienda_staging s
+    FROM public.registro_st_vt_rc_reposicion s
     LEFT JOIN public.linea l
-      ON trim(both from s.linea_code) ~ '^[0-9]+$'
-      AND (l.id = trim(s.linea_code)::bigint OR l.codigo_proveedor = trim(s.linea_code)::bigint)
+      ON trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
+      AND (l.id = trim(s.linea_codigo_proveedor)::bigint OR l.codigo_proveedor = trim(s.linea_codigo_proveedor)::bigint)
     LEFT JOIN public.marca_v2 mv ON mv.id_marca = s.marca_id
     LEFT JOIN public.grupo_estilo_v2 ge ON ge.id_grupo_estilo = s.grupo_estilo_id
     LEFT JOIN public.tipo_1 t1 ON t1.id_tipo_1 = s.tipo_1_id
@@ -57,7 +57,7 @@ export async function loadRetailFiltrosForBatch(batchId: string): Promise<Retail
     if (r.marca_id != null && r.descp_marca) marcas.set(r.marca_id, r.descp_marca.trim());
     if (r.grupo_estilo_id != null && r.descp_grupo_estilo)
       estilos.set(r.grupo_estilo_id, r.descp_grupo_estilo.trim());
-    if (r.linea_id != null) lineas.set(r.linea_id, (r.linea_code ?? String(r.linea_id)).trim());
+    if (r.linea_id != null) lineas.set(r.linea_id, (r.linea_codigo_proveedor ?? String(r.linea_id)).trim());
     if (r.tipo_1_id != null && r.descp_tipo_1) tipos.set(r.tipo_1_id, r.descp_tipo_1.trim());
     if (r.descp_color?.trim()) colores.add(r.descp_color.trim());
   }

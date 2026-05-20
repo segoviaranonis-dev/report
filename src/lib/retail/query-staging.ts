@@ -21,7 +21,7 @@ export async function listRetailBatches(limit = 50): Promise<RetailBatchSummary[
       MAX(fecha_mov)::text AS fecha_max,
       COUNT(*)::int AS filas,
       MAX(created_at)::text AS cargado_en
-    FROM public.retail_multitienda_staging
+    FROM public.registro_st_vt_rc_reposicion
     GROUP BY batch_id, batch_label, archivo_origen
     ORDER BY MAX(created_at) DESC NULLS LAST
     LIMIT $1
@@ -43,7 +43,7 @@ export async function resolveRetailBatchId(batchId?: string | null): Promise<str
   const pool = getRimecPool();
   const { rows } = await pool.query<{ batch_id: string }>(`
     SELECT batch_id::text AS batch_id
-    FROM public.retail_multitienda_staging
+    FROM public.registro_st_vt_rc_reposicion
     GROUP BY batch_id
     ORDER BY MAX(created_at) DESC NULLS LAST
     LIMIT 1
