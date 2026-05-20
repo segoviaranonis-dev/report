@@ -70,7 +70,7 @@ function TablaImportadora({ bloque }: { bloque: ImportadoraBloque }) {
       <tbody>
         <tr>
           <th className="border border-white/15 bg-white/[0.03] px-2 py-2 text-left text-[10px] font-normal uppercase tracking-wide text-white/55">
-            Importadora
+            RIMEC
           </th>
           <td className="border border-white/15 px-2 py-2">
             <span className="text-[10px] uppercase tracking-wider text-white/45">Stock</span>
