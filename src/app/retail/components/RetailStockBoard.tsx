@@ -2,7 +2,7 @@ import type { ColumnaStockRetail, ImportadoraBloque, TiendaTallaBloque } from "@
 import { RetailProductImage } from "./RetailProductImage";
 
 function fmt(n: number | null) {
-  if (n === null) return "—";
+  if (n === null || n === 0) return "—";
   return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
 }
 

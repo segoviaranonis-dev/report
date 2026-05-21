@@ -189,15 +189,15 @@ function blocksToColumna(
   const mat = meta.descp_material?.trim();
   const col = meta.descp_color?.trim();
   const pilarHint = mat || col ? ` · ${[mat, col].filter(Boolean).join(" / ")}` : "";
-  const etiqueta = `L${normCodigo(meta.linea_code)} R${normCodigo(meta.referencia_code)} - ${Math.round(ventaPares)} pares ${marca}${pilarHint}`;
+  const etiqueta = `L${normCodigo(meta.linea_codigo_proveedor)} R${normCodigo(meta.referencia_codigo_proveedor)} - ${Math.round(ventaPares)} pares ${marca}${pilarHint}`;
 
   const importadora = impBlocks.length
     ? blockToImportadora(impBlocks[0]!)
     : { etiquetaGrada: "—", stockTotal: 0 };
 
   const cands = productImageCandidates(
-    meta.linea_code,
-    meta.referencia_code,
+    meta.linea_codigo_proveedor,
+    meta.referencia_codigo_proveedor,
     meta.material_code,
     meta.color_code,
   );
@@ -208,8 +208,8 @@ function blocksToColumna(
     imageCandidates: cands,
     imageSrc: cands[0],
     imageSearchName: productImagePrimaryFileName(
-      meta.linea_code,
-      meta.referencia_code,
+      meta.linea_codigo_proveedor,
+      meta.referencia_codigo_proveedor,
       meta.material_code,
       meta.color_code,
     ),

@@ -1,8 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ReportAppNav } from "@/components/report/ReportAppNav";
-import { ReportCover } from "@/components/report/ReportCover";
-import { ReportFooter } from "@/components/report/ReportFooter";
+import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { publicStorageObjectUrl } from "@/lib/storage-public-url";
 
 function resolveDemoImageUrl(): string {
@@ -15,109 +13,145 @@ function resolveDemoImageUrl(): string {
 
 export default function HomePage() {
   const demoImage = resolveDemoImageUrl();
-  const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const today = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date());
 
   return (
-    <div className="min-h-screen">
-      <ReportAppNav active="home" />
+    <div className="min-h-screen bg-[#070b12] text-[#f8fafc] font-sans selection:bg-[#D4AF37]/30 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#070b12] to-black">
+      {/* Header global unificado */}
+      <NexusGlobalHeader active="home" title="Catálogo de Herramientas Financieras y Stock" />
 
-      <ReportCover
-        title="Misión, visión y políticas de desarrollo"
-        subtitle="Esta herramienta es una pieza del paquete completo del holding: hablamos un solo idioma — el de los pilares (proveedor, línea, referencia, material, color y distribución / grada). El pedido original es un reporte de venta diario ligado al stock y a la disponibilidad de la importadora; hoy usamos columnas y orígenes de ejemplo (Tienda_1, Tienda_2, Tienda_3) hasta normalizar en nuestras propias tablas de stock y movimiento, absorber la empresa importadora RIMEC y sustituir su sistema operativo actual."
-        meta={
-          <p>
-            <span className="font-semibold text-report-navy">Actualización:</span> {today}
-            <span className="mx-2 text-report-rule">|</span>
-            <span className="font-semibold text-report-navy">Clasificación:</span> Uso interno — holding
+      <main className="mx-auto max-w-5xl px-6 py-16 space-y-12">
+        {/* Banner de Bienvenida Premium */}
+        <section className="space-y-4 rounded-2xl border border-slate-800/80 bg-[#0f172a]/40 p-8 backdrop-blur-md relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-[#D4AF37]/5 rounded-full blur-3xl pointer-events-none" />
+          <span className="text-xs uppercase tracking-widest text-[#D4AF37] font-semibold">
+            Consolidado Corporativo
+          </span>
+          <h2 className="font-serif text-3xl font-light tracking-wide text-white">
+            Centro de Mando Comercial y Financiero
+          </h2>
+          <p className="max-w-2xl text-sm leading-relaxed text-[#94a3b8]">
+            Portal de control estratégico y auditoría analítica de RIMEC. Acceso unificado a herramientas 
+            de facturación, rendimiento de marcas y conciliación de stock bajo el estándar molecular de pilares.
           </p>
-        }
-      />
+        </section>
 
-      <main className="mx-auto max-w-5xl space-y-10 px-6 py-12 font-sans text-[15px] leading-relaxed text-report-ink">
-        <section className="space-y-4">
-          <h2 className="font-serif text-xl font-bold text-report-navy">1. Prioridad de producto</h2>
-          <p>
-            <strong>RIMEC</strong> — informe de ventas en <strong>Sales Report web v1.0.0</strong>: vista principal inmersiva en{" "}
-            <Link className="font-semibold underline decoration-report-navy/30 underline-offset-4" href="/rimec">
-              /rimec
-            </Link>{" "}
-            (snapshot único, KPIs, evolución, clientes, marcas, vendedores). La vista clásica de ocho tablas + PDF vive en{" "}
-            <Link className="underline decoration-report-navy/30 underline-offset-4" href="/rimec/clasico">
-              /rimec/clasico
+        {/* Grid de Cards ejecutivas */}
+        <section className="grid gap-6 md:grid-cols-3">
+          {/* Card 1: Inteligencia de Ventas */}
+          <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-[#D4AF37]/40 hover:bg-[#0f172a]/60">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-[#D4AF37]">
+                  Ventas
+                </span>
+                <span className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded font-bold uppercase tracking-wide">
+                  BI ACTIVO
+                </span>
+              </div>
+              <h3 className="font-serif text-xl text-white font-medium">
+                Inteligencia de Ventas
+              </h3>
+              <p className="text-xs leading-relaxed text-[#94a3b8]">
+                Visualización inmersiva de facturación por mes, desempeño de marcas, 
+                análisis de clientes mayoristas, KPIs y efectividad comercial.
+              </p>
+            </div>
+            <Link 
+              href="/rimec"
+              className="mt-6 inline-flex w-full justify-center items-center rounded-lg bg-[#D4AF37] py-2.5 text-xs font-semibold text-[#070b12] hover:bg-[#B89329] transition-colors duration-300"
+            >
+              Ingresar al Dashboard
             </Link>
-            . Misma lógica de negocio que Streamlit sobre <code className="rounded bg-report-paper2 px-1 text-xs">v_ventas_pivot</code>.
-          </p>
-          <p>
-            <strong>Secundario:</strong> gestión de <strong>stock</strong> (retail multi-tienda / importadora).
-            Aún <strong>no</strong> hacemos el informe de ventas desglosado por tienda hasta tener esos datos con la
-            misma calidad; cuando los tengamos, fusionamos empresas del holding <strong>a través de los
-            pilares</strong>, sin depender del nombre de columna en cada Excel heredado.
-          </p>
+          </div>
+
+          {/* Card 2: Stock & Retail */}
+          <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-[#D4AF37]/40 hover:bg-[#0f172a]/60">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-[#D4AF37]">
+                  Inventario
+                </span>
+                <span className="text-[10px] bg-slate-800/80 text-slate-300 px-2 py-0.5 rounded font-medium uppercase tracking-wide">
+                  Multi-Tienda
+                </span>
+              </div>
+              <h3 className="font-serif text-xl text-white font-medium">
+                Stock & Retail
+              </h3>
+              <p className="text-xs leading-relaxed text-[#94a3b8]">
+                Monitoreo integrado de stock. Control de curvas de tallas por marca y distribución 
+                de cajas cerradas a través de los pilares del holding.
+              </p>
+            </div>
+            <Link 
+              href="/retail"
+              className="mt-6 inline-flex w-full justify-center items-center rounded-lg border border-[#D4AF37]/40 py-2.5 text-xs font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors duration-300"
+            >
+              Ver Inventario
+            </Link>
+          </div>
+
+          {/* Card 3: Anexo Documental */}
+          <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-slate-700 hover:bg-[#0f172a]/60">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-slate-400">
+                  Documentos
+                </span>
+              </div>
+              <h3 className="font-serif text-xl text-white font-medium">
+                Anexo Documental
+              </h3>
+              <p className="text-xs leading-relaxed text-[#94a3b8]">
+                Resguardo documental e institucional de Nexus Core. Acceso a políticas operativas, 
+                actas y balances del holding.
+              </p>
+            </div>
+            <Link 
+              href="/informes"
+              className="mt-6 inline-flex w-full justify-center items-center rounded-lg bg-slate-800 py-2.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors duration-300"
+            >
+              Acceder al Historial
+            </Link>
+          </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="font-serif text-xl font-bold text-report-navy">2. Grada y distribución</h2>
-          <p>
-            Identificamos <strong>caja cerrada</strong> (ej. <code className="rounded bg-report-paper2 px-1 text-xs">34(1 2 3 3 2 1)</code>) y{" "}
-            <strong>curva abierta</strong> mapeada a pares por talla, por ejemplo: 34→1, 35→2, 36→3, 37→3,
-            38→2, 39→1. Es la misma semántica que pedís en operación y en informes.
-          </p>
-        </section>
-
-        <section className="flex flex-wrap gap-3 border-t border-report-rule pt-8">
-          <Link
-            href="/rimec"
-            className="inline-flex border border-report-navy bg-report-navy px-6 py-3 text-sm font-semibold text-report-paper shadow-sm transition hover:bg-report-navy2"
-          >
-            Ir a RIMEC
-          </Link>
-          <Link
-            href="/retail"
-            className="inline-flex border border-report-rule bg-white px-6 py-3 text-sm font-semibold text-report-navy shadow-sm transition hover:bg-report-paper2"
-          >
-            Stock / Retail
-          </Link>
-          <Link
-            href="/informes"
-            className="inline-flex border border-report-rule bg-report-paper2 px-6 py-3 text-sm font-semibold text-report-navy transition hover:bg-white"
-          >
-            Anexo documental (PE)
-          </Link>
-        </section>
-
-        <section className="grid gap-8 border-t border-report-rule pt-10 lg:grid-cols-[1fr_260px]">
-          <div className="space-y-3 text-report-muted">
-            <h3 className="font-serif text-lg font-semibold text-report-navy">Figura de apoyo</h3>
-            <p className="text-sm">
-              Imagen de producto vía Storage público (opcional). La estrella sigue siendo la analítica de
-              ventas.
+        {/* Sección de Apoyo con Imagen */}
+        <section className="grid gap-8 border-t border-slate-800/80 pt-10 lg:grid-cols-[1fr_260px] items-center">
+          <div className="space-y-3">
+            <h3 className="font-serif text-lg font-semibold text-[#D4AF37]">
+              Sincronización Maestra de Productos
+            </h3>
+            <p className="text-xs leading-relaxed text-[#94a3b8] max-w-xl">
+              Nuestra política de pilares asegura la consistencia molecular en toda la base de datos de producción: 
+              línea, referencia, material y color. Las imágenes de stock se consultan en tiempo real vía Supabase Storage.
             </p>
           </div>
-          <aside className="border border-report-rule bg-white p-4 shadow-sm">
-            <div className="relative aspect-square w-full overflow-hidden border border-report-rule bg-report-paper2">
+          <div className="border border-slate-800 bg-[#0f172a]/30 p-4 rounded-xl backdrop-blur-sm">
+            <div className="relative aspect-square w-full overflow-hidden border border-slate-800 bg-black/40 rounded-lg">
               {demoImage ? (
                 <Image
                   src={demoImage}
-                  alt="Producto — Supabase Storage"
+                  alt="Producto en Storage"
                   fill
                   className="object-contain p-3"
                   sizes="260px"
                 />
               ) : (
-                <div className="flex h-full min-h-[160px] flex-col items-center justify-center p-4 text-center text-xs text-report-muted">
-                  <p>Sin imagen.</p>
-                  <p>{supabaseConfigured ? "NEXT_PUBLIC_SAMPLE_PRODUCT_PATH" : "NEXT_PUBLIC_SUPABASE_URL"}</p>
+                <div className="flex h-full min-h-[160px] flex-col items-center justify-center p-4 text-center text-xs text-slate-500">
+                  <p className="font-medium text-slate-400">Sin imagen de apoyo</p>
+                  <p className="text-[10px] mt-1">NEXT_PUBLIC_SAMPLE_PRODUCT_PATH</p>
                 </div>
               )}
             </div>
-          </aside>
+          </div>
         </section>
       </main>
 
-      <ReportFooter
-        note="Política de pilares: si el elemento no existe en el maestro correspondiente, se inserta en importación; si existe, no se actualiza por importación — la corrección fina es por editores (rango de línea, linea_referencia, motor de precios)."
-      />
+      {/* Footer ejecutivo */}
+      <footer className="border-t border-slate-900 bg-black/60 py-8 text-center text-[10px] text-[#94a3b8]/40">
+        Uso Exclusivo Interno - Nexus Core · Privacidad de Alta Gestión · © {new Date().getFullYear()} holding
+      </footer>
     </div>
   );
 }

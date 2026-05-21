@@ -11,6 +11,7 @@ export type RetailStagingRow = {
   material_code: string;
   color_code: string;
   marca_id: number | null;
+  genero_id: number | null;
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
   grada: string;
@@ -63,6 +64,7 @@ export const RETAIL_STAGING_SELECT_SQL = `
       ''
     ) AS color_code,
     s.marca_id,
+    s.genero_id,
     s.grupo_estilo_id,
     s.tipo_1_id,
     s.grada,
@@ -88,7 +90,7 @@ export const RETAIL_STAGING_SELECT_SQL = `
       AND mat.id IS NOT NULL
       AND col.id IS NOT NULL
     ) AS pilares_ok
-  FROM public.retail_multitienda_staging s
+  FROM public.registro_st_vt_rc_reposicion s
   LEFT JOIN public.linea l
     ON (
       trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'

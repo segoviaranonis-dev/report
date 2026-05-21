@@ -9,6 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        yellow: {
+          400: "#D4AF37",
+          500: "#B89329",
+        },
         rim: {
           void: "#070b12",
           ink: "#0c1220",

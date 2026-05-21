@@ -78,17 +78,18 @@ export function RetailStockClient({ todayLabel }: Props) {
     void cargar();
   }, [configured, cargar]);
 
-  const columnas =
-    configured && data && data.columnas.length > 0 ? data.columnas : STOCK_BOARD_DEMO_COLUMNAS;
-  const usandoDemo = !configured || !data?.columnas.length;
+  const usandoDemo = !configured || (!data && !loading);
+  const columnas = usandoDemo
+    ? STOCK_BOARD_DEMO_COLUMNAS
+    : (data?.columnas ?? []);
   const kpis = data?.kpis;
   const filas = batches.find((b) => b.batchId === batchId)?.filas;
 
   return (
     <>
-      <section className="border-b border-white/10 bg-[#0a0a0f] text-white">
+      <section className="border-b border-report-rule bg-report-paper text-report-ink">
         <div className="mx-auto max-w-6xl px-4 pb-2 pt-6 sm:px-6">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-report-muted/70">
             Segundo módulo · Informes
           </p>
           {configured && batches.length > 0 ? (
@@ -105,14 +106,19 @@ export function RetailStockClient({ todayLabel }: Props) {
           ) : null}
           {data?.pilares && !usandoDemo ? (
             <p
-              className={`mt-2 text-xs ${data.pilares.filasPendientes > 0 ? "text-amber-300" : "text-emerald-300/90"}`}
+              className={`mt-2 text-xs ${data.pilares.filasPendientes > 0 ? "text-amber-700" : "text-emerald-700"}`}
             >
               Pilares (FK): {data.pilares.filasOk} OK · {data.pilares.filasPendientes} pendientes —{" "}
               {data.pilares.mensaje}
             </p>
           ) : null}
-          {err ? <p className="mt-2 text-xs text-red-300">{err}</p> : null}
-          <p className="mt-2 text-[11px] text-white/35">
+          {err ? <p className="mt-2 text-xs text-red-700">{err}</p> : null}
+          {configured && data?.columnas.length === 0 ? (
+            <p className="mt-2 text-xs text-amber-700">
+              Sin referencias para estos filtros. Limpiar filtros.
+            </p>
+          ) : null}
+          <p className="mt-2 text-[11px] text-report-muted/70">
             {usandoDemo
               ? `Demostración — ${todayLabel}. Fotos: bucket productos con nombre linea-ref-material_code-color_code (como RIMEC/Bazzar).`
               : `Lote: ${data?.batchLabel || batchId?.slice(0, 8) || "—"} · ${filas ?? "—"} filas · ${todayLabel}`}
@@ -153,10 +159,10 @@ function RetailBatchControls({
 }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3">
-      <label className="text-[11px] text-white/50">
+      <label className="text-[11px] text-report-muted">
         Lote
         <select
-          className="ml-2 rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-white"
+          className="ml-2 rounded border border-report-rule bg-white px-2 py-1 text-xs text-report-ink"
           value={batchIdSelect}
           onChange={(e) => onBatchChange(e.target.value)}
         >
@@ -171,7 +177,7 @@ function RetailBatchControls({
         type="button"
         onClick={() => onRefresh()}
         disabled={loading}
-        className="rounded border border-white/25 px-3 py-1 text-xs text-white/80 hover:bg-white/10 disabled:opacity-40"
+        className="rounded bg-report-navy px-3 py-1 text-xs text-white hover:bg-report-navy2 disabled:opacity-40 transition-colors font-sans"
       >
         {loading ? "Cargando…" : "Actualizar"}
       </button>

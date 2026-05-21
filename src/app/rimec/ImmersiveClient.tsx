@@ -142,18 +142,12 @@ export function ImmersiveClient() {
     <div className="min-h-screen bg-slate-950 font-sans text-white bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black overflow-x-hidden selection:bg-yellow-500/30">
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-white/10 bg-black/40 px-8 py-2 backdrop-blur-xl">
         <div className="flex items-center gap-4">
-          <h1 className="font-serif text-2xl font-light tracking-widest text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+          <Link href="/" className="font-serif text-2xl font-light tracking-widest text-white hover:opacity-85 transition-opacity drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
             RIMEC
-          </h1>
+          </Link>
           <span className="rounded bg-yellow-400 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
             Sales Report v{SALES_REPORT_WEB_VERSION}
           </span>
-          <Link
-            href="/rimec/clasico"
-            className="text-[10px] font-medium uppercase tracking-widest text-white/40 transition hover:text-white/70"
-          >
-            Vista clásica
-          </Link>
         </div>
         <nav className="flex gap-2">
           {navItem("dashboard", "Dashboard")}

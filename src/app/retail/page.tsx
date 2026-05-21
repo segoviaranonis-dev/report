@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ReportAppNav } from "@/components/report/ReportAppNav";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { ReportSection } from "@/components/report/ReportSection";
+import { RetailArbolSnapshot } from "./components/RetailArbolSnapshot";
 import { RetailStockClient } from "./RetailStockClient";
 
 const today = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date());
@@ -33,24 +34,7 @@ export default function RetailStockPage() {
 
       <article id="documentacion" className="mx-auto max-w-4xl space-y-14 px-6 py-12 scroll-mt-20">
         <ReportSection number="1." title="Resumen operativo">
-          <p>
-            Los KPIs sobre la rejilla se calculan desde <code className="rounded bg-report-paper2 px-1 text-xs">/api/retail/stock-board</code>{" "}
-            leyendo <code className="rounded bg-report-paper2 px-1 text-xs">retail_multitienda_staging</code> (mismo pool que RIMEC).
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              { k: "Pares en red", v: "31.480", n: "Tienda_1 + Tienda_2 + Tienda_3 — placeholder" },
-              { k: "Referencias activas", v: "1.024", n: "Clave compuesta pilares — placeholder" },
-              { k: "Alertas · umbral mínimo", v: "14", n: "Umbral por línea — placeholder" },
-              { k: "Tránsito importadora", v: "2.180", n: "En curso / no disponible en piso — placeholder" },
-            ].map((x) => (
-              <div key={x.k} className="border border-report-rule bg-white px-4 py-4 shadow-sm">
-                <p className="font-sans text-xs font-semibold uppercase tracking-wide text-report-muted">{x.k}</p>
-                <p className="mt-2 font-serif text-3xl font-bold text-report-navy">{x.v}</p>
-                <p className="mt-2 font-sans text-xs text-report-muted">{x.n}</p>
-              </div>
-            ))}
-          </div>
+          <RetailArbolSnapshot />
         </ReportSection>
 
         <ReportSection number="2." title="Pilares (columnas amarillas del Excel)">
@@ -173,7 +157,7 @@ export default function RetailStockPage() {
         </ReportSection>
       </article>
 
-      <ReportFooter note="Retail: la rejilla superior replica el layout de staging (venta/stock por talla e importadora). Los KPIs y tablas en papel son demostración hasta conectar la API." />
+      <ReportFooter note="Retail: rejilla superior por referencia (stock/venta por talla). Resumen operativo = snapshot Excel completo (Ente → Género → Marca → SKU, sin acumular lotes)." />
     </div>
   );
 }

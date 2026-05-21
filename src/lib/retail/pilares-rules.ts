@@ -8,8 +8,8 @@
 
 /** Cabeceras Excel (sinónimos resueltos en Streamlit `map_header_to_canon`). */
 export const EXCEL_COLUMNAS_PILAR = [
-  { excel: "Linea", canon: "linea_code", tabla: "linea", rol: "Código proveedor → linea.id + linea.codigo_proveedor" },
-  { excel: "Referencia", canon: "referencia_code", tabla: "referencia", rol: "Código proveedor → referencia.id (con linea_id)" },
+  { excel: "Linea", canon: "linea_codigo_proveedor", tabla: "linea", rol: "Código proveedor → linea.id + linea.codigo_proveedor" },
+  { excel: "Referencia", canon: "referencia_codigo_proveedor", tabla: "referencia", rol: "Código proveedor → referencia.id (con linea_id)" },
   { excel: "Material", canon: "material_id", tabla: "material", rol: "Código proveedor en Excel → material.id (FK en staging)" },
   { excel: "Color", canon: "color_id", tabla: "color", rol: "Código proveedor en Excel → color.id (FK en staging)" },
   { excel: "Grada", canon: "grada", tabla: null, rol: "Texto en fila (talla 34/38 o caja 34(1 2…)39); no es FK maestro" },
