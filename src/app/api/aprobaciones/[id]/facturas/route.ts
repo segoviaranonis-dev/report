@@ -6,10 +6,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const pedidoId = parseInt(params.id);
+    const { id } = await params;
+    const pedidoId = parseInt(id);
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Obtener facturas internas del pedido

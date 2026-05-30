@@ -2,6 +2,16 @@ import { productImageCandidates, productImagePrimaryFileName } from "@/lib/retai
 import { publicStorageObjectUrl } from "@/lib/storage-public-url";
 
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+const MOLECULA_IMAGEN_RE = /^(\d+)-(\d+)-(\d+)-(\d+)(\.[a-z0-9]{2,5})$/i;
+
+export type ImagenMolecula = {
+  linea_codigo: string;
+  referencia_codigo: string;
+  material_code: string;
+  color_code: string;
+  filename: string;
+  image_url: string;
+};
 
 function cleanImageName(raw: string | null | undefined): string {
   return String(raw ?? "")
@@ -21,6 +31,7 @@ function pushUnique(out: string[], value: string) {
 export function legacyImageCandidates(rawImageName: string | null | undefined): string[] {
   const name = cleanImageName(rawImageName);
   if (!name) return [];
+  if (/^https?:\/\//i.test(name)) return [name];
 
   const candidates: string[] = [];
   if (hasExtension(name)) {
@@ -33,6 +44,21 @@ export function legacyImageCandidates(rawImageName: string | null | undefined): 
   return candidates;
 }
 
+export function parseImagenMolecula(rawImageName: string | null | undefined): ImagenMolecula | null {
+  const filename = cleanImageName(rawImageName).split("/").pop() ?? "";
+  const match = filename.match(MOLECULA_IMAGEN_RE);
+  if (!match) return null;
+
+  return {
+    linea_codigo: match[1],
+    referencia_codigo: match[2],
+    material_code: match[3],
+    color_code: match[4],
+    filename,
+    image_url: publicStorageObjectUrl("productos", filename),
+  };
+}
+
 export function ventaFotoImageCandidates(row: {
   imagen?: string | null;
   linea_codigo?: string | null;
@@ -40,25 +66,28 @@ export function ventaFotoImageCandidates(row: {
   material_code?: string | null;
   color_code?: string | null;
 }): { candidates: string[]; searchName: string | null } {
+  const parsed = parseImagenMolecula(row.imagen);
   const candidates = [
+    ...(parsed?.image_url ? [parsed.image_url] : []),
     ...legacyImageCandidates(row.imagen),
     ...productImageCandidates(
-      row.linea_codigo ?? "",
-      row.referencia_codigo ?? "",
-      row.material_code ?? "",
-      row.color_code ?? "",
+      parsed?.linea_codigo ?? row.linea_codigo ?? "",
+      parsed?.referencia_codigo ?? row.referencia_codigo ?? "",
+      parsed?.material_code ?? row.material_code ?? "",
+      parsed?.color_code ?? row.color_code ?? "",
     ),
   ];
 
   return {
     candidates: [...new Set(candidates)],
     searchName:
+      parsed?.filename ||
       cleanImageName(row.imagen) ||
       productImagePrimaryFileName(
-        row.linea_codigo ?? "",
-        row.referencia_codigo ?? "",
-        row.material_code ?? "",
-        row.color_code ?? "",
+        parsed?.linea_codigo ?? row.linea_codigo ?? "",
+        parsed?.referencia_codigo ?? row.referencia_codigo ?? "",
+        parsed?.material_code ?? row.material_code ?? "",
+        parsed?.color_code ?? row.color_code ?? "",
       ),
   };
 }

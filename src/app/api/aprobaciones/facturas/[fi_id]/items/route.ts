@@ -6,10 +6,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(
   request: Request,
-  { params }: { params: { fi_id: string } }
+  { params }: { params: Promise<{ fi_id: string }> }
 ) {
   try {
-    const fiId = parseInt(params.fi_id);
+    const { fi_id } = await params;
+    const fiId = parseInt(fi_id);
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Obtener items de la factura interna
@@ -35,7 +36,7 @@ export async function GET(
 
     // Transformar datos y parsear snapshot
     const items = (data || []).map((item: any) => {
-      let snapshot = {};
+      let snapshot: Record<string, any> = {};
       if (item.linea_snapshot) {
         try {
           snapshot = typeof item.linea_snapshot === "string"

@@ -3,6 +3,8 @@ export type VentaFotoTipo = "VENTA" | "TRANSITO" | "DESCONOCIDO";
 export type VentasFotosMarca = {
   id_marca: number;
   descp_marca: string;
+  id_tipo?: number;
+  descp_tipo?: string;
 };
 
 export type VentasFotosMetaResponse = {
@@ -31,10 +33,13 @@ export type VentaFotoRow = {
   imagen: string;
   id_tipo: number | null;
   desc_tipo: string;
+  id_categoria: number | null;
+  descp_categoria: string;
   linea_codigo: string | null;
   referencia_codigo: string | null;
   material_code: string | null;
   color_code: string | null;
+  molecule_valid: boolean;
   image_candidates: string[];
   image_search_name: string | null;
 };
@@ -53,6 +58,7 @@ export type VentasFotosResponse = {
   kpis: VentasFotosKpis;
   cliente: { id: string; nombre: string } | null;
   marca: VentasFotosMarca | null;
+  tipo: { id: number; nombre: string };
   columnasDetectadas: string[];
   message?: string;
   error?: string;

@@ -12,7 +12,7 @@ import type {
 
 const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 
-const DEMO_MARCAS: VentasFotosMarca[] = [{ id_marca: 1, descp_marca: "Marca demo" }];
+const DEMO_MARCAS: VentasFotosMarca[] = [{ id_marca: 1, descp_marca: "BEIRA RIO", id_tipo: 1, descp_tipo: "CALZADOS" }];
 
 const DEMO_ROWS: VentaFotoRow[] = [
   {
@@ -23,16 +23,19 @@ const DEMO_ROWS: VentaFotoRow[] = [
     monto: 1200000,
     preventa: 1,
     tipo_venta: "VENTA",
-    descp_marca: "Marca demo",
-    imagen: "1184-100",
+    descp_marca: "BEIRA RIO",
+    imagen: "4076-1350-9569-15745.jpg",
     id_tipo: 1,
-    desc_tipo: "Calzado",
-    linea_codigo: "1184",
-    referencia_codigo: "100",
-    material_code: null,
-    color_code: null,
-    image_candidates: [],
-    image_search_name: "1184-100.jpg",
+    desc_tipo: "CALZADOS",
+    id_categoria: 1,
+    descp_categoria: "PRE VENTA",
+    linea_codigo: "4076",
+    referencia_codigo: "1350",
+    material_code: "9569",
+    color_code: "15745",
+    molecule_valid: true,
+    image_candidates: ["https://extrlcvcgypwazxipvqm.supabase.co/storage/v1/object/public/productos/4076-1350-9569-15745.jpg"],
+    image_search_name: "4076-1350-9569-15745.jpg",
   },
   {
     id_cliente: "5000",
@@ -42,16 +45,19 @@ const DEMO_ROWS: VentaFotoRow[] = [
     monto: 800000,
     preventa: 2,
     tipo_venta: "TRANSITO",
-    descp_marca: "Marca demo",
-    imagen: "1184-101",
+    descp_marca: "BEIRA RIO",
+    imagen: "4122-1400-9569-15745.jpg",
     id_tipo: 1,
-    desc_tipo: "Tránsito",
-    linea_codigo: "1184",
-    referencia_codigo: "101",
-    material_code: null,
-    color_code: null,
+    desc_tipo: "CALZADOS",
+    id_categoria: 2,
+    descp_categoria: "PROGRAMADO",
+    linea_codigo: "4122",
+    referencia_codigo: "1400",
+    material_code: "9569",
+    color_code: "15745",
+    molecule_valid: true,
     image_candidates: [],
-    image_search_name: "1184-101.jpg",
+    image_search_name: "4122-1400-9569-15745.jpg",
   },
 ];
 
@@ -150,8 +156,8 @@ export function VentasFotosClient() {
               Informe de compras y tránsito con fotos
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-report-muted">
-              Reemplaza la app PyQt/MySQL legacy: mismo filtro por cliente, fecha, marca y referencia; datos servidos por
-              Report y fotos desde Storage.
+              Reemplaza la app PyQt/MySQL legacy: ventas de CALZADOS (`tipo_v2.id_tipo = 1`), marca por tipo,
+              monto del período y fotos desde Storage.
             </p>
           </div>
           <button
@@ -325,9 +331,9 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
             <th>Fecha</th>
             <th>Referencia</th>
             <th className="text-right">Cantidad</th>
+            <th>Monto</th>
             <th>Tipo venta</th>
-            <th>Descripción tipo</th>
-            <th>Pilares detectados</th>
+            <th>Categoría</th>
           </tr>
         </thead>
         <tbody>
@@ -346,6 +352,11 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
               <td className="tabular-nums">{row.fecha}</td>
               <td className="font-mono text-xs">{row.imagen || "—"}</td>
               <td className="text-right tabular-nums">{fmtInt.format(row.cantidad)}</td>
+              <td className="text-right tabular-nums">
+                {new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 }).format(
+                  Math.abs(row.monto),
+                )}
+              </td>
               <td>
                 <span
                   className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
@@ -359,10 +370,13 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
                   {row.tipo_venta}
                 </span>
               </td>
-              <td>{row.desc_tipo || "—"}</td>
-              <td className="font-mono text-[11px] text-report-muted">
-                L{row.linea_codigo ?? "—"} · R{row.referencia_codigo ?? "—"} · M{row.material_code ?? "—"} · C
-                {row.color_code ?? "—"}
+              <td>
+                {row.descp_categoria || "—"}
+                {!row.molecule_valid ? (
+                  <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                    Imagen sin molécula L-R-M-C
+                  </span>
+                ) : null}
               </td>
             </tr>
           ))}
