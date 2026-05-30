@@ -105,7 +105,7 @@ export function VentasFotosClient() {
 
   const configured = meta?.configured === true;
   const marcas = meta?.marcas.length ? meta.marcas : DEMO_MARCAS;
-  const rows = data?.rows ?? (!configured ? DEMO_ROWS : []);
+  const rows = useMemo(() => data?.rows ?? (!configured ? DEMO_ROWS : []), [configured, data]);
   const kpis = data?.kpis ?? emptyKpis(rows);
   const cliente = data?.cliente ?? (rows[0] ? { id: rows[0].id_cliente, nombre: rows[0].descp_cliente } : null);
   const marca = data?.marca ?? marcas.find((m) => m.id_marca === filters.marcaId) ?? null;
