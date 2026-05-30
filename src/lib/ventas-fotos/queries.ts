@@ -200,7 +200,7 @@ export async function fetchVentasFotos(
         ${sqlNumeric("v", cantidadCol)}::float8 AS cantidad,
         ${sqlText("v", preventaCol, "NULL")} AS preventa,
         TRIM(m.descp_marca)::text AS descp_marca,
-        COALESCE(${sqlText("v", imagenCol)}, ${sqlText("v", referenciaCol)}, '')::text AS imagen,
+        COALESCE(${sqlText("v", imagenCol, "NULL")}, ${sqlText("v", referenciaCol, "NULL")}, '')::text AS imagen,
         ${idTipoExpr}::integer AS id_tipo,
         COALESCE(TRIM(t.descp_tipo)::text, '') AS desc_tipo,
         ${sqlText("v", lineaCol, "NULL")} AS linea_codigo,
