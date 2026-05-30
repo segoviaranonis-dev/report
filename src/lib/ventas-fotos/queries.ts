@@ -158,16 +158,14 @@ export async function fetchVentasFotos(
   const cantidadCol = firstCol(ventasCols, ["cantidad", "pares", "cantidad_pares", "cantidad_venta"]);
   const montoCol = firstCol(ventasCols, ["monto", "total", "importe", "monto_total"]);
   const preventaCol = firstCol(ventasCols, ["preventa", "tipo_venta", "estado_venta", "estado"]);
-  const imagenCol = firstCol(ventasCols, ["imagen", "image", "foto", "archivo_imagen", "referencia"]);
-  const lineaCol = firstCol(ventasCols, ["linea_codigo", "codigo_linea", "linea_codigo_proveedor", "linea"]);
-  const referenciaCol = firstCol(ventasCols, [
-    "referencia_codigo",
-    "codigo_referencia",
-    "referencia_codigo_proveedor",
-    "referencia",
-  ]);
-  const materialCol = firstCol(ventasCols, ["material_code", "material_codigo", "excel_material_code", "material"]);
-  const colorCol = firstCol(ventasCols, ["color_code", "color_codigo", "excel_color_code", "color"]);
+  const imagenCol = firstCol(ventasCols, ["imagen", "image", "foto", "archivo_imagen"]);
+
+  // Nota: registro_ventas_general_v2 NO tiene columnas de pilares (linea_codigo, referencia_codigo, etc)
+  // Solo tiene la columna 'imagen' con el nombre completo del archivo
+  const lineaCol = null;
+  const referenciaCol = null;
+  const materialCol = null;
+  const colorCol = null;
   const idTipoCol = firstCol(ventasCols, ["id_tipo"]);
 
   const values: unknown[] = [
@@ -184,11 +182,7 @@ export async function fetchVentasFotos(
     `${col("v", "id_tipo")} = 1`, // FILTRO: Solo CALZADOS
   ];
 
-  const textFilterExpr = imagenCol
-    ? sqlText("v", imagenCol)
-    : referenciaCol
-      ? sqlText("v", referenciaCol)
-      : "''";
+  const textFilterExpr = imagenCol ? sqlText("v", imagenCol) : "''";
   if (filters.referenciaPrefix?.trim()) {
     values.push(`${filters.referenciaPrefix.trim()}%`);
     where.push(`UPPER(COALESCE(${textFilterExpr}, '')) LIKE UPPER($${values.length})`);
@@ -207,13 +201,13 @@ export async function fetchVentasFotos(
         ${montoCol ? `${sqlNumeric("v", montoCol)}::float8` : "0::float8"} AS monto,
         ${sqlText("v", preventaCol, "NULL")} AS preventa,
         TRIM(m.descp_marca)::text AS descp_marca,
-        COALESCE(${sqlText("v", imagenCol, "NULL")}, ${sqlText("v", referenciaCol, "NULL")}, '')::text AS imagen,
+        COALESCE(${sqlText("v", imagenCol, "NULL")}, '')::text AS imagen,
         ${idTipoExpr}::integer AS id_tipo,
         COALESCE(TRIM(t.descp_tipo)::text, '') AS desc_tipo,
-        ${sqlText("v", lineaCol, "NULL")} AS linea_codigo,
-        ${sqlText("v", referenciaCol, "NULL")} AS referencia_codigo,
-        ${sqlText("v", materialCol, "NULL")} AS material_code,
-        ${sqlText("v", colorCol, "NULL")} AS color_code
+        NULL::text AS linea_codigo,
+        NULL::text AS referencia_codigo,
+        NULL::text AS material_code,
+        NULL::text AS color_code
       FROM ${qTable(TABLE_VENTAS)} v
       JOIN cliente_v2 c ON ${col("v", "id_cliente")} = c.id_cliente
       JOIN marca_v2 m ON ${col("v", "id_marca")} = m.id_marca
