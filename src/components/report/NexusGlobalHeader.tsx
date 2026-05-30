@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export type NexusNavKey = "home" | "rimec" | "retail" | "informes";
+export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "informes";
 
 const baseLink = "text-xs tracking-widest uppercase text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
 const activeLink = "text-xs tracking-widest uppercase text-[#D4AF37] font-semibold py-1.5 border-b-2 border-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
@@ -35,6 +35,9 @@ export function NexusGlobalHeader({ active, title, maxWidthClass = "max-w-5xl" }
           </Link>
           <Link href="/retail" className={active === "retail" ? activeLink : baseLink}>
             Stock / Retail
+          </Link>
+          <Link href="/ventas-fotos" className={active === "ventas-fotos" ? activeLink : baseLink}>
+            Ventas + Fotos
           </Link>
           <Link href="/informes" className={active === "informes" ? activeLink : baseLink}>
             Anexo Documental

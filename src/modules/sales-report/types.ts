@@ -34,6 +34,7 @@ export type UsuarioCategoria = "ADMIN" | "SU" | string;
 export type ReportModuleKey =
   | "sales_report"
   | "sales_report_importadora"
+  | "ventas_fotos"
   | "retail_multitienda"
   | "informes";
 

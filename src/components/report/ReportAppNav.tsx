@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export type ReportNavKey = "home" | "rimec" | "retail" | "informes";
+export type ReportNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "informes";
 
 const base = "underline decoration-report-paper/40 underline-offset-4 hover:opacity-90";
 const active = "font-semibold underline decoration-report-paper underline-offset-4";
@@ -27,6 +27,9 @@ export function ReportAppNav({ active, title, maxWidthClass = "max-w-5xl" }: Pro
           </Link>
           <Link href="/retail" className={active === "retail" ? active : base}>
             Stock / Retail
+          </Link>
+          <Link href="/ventas-fotos" className={active === "ventas-fotos" ? active : base}>
+            Ventas + fotos
           </Link>
           <Link href="/informes" className={active === "informes" ? active : base}>
             Anexo documental

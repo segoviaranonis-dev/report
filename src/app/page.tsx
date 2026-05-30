@@ -36,7 +36,7 @@ export default function HomePage() {
         </section>
 
         {/* Grid de Cards ejecutivas */}
-        <section className="grid gap-6 md:grid-cols-3">
+        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {/* Card 1: Inteligencia de Ventas */}
           <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-[#D4AF37]/40 hover:bg-[#0f172a]/60">
             <div className="space-y-3">
@@ -91,7 +91,33 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Card 3: Anexo Documental */}
+          {/* Card 3: Ventas con fotos */}
+          <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-[#D4AF37]/40 hover:bg-[#0f172a]/60">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-[#D4AF37]">
+                  Fotos
+                </span>
+                <span className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded font-bold uppercase tracking-wide">
+                  Nuevo
+                </span>
+              </div>
+              <h3 className="font-serif text-xl text-white font-medium">
+                Ventas con Fotos
+              </h3>
+              <p className="text-xs leading-relaxed text-[#94a3b8]">
+                Absorción del informe legacy de compras y tránsito por cliente, marca, período y referencia con miniaturas.
+              </p>
+            </div>
+            <Link
+              href="/ventas-fotos"
+              className="mt-6 inline-flex w-full justify-center items-center rounded-lg border border-[#D4AF37]/40 py-2.5 text-xs font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors duration-300"
+            >
+              Abrir Informe
+            </Link>
+          </div>
+
+          {/* Card 4: Anexo Documental */}
           <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-slate-700 hover:bg-[#0f172a]/60">
             <div className="space-y-3">
               <div className="flex items-center justify-between">

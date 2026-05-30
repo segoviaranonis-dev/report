@@ -38,6 +38,7 @@ Documento vivo para alinear producto, seguridad y entregas. **ADMIN** = referenc
 |--------|----------|-------------------|
 | **Sales Report** | `/sales-report` | **Estrella** — paridad lógica y visual con Streamlit (`QueryCenter`, `SalesLogic`, PDF, filtros). |
 | **Stock / Retail** | `/retail` | **Secundario** — multi-tienda / importadora, pilares y grada hasta absorción en tablas propias. |
+| **Ventas con fotos** | `/ventas-fotos` | Absorbe `info_ventas_fotos`: compras/tránsito por cliente, marca, período y referencia con miniaturas desde Storage. |
 | **Portada** | `/` | **Misión, visión y políticas** — una herramienta del paquete; idioma de pilares. |
 | Anexo documental | `/informes` | Formato informe institucional (PE); no sustituye a Sales Report. |
 
