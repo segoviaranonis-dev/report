@@ -80,10 +80,13 @@ function num(v: unknown): number {
 
 function computeKpis(rows: VentaFotoRow[]): VentasFotosKpis {
   const uniqueImages = new Set(rows.map((r) => r.imagen).filter(Boolean));
+  // Monto negativo = VENTA, positivo = TRÁNSITO
+  const totalMonto = rows.reduce((s, r) => s + Math.abs(r.monto), 0);
   return {
-    total_cantidad: rows.reduce((s, r) => s + r.cantidad, 0),
-    total_ventas: rows.filter((r) => r.tipo_venta === "VENTA").reduce((s, r) => s + r.cantidad, 0),
-    total_transito: rows.filter((r) => r.tipo_venta === "TRANSITO").reduce((s, r) => s + r.cantidad, 0),
+    total_cantidad: rows.reduce((s, r) => s + Math.abs(r.cantidad), 0),
+    total_monto: totalMonto,
+    total_ventas: rows.filter((r) => r.tipo_venta === "VENTA").reduce((s, r) => s + Math.abs(r.cantidad), 0),
+    total_transito: rows.filter((r) => r.tipo_venta === "TRANSITO").reduce((s, r) => s + Math.abs(r.cantidad), 0),
     articulos_unicos: uniqueImages.size,
   };
 }
@@ -104,6 +107,7 @@ function mapRow(raw: Record<string, unknown>): VentaFotoRow {
     descp_cliente: String(raw.descp_cliente ?? ""),
     fecha: String(raw.fecha ?? ""),
     cantidad: num(raw.cantidad),
+    monto: num(raw.monto),
     preventa: preventa as number | string | null,
     tipo_venta: normalizeTipoVenta(preventa),
     descp_marca: String(raw.descp_marca ?? ""),
@@ -152,7 +156,8 @@ export async function fetchVentasFotos(
   }
 
   const cantidadCol = firstCol(ventasCols, ["cantidad", "pares", "cantidad_pares", "cantidad_venta"]);
-  const preventaCol = firstCol(ventasCols, ["preventa", "tipo_venta", "estado_venta"]);
+  const montoCol = firstCol(ventasCols, ["monto", "total", "importe", "monto_total"]);
+  const preventaCol = firstCol(ventasCols, ["preventa", "tipo_venta", "estado_venta", "estado"]);
   const imagenCol = firstCol(ventasCols, ["imagen", "image", "foto", "archivo_imagen", "referencia"]);
   const lineaCol = firstCol(ventasCols, ["linea_codigo", "codigo_linea", "linea_codigo_proveedor", "linea"]);
   const referenciaCol = firstCol(ventasCols, [
@@ -176,6 +181,7 @@ export async function fetchVentasFotos(
     `${col("v", "id_cliente")}::text = $1`,
     `${col("v", "fecha")}::date BETWEEN $2::date AND $3::date`,
     `${col("v", "id_marca")} = $4`,
+    `${col("v", "id_tipo")} = 1`, // FILTRO: Solo CALZADOS
   ];
 
   const textFilterExpr = imagenCol
@@ -198,6 +204,7 @@ export async function fetchVentasFotos(
         TRIM(c.descp_cliente)::text AS descp_cliente,
         ${col("v", "fecha")}::date::text AS fecha,
         ${sqlNumeric("v", cantidadCol)}::float8 AS cantidad,
+        ${montoCol ? `${sqlNumeric("v", montoCol)}::float8` : "0::float8"} AS monto,
         ${sqlText("v", preventaCol, "NULL")} AS preventa,
         TRIM(m.descp_marca)::text AS descp_marca,
         COALESCE(${sqlText("v", imagenCol, "NULL")}, ${sqlText("v", referenciaCol, "NULL")}, '')::text AS imagen,

@@ -20,6 +20,7 @@ const DEMO_ROWS: VentaFotoRow[] = [
     descp_cliente: "Cliente demostración",
     fecha: "2026-05-01",
     cantidad: 12,
+    monto: 1200000,
     preventa: 1,
     tipo_venta: "VENTA",
     descp_marca: "Marca demo",
@@ -38,6 +39,7 @@ const DEMO_ROWS: VentaFotoRow[] = [
     descp_cliente: "Cliente demostración",
     fecha: "2026-05-04",
     cantidad: 8,
+    monto: 800000,
     preventa: 2,
     tipo_venta: "TRANSITO",
     descp_marca: "Marca demo",
@@ -65,9 +67,10 @@ function defaultDates() {
 
 function emptyKpis(rows: VentaFotoRow[]) {
   return {
-    total_cantidad: rows.reduce((s, r) => s + r.cantidad, 0),
-    total_ventas: rows.filter((r) => r.tipo_venta === "VENTA").reduce((s, r) => s + r.cantidad, 0),
-    total_transito: rows.filter((r) => r.tipo_venta === "TRANSITO").reduce((s, r) => s + r.cantidad, 0),
+    total_cantidad: rows.reduce((s, r) => s + Math.abs(r.cantidad), 0),
+    total_monto: rows.reduce((s, r) => s + Math.abs(r.monto), 0),
+    total_ventas: rows.filter((r) => r.tipo_venta === "VENTA").reduce((s, r) => s + Math.abs(r.cantidad), 0),
+    total_transito: rows.filter((r) => r.tipo_venta === "TRANSITO").reduce((s, r) => s + Math.abs(r.cantidad), 0),
     articulos_unicos: new Set(rows.map((r) => r.imagen).filter(Boolean)).size,
   };
 }
@@ -282,17 +285,22 @@ function HeaderSummary({
 }
 
 function KpiStrip({ kpis }: { kpis: ReturnType<typeof emptyKpis> }) {
+  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
+
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {[
-        ["Venta", kpis.total_ventas],
-        ["Tránsito", kpis.total_transito],
-        ["Total registrado", kpis.total_cantidad],
-        ["Artículos únicos", kpis.articulos_unicos],
-      ].map(([label, value]) => (
-        <div key={label} className="border border-report-rule bg-white px-4 py-3 shadow-sm">
+        ["Venta", kpis.total_ventas, false],
+        ["Tránsito", kpis.total_transito, false],
+        ["Total registrado", kpis.total_cantidad, false],
+        ["Total monto", kpis.total_monto, true],
+        ["Artículos únicos", kpis.articulos_unicos, false],
+      ].map(([label, value, isMoney]) => (
+        <div key={label as string} className="border border-report-rule bg-white px-4 py-3 shadow-sm">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-report-muted">{label}</p>
-          <p className="mt-1 font-serif text-2xl font-bold text-report-navy tabular-nums">{fmtInt.format(Number(value))}</p>
+          <p className="mt-1 font-serif text-2xl font-bold text-report-navy tabular-nums">
+            {isMoney ? fmtMoney.format(Number(value)) : fmtInt.format(Number(value))}
+          </p>
         </div>
       ))}
     </div>

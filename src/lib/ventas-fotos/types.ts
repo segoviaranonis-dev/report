@@ -24,6 +24,7 @@ export type VentaFotoRow = {
   descp_cliente: string;
   fecha: string;
   cantidad: number;
+  monto: number;
   preventa: number | string | null;
   tipo_venta: VentaFotoTipo;
   descp_marca: string;
@@ -40,6 +41,7 @@ export type VentaFotoRow = {
 
 export type VentasFotosKpis = {
   total_cantidad: number;
+  total_monto: number;
   total_ventas: number;
   total_transito: number;
   articulos_unicos: number;
