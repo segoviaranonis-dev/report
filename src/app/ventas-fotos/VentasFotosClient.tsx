@@ -70,6 +70,7 @@ export function VentasFotosClient() {
   });
   const [data, setData] = useState<VentasFotosResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPDF, setLoadingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -121,6 +122,55 @@ export function VentasFotosClient() {
     }
   }
 
+  async function generarPDF() {
+    if (!rows.length || !cliente || !marca) {
+      setError("No hay datos para generar PDF");
+      return;
+    }
+
+    setLoadingPDF(true);
+    setError(null);
+
+    try {
+      const payload = {
+        cliente,
+        marca,
+        filtros: {
+          fechaInicio: filters.fechaInicio,
+          fechaFin: filters.fechaFin,
+        },
+        kpis,
+        rows,
+      };
+
+      const res = await fetch("/api/ventas-fotos/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error ?? json.message ?? "Error al generar PDF");
+      }
+
+      // Descargar PDF
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ventas-fotos-${cliente.id}-${marca.descp_marca.replace(/\s+/g, "_")}-${filters.fechaInicio}-${filters.fechaFin}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al generar PDF");
+    } finally {
+      setLoadingPDF(false);
+    }
+  }
+
   return (
     <section className="border-b border-report-rule bg-report-paper text-report-ink print:border-0">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 print:max-w-none print:px-0">
@@ -139,10 +189,11 @@ export function VentasFotosClient() {
           </div>
           <button
             type="button"
-            onClick={() => window.print()}
-            className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 print:hidden"
+            onClick={generarPDF}
+            disabled={loadingPDF || !rows.length}
+            className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 disabled:opacity-40 disabled:cursor-not-allowed print:hidden"
           >
-            Imprimir / guardar PDF
+            {loadingPDF ? "Generando PDF..." : "Generar PDF"}
           </button>
         </div>
 

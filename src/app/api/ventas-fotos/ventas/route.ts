@@ -6,7 +6,7 @@ import type { VentasFotosFilters, VentasFotosResponse } from "@/lib/ventas-fotos
 const EMPTY_RESPONSE: VentasFotosResponse = {
   configured: false,
   rows: [],
-  kpis: { total_cantidad: 0, total_ventas: 0, total_transito: 0, articulos_unicos: 0 },
+  kpis: { total_cantidad: 0, total_monto: 0, total_ventas: 0, total_transito: 0, articulos_unicos: 0 },
   cliente: null,
   marca: null,
   columnasDetectadas: [],

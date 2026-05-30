@@ -6,9 +6,10 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(
   request: Request,
-  { params }: { params: { fi_id: string } }
+  props: { params: Promise<{ fi_id: string }> }
 ) {
   try {
+    const params = await props.params;
     const fiId = parseInt(params.fi_id);
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -35,7 +36,7 @@ export async function GET(
 
     // Transformar datos y parsear snapshot
     const items = (data || []).map((item: any) => {
-      let snapshot = {};
+      let snapshot: any = {};
       if (item.linea_snapshot) {
         try {
           snapshot = typeof item.linea_snapshot === "string"

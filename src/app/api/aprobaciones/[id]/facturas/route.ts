@@ -6,9 +6,10 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const pedidoId = parseInt(params.id);
     const supabase = createClient(supabaseUrl, supabaseKey);
 
