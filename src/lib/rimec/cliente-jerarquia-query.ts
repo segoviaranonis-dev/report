@@ -27,7 +27,7 @@ FROM registro_ventas_general_v2 v
 JOIN tipo_v2 t ON v.id_tipo = t.id_tipo
 JOIN marca_v2 m ON v.id_marca = m.id_marca
 JOIN cliente_v2 c ON v.id_cliente = c.id_cliente
-JOIN vendedor_v2 ven ON v.id_vendedor = ven.id_vendedor
+JOIN vendedor_v2_deprecated ven ON v.id_vendedor = ven.id_vendedor
 LEFT JOIN cliente_cadena_v2 cc ON v.id_cliente = cc.id_cliente
 LEFT JOIN cadena_v2 cad ON cc.id_cadena = cad.id_cadena
 `.trim();

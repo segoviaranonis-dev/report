@@ -36,7 +36,7 @@ export default function HomePage() {
         </section>
 
         {/* Grid de Cards ejecutivas */}
-        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
           {/* Card 1: Inteligencia de Ventas */}
           <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-[#D4AF37]/40 hover:bg-[#0f172a]/60">
             <div className="space-y-3">
@@ -117,7 +117,34 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Card 4: Anexo Documental */}
+          {/* Card 4: Aprobación de Pedidos */}
+          <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-emerald-700 hover:bg-[#0f172a]/60">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-emerald-400">
+                  Gestión
+                </span>
+                <span className="text-[10px] bg-emerald-800/80 text-emerald-300 px-2 py-0.5 rounded font-medium uppercase tracking-wide">
+                  Tiempo Real
+                </span>
+              </div>
+              <h3 className="font-serif text-xl text-white font-medium">
+                Aprobación de Pedidos
+              </h3>
+              <p className="text-xs leading-relaxed text-[#94a3b8]">
+                Control centralizado de pedidos web. Aprobación, rechazo y seguimiento en tiempo real
+                de todas las solicitudes generadas desde RIMEC Web.
+              </p>
+            </div>
+            <Link
+              href="/aprobaciones"
+              className="mt-6 inline-flex w-full justify-center items-center rounded-lg border border-emerald-600/40 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/10 transition-colors duration-300"
+            >
+              Gestionar Pedidos
+            </Link>
+          </div>
+
+          {/* Card 5: Anexo Documental */}
           <div className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-[#0f172a]/30 p-6 transition-all duration-300 hover:border-slate-700 hover:bg-[#0f172a]/60">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -129,11 +156,11 @@ export default function HomePage() {
                 Anexo Documental
               </h3>
               <p className="text-xs leading-relaxed text-[#94a3b8]">
-                Resguardo documental e institucional de Nexus Core. Acceso a políticas operativas, 
+                Resguardo documental e institucional de Nexus Core. Acceso a políticas operativas,
                 actas y balances del holding.
               </p>
             </div>
-            <Link 
+            <Link
               href="/informes"
               className="mt-6 inline-flex w-full justify-center items-center rounded-lg bg-slate-800 py-2.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors duration-300"
             >
