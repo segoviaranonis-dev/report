@@ -154,6 +154,12 @@ export function ImmersiveClient() {
           {navItem("clientes", "Clientes")}
           {navItem("marcas", "Marcas")}
           {navItem("vendedores", "Vendedores")}
+          <Link
+            href="/ventas-fotos"
+            className="px-6 py-3 font-serif text-sm uppercase tracking-widest text-white/60 transition-all hover:border-b-2 hover:border-yellow-400/60 hover:text-yellow-300"
+          >
+            Ventas + Fotos
+          </Link>
         </nav>
       </header>
 
