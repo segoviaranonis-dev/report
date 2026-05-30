@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { RetailProductImage } from "@/app/retail/components/RetailProductImage";
 import type {
   VentaFotoRow,
   VentasFotosFilters,
@@ -24,34 +23,18 @@ const DEMO_ROWS: VentaFotoRow[] = [
     preventa: 1,
     tipo_venta: "VENTA",
     descp_marca: "Marca demo",
-    imagen: "1184-100",
+    imagen: "4076-1350-9569-15745.jpg",
     id_tipo: 1,
-    desc_tipo: "Calzado",
-    linea_codigo: "1184",
-    referencia_codigo: "100",
-    material_code: null,
-    color_code: null,
-    image_candidates: [],
-    image_search_name: "1184-100.jpg",
-  },
-  {
-    id_cliente: "5000",
-    descp_cliente: "Cliente demostración",
-    fecha: "2026-05-04",
-    cantidad: 8,
-    monto: 800000,
-    preventa: 2,
-    tipo_venta: "TRANSITO",
-    descp_marca: "Marca demo",
-    imagen: "1184-101",
-    id_tipo: 1,
-    desc_tipo: "Tránsito",
-    linea_codigo: "1184",
-    referencia_codigo: "101",
-    material_code: null,
-    color_code: null,
-    image_candidates: [],
-    image_search_name: "1184-101.jpg",
+    desc_tipo: "CALZADOS",
+    id_categoria: 1,
+    descp_categoria: "Demo",
+    linea_codigo: 4076,
+    referencia_codigo: 1350,
+    material_codigo: 9569,
+    color_codigo: 15745,
+    imagen_valid: true,
+    imagen_error: null,
+    image_url: "https://extrlcvcgypwazxipvqm.supabase.co/storage/v1/object/public/productos/4076-1350-9569-15745.jpg",
   },
 ];
 
@@ -316,18 +299,22 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
     );
   }
 
+  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
+
   return (
     <div className="mt-6 overflow-x-auto border border-report-rule bg-white shadow-sm">
-      <table className="report-table min-w-[980px]">
+      <table className="report-table min-w-[1100px]">
         <thead>
           <tr>
             <th className="w-28">Imagen</th>
             <th>Fecha</th>
             <th>Referencia</th>
+            <th>Categoría</th>
             <th className="text-right">Cantidad</th>
+            <th className="text-right">Monto</th>
             <th>Tipo venta</th>
-            <th>Descripción tipo</th>
-            <th>Pilares detectados</th>
+            <th>Pilares (L-R-M-C)</th>
+            <th>Estado</th>
           </tr>
         </thead>
         <tbody>
@@ -335,17 +322,25 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
             <tr key={`${row.imagen}-${row.fecha}-${idx}`}>
               <td>
                 <div className="w-20 print:w-16">
-                  <RetailProductImage
-                    alt={row.imagen || "Producto sin imagen"}
-                    candidates={row.image_candidates}
-                    placeholderClass="bg-gradient-to-br from-slate-300 via-slate-500 to-slate-900"
-                    searchFileName={row.image_search_name}
-                  />
+                  {row.imagen_valid ? (
+                    <img
+                      src={row.image_url}
+                      alt={row.imagen}
+                      className="h-20 w-20 object-contain border border-slate-200 rounded bg-white"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 bg-slate-100 border border-slate-200 rounded flex items-center justify-center text-[10px] text-slate-400 text-center p-1">
+                      {row.imagen_error || "Sin imagen"}
+                    </div>
+                  )}
                 </div>
               </td>
               <td className="tabular-nums">{row.fecha}</td>
               <td className="font-mono text-xs">{row.imagen || "—"}</td>
+              <td className="text-xs">{row.descp_categoria || "—"}</td>
               <td className="text-right tabular-nums">{fmtInt.format(row.cantidad)}</td>
+              <td className="text-right tabular-nums text-xs">{fmtMoney.format(row.monto)}</td>
               <td>
                 <span
                   className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
@@ -359,10 +354,23 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
                   {row.tipo_venta}
                 </span>
               </td>
-              <td>{row.desc_tipo || "—"}</td>
               <td className="font-mono text-[11px] text-report-muted">
-                L{row.linea_codigo ?? "—"} · R{row.referencia_codigo ?? "—"} · M{row.material_code ?? "—"} · C
-                {row.color_code ?? "—"}
+                {row.imagen_valid ? (
+                  <>L{row.linea_codigo} · R{row.referencia_codigo} · M{row.material_codigo} · C{row.color_codigo}</>
+                ) : (
+                  <span className="text-red-600">Error formato</span>
+                )}
+              </td>
+              <td>
+                {row.imagen_valid ? (
+                  <span className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    ✓ Válido
+                  </span>
+                ) : (
+                  <span className="inline-block rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                    ✗ Inválido
+                  </span>
+                )}
               </td>
             </tr>
           ))}

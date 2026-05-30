@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { ventaFotoImageCandidates } from "./image";
+import { parseImagenMolecula } from "./parse-imagen";
 import type {
   VentaFotoRow,
   VentaFotoTipo,
@@ -92,14 +92,10 @@ function computeKpis(rows: VentaFotoRow[]): VentasFotosKpis {
 }
 
 function mapRow(raw: Record<string, unknown>): VentaFotoRow {
-  const base = {
-    imagen: String(raw.imagen ?? ""),
-    linea_codigo: raw.linea_codigo ? String(raw.linea_codigo) : null,
-    referencia_codigo: raw.referencia_codigo ? String(raw.referencia_codigo) : null,
-    material_code: raw.material_code ? String(raw.material_code) : null,
-    color_code: raw.color_code ? String(raw.color_code) : null,
-  };
-  const image = ventaFotoImageCandidates(base);
+  const imagenStr = String(raw.imagen ?? "");
+
+  // Parsear molécula L-R-M-C desde nombre de archivo
+  const parsed = parseImagenMolecula(imagenStr);
   const preventa = raw.preventa ?? null;
 
   return {
@@ -111,25 +107,32 @@ function mapRow(raw: Record<string, unknown>): VentaFotoRow {
     preventa: preventa as number | string | null,
     tipo_venta: normalizeTipoVenta(preventa),
     descp_marca: String(raw.descp_marca ?? ""),
-    imagen: base.imagen,
+    imagen: imagenStr,
     id_tipo: raw.id_tipo == null ? null : Number(raw.id_tipo),
     desc_tipo: String(raw.desc_tipo ?? ""),
-    linea_codigo: base.linea_codigo,
-    referencia_codigo: base.referencia_codigo,
-    material_code: base.material_code,
-    color_code: base.color_code,
-    image_candidates: image.candidates,
-    image_search_name: image.searchName,
+    id_categoria: raw.id_categoria == null ? null : Number(raw.id_categoria),
+    descp_categoria: raw.descp_categoria ? String(raw.descp_categoria) : null,
+    // Pilares desde imagen parseada
+    linea_codigo: parsed.linea_codigo,
+    referencia_codigo: parsed.referencia_codigo,
+    material_codigo: parsed.material_codigo,
+    color_codigo: parsed.color_codigo,
+    imagen_valid: parsed.valid,
+    imagen_error: parsed.error ?? null,
+    image_url: parsed.image_url,
   };
 }
 
 export async function getVentasFotosMeta(pool: Pool): Promise<VentasFotosMarca[]> {
+  // SOLO marcas de CALZADOS (id_tipo = 1) desde marca_tipo_v2
   const rows = await pool.query<VentasFotosMarca>(
     `
-      SELECT id_marca::integer AS id_marca, TRIM(descp_marca)::text AS descp_marca
-      FROM marca_v2
-      WHERE descp_marca IS NOT NULL
-      ORDER BY TRIM(descp_marca)
+      SELECT m.id_marca::integer AS id_marca, TRIM(m.descp_marca)::text AS descp_marca
+      FROM marca_tipo_v2 mt
+      JOIN marca_v2 m ON m.id_marca = mt.id_marca
+      WHERE mt.id_tipo = 1
+        AND m.descp_marca IS NOT NULL
+      ORDER BY TRIM(m.descp_marca)
     `,
   );
   return rows.rows;
@@ -159,14 +162,8 @@ export async function fetchVentasFotos(
   const montoCol = firstCol(ventasCols, ["monto", "total", "importe", "monto_total"]);
   const preventaCol = firstCol(ventasCols, ["preventa", "tipo_venta", "estado_venta", "estado"]);
   const imagenCol = firstCol(ventasCols, ["imagen", "image", "foto", "archivo_imagen"]);
-
-  // Nota: registro_ventas_general_v2 NO tiene columnas de pilares (linea_codigo, referencia_codigo, etc)
-  // Solo tiene la columna 'imagen' con el nombre completo del archivo
-  const lineaCol = null;
-  const referenciaCol = null;
-  const materialCol = null;
-  const colorCol = null;
   const idTipoCol = firstCol(ventasCols, ["id_tipo"]);
+  const idCategoriaCol = firstCol(ventasCols, ["id_categoria"]);
 
   const values: unknown[] = [
     filters.clienteCodigo.trim(),
@@ -179,7 +176,7 @@ export async function fetchVentasFotos(
     `${col("v", "id_cliente")}::text = $1`,
     `${col("v", "fecha")}::date BETWEEN $2::date AND $3::date`,
     `${col("v", "id_marca")} = $4`,
-    `${col("v", "id_tipo")} = 1`, // FILTRO: Solo CALZADOS
+    `${col("v", "id_tipo")} = 1`, // FILTRO: Solo CALZADOS (id_tipo = 1)
   ];
 
   const textFilterExpr = imagenCol ? sqlText("v", imagenCol) : "''";
@@ -191,6 +188,8 @@ export async function fetchVentasFotos(
   values.push(MAX_ROWS);
 
   const idTipoExpr = idTipoCol ? col("v", idTipoCol) : "NULL";
+  const idCategoriaExpr = idCategoriaCol ? col("v", idCategoriaCol) : "NULL";
+
   const raw = await pool.query<Record<string, unknown>>(
     `
       SELECT
@@ -204,16 +203,15 @@ export async function fetchVentasFotos(
         COALESCE(${sqlText("v", imagenCol, "NULL")}, '')::text AS imagen,
         ${idTipoExpr}::integer AS id_tipo,
         COALESCE(TRIM(t.descp_tipo)::text, '') AS desc_tipo,
-        NULL::text AS linea_codigo,
-        NULL::text AS referencia_codigo,
-        NULL::text AS material_code,
-        NULL::text AS color_code
+        ${idCategoriaExpr}::integer AS id_categoria,
+        COALESCE(TRIM(cat.descp_categoria)::text, NULL) AS descp_categoria
       FROM ${qTable(TABLE_VENTAS)} v
       JOIN cliente_v2 c ON ${col("v", "id_cliente")} = c.id_cliente
       JOIN marca_v2 m ON ${col("v", "id_marca")} = m.id_marca
-      LEFT JOIN tipo_v2 t ON ${idTipoExpr} = t.id_tipo
+      JOIN tipo_v2 t ON ${idTipoExpr} = t.id_tipo
+      LEFT JOIN categoria_v2 cat ON ${idCategoriaExpr} = cat.id_categoria
       WHERE ${where.join(" AND ")}
-      ORDER BY COALESCE(${textFilterExpr}, ''), ${col("v", "fecha")}::date
+      ORDER BY ${col("v", "fecha")}::date, ${sqlText("v", imagenCol)}
       LIMIT $${values.length}
     `,
     values,

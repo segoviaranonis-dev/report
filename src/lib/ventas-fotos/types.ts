@@ -31,12 +31,16 @@ export type VentaFotoRow = {
   imagen: string;
   id_tipo: number | null;
   desc_tipo: string;
-  linea_codigo: string | null;
-  referencia_codigo: string | null;
-  material_code: string | null;
-  color_code: string | null;
-  image_candidates: string[];
-  image_search_name: string | null;
+  id_categoria: number | null;
+  descp_categoria: string | null;
+  // Pilares parseados desde imagen (formato L-R-M-C)
+  linea_codigo: number | null;
+  referencia_codigo: number | null;
+  material_codigo: number | null;
+  color_codigo: number | null;
+  imagen_valid: boolean;
+  imagen_error: string | null;
+  image_url: string;
 };
 
 export type VentasFotosKpis = {
