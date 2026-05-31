@@ -1,388 +1,671 @@
 /**
- * Generador de PDF para Ventas con Fotos
- * Incluye: foto, fecha, referencia, cantidad, monto, tipo, categoría
+ * Generador de PDF para Ventas con Fotos.
+ *
+ * Página 1: ejecutiva (estadísticas por pilares: género, estilo, tipo_1, color).
+ * Páginas siguientes: detalle con fotos (sin columna técnica de pilares L-R-M-C).
+ *
+ * Paleta sobria (estilo Banana Republic): negro/grafito + neutros cálidos.
+ * No usa azul/oro Nexus.
  */
 
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, type PDFFont, type PDFImage, type PDFPage, StandardFonts, rgb } from 'pdf-lib'
 import { safeFetchImage } from '../pdf/imageUrlValidator'
-import type { VentaFotoRow, VentasFotosKpis, VentasFotosMarca } from './types'
+import type { PillarBucket, VentaFotoRow, VentasFotosKpis, VentasFotosMarca, VentasFotosPillarStats } from './types'
 
-// Colores Nexus Report
-const AZUL_NEXUS = rgb(0.106, 0.227, 0.42) // #1B3A6B
-const DORADO_NEXUS = rgb(0.831, 0.686, 0.216) // #D4AF37
-const GRIS_CLARO = rgb(0.973, 0.980, 0.988) // #F8FAFC
-const GRIS_TEXTO = rgb(0.118, 0.161, 0.235) // #1E293B
+// ─── Paleta ──────────────────────────────────────────────────────────────────
+const INK = rgb(0.110, 0.110, 0.110)         // #1c1c1c
+const INK_SOFT = rgb(0.341, 0.325, 0.302)    // #57534e
+const INK_MUTED = rgb(0.510, 0.494, 0.471)   // #827d78
+const RULE = rgb(0.839, 0.827, 0.808)        // #d6d3d1
+const RULE_SOFT = rgb(0.910, 0.902, 0.886)   // #e8e6e1
+const PAPER_ALT = rgb(0.976, 0.969, 0.957)   // #f9f7f4
+const WHITE = rgb(1, 1, 1)
 
+// Acentos cálidos para gráficos.
+const PALETTE = [
+  rgb(0.639, 0.384, 0.247), // terracota   #a3623f
+  rgb(0.690, 0.545, 0.353), // camel       #b08b5a
+  rgb(0.420, 0.451, 0.333), // oliva       #6b7355
+  rgb(0.267, 0.251, 0.235), // grafito     #44403c
+  rgb(0.808, 0.537, 0.392), // cobre       #ce8964
+  rgb(0.514, 0.471, 0.388), // tabaco      #837863
+  rgb(0.557, 0.392, 0.275), // walnut      #8e6446
+  rgb(0.376, 0.349, 0.314), // basalto     #605954
+]
+
+function colorAt(i: number) {
+  return PALETTE[i % PALETTE.length]
+}
+
+// ─── Formateadores ───────────────────────────────────────────────────────────
+const fmtInt = new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 })
+const fmtMoney = new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', minimumFractionDigits: 0 })
+const fmtPct = new Intl.NumberFormat('es-PY', { maximumFractionDigits: 1, minimumFractionDigits: 1 })
+
+// ─── Tipos ───────────────────────────────────────────────────────────────────
 export interface PDFVentasFotosData {
   cliente: { id: string; nombre: string }
   marca: VentasFotosMarca
-  filtros: {
-    fechaInicio: string
-    fechaFin: string
-  }
+  filtros: { fechaInicio: string; fechaFin: string }
   kpis: VentasFotosKpis
+  pillarStats?: VentasFotosPillarStats
   rows: VentaFotoRow[]
 }
 
-export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
-  try {
-    console.log('[PDF Ventas-Fotos] Iniciando generación...')
-    console.log('[PDF Ventas-Fotos] Filas:', data.rows.length)
+interface Fonts {
+  serif: PDFFont
+  serifBold: PDFFont
+  sans: PDFFont
+  sansBold: PDFFont
+}
 
-    // Límite de 300 filas para performance en Vercel Pro
+// Constantes de página A4.
+const PAGE_W = 595
+const PAGE_H = 842
+const MARGIN = 40
+
+// ─── Helpers de texto ────────────────────────────────────────────────────────
+function text(
+  page: PDFPage,
+  s: string,
+  x: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  color = INK,
+) {
+  page.drawText(sanitize(s), { x, y, size, font, color })
+}
+
+function textRight(
+  page: PDFPage,
+  s: string,
+  x: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  color = INK,
+) {
+  const safe = sanitize(s)
+  const w = font.widthOfTextAtSize(safe, size)
+  page.drawText(safe, { x: x - w, y, size, font, color })
+}
+
+function textCenter(
+  page: PDFPage,
+  s: string,
+  cx: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  color = INK,
+) {
+  const safe = sanitize(s)
+  const w = font.widthOfTextAtSize(safe, size)
+  page.drawText(safe, { x: cx - w / 2, y, size, font, color })
+}
+
+function ruleLine(page: PDFPage, x1: number, x2: number, y: number, color = RULE, thickness = 0.5) {
+  page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, color, thickness })
+}
+
+// Normaliza caracteres que las fuentes estándar (WinAnsi) no soportan.
+function sanitize(s: string): string {
+  return String(s ?? '')
+    .replace(/[\u2192\u279C\u27A1]/g, '->')   // flechas
+    .replace(/[\u2026]/g, '...')               // ellipsis
+    .replace(/[\u2022\u00B7]/g, '·' === '·' ? '\u00B7' : '-') // middle dot ya es 0xB7, queda
+    .replace(/[\u2013\u2014]/g, '-')           // en/em dash
+    .replace(/[\u2018\u2019]/g, "'")          // comillas tipográficas
+    .replace(/[\u201C\u201D]/g, '"')
+}
+
+function widthOf(s: string, font: PDFFont, size: number): number {
+  return font.widthOfTextAtSize(sanitize(s), size)
+}
+
+function truncate(s: string, max: number, font: PDFFont, size: number) {
+  const safe = sanitize(s)
+  if (font.widthOfTextAtSize(safe, size) <= max) return safe
+  let lo = 0
+  let hi = safe.length
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    const candidate = safe.slice(0, mid) + '...'
+    if (font.widthOfTextAtSize(candidate, size) <= max) lo = mid
+    else hi = mid - 1
+  }
+  return safe.slice(0, lo) + '...'
+}
+
+// ─── Página 1: ejecutiva ─────────────────────────────────────────────────────
+function drawHeader(page: PDFPage, fonts: Fonts, data: PDFVentasFotosData) {
+  const top = PAGE_H - MARGIN
+
+  // Título grande serif (estilo editorial).
+  text(page, 'Informe de ventas con fotos', MARGIN, top - 6, 24, fonts.serifBold, INK)
+
+  // Sello pequeño a la derecha.
+  textRight(page, 'NEXUS · REPORT', PAGE_W - MARGIN, top - 2, 8, fonts.sans, INK_MUTED)
+  textRight(
+    page,
+    new Date().toLocaleDateString('es-PY', { day: '2-digit', month: 'long', year: 'numeric' }),
+    PAGE_W - MARGIN,
+    top - 14,
+    8,
+    fonts.sans,
+    INK_MUTED,
+  )
+
+  // Línea fina.
+  ruleLine(page, MARGIN, PAGE_W - MARGIN, top - 22, INK, 0.7)
+
+  // Contexto.
+  const ctxY = top - 38
+  text(page, data.cliente.nombre.toUpperCase(), MARGIN, ctxY, 11, fonts.sansBold, INK)
+  text(page, `Cliente ${data.cliente.id}`, MARGIN, ctxY - 12, 9, fonts.sans, INK_SOFT)
+
+  textRight(page, `Marca · ${data.marca.descp_marca}`, PAGE_W - MARGIN, ctxY, 10, fonts.sansBold, INK)
+  textRight(
+    page,
+    `${data.filtros.fechaInicio}  →  ${data.filtros.fechaFin}  ·  CALZADOS`,
+    PAGE_W - MARGIN,
+    ctxY - 12,
+    9,
+    fonts.sans,
+    INK_SOFT,
+  )
+}
+
+function drawResumen(page: PDFPage, fonts: Fonts, y: number, stats: VentasFotosPillarStats): number {
+  const left = MARGIN
+  const right = PAGE_W - MARGIN
+  const w = right - left
+  const h = 56
+
+  page.drawRectangle({ x: left, y: y - h, width: w, height: h, color: PAPER_ALT })
+  page.drawRectangle({ x: left, y: y - h, width: w, height: h, borderColor: RULE_SOFT, borderWidth: 0.5 })
+
+  const cellW = w / 3
+  const cells: Array<[string, string]> = [
+    ['Total pares', fmtInt.format(stats.resumen.totalPares)],
+    ['Monto', fmtMoney.format(stats.resumen.totalMonto)],
+    ['Artículos únicos', fmtInt.format(stats.resumen.articulosUnicos)],
+  ]
+
+  cells.forEach(([label, value], i) => {
+    const cx = left + cellW * (i + 0.5)
+    text(page, label.toUpperCase(), cx - cellW / 2 + 12, y - 16, 7.5, fonts.sansBold, INK_MUTED)
+    textCenter(page, value, cx, y - 38, 17, fonts.serifBold, INK)
+  })
+
+  // Separadores entre celdas.
+  ruleLine(page, left + cellW, left + cellW, y - h + 8, RULE_SOFT, 0.5)
+  page.drawLine({
+    start: { x: left + cellW, y: y - h + 8 },
+    end: { x: left + cellW, y: y - 8 },
+    color: RULE_SOFT,
+    thickness: 0.5,
+  })
+  page.drawLine({
+    start: { x: left + 2 * cellW, y: y - h + 8 },
+    end: { x: left + 2 * cellW, y: y - 8 },
+    color: RULE_SOFT,
+    thickness: 0.5,
+  })
+
+  return y - h - 12
+}
+
+function sectionTitle(page: PDFPage, fonts: Fonts, y: number, title: string): number {
+  text(page, title, MARGIN, y, 11, fonts.serifBold, INK)
+  ruleLine(page, MARGIN, PAGE_W - MARGIN, y - 4, RULE, 0.5)
+  return y - 16
+}
+
+// Donut chart con drawSvgPath. Coordenadas SVG (Y hacia abajo internamente).
+function pieSlicePath(cx: number, cy: number, r: number, startRad: number, endRad: number): string {
+  const x1 = cx + r * Math.cos(startRad)
+  const y1 = cy + r * Math.sin(startRad)
+  const x2 = cx + r * Math.cos(endRad)
+  const y2 = cy + r * Math.sin(endRad)
+  const largeArc = endRad - startRad > Math.PI ? 1 : 0
+  // sweep=1 (sentido horario en SVG; pdf-lib invierte Y, queda visual correcto)
+  return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`
+}
+
+function drawDonutGenero(
+  page: PDFPage,
+  fonts: Fonts,
+  x: number,
+  yTop: number,
+  size: number,
+  buckets: PillarBucket[],
+) {
+  const cx = size / 2
+  const cy = size / 2
+  const r = size / 2 - 2
+  const innerR = r * 0.55
+
+  if (!buckets.length) {
+    text(page, 'Sin datos', x + 8, yTop - 20, 9, fonts.sans, INK_MUTED)
+    return
+  }
+
+  const total = buckets.reduce((s, b) => s + b.pares, 0) || 1
+  let acc = 0
+  // Si hay un único segmento, dibujamos anillo completo.
+  if (buckets.length === 1) {
+    page.drawCircle({ x: x + cx, y: yTop - cy, size: r, color: colorAt(0) })
+    page.drawCircle({ x: x + cx, y: yTop - cy, size: innerR, color: WHITE })
+  } else {
+    for (let i = 0; i < buckets.length; i++) {
+      const b = buckets[i]
+      const startRad = (acc / total) * Math.PI * 2 - Math.PI / 2
+      acc += b.pares
+      const endRad = (acc / total) * Math.PI * 2 - Math.PI / 2
+      if (endRad <= startRad) continue
+      const path = pieSlicePath(cx, cy, r, startRad, endRad)
+      page.drawSvgPath(path, { x, y: yTop, color: colorAt(i) })
+    }
+    // Hueco central para donut.
+    page.drawCircle({ x: x + cx, y: yTop - cy, size: innerR, color: WHITE })
+  }
+
+  // Cifra central: pares.
+  textCenter(page, fmtInt.format(total), x + cx, yTop - cy - 2, 12, fonts.serifBold, INK)
+  textCenter(page, 'PARES', x + cx, yTop - cy - 14, 6.5, fonts.sansBold, INK_MUTED)
+}
+
+function drawGeneroPane(
+  page: PDFPage,
+  fonts: Fonts,
+  y: number,
+  stats: VentasFotosPillarStats,
+): number {
+  const yStart = sectionTitle(page, fonts, y, 'Composición por género')
+  const donutSize = 110
+  const donutX = MARGIN
+  const donutTop = yStart
+
+  drawDonutGenero(page, fonts, donutX, donutTop, donutSize, stats.porGenero)
+
+  // Tabla a la derecha.
+  const tableX = donutX + donutSize + 18
+  const tableW = PAGE_W - MARGIN - tableX
+  let ty = donutTop - 4
+
+  // Encabezado.
+  const headers = ['GÉNERO', 'PARES', 'MONTO', '% PARES', '% MONTO']
+  const cols = [
+    { x: tableX, align: 'left' as const },
+    { x: tableX + tableW * 0.40, align: 'right' as const },
+    { x: tableX + tableW * 0.65, align: 'right' as const },
+    { x: tableX + tableW * 0.82, align: 'right' as const },
+    { x: tableX + tableW, align: 'right' as const },
+  ]
+  headers.forEach((h, i) => {
+    const c = cols[i]
+    if (c.align === 'left') text(page, h, c.x, ty, 7, fonts.sansBold, INK_MUTED)
+    else textRight(page, h, c.x, ty, 7, fonts.sansBold, INK_MUTED)
+  })
+  ty -= 4
+  ruleLine(page, tableX, tableX + tableW, ty, RULE, 0.4)
+  ty -= 10
+
+  if (!stats.porGenero.length) {
+    text(page, 'Sin datos.', tableX, ty, 9, fonts.sans, INK_MUTED)
+    return donutTop - donutSize - 16
+  }
+
+  stats.porGenero.forEach((b, i) => {
+    // Chip de color.
+    page.drawRectangle({ x: tableX, y: ty - 1, width: 6, height: 6, color: colorAt(i) })
+    text(page, truncate(b.label, tableW * 0.36 - 12, fonts.sans, 9), tableX + 10, ty, 9, fonts.sans, INK)
+    textRight(page, fmtInt.format(b.pares), cols[1].x, ty, 9, fonts.sans, INK)
+    textRight(page, fmtMoney.format(b.monto), cols[2].x, ty, 9, fonts.sans, INK)
+    textRight(page, `${fmtPct.format(b.pctPares)}%`, cols[3].x, ty, 9, fonts.sans, INK_SOFT)
+    textRight(page, `${fmtPct.format(b.pctMonto)}%`, cols[4].x, ty, 9, fonts.sans, INK_SOFT)
+    ty -= 13
+  })
+
+  const used = Math.max(donutSize + 16, yStart - ty)
+  return yStart - used - 6
+}
+
+function drawTopBars(
+  page: PDFPage,
+  fonts: Fonts,
+  y: number,
+  title: string,
+  buckets: PillarBucket[],
+  showMonto = true,
+  topN = 6,
+): number {
+  const yStart = sectionTitle(page, fonts, y, title)
+  if (!buckets.length) {
+    text(page, 'Sin datos.', MARGIN, yStart - 14, 9, fonts.sans, INK_MUTED)
+    return yStart - 30
+  }
+
+  const data = buckets.slice(0, topN)
+  const maxPares = data.reduce((m, b) => Math.max(m, b.pares), 0) || 1
+
+  // Layout fila: label (110) · barra (flex) · %pares · pares · monto
+  const labelW = 110
+  const labelX = MARGIN
+  const barX = labelX + labelW + 6
+  const valPctX = PAGE_W - MARGIN - 180
+  const valParesX = PAGE_W - MARGIN - 100
+  const valMontoX = PAGE_W - MARGIN
+  const barWMax = valPctX - barX - 14
+
+  let ty = yStart - 6
+  for (let i = 0; i < data.length; i++) {
+    const b = data[i]
+    const lbl = truncate(b.label, labelW, fonts.sans, 9)
+    text(page, lbl, labelX, ty, 9, fonts.sans, INK)
+
+    const w = Math.max(2, (b.pares / maxPares) * barWMax)
+    // Pista (track) gris claro.
+    page.drawRectangle({ x: barX, y: ty - 2, width: barWMax, height: 8, color: RULE_SOFT })
+    // Barra coloreada.
+    page.drawRectangle({ x: barX, y: ty - 2, width: w, height: 8, color: colorAt(i) })
+
+    textRight(page, `${fmtPct.format(b.pctPares)}%`, valPctX, ty, 8, fonts.sans, INK_SOFT)
+    textRight(page, fmtInt.format(b.pares), valParesX, ty, 9, fonts.sansBold, INK)
+    if (showMonto) {
+      textRight(page, fmtMoney.format(b.monto), valMontoX, ty, 8, fonts.sans, INK_SOFT)
+    }
+    ty -= 16
+  }
+
+  if (buckets.length > topN) {
+    text(page, `Top ${topN} de ${buckets.length}`, MARGIN, ty, 7, fonts.sans, INK_MUTED)
+    ty -= 10
+  }
+
+  return ty - 4
+}
+
+async function renderPaginaEjecutiva(
+  pdfDoc: PDFDocument,
+  fonts: Fonts,
+  data: PDFVentasFotosData,
+  stats: VentasFotosPillarStats,
+) {
+  const page = pdfDoc.addPage([PAGE_W, PAGE_H])
+  drawHeader(page, fonts, data)
+
+  let y = PAGE_H - MARGIN - 78
+  y = drawResumen(page, fonts, y, stats)
+  y = drawGeneroPane(page, fonts, y, stats)
+  y = drawTopBars(page, fonts, y, 'Top estilos', stats.porEstilo, true, 6)
+  y = drawTopBars(page, fonts, y, 'Top tipo', stats.porTipo1, true, 6)
+  y = drawTopBars(page, fonts, y, 'Top colores', stats.porColor, false, 8)
+}
+
+// ─── Páginas siguientes: detalle ─────────────────────────────────────────────
+const DETALLE_ROW_H = 64
+const DETALLE_TOP = PAGE_H - MARGIN
+const DETALLE_BOTTOM = MARGIN + 24
+
+interface DetalleLayout {
+  imgX: number
+  imgSize: number
+  fechaX: number
+  refX: number
+  catX: number
+  cantX: number
+  montoX: number
+  tipoX: number
+  rightLimit: number
+}
+
+function detalleLayout(): DetalleLayout {
+  const imgX = MARGIN + 4
+  const imgSize = 48
+  const textStartX = imgX + imgSize + 12
+  return {
+    imgX,
+    imgSize,
+    fechaX: textStartX,                  // FECHA (izq)   80px
+    refX: textStartX + 60,               // REFERENCIA    140px
+    catX: textStartX + 200,              // CATEGORÍA      90px
+    cantX: PAGE_W - MARGIN - 180,        // CANTIDAD (der)
+    montoX: PAGE_W - MARGIN - 75,        // MONTO (der)
+    tipoX: PAGE_W - MARGIN - 4,          // TIPO (der)
+    rightLimit: PAGE_W - MARGIN,
+  }
+}
+
+function drawDetalleHeader(page: PDFPage, fonts: Fonts, data: PDFVentasFotosData, pageIdx: number) {
+  const y = PAGE_H - MARGIN + 4
+  text(page, 'Detalle de ventas y tránsito', MARGIN, y - 8, 12, fonts.serifBold, INK)
+  textRight(
+    page,
+    `${data.cliente.id} · ${truncate(data.cliente.nombre, 180, fonts.sans, 9)}  ·  ${data.marca.descp_marca}`,
+    PAGE_W - MARGIN,
+    y - 8,
+    9,
+    fonts.sans,
+    INK_SOFT,
+  )
+  ruleLine(page, MARGIN, PAGE_W - MARGIN, y - 16, INK, 0.5)
+
+  // Cabecera de columnas (page 2+).
+  const L = detalleLayout()
+  const hy = y - 30
+  text(page, 'FECHA', L.fechaX, hy, 7, fonts.sansBold, INK_MUTED)
+  text(page, 'REFERENCIA', L.refX, hy, 7, fonts.sansBold, INK_MUTED)
+  text(page, 'CATEGORÍA', L.catX, hy, 7, fonts.sansBold, INK_MUTED)
+  textRight(page, 'CANTIDAD', L.cantX, hy, 7, fonts.sansBold, INK_MUTED)
+  textRight(page, 'MONTO', L.montoX, hy, 7, fonts.sansBold, INK_MUTED)
+  textRight(page, 'TIPO', L.tipoX, hy, 7, fonts.sansBold, INK_MUTED)
+  ruleLine(page, MARGIN, PAGE_W - MARGIN, hy - 4, RULE_SOFT, 0.4)
+
+  // Pequeño indicador de página de detalle.
+  textRight(page, `Sección detalle · pág. ${pageIdx}`, PAGE_W - MARGIN, MARGIN, 7, fonts.sans, INK_MUTED)
+}
+
+async function fetchImage(
+  pdfDoc: PDFDocument,
+  cache: Map<string, PDFImage>,
+  url: string,
+): Promise<PDFImage | null> {
+  const cached = cache.get(url)
+  if (cached) return cached
+  try {
+    const resp = await safeFetchImage(url, 1000)
+    if (!resp) return null
+    const bytes = await resp.arrayBuffer()
+    const lower = url.toLowerCase()
+    let img: PDFImage | null = null
+    if (lower.endsWith('.png')) img = await pdfDoc.embedPng(bytes)
+    else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) img = await pdfDoc.embedJpg(bytes)
+    if (img) cache.set(url, img)
+    return img
+  } catch (e) {
+    console.warn('[PDF Ventas-Fotos] Error cargando imagen', url, e)
+    return null
+  }
+}
+
+function drawPlaceholder(page: PDFPage, fonts: Fonts, x: number, y: number, size: number, label: string) {
+  page.drawRectangle({ x, y, width: size, height: size, color: PAPER_ALT, borderColor: RULE_SOFT, borderWidth: 0.5 })
+  textCenter(page, label, x + size / 2, y + size / 2 - 3, 6.5, fonts.sansBold, INK_MUTED)
+}
+
+async function renderDetalle(
+  pdfDoc: PDFDocument,
+  fonts: Fonts,
+  data: PDFVentasFotosData,
+  rowsLimitadas: VentaFotoRow[],
+) {
+  if (!rowsLimitadas.length) return
+
+  const cache = new Map<string, PDFImage>()
+  let page: PDFPage = pdfDoc.addPage([PAGE_W, PAGE_H])
+  let pageDetalleIdx = 1
+  drawDetalleHeader(page, fonts, data, pageDetalleIdx)
+  let y = DETALLE_TOP - 50
+
+  const L = detalleLayout()
+
+  for (let i = 0; i < rowsLimitadas.length; i++) {
+    if (y - DETALLE_ROW_H < DETALLE_BOTTOM) {
+      pageDetalleIdx += 1
+      page = pdfDoc.addPage([PAGE_W, PAGE_H])
+      drawDetalleHeader(page, fonts, data, pageDetalleIdx)
+      y = DETALLE_TOP - 50
+    }
+
+    const row = rowsLimitadas[i]
+    const rowTop = y
+    const rowBottom = y - DETALLE_ROW_H
+
+    // Fondo alterno suave.
+    if (i % 2 === 1) {
+      page.drawRectangle({ x: MARGIN, y: rowBottom + 2, width: PAGE_W - 2 * MARGIN, height: DETALLE_ROW_H - 2, color: PAPER_ALT })
+    }
+
+    // Imagen
+    const imgY = rowBottom + (DETALLE_ROW_H - L.imgSize) / 2
+    if (row.imagen_valid && row.image_url) {
+      const img = await fetchImage(pdfDoc, cache, row.image_url)
+      if (img) {
+        // Mantener proporción dentro del cuadro.
+        const ratio = img.width / img.height
+        let w = L.imgSize
+        let h = L.imgSize
+        if (ratio > 1) {
+          h = L.imgSize / ratio
+        } else {
+          w = L.imgSize * ratio
+        }
+        const ix = L.imgX + (L.imgSize - w) / 2
+        const iy = imgY + (L.imgSize - h) / 2
+        page.drawRectangle({ x: L.imgX, y: imgY, width: L.imgSize, height: L.imgSize, borderColor: RULE_SOFT, borderWidth: 0.5 })
+        page.drawImage(img, { x: ix, y: iy, width: w, height: h })
+      } else {
+        drawPlaceholder(page, fonts, L.imgX, imgY, L.imgSize, 'S/IMG')
+      }
+    } else {
+      drawPlaceholder(page, fonts, L.imgX, imgY, L.imgSize, 'S/IMG')
+    }
+
+    // Líneas de texto (centradas verticalmente).
+    const baseY = rowBottom + DETALLE_ROW_H / 2 + 3
+    text(page, row.fecha, L.fechaX, baseY, 8, fonts.sansBold, INK)
+
+    const ref = truncate(row.imagen || '—', L.catX - L.refX - 8, fonts.sans, 8)
+    text(page, ref, L.refX, baseY, 8, fonts.sans, INK)
+
+    const cat = truncate(row.descp_categoria || '—', L.cantX - L.catX - 8, fonts.sans, 8)
+    text(page, cat, L.catX, baseY, 8, fonts.sans, INK_SOFT)
+
+    textRight(page, fmtInt.format(row.cantidad), L.cantX, baseY, 9, fonts.sansBold, INK)
+    textRight(page, fmtMoney.format(row.monto), L.montoX, baseY, 8, fonts.sans, INK)
+
+    // Tipo venta (chip discreto).
+    const tipo = row.tipo_venta
+    const tipoColor = tipo === 'VENTA' ? colorAt(2) : tipo === 'TRANSITO' ? colorAt(0) : INK_MUTED
+    textRight(page, tipo, L.tipoX, baseY, 8, fonts.sansBold, tipoColor)
+
+    // Línea inferior fina.
+    ruleLine(page, MARGIN, PAGE_W - MARGIN, rowBottom + 1, RULE_SOFT, 0.3)
+
+    y -= DETALLE_ROW_H
+  }
+}
+
+// ─── Footer global ───────────────────────────────────────────────────────────
+function drawFooters(pdfDoc: PDFDocument, fonts: Fonts) {
+  const pages = pdfDoc.getPages()
+  pages.forEach((p, idx) => {
+    const total = pages.length
+    textCenter(
+      p,
+      `Informe de ventas con fotos  ·  página ${idx + 1} de ${total}`,
+      PAGE_W / 2,
+      20,
+      7.5,
+      fonts.sans,
+      INK_MUTED,
+    )
+  })
+}
+
+// ─── Fallback: si no llega pillarStats lo derivamos de las filas ─────────────
+function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
+  const totalPares = rows.reduce((s, r) => s + Math.abs(r.cantidad), 0)
+  const totalMonto = rows.reduce((s, r) => s + Math.abs(r.monto), 0)
+  const articulosUnicos = new Set(rows.map((r) => r.imagen).filter(Boolean)).size
+  const sinClasificar = rows.filter((r) => !r.genero && !r.estilo && !r.tipo_1).length
+
+  function bucket(keyOf: (r: VentaFotoRow) => string | null | undefined): PillarBucket[] {
+    const groups = new Map<string, { pares: number; monto: number }>()
+    for (const r of rows) {
+      const raw = keyOf(r)
+      const label = (raw && String(raw).trim()) || 'Sin clasificar'
+      const acc = groups.get(label) ?? { pares: 0, monto: 0 }
+      acc.pares += Math.abs(r.cantidad)
+      acc.monto += Math.abs(r.monto)
+      groups.set(label, acc)
+    }
+    const out: PillarBucket[] = []
+    for (const [label, { pares, monto }] of groups) {
+      out.push({
+        label,
+        pares,
+        monto,
+        pctPares: totalPares ? (pares / totalPares) * 100 : 0,
+        pctMonto: totalMonto ? (monto / totalMonto) * 100 : 0,
+      })
+    }
+    out.sort((a, b) => b.monto - a.monto || b.pares - a.pares)
+    return out
+  }
+
+  return {
+    resumen: { totalPares, totalMonto, articulosUnicos, sinClasificar },
+    porGenero: bucket((r) => r.genero),
+    porEstilo: bucket((r) => r.estilo),
+    porTipo1: bucket((r) => r.tipo_1),
+    porColor: bucket((r) => r.color_nombre),
+  }
+}
+
+// ─── Entrada principal ──────────────────────────────────────────────────────
+export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
+  console.log('[PDF Ventas-Fotos] Iniciando generación...')
+  console.log('[PDF Ventas-Fotos] Filas:', data.rows.length)
+
+  try {
     const rowsLimitadas = data.rows.slice(0, 300)
     if (data.rows.length > 300) {
       console.warn('[PDF Ventas-Fotos] Limitando a 300 filas de', data.rows.length)
     }
 
-    // Crear documento
     const pdfDoc = await PDFDocument.create()
-    let page = pdfDoc.addPage([595, 842]) // A4
-    const { width, height } = page.getSize()
-
-    // Cargar fuentes
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica)
-
-    let y = height - 40
-
-    // ========================================
-    // PORTADA / HEADER
-    // ========================================
-    page.drawText('INFORME DE VENTAS CON FOTOS', {
-      x: width / 2 - 140,
-      y,
-      size: 22,
-      font: fontBold,
-      color: AZUL_NEXUS,
-    })
-    y -= 20
-
-    page.drawText('NEXUS Report · RIMEC', {
-      x: width / 2 - 75,
-      y,
-      size: 10,
-      font: fontRegular,
-      color: DORADO_NEXUS,
-    })
-    y -= 18
-
-    // Línea dorada
-    page.drawLine({
-      start: { x: 40, y },
-      end: { x: width - 40, y },
-      thickness: 2,
-      color: DORADO_NEXUS,
-    })
-    y -= 22
-
-    // Información de filtros
-    page.drawText(`Cliente: ${data.cliente.id} · ${data.cliente.nombre}`, {
-      x: 40,
-      y,
-      size: 11,
-      font: fontBold,
-      color: AZUL_NEXUS,
-    })
-    y -= 14
-
-    page.drawText(`Marca: ${data.marca.descp_marca}`, {
-      x: 40,
-      y,
-      size: 10,
-      font: fontRegular,
-      color: GRIS_TEXTO,
-    })
-    y -= 12
-
-    page.drawText(`Período: ${data.filtros.fechaInicio} a ${data.filtros.fechaFin}`, {
-      x: 40,
-      y,
-      size: 10,
-      font: fontRegular,
-      color: GRIS_TEXTO,
-    })
-    y -= 12
-
-    page.drawText(`Fecha de generación: ${new Date().toLocaleDateString('es-PY')}`, {
-      x: 40,
-      y,
-      size: 8,
-      font: fontRegular,
-      color: rgb(0.392, 0.455, 0.545),
-    })
-    y -= 25
-
-    // KPIs
-    page.drawRectangle({
-      x: 40,
-      y: y - 45,
-      width: width - 80,
-      height: 50,
-      color: GRIS_CLARO,
-    })
-
-    const fmtMoney = new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', minimumFractionDigits: 0 })
-
-    page.drawText('KPIs del Período', {
-      x: 50,
-      y: y - 15,
-      size: 10,
-      font: fontBold,
-      color: AZUL_NEXUS,
-    })
-
-    page.drawText(`Total cantidad: ${data.kpis.total_cantidad}`, {
-      x: 50,
-      y: y - 30,
-      size: 9,
-      font: fontRegular,
-      color: GRIS_TEXTO,
-    })
-
-    page.drawText(`Total monto: ${fmtMoney.format(data.kpis.total_monto)}`, {
-      x: 200,
-      y: y - 30,
-      size: 9,
-      font: fontRegular,
-      color: GRIS_TEXTO,
-    })
-
-    page.drawText(`Artículos únicos: ${data.kpis.articulos_unicos}`, {
-      x: 380,
-      y: y - 30,
-      size: 9,
-      font: fontRegular,
-      color: GRIS_TEXTO,
-    })
-
-    y -= 60
-
-    // ========================================
-    // TABLA DE VENTAS
-    // ========================================
-
-    // Cache de imágenes para no descargar duplicados
-    const imageCache = new Map<string, any>()
-
-    for (let i = 0; i < rowsLimitadas.length; i++) {
-      const row = rowsLimitadas[i]
-
-      // Verificar espacio para nueva fila
-      const rowHeight = 75
-      if (y < 100) {
-        page = pdfDoc.addPage([595, 842])
-        y = height - 40
-      }
-
-      const rowY = y - rowHeight
-
-      // Fondo alternado
-      if (i % 2 === 0) {
-        page.drawRectangle({
-          x: 40,
-          y: rowY,
-          width: width - 80,
-          height: rowHeight,
-          color: GRIS_CLARO,
-        })
-      }
-
-      // Imagen (OBLIGATORIA según OT)
-      if (row.imagen_valid && row.image_url) {
-        try {
-          // Verificar si ya tenemos la imagen en cache
-          let image = imageCache.get(row.image_url)
-
-          if (!image) {
-            // Timeout de 1000ms por imagen para maximizar throughput
-            const imgResponse = await safeFetchImage(row.image_url, 1000)
-
-            if (imgResponse) {
-              const imgBytes = await imgResponse.arrayBuffer()
-              const imgType = row.image_url.toLowerCase()
-
-              if (imgType.endsWith('.png')) {
-                image = await pdfDoc.embedPng(imgBytes)
-              } else if (imgType.endsWith('.jpg') || imgType.endsWith('.jpeg')) {
-                image = await pdfDoc.embedJpg(imgBytes)
-              }
-
-              // Guardar en cache
-              if (image) {
-                imageCache.set(row.image_url, image)
-              }
-            }
-          }
-
-          if (image) {
-            const imgSize = 60
-            page.drawImage(image, {
-              x: 45,
-              y: y - 68,
-              width: imgSize,
-              height: imgSize,
-            })
-          } else {
-            // Placeholder si falla carga
-            page.drawRectangle({
-              x: 45,
-              y: y - 68,
-              width: 60,
-              height: 60,
-              color: rgb(0.9, 0.9, 0.9),
-            })
-            page.drawText('NO', {
-              x: 55,
-              y: y - 35,
-              size: 7,
-              font: fontBold,
-              color: rgb(0.6, 0.6, 0.6),
-            })
-            page.drawText('DISP', {
-              x: 52,
-              y: y - 45,
-              size: 7,
-              font: fontBold,
-              color: rgb(0.6, 0.6, 0.6),
-            })
-          }
-        } catch (error) {
-          console.warn('[PDF] Error cargando imagen:', row.image_url, error)
-          // Placeholder
-          page.drawRectangle({
-            x: 45,
-            y: y - 68,
-            width: 60,
-            height: 60,
-            color: rgb(0.9, 0.9, 0.9),
-          })
-          page.drawText('ERROR', {
-            x: 52,
-            y: y - 40,
-            size: 7,
-            font: fontBold,
-            color: rgb(0.8, 0.2, 0.2),
-          })
-        }
-      } else {
-        // Sin imagen válida
-        page.drawRectangle({
-          x: 45,
-          y: y - 68,
-          width: 60,
-          height: 60,
-          color: rgb(0.95, 0.95, 0.95),
-        })
-        page.drawText('IMAGEN', {
-          x: 48,
-          y: y - 35,
-          size: 6,
-          font: fontRegular,
-          color: rgb(0.7, 0.7, 0.7),
-        })
-        page.drawText('INVÁLIDA', {
-          x: 46,
-          y: y - 45,
-          size: 6,
-          font: fontRegular,
-          color: rgb(0.7, 0.7, 0.7),
-        })
-      }
-
-      // Fecha
-      page.drawText(row.fecha, {
-        x: 115,
-        y: y - 12,
-        size: 8,
-        font: fontRegular,
-        color: GRIS_TEXTO,
-      })
-
-      // Referencia
-      const refTrunc = row.imagen.substring(0, 30)
-      page.drawText(`Ref: ${refTrunc}`, {
-        x: 115,
-        y: y - 22,
-        size: 7,
-        font: fontRegular,
-        color: GRIS_TEXTO,
-      })
-
-      // Categoría
-      const categoriaTrunc = row.descp_categoria ? row.descp_categoria.substring(0, 20) : '—'
-      page.drawText(`Cat: ${categoriaTrunc}`, {
-        x: 115,
-        y: y - 32,
-        size: 7,
-        font: fontRegular,
-        color: GRIS_TEXTO,
-      })
-
-      // Cantidad
-      page.drawText(`Cant: ${row.cantidad}`, {
-        x: 115,
-        y: y - 44,
-        size: 8,
-        font: fontBold,
-        color: AZUL_NEXUS,
-      })
-
-      // Monto
-      page.drawText(fmtMoney.format(row.monto), {
-        x: 115,
-        y: y - 55,
-        size: 9,
-        font: fontBold,
-        color: DORADO_NEXUS,
-      })
-
-      // Tipo venta
-      const tipoColor = row.tipo_venta === 'VENTA'
-        ? rgb(0.133, 0.545, 0.133) // Verde
-        : rgb(0.855, 0.647, 0.125) // Ámbar
-
-      page.drawText(row.tipo_venta, {
-        x: width - 120,
-        y: y - 25,
-        size: 9,
-        font: fontBold,
-        color: tipoColor,
-      })
-
-      // Tipo descripción
-      page.drawText(row.desc_tipo || '—', {
-        x: width - 120,
-        y: y - 38,
-        size: 7,
-        font: fontRegular,
-        color: GRIS_TEXTO,
-      })
-
-      y -= rowHeight + 5
+    const fonts: Fonts = {
+      serif: await pdfDoc.embedFont(StandardFonts.TimesRoman),
+      serifBold: await pdfDoc.embedFont(StandardFonts.TimesRomanBold),
+      sans: await pdfDoc.embedFont(StandardFonts.Helvetica),
+      sansBold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
     }
 
-    // Footer en todas las páginas
-    const pages = pdfDoc.getPages()
-    pages.forEach((p, idx) => {
-      p.drawText(`Ventas con Fotos — Nexus Report — Página ${idx + 1} de ${pages.length}`, {
-        x: width / 2 - 130,
-        y: 20,
-        size: 8,
-        font: fontRegular,
-        color: rgb(0.580, 0.639, 0.722),
-      })
-    })
+    const stats = data.pillarStats ?? deriveStats(data.rows)
 
-    console.log('[PDF Ventas-Fotos] Finalizando documento...')
+    await renderPaginaEjecutiva(pdfDoc, fonts, data, stats)
+    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas)
+    drawFooters(pdfDoc, fonts)
+
     const pdfBytes = await pdfDoc.save()
-    console.log('[PDF Ventas-Fotos] PDF generado exitosamente, size:', pdfBytes.length)
-
+    console.log('[PDF Ventas-Fotos] PDF generado, size:', pdfBytes.length)
     return Buffer.from(pdfBytes)
   } catch (error) {
     console.error('[PDF Ventas-Fotos] Exception en generación:', error)
-    console.error('[PDF Ventas-Fotos] Error stack:', error instanceof Error ? error.stack : 'No stack available')
-    console.error('[PDF Ventas-Fotos] Error message:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }

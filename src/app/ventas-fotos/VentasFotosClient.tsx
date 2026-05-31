@@ -208,6 +208,7 @@ export function VentasFotosClient() {
           fechaFin: filters.fechaFin,
         },
         kpis,
+        pillarStats,
         rows,
       };
 
