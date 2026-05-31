@@ -146,6 +146,7 @@ export function VentasFotosClient() {
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "ready" | "error">("idle");
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const pdfRequestIdRef = useRef(0);
+  const [pdfElapsedSeconds, setPdfElapsedSeconds] = useState(0);
 
   useEffect(() => {
     fetch("/api/ventas-fotos/meta")
@@ -172,6 +173,17 @@ export function VentasFotosClient() {
       }
     };
   }, [pdfBlobUrl]);
+
+  // Trackear tiempo de generación de PDF
+  useEffect(() => {
+    if (pdfState === "generating") {
+      setPdfElapsedSeconds(0);
+      const interval = setInterval(() => {
+        setPdfElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [pdfState]);
 
   const configured = meta?.configured === true;
   const marcas = meta?.marcas.length ? meta.marcas : DEMO_MARCAS;
@@ -354,22 +366,46 @@ export function VentasFotosClient() {
               Report y fotos desde Storage.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={generarPDF}
-            disabled={loadingPDF || !rows.length || pdfState === "generating"}
-            className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 disabled:opacity-40 disabled:cursor-not-allowed print:hidden"
-          >
-            {loadingPDF
-              ? "Generando PDF..."
-              : pdfState === "generating"
+          <div className="flex flex-col items-end gap-2">
+            <button
+              type="button"
+              onClick={generarPDF}
+              disabled={loadingPDF || !rows.length || pdfState === "generating"}
+              className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 disabled:opacity-40 disabled:cursor-not-allowed print:hidden"
+            >
+              {loadingPDF
                 ? "Generando PDF..."
-                : pdfState === "ready"
-                  ? "Descargar PDF"
-                  : pdfState === "error"
-                    ? "PDF no disponible, reintentar"
-                    : "Generar PDF"}
-          </button>
+                : pdfState === "generating"
+                  ? "Generando PDF..."
+                  : pdfState === "ready"
+                    ? "Descargar PDF"
+                    : pdfState === "error"
+                      ? "PDF no disponible, reintentar"
+                      : "Generar PDF"}
+            </button>
+            {pdfState === "generating" && (
+              <div className="w-64">
+                <div className="mb-1 flex items-center justify-between text-[10px] text-report-muted">
+                  <span>Preparando PDF...</span>
+                  <span>{pdfElapsedSeconds}s</span>
+                </div>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-report-rule">
+                  <div
+                    className="h-full bg-report-navy transition-all duration-500"
+                    style={{
+                      width: pdfElapsedSeconds < 10 ? `${(pdfElapsedSeconds / 10) * 100}%` : "100%",
+                      animation: pdfElapsedSeconds >= 10 ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none",
+                    }}
+                  />
+                </div>
+                {pdfElapsedSeconds > 10 && (
+                  <p className="mt-2 text-[10px] text-report-muted">
+                    PDF sigue preparándose; podés seguir usando el informe.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {!configured ? (

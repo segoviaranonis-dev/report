@@ -393,12 +393,38 @@ async function renderPaginaEjecutiva(
   fonts: Fonts,
   data: PDFVentasFotosData,
   stats: VentasFotosPillarStats,
+  esLimitado: boolean,
+  totalFilas: number,
 ) {
   const page = pdfDoc.addPage([PAGE_W, PAGE_H])
   drawHeader(page, fonts, data)
 
   let y = PAGE_H - MARGIN - 78
   y = drawResumen(page, fonts, y, stats)
+
+  // Aviso si PDF está limitado
+  if (esLimitado) {
+    page.drawRectangle({
+      x: MARGIN,
+      y: y - 28,
+      width: PAGE_W - 2 * MARGIN,
+      height: 24,
+      color: rgb(1, 0.976, 0.922), // amber-50
+      borderColor: rgb(0.976, 0.827, 0.529), // amber-200
+      borderWidth: 0.5,
+    })
+    text(
+      page,
+      `PDF ejecutivo muestra primeras 80 filas con imagen. Total: ${totalFilas} filas. Detalle completo en pantalla.`,
+      MARGIN + 8,
+      y - 14,
+      8,
+      fonts.sans,
+      rgb(0.596, 0.349, 0.039), // amber-900
+    )
+    y -= 34
+  }
+
   y = drawGeneroPane(page, fonts, y, stats)
   y = drawTopBars(page, fonts, y, 'Participación por categoría', stats.porCategoria, true, 6)
   y = drawTopBars(page, fonts, y, 'Top estilos', stats.porEstilo, true, 6)
@@ -467,21 +493,34 @@ async function fetchImage(
   pdfDoc: PDFDocument,
   cache: Map<string, PDFImage>,
   url: string,
+  metrics: ImageMetrics,
 ): Promise<PDFImage | null> {
   const cached = cache.get(url)
-  if (cached) return cached
+  if (cached) {
+    metrics.cached++
+    return cached
+  }
   try {
-    const resp = await safeFetchImage(url, 1000)
-    if (!resp) return null
+    const resp = await safeFetchImage(url, 800)
+    if (!resp) {
+      metrics.fallback++
+      return null
+    }
     const bytes = await resp.arrayBuffer()
     const lower = url.toLowerCase()
     let img: PDFImage | null = null
     if (lower.endsWith('.png')) img = await pdfDoc.embedPng(bytes)
     else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) img = await pdfDoc.embedJpg(bytes)
-    if (img) cache.set(url, img)
-    return img
+    if (img) {
+      cache.set(url, img)
+      metrics.downloaded++
+      return img
+    }
+    metrics.fallback++
+    return null
   } catch (e) {
     console.warn('[PDF Ventas-Fotos] Error cargando imagen', url, e)
+    metrics.fallback++
     return null
   }
 }
@@ -491,11 +530,18 @@ function drawPlaceholder(page: PDFPage, fonts: Fonts, x: number, y: number, size
   textCenter(page, label, x + size / 2, y + size / 2 - 3, 6.5, fonts.sansBold, INK_MUTED)
 }
 
+interface ImageMetrics {
+  downloaded: number
+  cached: number
+  fallback: number
+}
+
 async function renderDetalle(
   pdfDoc: PDFDocument,
   fonts: Fonts,
   data: PDFVentasFotosData,
   rowsLimitadas: VentaFotoRow[],
+  metrics: ImageMetrics,
 ) {
   if (!rowsLimitadas.length) return
 
@@ -527,7 +573,7 @@ async function renderDetalle(
     // Imagen
     const imgY = rowBottom + (DETALLE_ROW_H - L.imgSize) / 2
     if (row.imagen_valid && row.image_url) {
-      const img = await fetchImage(pdfDoc, cache, row.image_url)
+      const img = await fetchImage(pdfDoc, cache, row.image_url, metrics)
       if (img) {
         // Mantener proporción dentro del cuadro.
         const ratio = img.width / img.height
@@ -628,13 +674,16 @@ function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
 
 // ─── Entrada principal ──────────────────────────────────────────────────────
 export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
+  const startTime = performance.now()
   console.log('[PDF Ventas-Fotos] Iniciando generación...')
-  console.log('[PDF Ventas-Fotos] Filas:', data.rows.length)
+  console.log('[PDF Ventas-Fotos] Filas totales:', data.rows.length)
 
   try {
-    const rowsLimitadas = data.rows.slice(0, 300)
-    if (data.rows.length > 300) {
-      console.warn('[PDF Ventas-Fotos] Limitando a 300 filas de', data.rows.length)
+    const MAX_FILAS_PDF = 80
+    const rowsLimitadas = data.rows.slice(0, MAX_FILAS_PDF)
+    const esLimitado = data.rows.length > MAX_FILAS_PDF
+    if (esLimitado) {
+      console.warn(`[PDF Ventas-Fotos] Limitando a ${MAX_FILAS_PDF} filas de ${data.rows.length} para performance`)
     }
 
     const pdfDoc = await PDFDocument.create()
@@ -646,13 +695,21 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     }
 
     const stats = data.pillarStats ?? deriveStats(data.rows)
+    const imageMetrics: ImageMetrics = { downloaded: 0, cached: 0, fallback: 0 }
 
-    await renderPaginaEjecutiva(pdfDoc, fonts, data, stats)
-    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas)
+    await renderPaginaEjecutiva(pdfDoc, fonts, data, stats, esLimitado, data.rows.length)
+    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageMetrics)
     drawFooters(pdfDoc, fonts)
 
     const pdfBytes = await pdfDoc.save()
-    console.log('[PDF Ventas-Fotos] PDF generado, size:', pdfBytes.length)
+    const endTime = performance.now()
+    const durationMs = Math.round(endTime - startTime)
+    console.log(`[PDF Ventas-Fotos] ✓ PDF generado en ${durationMs}ms`)
+    console.log(`[PDF Ventas-Fotos]   - Filas procesadas: ${rowsLimitadas.length}`)
+    console.log(`[PDF Ventas-Fotos]   - Imágenes descargadas: ${imageMetrics.downloaded}`)
+    console.log(`[PDF Ventas-Fotos]   - Imágenes en caché: ${imageMetrics.cached}`)
+    console.log(`[PDF Ventas-Fotos]   - Imágenes fallback: ${imageMetrics.fallback}`)
+    console.log(`[PDF Ventas-Fotos]   - Tamaño: ${Math.round(pdfBytes.length / 1024)}KB`)
     return Buffer.from(pdfBytes)
   } catch (error) {
     console.error('[PDF Ventas-Fotos] Exception en generación:', error)
