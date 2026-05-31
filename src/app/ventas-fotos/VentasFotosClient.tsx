@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -142,6 +142,11 @@ export function VentasFotosClient() {
   const [loadingPDF, setLoadingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Estados para PDF en background
+  const [pdfState, setPdfState] = useState<"idle" | "generating" | "ready" | "error">("idle");
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const pdfRequestIdRef = useRef(0);
+
   useEffect(() => {
     fetch("/api/ventas-fotos/meta")
       .then((r) => r.json())
@@ -159,6 +164,15 @@ export function VentasFotosClient() {
       );
   }, []);
 
+  // Cleanup blob URL cuando cambia o se desmonta
+  useEffect(() => {
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [pdfBlobUrl]);
+
   const configured = meta?.configured === true;
   const marcas = meta?.marcas.length ? meta.marcas : DEMO_MARCAS;
   const rows = useMemo(() => data?.rows ?? (!configured ? DEMO_ROWS : []), [configured, data]);
@@ -174,6 +188,12 @@ export function VentasFotosClient() {
   async function cargar() {
     setLoading(true);
     setError(null);
+    // Invalidar PDF anterior
+    setPdfState("idle");
+    if (pdfBlobUrl) {
+      URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
     try {
       const res = await fetch("/api/ventas-fotos/ventas", {
         method: "POST",
@@ -184,11 +204,70 @@ export function VentasFotosClient() {
       if (!res.ok) throw new Error(json.error ?? "Error al cargar ventas con fotos");
       setData(json);
       if (json.error) setError(json.error);
+      // Si carga exitosa con datos, generar PDF en background
+      if (json.rows && json.rows.length > 0) {
+        generarPDFBackground(json);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar ventas con fotos");
       setData(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generarPDFBackground(dataSnapshot: VentasFotosResponse) {
+    const currentRequestId = ++pdfRequestIdRef.current;
+    setPdfState("generating");
+
+    const clienteData = dataSnapshot.cliente;
+    const marcaData = dataSnapshot.marca;
+
+    if (!clienteData || !marcaData) {
+      setPdfState("error");
+      return;
+    }
+
+    try {
+      const payload = {
+        cliente: clienteData,
+        marca: marcaData,
+        filtros: {
+          fechaInicio: filters.fechaInicio,
+          fechaFin: filters.fechaFin,
+        },
+        kpis: dataSnapshot.kpis,
+        pillarStats: dataSnapshot.pillarStats,
+        rows: dataSnapshot.rows,
+      };
+
+      const res = await fetch("/api/ventas-fotos/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error ?? json.message ?? "Error al generar PDF");
+      }
+
+      // Verificar si esta request sigue siendo la más reciente
+      if (currentRequestId !== pdfRequestIdRef.current) {
+        // Request obsoleta, ignorar
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+      setPdfState("ready");
+    } catch (e) {
+      // Solo setear error si esta request sigue siendo la más reciente
+      if (currentRequestId === pdfRequestIdRef.current) {
+        setPdfState("error");
+        console.error("Error generando PDF en background:", e);
+      }
     }
   }
 
@@ -198,6 +277,23 @@ export function VentasFotosClient() {
       return;
     }
 
+    // Si el PDF ya está listo, descargarlo inmediatamente
+    if (pdfState === "ready" && pdfBlobUrl) {
+      const a = document.createElement("a");
+      a.href = pdfBlobUrl;
+      a.download = `ventas-fotos-${cliente.id}-${marca.descp_marca.replace(/\s+/g, "_")}-${filters.fechaInicio}-${filters.fechaFin}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // Si está generando, no hacer nada (botón debe estar deshabilitado)
+    if (pdfState === "generating") {
+      return;
+    }
+
+    // Si está idle o error, generar manualmente
     setLoadingPDF(true);
     setError(null);
 
@@ -261,10 +357,18 @@ export function VentasFotosClient() {
           <button
             type="button"
             onClick={generarPDF}
-            disabled={loadingPDF || !rows.length}
+            disabled={loadingPDF || !rows.length || pdfState === "generating"}
             className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 disabled:opacity-40 disabled:cursor-not-allowed print:hidden"
           >
-            {loadingPDF ? "Generando PDF..." : "Generar PDF"}
+            {loadingPDF
+              ? "Generando PDF..."
+              : pdfState === "generating"
+                ? "Generando PDF..."
+                : pdfState === "ready"
+                  ? "Descargar PDF"
+                  : pdfState === "error"
+                    ? "PDF no disponible, reintentar"
+                    : "Generar PDF"}
           </button>
         </div>
 
