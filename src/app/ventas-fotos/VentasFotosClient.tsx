@@ -83,6 +83,7 @@ const EMPTY_PILLAR_STATS: VentasFotosPillarStats = {
   porEstilo: [],
   porTipo1: [],
   porColor: [],
+  porCategoria: [],
 };
 
 function defaultDates() {
@@ -122,6 +123,7 @@ function demoPillarStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
     porEstilo: rows[0]?.estilo ? [mk(rows[0].estilo, totalPares, totalMonto)] : [],
     porTipo1: rows[0]?.tipo_1 ? [mk(rows[0].tipo_1, totalPares, totalMonto)] : [],
     porColor: rows[0]?.color_nombre ? [mk(rows[0].color_nombre, totalPares, totalMonto)] : [],
+    porCategoria: rows[0]?.descp_categoria ? [mk(rows[0].descp_categoria, totalPares, totalMonto)] : [],
   };
 }
 
@@ -407,6 +409,7 @@ function PillarStatsBlock({ stats, hasRows }: { stats: VentasFotosPillarStats; h
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <ChartTablePane title="Género" buckets={stats.porGenero} chart="pie" />
+        <ChartTablePane title="Categoría" buckets={stats.porCategoria} chart="bar" />
         <ChartTablePane title="Estilo" buckets={stats.porEstilo} chart="bar" />
         <ChartTablePane title="Tipo" buckets={stats.porTipo1} chart="bar" />
         <ChartTablePane title="Color" buckets={stats.porColor} chart="bar" topN={10} />
@@ -616,9 +619,6 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
             <th>Referencia</th>
             <th>Categoría</th>
             <th className="text-right">Cantidad</th>
-            <th className="text-right">Monto</th>
-            <th>Tipo venta</th>
-            <th>Estado</th>
           </tr>
         </thead>
         <tbody>
@@ -644,31 +644,6 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
               <td className="font-mono text-xs">{row.imagen || "—"}</td>
               <td className="text-xs">{row.descp_categoria || "—"}</td>
               <td className="text-right tabular-nums">{fmtInt.format(row.cantidad)}</td>
-              <td className="text-right tabular-nums text-xs">{fmtMoney.format(row.monto)}</td>
-              <td>
-                <span
-                  className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
-                    row.tipo_venta === "VENTA"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : row.tipo_venta === "TRANSITO"
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {row.tipo_venta}
-                </span>
-              </td>
-              <td>
-                {row.imagen_valid ? (
-                  <span className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    ✓ Válido
-                  </span>
-                ) : (
-                  <span className="inline-block rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700">
-                    ✗ Inválido
-                  </span>
-                )}
-              </td>
             </tr>
           ))}
         </tbody>

@@ -99,6 +99,7 @@ function emptyPillarStats(): VentasFotosPillarStats {
     porEstilo: [],
     porTipo1: [],
     porColor: [],
+    porCategoria: [],
   };
 }
 
@@ -138,6 +139,7 @@ function computePillarStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
     porEstilo: bucket((r) => r.estilo),
     porTipo1: bucket((r) => r.tipo_1),
     porColor: bucket((r) => r.color_nombre),
+    porCategoria: bucket((r) => r.descp_categoria),
   };
 }
 

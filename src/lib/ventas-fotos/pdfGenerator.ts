@@ -400,6 +400,7 @@ async function renderPaginaEjecutiva(
   let y = PAGE_H - MARGIN - 78
   y = drawResumen(page, fonts, y, stats)
   y = drawGeneroPane(page, fonts, y, stats)
+  y = drawTopBars(page, fonts, y, 'Participación por categoría', stats.porCategoria, true, 6)
   y = drawTopBars(page, fonts, y, 'Top estilos', stats.porEstilo, true, 6)
   y = drawTopBars(page, fonts, y, 'Top tipo', stats.porTipo1, true, 6)
   y = drawTopBars(page, fonts, y, 'Top colores', stats.porColor, false, 8)
@@ -417,8 +418,6 @@ interface DetalleLayout {
   refX: number
   catX: number
   cantX: number
-  montoX: number
-  tipoX: number
   rightLimit: number
 }
 
@@ -432,9 +431,7 @@ function detalleLayout(): DetalleLayout {
     fechaX: textStartX,                  // FECHA (izq)   80px
     refX: textStartX + 60,               // REFERENCIA    140px
     catX: textStartX + 200,              // CATEGORÍA      90px
-    cantX: PAGE_W - MARGIN - 180,        // CANTIDAD (der)
-    montoX: PAGE_W - MARGIN - 75,        // MONTO (der)
-    tipoX: PAGE_W - MARGIN - 4,          // TIPO (der)
+    cantX: PAGE_W - MARGIN - 4,          // CANTIDAD (der)
     rightLimit: PAGE_W - MARGIN,
   }
 }
@@ -460,8 +457,6 @@ function drawDetalleHeader(page: PDFPage, fonts: Fonts, data: PDFVentasFotosData
   text(page, 'REFERENCIA', L.refX, hy, 7, fonts.sansBold, INK_MUTED)
   text(page, 'CATEGORÍA', L.catX, hy, 7, fonts.sansBold, INK_MUTED)
   textRight(page, 'CANTIDAD', L.cantX, hy, 7, fonts.sansBold, INK_MUTED)
-  textRight(page, 'MONTO', L.montoX, hy, 7, fonts.sansBold, INK_MUTED)
-  textRight(page, 'TIPO', L.tipoX, hy, 7, fonts.sansBold, INK_MUTED)
   ruleLine(page, MARGIN, PAGE_W - MARGIN, hy - 4, RULE_SOFT, 0.4)
 
   // Pequeño indicador de página de detalle.
@@ -565,12 +560,6 @@ async function renderDetalle(
     text(page, cat, L.catX, baseY, 8, fonts.sans, INK_SOFT)
 
     textRight(page, fmtInt.format(row.cantidad), L.cantX, baseY, 9, fonts.sansBold, INK)
-    textRight(page, fmtMoney.format(row.monto), L.montoX, baseY, 8, fonts.sans, INK)
-
-    // Tipo venta (chip discreto).
-    const tipo = row.tipo_venta
-    const tipoColor = tipo === 'VENTA' ? colorAt(2) : tipo === 'TRANSITO' ? colorAt(0) : INK_MUTED
-    textRight(page, tipo, L.tipoX, baseY, 8, fonts.sansBold, tipoColor)
 
     // Línea inferior fina.
     ruleLine(page, MARGIN, PAGE_W - MARGIN, rowBottom + 1, RULE_SOFT, 0.3)
@@ -633,6 +622,7 @@ function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
     porEstilo: bucket((r) => r.estilo),
     porTipo1: bucket((r) => r.tipo_1),
     porColor: bucket((r) => r.color_nombre),
+    porCategoria: bucket((r) => r.descp_categoria),
   }
 }
 

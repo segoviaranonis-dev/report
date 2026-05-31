@@ -76,6 +76,7 @@ export type VentasFotosPillarStats = {
   porEstilo: PillarBucket[];
   porTipo1: PillarBucket[];
   porColor: PillarBucket[];
+  porCategoria: PillarBucket[];
 };
 
 export type VentasFotosResponse = {

@@ -9,6 +9,7 @@ const EMPTY_PILLAR_STATS: VentasFotosResponse["pillarStats"] = {
   porEstilo: [],
   porTipo1: [],
   porColor: [],
+  porCategoria: [],
 };
 
 const EMPTY_RESPONSE: VentasFotosResponse = {
