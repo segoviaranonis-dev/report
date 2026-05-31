@@ -1,15 +1,49 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type {
+  PillarBucket,
   VentaFotoRow,
   VentasFotosFilters,
   VentasFotosMarca,
   VentasFotosMetaResponse,
+  VentasFotosPillarStats,
   VentasFotosResponse,
 } from "@/lib/ventas-fotos/types";
 
 const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
+const fmtPct = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+
+const PILLAR_PALETTE = [
+  "#1B3A6B", // azul nexus
+  "#D4AF37", // dorado
+  "#3b82f6", // azul medio
+  "#0e7490", // teal
+  "#7c3aed", // violeta
+  "#10b981", // verde
+  "#f59e0b", // ámbar
+  "#ef4444", // rojo
+  "#64748b", // slate
+  "#a855f7", // púrpura
+  "#ec4899", // rosa
+  "#0891b2", // cyan
+];
+
+function colorAt(idx: number): string {
+  return PILLAR_PALETTE[idx % PILLAR_PALETTE.length];
+}
 
 const DEMO_MARCAS: VentasFotosMarca[] = [{ id_marca: 1, descp_marca: "Marca demo" }];
 
@@ -32,11 +66,24 @@ const DEMO_ROWS: VentaFotoRow[] = [
     referencia_codigo: 1350,
     material_codigo: 9569,
     color_codigo: 15745,
+    genero: "DAMAS",
+    estilo: "TACO MEDIO",
+    tipo_1: "CERRADO",
+    material_nombre: "NAPA TURIM",
+    color_nombre: "NEGRO 01",
     imagen_valid: true,
     imagen_error: null,
     image_url: "https://extrlcvcgypwazxipvqm.supabase.co/storage/v1/object/public/productos/4076-1350-9569-15745.jpg",
   },
 ];
+
+const EMPTY_PILLAR_STATS: VentasFotosPillarStats = {
+  resumen: { totalPares: 0, totalMonto: 0, articulosUnicos: 0, sinClasificar: 0 },
+  porGenero: [],
+  porEstilo: [],
+  porTipo1: [],
+  porColor: [],
+};
 
 function defaultDates() {
   const end = new Date();
@@ -55,6 +102,26 @@ function emptyKpis(rows: VentaFotoRow[]) {
     total_ventas: rows.filter((r) => r.tipo_venta === "VENTA").reduce((s, r) => s + Math.abs(r.cantidad), 0),
     total_transito: rows.filter((r) => r.tipo_venta === "TRANSITO").reduce((s, r) => s + Math.abs(r.cantidad), 0),
     articulos_unicos: new Set(rows.map((r) => r.imagen).filter(Boolean)).size,
+  };
+}
+
+function demoPillarStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
+  const totalPares = rows.reduce((s, r) => s + Math.abs(r.cantidad), 0);
+  const totalMonto = rows.reduce((s, r) => s + Math.abs(r.monto), 0);
+  const articulosUnicos = new Set(rows.map((r) => r.imagen).filter(Boolean)).size;
+  const mk = (label: string, pares: number, monto: number): PillarBucket => ({
+    label,
+    pares,
+    monto,
+    pctPares: totalPares ? (pares / totalPares) * 100 : 0,
+    pctMonto: totalMonto ? (monto / totalMonto) * 100 : 0,
+  });
+  return {
+    resumen: { totalPares, totalMonto, articulosUnicos, sinClasificar: 0 },
+    porGenero: rows[0]?.genero ? [mk(rows[0].genero, totalPares, totalMonto)] : [],
+    porEstilo: rows[0]?.estilo ? [mk(rows[0].estilo, totalPares, totalMonto)] : [],
+    porTipo1: rows[0]?.tipo_1 ? [mk(rows[0].tipo_1, totalPares, totalMonto)] : [],
+    porColor: rows[0]?.color_nombre ? [mk(rows[0].color_nombre, totalPares, totalMonto)] : [],
   };
 }
 
@@ -94,6 +161,7 @@ export function VentasFotosClient() {
   const marcas = meta?.marcas.length ? meta.marcas : DEMO_MARCAS;
   const rows = useMemo(() => data?.rows ?? (!configured ? DEMO_ROWS : []), [configured, data]);
   const kpis = data?.kpis ?? emptyKpis(rows);
+  const pillarStats = data?.pillarStats ?? (!configured ? demoPillarStats(rows) : EMPTY_PILLAR_STATS);
   const cliente = data?.cliente ?? (rows[0] ? { id: rows[0].id_cliente, nombre: rows[0].descp_cliente } : null);
   const marca = data?.marca ?? marcas.find((m) => m.id_marca === filters.marcaId) ?? null;
   const referencias = useMemo(
@@ -273,7 +341,7 @@ export function VentasFotosClient() {
         </div>
 
         <HeaderSummary cliente={cliente} marca={marca} fechaInicio={filters.fechaInicio} fechaFin={filters.fechaFin} />
-        <KpiStrip kpis={kpis} />
+        <PillarStatsBlock stats={pillarStats} hasRows={rows.length > 0} />
         <VentasFotosTable rows={rows} />
       </div>
     </section>
@@ -318,25 +386,210 @@ function HeaderSummary({
   );
 }
 
-function KpiStrip({ kpis }: { kpis: ReturnType<typeof emptyKpis> }) {
+function PillarStatsBlock({ stats, hasRows }: { stats: VentasFotosPillarStats; hasRows: boolean }) {
   const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
 
+  if (!hasRows) {
+    return (
+      <div className="mt-6 rounded-xl border border-report-rule bg-white p-8 text-center text-sm text-report-muted shadow-sm">
+        Aplicá filtros para ver las estadísticas por pilares.
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {[
-        ["Venta", kpis.total_ventas, false],
-        ["Tránsito", kpis.total_transito, false],
-        ["Total registrado", kpis.total_cantidad, false],
-        ["Total monto", kpis.total_monto, true],
-        ["Artículos únicos", kpis.articulos_unicos, false],
-      ].map(([label, value, isMoney]) => (
-        <div key={label as string} className="border border-report-rule bg-white px-4 py-3 shadow-sm">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-report-muted">{label}</p>
-          <p className="mt-1 font-serif text-2xl font-bold text-report-navy tabular-nums">
-            {isMoney ? fmtMoney.format(Number(value)) : fmtInt.format(Number(value))}
-          </p>
-        </div>
-      ))}
+    <section className="mt-6 rounded-xl border border-report-rule bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-report-rule pb-3">
+        <h2 className="font-serif text-xl font-bold text-report-navy">Estadísticas por pilares</h2>
+        <ResumenCompacto stats={stats.resumen} />
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <ChartTablePane title="Género" buckets={stats.porGenero} chart="pie" />
+        <ChartTablePane title="Estilo" buckets={stats.porEstilo} chart="bar" />
+        <ChartTablePane title="Tipo" buckets={stats.porTipo1} chart="bar" />
+        <ChartTablePane title="Color" buckets={stats.porColor} chart="bar" topN={10} />
+      </div>
+
+      {stats.resumen.sinClasificar > 0 ? (
+        <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+          {stats.resumen.sinClasificar} fila{stats.resumen.sinClasificar === 1 ? "" : "s"} sin metadata de pilares — se
+          agruparon como “Sin clasificar”. La imagen no matcheó contra <code>linea / referencia / linea_referencia</code>.
+        </p>
+      ) : null}
+
+      <p className="mt-3 text-[10px] uppercase tracking-wide text-report-muted">
+        Total monto: <span className="font-semibold text-report-navy">{fmtMoney.format(stats.resumen.totalMonto)}</span>
+      </p>
+    </section>
+  );
+}
+
+function ResumenCompacto({ stats }: { stats: VentasFotosPillarStats["resumen"] }) {
+  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
+  return (
+    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+      <SummaryChip label="Pares" value={fmtInt.format(stats.totalPares)} />
+      <SummaryChip label="Monto" value={fmtMoney.format(stats.totalMonto)} />
+      <SummaryChip label="Artículos únicos" value={fmtInt.format(stats.articulosUnicos)} />
+    </div>
+  );
+}
+
+function SummaryChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-report-muted">{label}</span>
+      <span className="font-semibold tabular-nums text-report-navy">{value}</span>
+    </span>
+  );
+}
+
+function ChartTablePane({
+  title,
+  buckets,
+  chart,
+  topN,
+}: {
+  title: string;
+  buckets: PillarBucket[];
+  chart: "pie" | "bar";
+  topN?: number;
+}) {
+  const data = topN ? buckets.slice(0, topN) : buckets;
+
+  if (!data.length) {
+    return (
+      <div className="rounded-lg border border-report-rule bg-report-paper2 p-4 text-xs text-report-muted">
+        Sin datos para {title.toLowerCase()}.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-report-rule bg-report-paper2 p-4">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-report-navy">{title}</h3>
+        <span className="text-[10px] text-report-muted">{buckets.length} segmento{buckets.length === 1 ? "" : "s"}</span>
+      </div>
+
+      <div className="mt-3 h-44 w-full">
+        {chart === "pie" ? <PillarPie data={data} /> : <PillarBars data={data} />}
+      </div>
+
+      <PillarTable rows={data} />
+      {topN && buckets.length > topN ? (
+        <p className="mt-2 text-[10px] text-report-muted">Mostrando top {topN} de {buckets.length}.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function PillarPie({ data }: { data: PillarBucket[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={data}
+          dataKey="pares"
+          nameKey="label"
+          cx="40%"
+          cy="50%"
+          outerRadius={64}
+          innerRadius={28}
+          paddingAngle={1}
+          stroke="#ffffff"
+        >
+          {data.map((_, i) => (
+            <Cell key={i} fill={colorAt(i)} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(value, _name, ctx) => {
+            const n = Number(value ?? 0);
+            const bucket = ctx?.payload as PillarBucket | undefined;
+            return [
+              `${fmtInt.format(n)} pares · ${fmtPct.format(bucket?.pctPares ?? 0)} %`,
+              bucket?.label ?? "",
+            ];
+          }}
+        />
+        <Legend
+          layout="vertical"
+          align="right"
+          verticalAlign="middle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: 11 }}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+function PillarBars({ data }: { data: PillarBucket[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+        <XAxis type="number" tick={{ fontSize: 10, fill: "#475569" }} tickFormatter={(v) => fmtInt.format(v)} />
+        <YAxis
+          type="category"
+          dataKey="label"
+          tick={{ fontSize: 10, fill: "#1B3A6B" }}
+          width={90}
+          interval={0}
+        />
+        <Tooltip
+          cursor={{ fill: "rgba(27,58,107,0.05)" }}
+          formatter={(value, _name, ctx) => {
+            const n = Number(value ?? 0);
+            const bucket = ctx?.payload as PillarBucket | undefined;
+            return [
+              `${fmtInt.format(n)} pares · ${fmtPct.format(bucket?.pctPares ?? 0)} %`,
+              bucket?.label ?? "",
+            ];
+          }}
+        />
+        <Bar dataKey="pares" radius={[0, 3, 3, 0]}>
+          {data.map((_, i) => (
+            <Cell key={i} fill={colorAt(i)} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function PillarTable({ rows }: { rows: PillarBucket[] }) {
+  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr className="border-b border-report-rule text-left text-[10px] uppercase tracking-wide text-report-muted">
+            <th className="py-1.5 font-semibold">Segmento</th>
+            <th className="py-1.5 text-right font-semibold">Pares</th>
+            <th className="py-1.5 text-right font-semibold">Monto</th>
+            <th className="py-1.5 text-right font-semibold">% Pares</th>
+            <th className="py-1.5 text-right font-semibold">% Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.label} className="border-b border-report-rule/40 last:border-0">
+              <td className="py-1.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: colorAt(i) }} />
+                  {r.label}
+                </span>
+              </td>
+              <td className="py-1.5 text-right tabular-nums">{fmtInt.format(r.pares)}</td>
+              <td className="py-1.5 text-right tabular-nums">{fmtMoney.format(r.monto)}</td>
+              <td className="py-1.5 text-right tabular-nums">{fmtPct.format(r.pctPares)}%</td>
+              <td className="py-1.5 text-right tabular-nums">{fmtPct.format(r.pctMonto)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -354,7 +607,7 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
 
   return (
     <div className="mt-6 overflow-x-auto border border-report-rule bg-white shadow-sm">
-      <table className="report-table min-w-[1100px]">
+      <table className="report-table min-w-[960px]">
         <thead>
           <tr>
             <th className="w-28">Imagen</th>
@@ -364,7 +617,6 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
             <th className="text-right">Cantidad</th>
             <th className="text-right">Monto</th>
             <th>Tipo venta</th>
-            <th>Pilares (L-R-M-C)</th>
             <th>Estado</th>
           </tr>
         </thead>
@@ -404,13 +656,6 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
                 >
                   {row.tipo_venta}
                 </span>
-              </td>
-              <td className="font-mono text-[11px] text-report-muted">
-                {row.imagen_valid ? (
-                  <>L{row.linea_codigo} · R{row.referencia_codigo} · M{row.material_codigo} · C{row.color_codigo}</>
-                ) : (
-                  <span className="text-red-600">Error formato</span>
-                )}
               </td>
               <td>
                 {row.imagen_valid ? (

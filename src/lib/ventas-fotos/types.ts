@@ -38,6 +38,12 @@ export type VentaFotoRow = {
   referencia_codigo: number | null;
   material_codigo: number | null;
   color_codigo: number | null;
+  // Pilares enriquecidos desde tablas linea / referencia / linea_referencia / material / color
+  genero: string | null;
+  estilo: string | null;
+  tipo_1: string | null;
+  material_nombre: string | null;
+  color_nombre: string | null;
   imagen_valid: boolean;
   imagen_error: string | null;
   image_url: string;
@@ -51,10 +57,32 @@ export type VentasFotosKpis = {
   articulos_unicos: number;
 };
 
+export type PillarBucket = {
+  label: string;
+  pares: number;
+  monto: number;
+  pctPares: number;
+  pctMonto: number;
+};
+
+export type VentasFotosPillarStats = {
+  resumen: {
+    totalPares: number;
+    totalMonto: number;
+    articulosUnicos: number;
+    sinClasificar: number;
+  };
+  porGenero: PillarBucket[];
+  porEstilo: PillarBucket[];
+  porTipo1: PillarBucket[];
+  porColor: PillarBucket[];
+};
+
 export type VentasFotosResponse = {
   configured: boolean;
   rows: VentaFotoRow[];
   kpis: VentasFotosKpis;
+  pillarStats: VentasFotosPillarStats;
   cliente: { id: string; nombre: string } | null;
   marca: VentasFotosMarca | null;
   columnasDetectadas: string[];

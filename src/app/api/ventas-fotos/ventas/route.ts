@@ -3,10 +3,19 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { fetchVentasFotos } from "@/lib/ventas-fotos/queries";
 import type { VentasFotosFilters, VentasFotosResponse } from "@/lib/ventas-fotos/types";
 
+const EMPTY_PILLAR_STATS: VentasFotosResponse["pillarStats"] = {
+  resumen: { totalPares: 0, totalMonto: 0, articulosUnicos: 0, sinClasificar: 0 },
+  porGenero: [],
+  porEstilo: [],
+  porTipo1: [],
+  porColor: [],
+};
+
 const EMPTY_RESPONSE: VentasFotosResponse = {
   configured: false,
   rows: [],
   kpis: { total_cantidad: 0, total_monto: 0, total_ventas: 0, total_transito: 0, articulos_unicos: 0 },
+  pillarStats: EMPTY_PILLAR_STATS,
   cliente: null,
   marca: null,
   columnasDetectadas: [],

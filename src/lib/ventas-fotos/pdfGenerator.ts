@@ -1,6 +1,6 @@
 /**
  * Generador de PDF para Ventas con Fotos
- * Incluye: foto, fecha, referencia, pilares (L-R-M-C), cantidad, monto, tipo, categoría
+ * Incluye: foto, fecha, referencia, cantidad, monto, tipo, categoría
  */
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
@@ -309,30 +309,11 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
         color: GRIS_TEXTO,
       })
 
-      // Pilares L-R-M-C
-      if (row.imagen_valid) {
-        page.drawText(`L${row.linea_codigo} · R${row.referencia_codigo} · M${row.material_codigo} · C${row.color_codigo}`, {
-          x: 115,
-          y: y - 32,
-          size: 6.5,
-          font: fontRegular,
-          color: rgb(0.392, 0.455, 0.545),
-        })
-      } else {
-        page.drawText('Pilares no disponibles', {
-          x: 115,
-          y: y - 32,
-          size: 6.5,
-          font: fontRegular,
-          color: rgb(0.8, 0.2, 0.2),
-        })
-      }
-
       // Categoría
       const categoriaTrunc = row.descp_categoria ? row.descp_categoria.substring(0, 20) : '—'
       page.drawText(`Cat: ${categoriaTrunc}`, {
         x: 115,
-        y: y - 42,
+        y: y - 32,
         size: 7,
         font: fontRegular,
         color: GRIS_TEXTO,
@@ -341,7 +322,7 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
       // Cantidad
       page.drawText(`Cant: ${row.cantidad}`, {
         x: 115,
-        y: y - 54,
+        y: y - 44,
         size: 8,
         font: fontBold,
         color: AZUL_NEXUS,
@@ -350,7 +331,7 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
       // Monto
       page.drawText(fmtMoney.format(row.monto), {
         x: 115,
-        y: y - 65,
+        y: y - 55,
         size: 9,
         font: fontBold,
         color: DORADO_NEXUS,
