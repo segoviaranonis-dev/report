@@ -86,3 +86,47 @@ export function productImagePrimaryFileName(
   if (!stem) return null;
   return `${stem}.jpg`;
 }
+
+/** Candidatos desde columna IMAGEN del Excel (nombre en bucket productos). */
+export function imagenNombreToCandidates(imagenNombre: string | null | undefined): string[] {
+  const raw = String(imagenNombre ?? "").trim();
+  if (!raw) return [];
+
+  const base = raw.replace(/^productos\//i, "").replace(/^\/+/, "");
+  const urls: string[] = [];
+  const exts = [".jpg", ".jpeg", ".png", ".webp"];
+
+  const push = (path: string) => {
+    const u = publicStorageObjectUrl("productos", path);
+    if (u && !urls.includes(u)) urls.push(u);
+  };
+
+  if (/\.(jpe?g|png|webp)$/i.test(base)) {
+    push(base);
+    return urls;
+  }
+
+  for (const ext of exts) push(`${base}${ext}`);
+  return urls;
+}
+
+export function productImageCandidatesForRow(
+  lineaCodigo: string,
+  referenciaCodigo: string,
+  materialCode: string | number,
+  colorCode: string | number,
+  imagenNombre?: string | null,
+): string[] {
+  const fromExcel = imagenNombreToCandidates(imagenNombre);
+  const fromMolecule = productImageCandidates(
+    lineaCodigo,
+    referenciaCodigo,
+    materialCode,
+    colorCode,
+  );
+  const out = [...fromExcel];
+  for (const u of fromMolecule) {
+    if (!out.includes(u)) out.push(u);
+  }
+  return out;
+}

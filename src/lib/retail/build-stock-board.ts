@@ -1,4 +1,7 @@
-import { productImageCandidates, productImagePrimaryFileName } from "@/lib/retail/product-image";
+import {
+  productImageCandidatesForRow,
+  productImagePrimaryFileName,
+} from "@/lib/retail/product-image";
 import type { ColumnaStockRetail, ImportadoraBloque, TiendaTallaBloque } from "@/lib/retail/types";
 import type { RetailStagingRow } from "@/lib/retail/staging-row";
 
@@ -36,7 +39,7 @@ function gradaSortKey(g: string): [number, number, string] {
 
 function origenIsImportadora(name: string): boolean {
   const nl = name.toLowerCase().trim();
-  return nl.includes("import") || nl.includes("rimec");
+  return nl.includes("import") || nl === "rimec" || nl.includes("rimec");
 }
 
 function gradaEsCajaCurvaImportadora(g: string): boolean {
@@ -77,6 +80,24 @@ type AlbumBlock = {
   venta: Record<string, number>;
   stock: Record<string, number>;
 };
+
+function formatOrigenLabel(block: AlbumBlock): string {
+  if (origenIsImportadora(block.origen)) {
+    return "RIMEC — Stock Importadora";
+  }
+  const name = block.origen.trim();
+  const ventaTotal = Object.values(block.venta).reduce((s, v) => s + v, 0);
+  const stockTotal = Object.values(block.stock).reduce((s, v) => s + v, 0);
+  if (ventaTotal > 0 && stockTotal > 0) return `${name} — VENTA · STOCK`;
+  if (ventaTotal > 0) return `${name} — VENTA`;
+  return `${name} — STOCK`;
+}
+
+function blockActivityScore(block: AlbumBlock): number {
+  const venta = Object.values(block.venta).reduce((s, v) => s + v, 0);
+  const stock = Object.values(block.stock).reduce((s, v) => s + v, 0);
+  return venta + stock;
+}
 
 function albumGradaSummaryForSku(rows: RetailStagingRow[], skuKey: string): AlbumBlock[] | null {
   const sku = normSkuKey(skuKey);
@@ -132,34 +153,15 @@ function albumGradaSummaryForSku(rows: RetailStagingRow[], skuKey: string): Albu
   return blocks.length ? blocks : null;
 }
 
-function topSkusByVenta(rows: RetailStagingRow[], topN: number): { sku_key: string; venta_pares: number; meta: RetailStagingRow }[] {
-  const ventas = rows.filter((r) => tipoNorm(r.tipo_movimiento) === "venta" && normSkuKey(r.sku_key));
-  const bySku = new Map<string, { venta: number; meta: RetailStagingRow }>();
-
-  for (const r of ventas) {
-    const k = normSkuKey(r.sku_key);
-    const prev = bySku.get(k);
-    const add = Number(r.cantidad) || 0;
-    if (!prev) bySku.set(k, { venta: add, meta: r });
-    else prev.venta += add;
-  }
-
-  return [...bySku.entries()]
-    .map(([sku_key, { venta, meta }]) => ({ sku_key, venta_pares: venta, meta }))
-    .sort((a, b) => b.venta_pares - a.venta_pares)
-    .slice(0, topN);
-}
-
 function imagenClassForId(id: string): string {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return GRADIENTS[h % GRADIENTS.length]!;
 }
 
-
-function blockToTienda(b: AlbumBlock): TiendaTallaBloque {
+function blockToTienda(b: AlbumBlock, displayName: string): TiendaTallaBloque {
   return {
-    nombre: b.origen,
+    nombre: displayName,
     tallas: b.gradas,
     venta: b.gradas.map((g) => {
       const v = b.venta[g] ?? 0;
@@ -175,64 +177,85 @@ function blockToImportadora(b: AlbumBlock): ImportadoraBloque {
   return { etiquetaGrada, stockTotal };
 }
 
-function blocksToColumna(
-  skuKey: string,
-  blocks: AlbumBlock[],
-  meta: RetailStagingRow,
-  ventaPares: number,
-): ColumnaStockRetail | null {
-  const tiendaBlocks = blocks.filter((b) => !origenIsImportadora(b.origen));
-  const impBlocks = blocks.filter((b) => origenIsImportadora(b.origen));
-  if (!tiendaBlocks.length && !impBlocks.length) return null;
-
-  const marca = meta.marca?.trim() || "(sin marca)";
-  const mat = meta.descp_material?.trim();
-  const col = meta.descp_color?.trim();
-  const pilarHint = mat || col ? ` · ${[mat, col].filter(Boolean).join(" / ")}` : "";
-  const etiqueta = `L${normCodigo(meta.linea_codigo_proveedor)} R${normCodigo(meta.referencia_codigo_proveedor)} - ${Math.round(ventaPares)} pares ${marca}${pilarHint}`;
-
-  const importadora = impBlocks.length
-    ? blockToImportadora(impBlocks[0]!)
-    : { etiquetaGrada: "—", stockTotal: 0 };
-
-  const cands = productImageCandidates(
+function primaryImageFileName(meta: RetailStagingRow): string | null {
+  const fromExcel = meta.imagen_nombre?.trim();
+  if (fromExcel) {
+    return fromExcel.replace(/^productos\//i, "");
+  }
+  return productImagePrimaryFileName(
     meta.linea_codigo_proveedor,
     meta.referencia_codigo_proveedor,
     meta.material_code,
     meta.color_code,
   );
+}
+
+function blockToColumna(
+  skuKey: string,
+  block: AlbumBlock,
+  meta: RetailStagingRow,
+): ColumnaStockRetail | null {
+  const esImp = origenIsImportadora(block.origen);
+  const origenLabel = formatOrigenLabel(block);
+  const ventaPares = Object.values(block.venta).reduce((s, v) => s + v, 0);
+  const stockPares = Object.values(block.stock).reduce((s, v) => s + v, 0);
+  if (ventaPares === 0 && stockPares === 0) return null;
+
+  const marca = meta.marca?.trim() || "(sin marca)";
+  const mat = meta.descp_material?.trim();
+  const col = meta.descp_color?.trim();
+  const pilarHint = mat || col ? ` · ${[mat, col].filter(Boolean).join(" / ")}` : "";
+  const qtyLabel = esImp ? stockPares : ventaPares || stockPares;
+  const etiqueta = `L${normCodigo(meta.linea_codigo_proveedor)} R${normCodigo(meta.referencia_codigo_proveedor)} - ${Math.round(qtyLabel)} pares ${marca}${pilarHint}`;
+
+  const cardId = `${skuKey}|${block.origen}`.replace(/\|/g, "-").replace(/\s+/g, "_");
+  const cands = productImageCandidatesForRow(
+    meta.linea_codigo_proveedor,
+    meta.referencia_codigo_proveedor,
+    meta.material_code,
+    meta.color_code,
+    meta.imagen_nombre,
+  );
+
   return {
-    id: skuKey.replace(/\|/g, "-"),
+    id: cardId,
+    origenLabel,
+    origenRaw: block.origen,
+    esImportadora: esImp,
     etiqueta,
-    imagenClass: imagenClassForId(skuKey),
+    imagenClass: imagenClassForId(cardId),
     imageCandidates: cands,
     imageSrc: cands[0],
-    imageSearchName: productImagePrimaryFileName(
-      meta.linea_codigo_proveedor,
-      meta.referencia_codigo_proveedor,
-      meta.material_code,
-      meta.color_code,
-    ),
-    tiendas: tiendaBlocks.map(blockToTienda),
-    importadora,
+    imageSearchName: primaryImageFileName(meta),
+    tiendas: esImp ? [] : [blockToTienda(block, origenLabel)],
+    importadora: esImp ? blockToImportadora(block) : { etiquetaGrada: "—", stockTotal: 0 },
   };
 }
 
 export function buildStockBoardFromStaging(
   rows: RetailStagingRow[],
-  topN = 12,
+  topN = 24,
 ): ColumnaStockRetail[] {
-  const tops = topSkusByVenta(rows, topN);
-  const out: ColumnaStockRetail[] = [];
+  const skuKeys = [...new Set(rows.map((r) => normSkuKey(r.sku_key)).filter(Boolean))];
+  const ranked: { col: ColumnaStockRetail; score: number }[] = [];
 
-  for (const { sku_key, venta_pares, meta } of tops) {
-    const blocks = albumGradaSummaryForSku(rows, sku_key);
-    if (!blocks) continue;
-    const col = blocksToColumna(sku_key, blocks, meta, venta_pares);
-    if (col) out.push(col);
+  for (const skuKey of skuKeys) {
+    const blocks = albumGradaSummaryForSku(rows, skuKey);
+    if (!blocks?.length) continue;
+    const meta = rows.find((r) => normSkuKey(r.sku_key) === skuKey);
+    if (!meta) continue;
+
+    for (const block of blocks) {
+      const col = blockToColumna(skuKey, block, meta);
+      if (!col) continue;
+      ranked.push({ col, score: blockActivityScore(block) });
+    }
   }
 
-  return out;
+  return ranked
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .map((x) => x.col);
 }
 
 export function summarizePilares(rows: RetailStagingRow[]): {

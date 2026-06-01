@@ -12,9 +12,14 @@ export type ImportadoraBloque = {
   stockTotal: number;
 };
 
-/** Una columna del tablero (SKU / línea+ref+mat+color). */
+/** Una instancia del tablero: SKU + origen Excel (sin mezclar tiendas). */
 export type ColumnaStockRetail = {
   id: string;
+  /** Etiqueta legible del origen: "Fernando — VENTA", "RIMEC — Stock Importadora", … */
+  origenLabel: string;
+  /** Valor crudo columna TIENDA del Excel */
+  origenRaw: string;
+  esImportadora: boolean;
   etiqueta: string;
   imagenClass: string;
   imageSrc?: string;

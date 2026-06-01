@@ -25,6 +25,7 @@ export type RetailStagingRow = {
   estilo: string;
   descp_material: string | null;
   descp_color: string | null;
+  imagen_nombre: string | null;
   pilares_ok: boolean;
 };
 
@@ -84,6 +85,7 @@ export const RETAIL_STAGING_SELECT_SQL = `
     ) AS estilo,
     NULLIF(btrim(mat.descripcion::text), '') AS descp_material,
     NULLIF(btrim(col.nombre::text), '') AS descp_color,
+    NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
     (
       l.id IS NOT NULL
       AND r.id IS NOT NULL
@@ -94,10 +96,7 @@ export const RETAIL_STAGING_SELECT_SQL = `
   LEFT JOIN public.linea l
     ON (
       trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
-      AND (
-        l.id = trim(s.linea_codigo_proveedor)::bigint
-        OR l.codigo_proveedor = trim(s.linea_codigo_proveedor)::bigint
-      )
+      AND l.codigo_proveedor = trim(s.linea_codigo_proveedor)::bigint
     )
   LEFT JOIN public.referencia r
     ON r.linea_id = l.id
