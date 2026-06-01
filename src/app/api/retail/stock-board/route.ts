@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
   const batchParam = req.nextUrl.searchParams.get("batch_id");
   const topRaw = Number(req.nextUrl.searchParams.get("top"));
-  const top = Number.isFinite(topRaw) && topRaw >= 1 && topRaw <= 48 ? topRaw : 12;
+  const top = Number.isFinite(topRaw) && topRaw >= 1 && topRaw <= 1000 ? topRaw : 30;
 
   try {
     const batchId = await resolveRetailBatchId(batchParam);

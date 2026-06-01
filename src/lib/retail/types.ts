@@ -12,12 +12,19 @@ export type ImportadoraBloque = {
   stockTotal: number;
 };
 
-/** Una instancia del tablero: SKU + origen Excel (sin mezclar tiendas). */
+/** Una tarjeta del ranking comercial por archivo IMAGEN (VENTA > 0). */
 export type ColumnaStockRetail = {
   id: string;
-  /** Etiqueta legible del origen: "Fernando — VENTA", "RIMEC — Stock Importadora", … */
+  /** Archivo IMAGEN del Excel, p. ej. 4202-500-26598-15787.jpg */
+  imagenArchivo: string;
+  /** Total pares vendidos (SUM cantidad, solo VENTA > 0). */
+  totalVenta: number;
+  /** Posición en ranking (1-based). */
+  ranking: number;
+  /** Desglose venta por tienda Bazzar. */
+  ventaPorTienda: { tienda: string; pares: number }[];
+  /** Etiqueta secundaria (marca / L·R). */
   origenLabel: string;
-  /** Valor crudo columna TIENDA del Excel */
   origenRaw: string;
   esImportadora: boolean;
   etiqueta: string;

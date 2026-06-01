@@ -1,6 +1,5 @@
 import {
   productImageCandidatesForRow,
-  productImagePrimaryFileName,
 } from "@/lib/retail/product-image";
 import type { ColumnaStockRetail, ImportadoraBloque, TiendaTallaBloque } from "@/lib/retail/types";
 import type { RetailStagingRow } from "@/lib/retail/staging-row";
@@ -81,24 +80,6 @@ type AlbumBlock = {
   stock: Record<string, number>;
 };
 
-function formatOrigenLabel(block: AlbumBlock): string {
-  if (origenIsImportadora(block.origen)) {
-    return "RIMEC — Stock Importadora";
-  }
-  const name = block.origen.trim();
-  const ventaTotal = Object.values(block.venta).reduce((s, v) => s + v, 0);
-  const stockTotal = Object.values(block.stock).reduce((s, v) => s + v, 0);
-  if (ventaTotal > 0 && stockTotal > 0) return `${name} — VENTA · STOCK`;
-  if (ventaTotal > 0) return `${name} — VENTA`;
-  return `${name} — STOCK`;
-}
-
-function blockActivityScore(block: AlbumBlock): number {
-  const venta = Object.values(block.venta).reduce((s, v) => s + v, 0);
-  const stock = Object.values(block.stock).reduce((s, v) => s + v, 0);
-  return venta + stock;
-}
-
 function albumGradaSummaryForSku(rows: RetailStagingRow[], skuKey: string): AlbumBlock[] | null {
   const sku = normSkuKey(skuKey);
   if (!sku) return null;
@@ -177,85 +158,145 @@ function blockToImportadora(b: AlbumBlock): ImportadoraBloque {
   return { etiquetaGrada, stockTotal };
 }
 
-function primaryImageFileName(meta: RetailStagingRow): string | null {
-  const fromExcel = meta.imagen_nombre?.trim();
-  if (fromExcel) {
-    return fromExcel.replace(/^productos\//i, "");
-  }
-  return productImagePrimaryFileName(
-    meta.linea_codigo_proveedor,
-    meta.referencia_codigo_proveedor,
-    meta.material_code,
-    meta.color_code,
-  );
-}
-
-function blockToColumna(
-  skuKey: string,
-  block: AlbumBlock,
+function blockToColumnaByImagen(
+  imagenKey: string,
+  imagenDisplay: string,
+  totalVenta: number,
+  ranking: number,
   meta: RetailStagingRow,
-): ColumnaStockRetail | null {
-  const esImp = origenIsImportadora(block.origen);
-  const origenLabel = formatOrigenLabel(block);
-  const ventaPares = Object.values(block.venta).reduce((s, v) => s + v, 0);
-  const stockPares = Object.values(block.stock).reduce((s, v) => s + v, 0);
-  if (ventaPares === 0 && stockPares === 0) return null;
-
+  tiendaBlocks: AlbumBlock[],
+  impBlock: AlbumBlock | undefined,
+  ventaPorTienda: { tienda: string; pares: number }[],
+): ColumnaStockRetail {
   const marca = meta.marca?.trim() || "(sin marca)";
   const mat = meta.descp_material?.trim();
   const col = meta.descp_color?.trim();
   const pilarHint = mat || col ? ` · ${[mat, col].filter(Boolean).join(" / ")}` : "";
-  const qtyLabel = esImp ? stockPares : ventaPares || stockPares;
-  const etiqueta = `L${normCodigo(meta.linea_codigo_proveedor)} R${normCodigo(meta.referencia_codigo_proveedor)} - ${Math.round(qtyLabel)} pares ${marca}${pilarHint}`;
+  const etiqueta = `L${normCodigo(meta.linea_codigo_proveedor)} R${normCodigo(meta.referencia_codigo_proveedor)} - ${Math.round(totalVenta)} pares venta ${marca}${pilarHint}`;
 
-  const cardId = `${skuKey}|${block.origen}`.replace(/\|/g, "-").replace(/\s+/g, "_");
+  const cardId = imagenKey.replace(/[^a-z0-9.-]+/gi, "_");
   const cands = productImageCandidatesForRow(
     meta.linea_codigo_proveedor,
     meta.referencia_codigo_proveedor,
     meta.material_code,
     meta.color_code,
-    meta.imagen_nombre,
+    imagenDisplay,
   );
 
   return {
     id: cardId,
-    origenLabel,
-    origenRaw: block.origen,
-    esImportadora: esImp,
+    imagenArchivo: imagenDisplay,
+    totalVenta,
+    ranking,
+    ventaPorTienda,
+    origenLabel: "VENTA",
+    origenRaw: "",
+    esImportadora: false,
     etiqueta,
     imagenClass: imagenClassForId(cardId),
     imageCandidates: cands,
     imageSrc: cands[0],
-    imageSearchName: primaryImageFileName(meta),
-    tiendas: esImp ? [] : [blockToTienda(block, origenLabel)],
-    importadora: esImp ? blockToImportadora(block) : { etiquetaGrada: "—", stockTotal: 0 },
+    imageSearchName: imagenDisplay,
+    tiendas: tiendaBlocks.map((b) => blockToTienda(b, b.origen.trim())),
+    importadora: impBlock ? blockToImportadora(impBlock) : { etiquetaGrada: "—", stockTotal: 0 },
   };
+}
+
+function normImagenKey(name: string | null | undefined): string {
+  return String(name ?? "")
+    .trim()
+    .replace(/^productos\//i, "")
+    .toLowerCase();
+}
+
+function displayImagenFile(name: string): string {
+  return String(name).trim().replace(/^productos\//i, "");
+}
+
+function rankVentasByImagen(
+  rows: RetailStagingRow[],
+): { imagenKey: string; imagenDisplay: string; totalVenta: number }[] {
+  const map = new Map<string, { display: string; total: number }>();
+  for (const r of rows) {
+    if (tipoNorm(r.tipo_movimiento) !== "venta") continue;
+    const qty = Number(r.cantidad) || 0;
+    if (qty <= 0) continue;
+    const key = normImagenKey(r.imagen_nombre);
+    if (!key) continue;
+    const display = displayImagenFile(r.imagen_nombre!);
+    const prev = map.get(key);
+    if (!prev) map.set(key, { display, total: qty });
+    else prev.total += qty;
+  }
+  return [...map.entries()]
+    .map(([imagenKey, { display, total }]) => ({
+      imagenKey,
+      imagenDisplay: display,
+      totalVenta: Math.round(total),
+    }))
+    .sort((a, b) => b.totalVenta - a.totalVenta);
+}
+
+const TIENDAS_BAZZAR_ORDEN = ["Fernando", "Palma", "San Martin"];
+
+function ventaPorTiendaSummary(
+  rows: RetailStagingRow[],
+  imagenKey: string,
+): { tienda: string; pares: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (normImagenKey(r.imagen_nombre) !== imagenKey) continue;
+    if (tipoNorm(r.tipo_movimiento) !== "venta") continue;
+    const qty = Number(r.cantidad) || 0;
+    if (qty <= 0) continue;
+    if (origenIsImportadora(r.origen_tienda)) continue;
+    const t = r.origen_tienda.trim();
+    map.set(t, (map.get(t) ?? 0) + qty);
+  }
+  const out: { tienda: string; pares: number }[] = [];
+  for (const name of TIENDAS_BAZZAR_ORDEN) {
+    const p = map.get(name);
+    if (p && p > 0) out.push({ tienda: name, pares: Math.round(p) });
+  }
+  for (const [tienda, pares] of map) {
+    if (TIENDAS_BAZZAR_ORDEN.includes(tienda)) continue;
+    if (pares > 0) out.push({ tienda, pares: Math.round(pares) });
+  }
+  return out;
 }
 
 export function buildStockBoardFromStaging(
   rows: RetailStagingRow[],
-  topN = 24,
+  topN = 30,
 ): ColumnaStockRetail[] {
-  const skuKeys = [...new Set(rows.map((r) => normSkuKey(r.sku_key)).filter(Boolean))];
-  const ranked: { col: ColumnaStockRetail; score: number }[] = [];
+  const ranked = rankVentasByImagen(rows);
+  const out: ColumnaStockRetail[] = [];
 
-  for (const skuKey of skuKeys) {
-    const blocks = albumGradaSummaryForSku(rows, skuKey);
-    if (!blocks?.length) continue;
-    const meta = rows.find((r) => normSkuKey(r.sku_key) === skuKey);
-    if (!meta) continue;
+  ranked.slice(0, topN).forEach(({ imagenKey, imagenDisplay, totalVenta }, idx) => {
+    const sub = rows.filter((r) => normImagenKey(r.imagen_nombre) === imagenKey);
+    const meta = sub.find((r) => r.pilares_ok) ?? sub[0];
+    if (!meta) return;
 
-    for (const block of blocks) {
-      const col = blockToColumna(skuKey, block, meta);
-      if (!col) continue;
-      ranked.push({ col, score: blockActivityScore(block) });
-    }
-  }
+    const skuKey = normSkuKey(meta.sku_key);
+    const blocks = skuKey ? albumGradaSummaryForSku(rows, skuKey) : null;
+    const tiendaBlocks = (blocks ?? []).filter((b) => !origenIsImportadora(b.origen));
+    const impBlock = (blocks ?? []).find((b) => origenIsImportadora(b.origen));
 
-  return ranked
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topN)
-    .map((x) => x.col);
+    out.push(
+      blockToColumnaByImagen(
+        imagenKey,
+        imagenDisplay,
+        totalVenta,
+        idx + 1,
+        meta,
+        tiendaBlocks,
+        impBlock,
+        ventaPorTiendaSummary(rows, imagenKey),
+      ),
+    );
+  });
+
+  return out;
 }
 
 export function summarizePilares(rows: RetailStagingRow[]): {

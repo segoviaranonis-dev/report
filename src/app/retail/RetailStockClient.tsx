@@ -28,6 +28,7 @@ export function RetailStockClient({ todayLabel }: Props) {
   const [data, setData] = useState<RetailStockBoardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [topN, setTopN] = useState(30);
 
   const configured = meta?.configured === true;
   const batches: RetailBatchSummary[] = meta?.batches ?? [];
@@ -58,8 +59,8 @@ export function RetailStockClient({ todayLabel }: Props) {
     setErr(null);
     try {
       const base = batchId
-        ? `?batch_id=${encodeURIComponent(batchId)}&top=12`
-        : "?top=12";
+        ? `?batch_id=${encodeURIComponent(batchId)}&top=${topN}`
+        : `?top=${topN}`;
       const r = await fetch(`/api/retail/stock-board${base}${retailFiltersToQuery(filtros)}`);
       const j = (await r.json()) as RetailStockBoardResponse;
       if (!r.ok) throw new Error(j.error ?? "Error al cargar stock retail");
@@ -71,7 +72,7 @@ export function RetailStockClient({ todayLabel }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [batchId, configured, filtros]);
+  }, [batchId, configured, filtros, topN]);
 
   useEffect(() => {
     if (!configured) return;
@@ -96,6 +97,8 @@ export function RetailStockClient({ todayLabel }: Props) {
             <RetailBatchControls
               batches={batches}
               batchIdSelect={batchId}
+              topN={topN}
+              onTopChange={setTopN}
               onBatchChange={(id) => {
                 setBatchId(id);
                 setFiltros(EMPTY_RETAIL_FILTERS);
@@ -147,16 +150,27 @@ export function RetailStockClient({ todayLabel }: Props) {
 function RetailBatchControls({
   batches,
   batchIdSelect,
+  topN,
+  onTopChange,
   onBatchChange,
   onRefresh,
   loading,
 }: {
   batches: RetailBatchSummary[];
   batchIdSelect: string;
+  topN: number;
+  onTopChange: (n: number) => void;
   onBatchChange: (id: string) => void;
   onRefresh: () => void;
   loading: boolean;
 }) {
+  const TOP_OPTIONS = [
+    { label: "Top 30", value: 30 },
+    { label: "+100", value: 100 },
+    { label: "+500", value: 500 },
+    { label: "+1000", value: 1000 },
+  ] as const;
+
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3">
       <label className="text-[11px] text-report-muted">
@@ -173,6 +187,24 @@ function RetailBatchControls({
           ))}
         </select>
       </label>
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="text-[11px] text-report-muted">Ranking:</span>
+        {TOP_OPTIONS.map(({ label, value }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onTopChange(value)}
+            disabled={loading}
+            className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${
+              topN === value
+                ? "bg-report-navy text-white"
+                : "border border-report-rule bg-white text-report-ink hover:bg-report-paper2"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <button
         type="button"
         onClick={() => onRefresh()}

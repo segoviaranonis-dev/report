@@ -42,38 +42,17 @@ const CARD_SHELLS = [
   },
 ] as const;
 
-type EtiquetaParsed = {
+function parseEtiqueta(etiqueta: string): {
   linea: string | null;
   referencia: string | null;
-  pares: number | null;
   marca: string | null;
-};
-
-function parseEtiqueta(etiqueta: string): EtiquetaParsed {
+} {
   const full = etiqueta.match(/^L(\S+)\s+R(\S+)\s+-\s+(\d+)\s+pares\s+(.+)$/i);
   if (full) {
-    return {
-      linea: full[1],
-      referencia: full[2],
-      pares: Number(full[3]),
-      marca: full[4].trim(),
-    };
+    return { linea: full[1], referencia: full[2], marca: full[4].trim() };
   }
   const lr = etiqueta.match(/L(\S+)\s+R(\S+)/);
-  return {
-    linea: lr?.[1] ?? null,
-    referencia: lr?.[2] ?? null,
-    pares: null,
-    marca: null,
-  };
-}
-
-function parseMolecula(name: string | null | undefined): { material: string | null; color: string | null } {
-  if (!name) return { material: null, color: null };
-  const base = name.replace(/\.(jpg|jpeg|png|webp)$/i, "");
-  const parts = base.split("-");
-  if (parts.length >= 4) return { material: parts[2], color: parts[3] };
-  return { material: null, color: null };
+  return { linea: lr?.[1] ?? null, referencia: lr?.[2] ?? null, marca: null };
 }
 
 function sumStockTiendas(bloque: TiendaTallaBloque): number {
@@ -151,6 +130,7 @@ function TablaOrigenTienda({
 }
 
 function TablaImportadora({ bloque, accentColor }: { bloque: ImportadoraBloque; accentColor: string }) {
+  if (bloque.stockTotal <= 0 && bloque.etiquetaGrada === "—") return null;
   return (
     <div className="overflow-hidden rounded-xl border border-stone-200/80 bg-white/80">
       <div className="flex items-center justify-between gap-2 border-b border-stone-200/70 px-2.5 py-1.5 bg-stone-50/90">
@@ -181,10 +161,7 @@ function marcaPillStyle(marca: string): CSSProperties {
 function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx: number }) {
   const shell = CARD_SHELLS[shellIdx % CARD_SHELLS.length];
   const parsed = parseEtiqueta(col.etiqueta);
-  const mol = parseMolecula(col.imageSearchName);
-  const tienda = col.tiendas[0];
-  const stockLocal = tienda ? sumStockTiendas(tienda) : 0;
-  const ventaLocal = tienda ? sumVentaTiendas(tienda) : 0;
+  const imagenNombre = col.imagenArchivo || col.imageSearchName || "—";
 
   return (
     <article
@@ -198,7 +175,7 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
     >
       <div className="relative">
         <RetailProductImage
-          alt={`${col.origenLabel} · ${col.etiqueta}`}
+          alt={`#${col.ranking} · ${imagenNombre}`}
           candidates={col.imageCandidates ?? (col.imageSrc ? [col.imageSrc] : [])}
           placeholderClass={col.imagenClass}
           searchFileName={col.imageSearchName}
@@ -206,81 +183,76 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
         />
         <div className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
           <span
-            className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide shadow-sm"
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-extrabold tabular-nums shadow-sm"
             style={{ backgroundColor: shell.badgeBackground, color: shell.badgeColor }}
           >
-            {col.origenLabel}
+            #{col.ranking}
           </span>
           <span
             className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide shadow-sm"
             style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#57534E" }}
           >
-            Excel Bazzar
+            VENTA
+          </span>
+        </div>
+        <div className="absolute bottom-2.5 right-2.5">
+          <span
+            className="rounded-lg px-2.5 py-1 text-sm font-extrabold tabular-nums shadow-md"
+            style={{ backgroundColor: "rgba(255,255,255,0.95)", color: shell.accentColor }}
+          >
+            {fmt(col.totalVenta)} pares
           </span>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
+        <p className="truncate font-mono text-[10px] font-semibold leading-snug text-stone-700" title={imagenNombre}>
+          {imagenNombre}
+        </p>
+
+        {col.ventaPorTienda.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {col.ventaPorTienda.map(({ tienda, pares }) => (
+              <span
+                key={tienda}
+                className="rounded-md px-2 py-0.5 text-[10px] font-bold tabular-nums"
+                style={{
+                  color: shell.accentColor,
+                  backgroundColor: "rgba(255,255,255,0.7)",
+                  border: shell.shellBorder,
+                }}
+              >
+                {tienda}: {fmt(pares)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-1.5">
           {parsed.marca ? (
             <span
               className="rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-white shadow-sm"
-              style={marcaPillStyle(parsed.marca)}
+              style={marcaPillStyle(parsed.marca.split(" · ")[0] ?? parsed.marca)}
             >
-              {parsed.marca}
+              {parsed.marca.split(" · ")[0]}
             </span>
           ) : null}
-          <div className="flex min-w-0 items-center gap-1 truncate text-[11px] font-extrabold">
-            {parsed.linea ? (
-              <span className="text-report-navy">L{parsed.linea}</span>
-            ) : (
-              <span className="text-stone-400">—</span>
-            )}
-            <span className="text-stone-300">·</span>
-            {parsed.referencia ? (
-              <span style={{ color: shell.accentColor }}>R{parsed.referencia}</span>
-            ) : (
-              <span className="text-stone-400">—</span>
-            )}
-          </div>
+          {(parsed.linea || parsed.referencia) && (
+            <div className="flex min-w-0 items-center gap-1 truncate text-[11px] font-extrabold">
+              {parsed.linea ? <span className="text-report-navy">L{parsed.linea}</span> : null}
+              {parsed.linea && parsed.referencia ? <span className="text-stone-300">·</span> : null}
+              {parsed.referencia ? (
+                <span style={{ color: shell.accentColor }}>R{parsed.referencia}</span>
+              ) : null}
+            </div>
+          )}
         </div>
 
-        {parsed.pares !== null ? (
-          <span
-            className="inline-flex w-fit items-center rounded-lg px-2.5 py-1 text-xs font-extrabold shadow-sm"
-            style={{
-              color: shell.accentColor,
-              backgroundColor: shell.shellBackground,
-              border: shell.shellBorder,
-            }}
-          >
-            {col.esImportadora
-              ? `${fmt(col.importadora.stockTotal)} pares stock`
-              : ventaLocal > 0
-                ? `${fmt(ventaLocal)} pares venta`
-                : `${fmt(stockLocal)} pares stock`}
-          </span>
-        ) : null}
-
-        {(mol.material || mol.color) && (
-          <p className="truncate text-[10px] text-stone-500">
-            {mol.material ? `Mat ${mol.material}` : ""}
-            {mol.material && mol.color ? " · " : ""}
-            {mol.color ? `Col ${mol.color}` : ""}
-          </p>
-        )}
-
-        {col.esImportadora ? (
-          <p className="rounded-md bg-stone-50 px-2 py-1 font-mono text-[10px] font-bold leading-snug text-stone-600">
-            {col.importadora.etiquetaGrada}
-          </p>
-        ) : null}
-
         <div className="mt-1 flex flex-col gap-2 border-t border-stone-200/60 pt-3">
-          {tienda ? <TablaOrigenTienda bloque={tienda} accentColor={shell.accentColor} /> : null}
-          {col.esImportadora ? (
-            <TablaImportadora bloque={col.importadora} accentColor={shell.accentColor} />
-          ) : null}
+          {col.tiendas.map((bloque) => (
+            <TablaOrigenTienda key={bloque.nombre} bloque={bloque} accentColor={shell.accentColor} />
+          ))}
+          <TablaImportadora bloque={col.importadora} accentColor={shell.accentColor} />
         </div>
       </div>
     </article>
