@@ -55,29 +55,41 @@ export function retailFiltersToQuery(f: RetailFilterState): string {
 
 export function applyRetailFilters(rows: RetailStagingRow[], f: RetailFilterState): RetailStagingRow[] {
   let out = rows;
+
+  // Género: normalizar a número para comparación robusta
   if (f.generoId) {
     const gid = Number(f.generoId);
-    out = out.filter((r) => r.genero_id === gid);
+    out = out.filter((r) => Number(r.genero_id) === gid);
   }
+
+  // Marca: normalizar a número
   if (f.marcaId) {
     const mid = Number(f.marcaId);
-    out = out.filter((r) => r.marca_id === mid);
+    out = out.filter((r) => Number(r.marca_id) === mid);
   }
+
+  // Estilo: normalizar a número
   if (f.grupoEstiloId) {
     const gid = Number(f.grupoEstiloId);
-    out = out.filter((r) => r.grupo_estilo_id === gid);
+    out = out.filter((r) => Number(r.grupo_estilo_id) === gid);
   }
+
+  // Línea: normalizar a número
   if (f.lineaIds.length) {
     const set = new Set(f.lineaIds);
-    out = out.filter((r) => r.linea_id != null && set.has(r.linea_id));
+    out = out.filter((r) => r.linea_id != null && set.has(Number(r.linea_id)));
   }
+
+  // Tipo: normalizar a número
   if (f.tipoIds.length) {
     const set = new Set(f.tipoIds);
-    out = out.filter((r) => r.tipo_1_id != null && set.has(r.tipo_1_id));
+    out = out.filter((r) => r.tipo_1_id != null && set.has(Number(r.tipo_1_id)));
   }
+
+  // Color: normalizar a número
   if (f.colorIds.length) {
     const set = new Set(f.colorIds);
-    out = out.filter((r) => r.color_id != null && set.has(r.color_id));
+    out = out.filter((r) => r.color_id != null && set.has(Number(r.color_id)));
   }
   const q = f.q.trim().toLowerCase();
   if (q) {
