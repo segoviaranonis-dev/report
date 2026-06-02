@@ -17,7 +17,7 @@ function getSecret() {
   return new TextEncoder().encode(process.env.REPORT_SESSION_SECRET)
 }
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout']
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/me']
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
