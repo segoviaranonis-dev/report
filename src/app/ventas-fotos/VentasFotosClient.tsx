@@ -149,18 +149,28 @@ export function VentasFotosClient() {
   const [pdfElapsedSeconds, setPdfElapsedSeconds] = useState(0);
 
   useEffect(() => {
-    fetch("/api/ventas-fotos/meta")
-      .then((r) => r.json())
+    fetch("/api/ventas-fotos/meta", { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => {
+        const contentType = r.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          throw new Error(`La API de marcas respondió ${r.status} sin JSON`);
+        }
+        const json = (await r.json()) as VentasFotosMetaResponse;
+        if (!r.ok) {
+          throw new Error(json.message ?? `Error HTTP ${r.status} leyendo marcas`);
+        }
+        return json;
+      })
       .then((j: VentasFotosMetaResponse) => {
         setMeta(j);
         const firstMarca = j.marcas[0]?.id_marca ?? 0;
         if (firstMarca) setFilters((f) => ({ ...f, marcaId: firstMarca }));
       })
-      .catch(() =>
+      .catch((error) =>
         setMeta({
           configured: false,
           marcas: DEMO_MARCAS,
-          message: "No se pudo leer la metadata; usando demostración.",
+          message: error instanceof Error ? `${error.message}; usando demostración.` : "No se pudo leer la metadata; usando demostración.",
         }),
       );
   }, []);

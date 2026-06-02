@@ -185,18 +185,47 @@ function mapRow(raw: Record<string, unknown>): VentaFotoRow {
 }
 
 export async function getVentasFotosMeta(pool: Pool): Promise<VentasFotosMarca[]> {
-  // SOLO marcas de CALZADOS (id_tipo = 1) desde marca_tipo_v2
-  const rows = await pool.query<VentasFotosMarca>(
+  // Preferir marca_tipo_v2 cuando existe; algunas bases locales antiguas no la tienen poblada.
+  try {
+    const rows = await pool.query<VentasFotosMarca>(
+      `
+        SELECT m.id_marca::integer AS id_marca, TRIM(m.descp_marca)::text AS descp_marca
+        FROM marca_tipo_v2 mt
+        JOIN marca_v2 m ON m.id_marca = mt.id_marca
+        WHERE mt.id_tipo = 1
+          AND m.descp_marca IS NOT NULL
+        ORDER BY TRIM(m.descp_marca)
+      `,
+    );
+    if (rows.rows.length) return rows.rows;
+  } catch (error) {
+    console.warn("[ventas-fotos] marca_tipo_v2 no disponible; usando marcas desde ventas.", error);
+  }
+
+  const ventasCols = await getTableColumns(pool, TABLE_VENTAS);
+  const tipoFilter = ventasCols.has("id_tipo") ? "AND v.id_tipo = 1" : "";
+
+  const rowsFromVentas = await pool.query<VentasFotosMarca>(
     `
-      SELECT m.id_marca::integer AS id_marca, TRIM(m.descp_marca)::text AS descp_marca
-      FROM marca_tipo_v2 mt
-      JOIN marca_v2 m ON m.id_marca = mt.id_marca
-      WHERE mt.id_tipo = 1
-        AND m.descp_marca IS NOT NULL
+      SELECT DISTINCT m.id_marca::integer AS id_marca, TRIM(m.descp_marca)::text AS descp_marca
+      FROM ${qTable(TABLE_VENTAS)} v
+      JOIN marca_v2 m ON m.id_marca = v.id_marca
+      WHERE m.descp_marca IS NOT NULL
+        ${tipoFilter}
       ORDER BY TRIM(m.descp_marca)
     `,
   );
-  return rows.rows;
+  if (rowsFromVentas.rows.length) return rowsFromVentas.rows;
+
+  const allRows = await pool.query<VentasFotosMarca>(
+    `
+      SELECT m.id_marca::integer AS id_marca, TRIM(m.descp_marca)::text AS descp_marca
+      FROM marca_v2 m
+      WHERE m.descp_marca IS NOT NULL
+      ORDER BY TRIM(m.descp_marca)
+    `,
+  );
+  return allRows.rows;
 }
 
 export async function fetchVentasFotos(

@@ -41,6 +41,8 @@ const config: Config = {
         report: {
           primary: "#4a3f35",
           accent: "#8b7355",
+          navy: "#3d342c",
+          navy2: "#2d2520",
           nav: "#3d342c",
           bg: "#f5f1e8",
           paper: "#faf8f3",
