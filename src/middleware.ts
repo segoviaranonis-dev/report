@@ -72,19 +72,20 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Verificar permisos de ruta
-    const allowedRoutes = ROLE_ROUTES[rol_id] || []
-    const hasRouteAccess = allowedRoutes.some(route => {
-      if (route === '/') return pathname === '/'
-      return pathname.startsWith(route)
-    })
+    const isApiRoute = pathname.startsWith('/api/')
 
     // Verificar permisos de API
     const allowedApiPatterns = ROLE_API_ROUTES[rol_id] || []
-    const isApiRoute = pathname.startsWith('/api/')
     const hasApiAccess = isApiRoute
       ? allowedApiPatterns.some(pattern => pattern.test(pathname))
-      : true // No-API routes ya fueron verificadas arriba
+      : true
+
+    // Verificar permisos de pantalla solo para rutas no-API.
+    const allowedRoutes = ROLE_ROUTES[rol_id] || []
+    const hasRouteAccess = isApiRoute || allowedRoutes.some(route => {
+      if (route === '/') return pathname === '/'
+      return pathname.startsWith(route)
+    })
 
     if (!hasRouteAccess || (isApiRoute && !hasApiAccess)) {
       // Acceso denegado → redirigir a ruta permitida
