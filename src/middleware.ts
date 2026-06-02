@@ -106,7 +106,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/',
     '/rimec/:path*',
     '/retail/:path*',
     '/ventas-fotos/:path*',
