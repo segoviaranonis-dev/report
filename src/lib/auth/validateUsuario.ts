@@ -14,6 +14,7 @@ export interface UsuarioValidado {
   id_usuario: number
   descp_usuario: string
   categoria: string
+  rol_id: number
 }
 
 const ROLE_MAP: Record<string, string> = {
@@ -40,9 +41,9 @@ export async function validateUsuario(
   try {
     const pool = getRimecPool()
 
-    // Query a usuario_v2 desde PostgreSQL
+    // Query a usuario_v2 desde PostgreSQL (incluye rol_id)
     const result = await pool.query(
-      `SELECT id_usuario, descp_usuario, categoria, password, password_hash
+      `SELECT id_usuario, descp_usuario, categoria, password, password_hash, rol_id
        FROM usuario_v2
        WHERE descp_usuario = $1
        LIMIT 1`,
@@ -84,6 +85,7 @@ export async function validateUsuario(
       id_usuario: data.id_usuario,
       descp_usuario: data.descp_usuario,
       categoria: normalizarRol(String(data.categoria ?? '')),
+      rol_id: Number(data.rol_id) || 1, // Default rol 1 si no tiene
     }
   } catch (e) {
     console.error('[validateUsuario] excepción:', e)

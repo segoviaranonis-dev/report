@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"/><title>p2</title>
+<style>body{margin:0;background:#ececec;padding:20px}canvas{display:block;background:#fff}</style>
+</head><body>
+<canvas id="c"></canvas>
+<div id="status">init</div>
+<script>window.__r=false</script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>(async()=>{
+  const lib=window['pdfjs-dist/build/pdf']||window.pdfjsLib;
+  lib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  document.getElementById('status').textContent='lib ok';
+  const doc=await lib.getDocument("/ot005-evidencia.pdf?t="+Date.now()).promise;
+  document.getElementById('status').textContent='doc pages='+doc.numPages;
+  const page=await doc.getPage(1);
+  document.getElementById('status').textContent='page2 fetched';
+  const vp=page.getViewport({scale:2});
+  const c=document.getElementById('c');c.width=vp.width;c.height=vp.height;
+  document.getElementById('status').textContent='rendering...';
+  await page.render({canvasContext:c.getContext('2d'),viewport:vp,intent:'print'}).promise;
+  document.getElementById('status').textContent='ok';
+  window.__r=true;
+})().catch(e=>{window.__e=String(e);document.getElementById('status').textContent='ERR '+e});</script>
+</body></html>

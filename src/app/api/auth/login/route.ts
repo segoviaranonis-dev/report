@@ -19,11 +19,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // Crear sesión
+    // Crear sesión (incluye rol_id)
     await createSession({
       id_usuario: user.id_usuario,
       name: user.descp_usuario,
       role: user.categoria,
+      rol_id: user.rol_id,
     })
 
     return NextResponse.json({

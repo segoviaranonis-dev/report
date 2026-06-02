@@ -19,6 +19,7 @@ export interface SessionData {
   id_usuario: number
   name: string
   role: string
+  rol_id: number
 }
 
 /**
@@ -59,6 +60,7 @@ export async function getSession(): Promise<SessionData | null> {
       id_usuario: payload.id_usuario as number,
       name: payload.name as string,
       role: payload.role as string,
+      rol_id: (payload.rol_id as number) || 1,
     }
   } catch {
     return null

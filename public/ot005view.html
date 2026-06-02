@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>OT-005 PDF preview</title>
+  <style>
+    body { margin: 0; background: #ececec; font-family: system-ui, sans-serif; padding: 24px; }
+    h2 { font-size: 13px; color: #555; margin: 8px 0 4px; }
+    .page { background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.10); margin-bottom: 28px; display: inline-block; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <h2 id="status">cargando…</h2>
+  <h2>Página 1</h2>
+  <div class="page"><canvas id="p1"></canvas></div>
+  <h2>Página 2 (detalle)</h2>
+  <div class="page"><canvas id="p2"></canvas></div>
+  <script>
+    window.__pdf_ready = false;
+    window.__pdf_err = null;
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script>
+    (async () => {
+      try {
+        const lib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+        lib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+        const url = "/ot005-evidencia.pdf?t=" + Date.now();
+        const doc = await lib.getDocument(url).promise;
+        window.__numPages = doc.numPages;
+        document.getElementById('status').textContent = "pages=" + doc.numPages;
+        for (const [idx, canvasId] of [[1, "p1"], [2, "p2"]]) {
+          if (idx > doc.numPages) continue;
+          const page = await doc.getPage(idx);
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.getElementById(canvasId);
+          const ctx = canvas.getContext("2d");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: ctx, viewport }).promise;
+        }
+        window.__pdf_ready = true;
+        document.getElementById('status').textContent = "ok";
+      } catch (e) {
+        window.__pdf_err = String(e);
+        document.getElementById('status').textContent = "ERR: " + String(e);
+      }
+    })();
+  </script>
+</body>
+</html>
