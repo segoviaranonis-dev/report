@@ -4,10 +4,7 @@ import { ReportSection } from "@/components/report/ReportSection";
 import { AprobacionesClient } from "./AprobacionesClient";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-export const revalidate = 30; // Revalidar cada 30 segundos (como rimec-web)
+export const dynamic = "force-dynamic";
 
 const today = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date());
 
@@ -21,11 +18,13 @@ function mapEstado(dbEstado: string | null): "PENDIENTE" | "APROBADO" | "RECHAZA
 
 export default async function AprobacionesPage() {
   const t0 = Date.now();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Server-side data fetching (como rimec-web)
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  const { data, error } = await supabase.from("v_aprobaciones_detalladas").select("*").limit(50);
+  const { data, error } =
+    supabaseUrl && supabaseKey
+      ? await createClient(supabaseUrl, supabaseKey).from("v_aprobaciones_detalladas").select("*").limit(50)
+      : { data: null, error: new Error("Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY") };
 
   if (error) {
     console.error("Error fetching pedidos:", error);
