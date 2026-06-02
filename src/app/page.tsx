@@ -71,10 +71,10 @@ export default function HomePage() {
             router.replace('/ventas-fotos');
           }
         } else {
-          setRolId(1); // Default si no hay sesión
+          router.replace('/login');
         }
       })
-      .catch(() => setRolId(1));
+      .catch(() => router.replace('/login'));
   }, [router]);
 
   // Mientras carga, no mostrar nada (evita flash de contenido)

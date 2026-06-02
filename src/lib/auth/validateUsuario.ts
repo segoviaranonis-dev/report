@@ -85,7 +85,7 @@ export async function validateUsuario(
       id_usuario: data.id_usuario,
       descp_usuario: data.descp_usuario,
       categoria: normalizarRol(String(data.categoria ?? '')),
-      rol_id: Number(data.rol_id) || 1, // Default rol 1 si no tiene
+      rol_id: Number(data.rol_id) || 0,
     }
   } catch (e) {
     console.error('[validateUsuario] excepción:', e)

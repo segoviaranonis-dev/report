@@ -7,6 +7,7 @@ import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
 const SESSION_COOKIE = 'report_session'
+export const REPORT_SESSION_VERSION = 2
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
@@ -20,6 +21,7 @@ export interface SessionData {
   name: string
   role: string
   rol_id: number
+  session_version?: number
 }
 
 /**
@@ -27,7 +29,7 @@ export interface SessionData {
  */
 export async function createSession(data: SessionData): Promise<void> {
   const SECRET = getSecret()
-  const token = await new SignJWT(data as any)
+  const token = await new SignJWT({ ...data, session_version: REPORT_SESSION_VERSION } as any)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
@@ -56,11 +58,14 @@ export async function getSession(): Promise<SessionData | null> {
     const SECRET = getSecret()
     const { payload } = await jwtVerify(token, SECRET)
 
+    if (payload.session_version !== REPORT_SESSION_VERSION) return null
+
     return {
       id_usuario: payload.id_usuario as number,
       name: payload.name as string,
       role: payload.role as string,
-      rol_id: (payload.rol_id as number) || 1,
+      rol_id: (payload.rol_id as number) || 0,
+      session_version: payload.session_version as number,
     }
   } catch {
     return null

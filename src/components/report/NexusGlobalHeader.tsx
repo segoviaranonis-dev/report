@@ -1,9 +1,22 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "informes";
 
 const baseLink = "text-xs tracking-widest uppercase text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
 const activeLink = "text-xs tracking-widest uppercase text-[#D4AF37] font-semibold py-1.5 border-b-2 border-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
+
+const navItems: Array<{ key: NexusNavKey; href: string; label: string; roles: number[] }> = [
+  { key: "home", href: "/", label: "Hub Comercial", roles: [1] },
+  { key: "rimec", href: "/rimec", label: "RIMEC — Ventas", roles: [1] },
+  { key: "retail", href: "/retail", label: "Stock / Retail", roles: [1, 2] },
+  { key: "ventas-fotos", href: "/ventas-fotos", label: "Ventas + Fotos", roles: [1, 3] },
+  { key: "aprobaciones", href: "/aprobaciones", label: "Aprobaciones", roles: [1] },
+  { key: "informes", href: "/informes", label: "Anexo Documental", roles: [1] },
+];
 
 type Props = {
   active?: NexusNavKey;
@@ -12,6 +25,30 @@ type Props = {
 };
 
 export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max-w-5xl" }: Props) {
+  const router = useRouter();
+  const [rolId, setRolId] = useState<number | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setRolId(data?.authenticated ? Number(data.user?.rol_id) || 0 : null))
+      .catch(() => setRolId(null));
+  }, []);
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
+
+  const visibleNav = rolId == null ? [] : navItems.filter((item) => item.roles.includes(rolId));
+
   return (
     <header className="sticky top-0 z-50 w-full bg-[#070b12]/90 border-b border-slate-800/80 backdrop-blur-xl">
       <div className={`mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-3.5 ${maxWidthClass}`}>
@@ -26,25 +63,22 @@ export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max
           )}
         </div>
         
-        <nav className="flex flex-wrap gap-x-6 gap-y-1">
-          <Link href="/" className={active === "home" ? activeLink : baseLink}>
-            Hub Comercial
-          </Link>
-          <Link href="/rimec" className={active === "rimec" ? activeLink : baseLink}>
-            RIMEC — Ventas
-          </Link>
-          <Link href="/retail" className={active === "retail" ? activeLink : baseLink}>
-            Stock / Retail
-          </Link>
-          <Link href="/ventas-fotos" className={active === "ventas-fotos" ? activeLink : baseLink}>
-            Ventas + Fotos
-          </Link>
-          <Link href="/aprobaciones" className={active === "aprobaciones" ? activeLink : baseLink}>
-            Aprobaciones
-          </Link>
-          <Link href="/informes" className={active === "informes" ? activeLink : baseLink}>
-            Anexo Documental
-          </Link>
+        <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
+          {visibleNav.map((item) => (
+            <Link key={item.key} href={item.href} className={active === item.key ? activeLink : baseLink}>
+              {item.label}
+            </Link>
+          ))}
+          {rolId != null ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="rounded border border-slate-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-slate-200 transition hover:border-[#D4AF37] hover:text-[#D4AF37] disabled:opacity-50"
+            >
+              {loggingOut ? "Saliendo..." : "Cerrar sesión"}
+            </button>
+          ) : null}
         </nav>
       </div>
     </header>

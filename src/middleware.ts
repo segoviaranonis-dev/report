@@ -10,6 +10,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
+const REPORT_SESSION_VERSION = 2
+
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
     throw new Error('REPORT_SESSION_SECRET no configurada')
@@ -17,7 +19,7 @@ function getSecret() {
   return new TextEncoder().encode(process.env.REPORT_SESSION_SECRET)
 }
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout']
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/me']
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
@@ -42,6 +44,7 @@ const ROLE_HOME_REDIRECT: Record<number, string> = {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const isApiRoute = pathname.startsWith('/api/')
 
   // Rutas públicas
   if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
@@ -52,6 +55,9 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get('report_session')?.value
 
   if (!token) {
+    if (isApiRoute) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    }
     // Sin sesión → redirect login
     const loginUrl = new URL('/login', request.url)
     return NextResponse.redirect(loginUrl)
@@ -61,7 +67,16 @@ export async function middleware(request: NextRequest) {
     const SECRET = getSecret()
     const { payload } = await jwtVerify(token, SECRET)
 
-    const rol_id = Number(payload.rol_id) || 1
+    if (payload.session_version !== REPORT_SESSION_VERSION) {
+      const loginUrl = new URL('/login', request.url)
+      const response = isApiRoute
+        ? NextResponse.json({ error: 'Sesión vencida' }, { status: 401 })
+        : NextResponse.redirect(loginUrl)
+      response.cookies.delete('report_session')
+      return response
+    }
+
+    const rol_id = Number(payload.rol_id) || 0
 
     // Si accede a /, redirigir según rol
     if (pathname === '/') {
@@ -71,8 +86,6 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(redirectUrl)
       }
     }
-
-    const isApiRoute = pathname.startsWith('/api/')
 
     // Verificar permisos de API
     const allowedApiPatterns = ROLE_API_ROUTES[rol_id] || []
@@ -88,6 +101,9 @@ export async function middleware(request: NextRequest) {
     })
 
     if (!hasRouteAccess || (isApiRoute && !hasApiAccess)) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
+      }
       // Acceso denegado → redirigir a ruta permitida
       const fallbackRoute = ROLE_HOME_REDIRECT[rol_id] || '/login'
       const redirectUrl = new URL(fallbackRoute, request.url)
@@ -97,6 +113,11 @@ export async function middleware(request: NextRequest) {
     // Token válido + permisos OK → permitir acceso
     return NextResponse.next()
   } catch {
+    if (isApiRoute) {
+      const response = NextResponse.json({ error: 'Sesión inválida' }, { status: 401 })
+      response.cookies.delete('report_session')
+      return response
+    }
     // Token inválido → redirect login
     const loginUrl = new URL('/login', request.url)
     const response = NextResponse.redirect(loginUrl)
@@ -107,6 +128,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/',
     '/rimec/:path*',
     '/retail/:path*',
     '/ventas-fotos/:path*',
