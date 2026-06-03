@@ -15,10 +15,12 @@ export async function GET(
 
     // Obtener facturas internas del pedido
     const { data, error } = await supabase
-      .from("factura_interna")
+      .from("v_factura_interna_preventa")
       .select(
         `
         id,
+        numero_preventa_global,
+        nro_factura_legacy,
         nro_factura,
         pp_id,
         pedido_id,
@@ -76,7 +78,8 @@ export async function GET(
       const pp = ppMap.get(f.pp_id);
       return {
         id: f.id,
-        nro_factura: f.nro_factura,
+        nro_factura: f.numero_preventa_global || f.nro_factura,
+        nro_factura_legacy: f.nro_factura_legacy || f.nro_factura,
         pp_id: f.pp_id,
         nro_pp: pp?.numero_registro || `PP-${f.pp_id}`,
         fecha_arribo_estimada: pp?.fecha_arribo_estimada || null,

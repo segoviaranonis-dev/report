@@ -19,6 +19,7 @@ type Pedido = {
 type Factura = {
   id: number;
   nro_factura: string;
+  nro_factura_legacy?: string | null;
   pp_id: number;
   nro_pp: string;
   fecha_arribo_estimada: string | null;
@@ -396,6 +397,11 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                                         <p className="text-xs text-report-muted">
                                           {factura.nro_pp} · {factura.marca}
                                         </p>
+                                        {factura.nro_factura_legacy && factura.nro_factura_legacy !== factura.nro_factura && (
+                                          <p className="text-[11px] text-report-muted">
+                                            Legacy: {factura.nro_factura_legacy}
+                                          </p>
+                                        )}
                                         <p className="text-sm font-semibold text-report-navy2">Caso: {factura.caso}</p>
                                         {factura.fecha_arribo_estimada && (
                                           <p className="text-xs text-report-muted">
