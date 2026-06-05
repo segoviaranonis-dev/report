@@ -11,6 +11,7 @@ import { STOCK_BOARD_DEMO_COLUMNAS } from "@/lib/retail/stock-board-demo";
 import type { RetailBatchSummary, RetailMetaResponse, RetailStockBoardResponse } from "@/lib/retail/types";
 import { RetailFiltrosHeader } from "./components/RetailFiltrosHeader";
 import { RetailStockBoard } from "./components/RetailStockBoard";
+import { exportarCatalogoPDF, exportarAnalisisPDF } from "@/lib/retail/pdf-export";
 
 function fmtInt(n: number) {
   return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -19,6 +20,8 @@ function fmtInt(n: number) {
 type Props = {
   todayLabel: string;
 };
+
+type TabType = "catalogo" | "analisis";
 
 export function RetailStockClient({ todayLabel }: Props) {
   const [meta, setMeta] = useState<RetailMetaResponse | null>(null);
@@ -29,6 +32,7 @@ export function RetailStockClient({ todayLabel }: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [topN, setTopN] = useState(30);
+  const [activeTab, setActiveTab] = useState<TabType>("catalogo");
 
   const configured = meta?.configured === true;
   const batches: RetailBatchSummary[] = meta?.batches ?? [];
@@ -139,10 +143,91 @@ export function RetailStockClient({ todayLabel }: Props) {
           />
         ) : null}
 
-        <RetailStockBoard columnas={columnas} />
-      </section>
+        {/* Tabs UI */}
+        {configured && !usandoDemo ? (
+          <div className="border-t border-report-rule bg-report-paper2">
+            <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("catalogo")}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors rounded-t ${
+                    activeTab === "catalogo"
+                      ? "bg-report-paper text-report-navy border-t-2 border-x border-report-navy"
+                      : "bg-report-paper2 text-report-muted hover:text-report-ink"
+                  }`}
+                >
+                  📸 Catálogo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("analisis")}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors rounded-t ${
+                    activeTab === "analisis"
+                      ? "bg-report-paper text-report-navy border-t-2 border-x border-report-navy"
+                      : "bg-report-paper2 text-report-muted hover:text-report-ink"
+                  }`}
+                >
+                  📊 Análisis de Ventas
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
-      {kpis && configured && !usandoDemo ? <KpiStrip kpis={kpis} /> : null}
+        {/* Tab Content: Catálogo */}
+        {activeTab === "catalogo" ? (
+          <>
+            <div className="border-b border-report-rule bg-report-paper px-6 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await exportarCatalogoPDF(
+                      'retail-stock-board',
+                      data?.batchLabel || batchId?.slice(0, 8) || 'Retail'
+                    );
+                  } catch (e) {
+                    alert('Error al generar PDF: ' + (e instanceof Error ? e.message : 'Error desconocido'));
+                  }
+                }}
+                className="rounded bg-report-navy px-4 py-2 text-sm font-semibold text-white hover:bg-report-navy2 transition-colors"
+              >
+                📄 Exportar PDF Catálogo
+              </button>
+            </div>
+            <div id="retail-stock-board">
+              <RetailStockBoard columnas={columnas} />
+            </div>
+          </>
+        ) : null}
+
+        {/* Tab Content: Análisis */}
+        {activeTab === "analisis" && kpis && configured && !usandoDemo ? (
+          <>
+            <div className="border-b border-report-rule bg-report-paper px-6 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await exportarAnalisisPDF(
+                      kpis,
+                      data?.batchLabel || batchId?.slice(0, 8) || 'Retail',
+                      // TODO: Agregar filtros aplicados como string
+                    );
+                  } catch (e) {
+                    alert('Error al generar PDF: ' + (e instanceof Error ? e.message : 'Error desconocido'));
+                  }
+                }}
+                className="rounded bg-report-navy px-4 py-2 text-sm font-semibold text-white hover:bg-report-navy2 transition-colors"
+              >
+                📊 Exportar PDF Análisis
+              </button>
+            </div>
+            <KpiStrip kpis={kpis} />
+          </>
+        ) : null}
+      </section>
     </>
   );
 }
