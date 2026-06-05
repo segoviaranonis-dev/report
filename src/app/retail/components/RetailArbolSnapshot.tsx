@@ -70,6 +70,9 @@ function FilaArbol({
         </td>
         <td className="py-2 px-3 text-right tabular-nums text-report-ink">{fmt(nodo.stock)}</td>
         <td className="py-2 px-3 text-right tabular-nums text-report-ink">{fmt(nodo.venta)}</td>
+        <td className="py-2 px-3 text-right tabular-nums text-report-ink">
+          {nodo.stock > 0 ? `${((nodo.venta / nodo.stock) * 100).toFixed(1)}%` : '—'}
+        </td>
       </tr>
       {expandido &&
         nodo.hijos?.map((h) => (
@@ -110,9 +113,8 @@ export function RetailArbolSnapshot() {
       if (!r.ok) throw new Error(j.error ?? "Error al cargar resumen");
       setData(j);
       if (j.error) setErr(j.error);
-      const s = new Set<string>();
-      walkIds(j.arbol, s);
-      setExpandidos(s);
+      // Iniciar COLAPSADO (no expandido)
+      setExpandidos(new Set());
     } catch (e) {
       setData(null);
       setErr(e instanceof Error ? e.message : "Error");
@@ -223,6 +225,7 @@ export function RetailArbolSnapshot() {
                 <th className="py-3 px-3 text-left">Estructura de análisis</th>
                 <th className="w-28 py-3 px-3 text-right">Stock</th>
                 <th className="w-28 py-3 px-3 text-right">Venta</th>
+                <th className="w-24 py-3 px-3 text-right">V/S %</th>
               </tr>
             </thead>
             <tbody>
@@ -241,6 +244,9 @@ export function RetailArbolSnapshot() {
                   </td>
                   <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-report-navy">
                     {fmt(kpis.venta)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-report-navy">
+                    {kpis.stock > 0 ? `${((kpis.venta / kpis.stock) * 100).toFixed(1)}%` : '—'}
                   </td>
                 </tr>
               </tfoot>
