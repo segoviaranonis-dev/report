@@ -221,8 +221,8 @@ export function RetailStockClient({ todayLabel }: Props) {
                       }
                     );
 
-                    // Descargar
-                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    // Descargar (convertir Buffer a Uint8Array para el navegador)
+                    const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
