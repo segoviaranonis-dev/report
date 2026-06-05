@@ -8,10 +8,12 @@ import {
 } from "@/lib/retail/retail-filters";
 import type { RetailFiltrosPayload } from "@/lib/retail/query-filtros";
 import { STOCK_BOARD_DEMO_COLUMNAS } from "@/lib/retail/stock-board-demo";
-import type { RetailBatchSummary, RetailMetaResponse, RetailStockBoardResponse } from "@/lib/retail/types";
+import type { RetailBatchSummary, RetailMetaResponse, RetailStockBoardResponse, ColumnaStockRetail } from "@/lib/retail/types";
 import { RetailFiltrosHeader } from "./components/RetailFiltrosHeader";
 import { RetailStockBoard } from "./components/RetailStockBoard";
-import { exportarCatalogoPDF, exportarAnalisisPDF } from "@/lib/retail/pdf-export";
+import { RetailArbolSnapshot } from "./components/RetailArbolSnapshot";
+import { exportarAnalisisPDF } from "@/lib/retail/pdf-export";
+import { generarPDFRetail } from "@/lib/retail/pdfGeneratorRetail";
 
 function fmtInt(n: number) {
   return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -33,6 +35,11 @@ export function RetailStockClient({ todayLabel }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [topN, setTopN] = useState(30);
   const [activeTab, setActiveTab] = useState<TabType>("catalogo");
+  const [pdfProgress, setPdfProgress] = useState<{show: boolean; current: number; total: number}>({
+    show: false,
+    current: 0,
+    total: 0
+  });
 
   const configured = meta?.configured === true;
   const batches: RetailBatchSummary[] = meta?.batches ?? [];
@@ -87,11 +94,30 @@ export function RetailStockClient({ todayLabel }: Props) {
   const columnas = usandoDemo
     ? STOCK_BOARD_DEMO_COLUMNAS
     : (data?.columnas ?? []);
+  const columnasOriginales = columnas;
   const kpis = data?.kpis;
   const filas = batches.find((b) => b.batchId === batchId)?.filas;
 
   return (
     <>
+      {/* Barra de progreso PDF */}
+      {pdfProgress.show && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
+            <h3 className="text-lg font-semibold text-report-navy mb-4">Generando PDF...</h3>
+            <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden mb-2">
+              <div
+                className="h-full bg-report-navy transition-all duration-300"
+                style={{ width: `${(pdfProgress.current / pdfProgress.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-sm text-report-muted text-center">
+              {pdfProgress.current} de {pdfProgress.total} tarjetas
+            </p>
+          </div>
+        </div>
+      )}
+
       <section className="border-b border-report-rule bg-report-paper text-report-ink">
         <div className="mx-auto max-w-6xl px-4 pb-2 pt-6 sm:px-6">
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-report-muted/70">
@@ -183,17 +209,38 @@ export function RetailStockClient({ todayLabel }: Props) {
                 type="button"
                 onClick={async () => {
                   try {
-                    await exportarCatalogoPDF(
-                      'retail-stock-board',
-                      data?.batchLabel || batchId?.slice(0, 8) || 'Retail'
+                    setPdfProgress({ show: true, current: 0, total: columnasOriginales.length });
+
+                    const pdfBytes = await generarPDFRetail(
+                      {
+                        batchLabel: data?.batchLabel || 'Retail',
+                        columnas: columnasOriginales
+                      },
+                      (current, total) => {
+                        setPdfProgress({ show: true, current, total });
+                      }
                     );
+
+                    // Descargar
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const fecha = new Date().toISOString().split('T')[0];
+                    a.download = `RIMEC_Stock_${(data?.batchLabel || 'Retail').replace(/\s+/g, '_')}_${fecha}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    setPdfProgress({ show: false, current: 0, total: 0 });
                   } catch (e) {
-                    alert('Error al generar PDF: ' + (e instanceof Error ? e.message : 'Error desconocido'));
+                    setPdfProgress({ show: false, current: 0, total: 0 });
+                    alert('Error: ' + (e instanceof Error ? e.message : 'Error generando PDF'));
                   }
                 }}
-                className="rounded bg-report-navy px-4 py-2 text-sm font-semibold text-white hover:bg-report-navy2 transition-colors"
+                disabled={loading || columnasOriginales.length === 0 || pdfProgress.show}
+                className="rounded bg-report-navy px-4 py-2 text-sm font-semibold text-white hover:bg-report-navy2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                📄 Exportar PDF Catálogo
+                📄 Generar PDF
               </button>
             </div>
             <div id="retail-stock-board">
@@ -225,6 +272,14 @@ export function RetailStockClient({ todayLabel }: Props) {
               </button>
             </div>
             <KpiStrip kpis={kpis} />
+            <div className="border-t border-report-rule bg-report-paper">
+              <div className="mx-auto max-w-6xl px-6 py-8">
+                <h2 className="mb-1 text-lg font-bold text-report-navy">
+                  1. Resumen operativo
+                </h2>
+                <RetailArbolSnapshot />
+              </div>
+            </div>
           </>
         ) : null}
       </section>

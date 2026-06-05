@@ -35,6 +35,28 @@ interface FetchAttemptResult {
 }
 
 /**
+ * Detecta si el dispositivo es iOS (iPhone, iPad, iPod)
+ * Safari en iOS tiene limitaciones específicas que requieren ajustes
+ *
+ * @returns true si es iOS/iPadOS
+ */
+export function isIOSDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false
+  }
+
+  const ua = navigator.userAgent.toLowerCase()
+
+  // Detectar iOS explícitamente
+  const isIOS = /ipad|iphone|ipod/.test(ua)
+
+  // iPad con iPadOS 13+ se identifica como Mac, detectar por touch + "MacIntel"
+  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+
+  return isIOS || isIPadOS
+}
+
+/**
  * Detecta el tipo de dispositivo basándose en características del navegador
  * Usado para ajustar timeouts y concurrencia de carga de imágenes
  *
@@ -78,34 +100,48 @@ export function detectDeviceType(): DeviceType {
 /**
  * Obtiene el timeout base recomendado según el tipo de dispositivo
  *
+ * IMPORTANTE: Safari en iOS (iPad/iPhone) necesita timeouts más generosos
+ * debido a CORS preflight requests y throttling agresivo
+ *
  * @param deviceType - Tipo de dispositivo
  * @returns Timeout en milisegundos
  */
 export function getDeviceTimeout(deviceType: DeviceType): number {
+  const isIOS = isIOSDevice()
+
   switch (deviceType) {
     case 'desktop':
       return 5000  // 5 segundos
     case 'tablet':
-      return 15000 // 15 segundos (mínimo según LEY técnica)
+      // iPad necesita más tiempo que Android tablets
+      return isIOS ? 20000 : 15000 // 20s iPad, 15s Android
     case 'mobile':
-      return 20000 // 20 segundos (mínimo según LEY técnica)
+      // iPhone necesita más tiempo
+      return isIOS ? 25000 : 20000 // 25s iPhone, 20s Android
   }
 }
 
 /**
  * Obtiene el límite de concurrencia recomendado según el tipo de dispositivo
  *
+ * CRÍTICO PARA iPAD: Safari en iOS limita conexiones HTTP paralelas a 3-4 máximo.
+ * Intentar más causa que las requests se encolen y fallen por timeout.
+ *
  * @param deviceType - Tipo de dispositivo
  * @returns Número máximo de descargas paralelas
  */
 export function getConcurrencyLimit(deviceType: DeviceType): number {
+  const isIOS = isIOSDevice()
+
   switch (deviceType) {
     case 'desktop':
       return 10 // Hasta 10 imágenes en paralelo
     case 'tablet':
-      return 3  // Máximo 3 imágenes en paralelo
+      // Safari en iPad es MUY limitado - solo 2 paralelas seguras
+      return isIOS ? 2 : 3
     case 'mobile':
-      return 2  // Máximo 2 imágenes en paralelo
+      // Safari en iPhone - 1 a la vez para máxima confiabilidad
+      return isIOS ? 1 : 2
   }
 }
 
@@ -220,14 +256,40 @@ async function fetchImageAttempt(
 }
 
 /**
+ * Obtiene el límite recomendado de imágenes por PDF según dispositivo
+ * Safari en iOS tiene memoria limitada y puede crashear con muchas imágenes
+ *
+ * @param deviceType - Tipo de dispositivo
+ * @returns Número máximo de imágenes recomendadas por PDF
+ */
+export function getRecommendedImageLimit(deviceType: DeviceType): number {
+  const isIOS = isIOSDevice()
+
+  switch (deviceType) {
+    case 'desktop':
+      return 80  // Límite actual
+    case 'tablet':
+      // iPad tiene menos RAM disponible para web
+      return isIOS ? 30 : 50
+    case 'mobile':
+      return 20  // Móviles muy limitados
+  }
+}
+
+/**
  * CARGA GARANTIZADA de imagen con reintentos y backoff exponencial
  *
  * Implementa la LEY de Integridad Visual PDF:
- * - Timeouts adaptativos según dispositivo (desktop: 5s, tablet: 15s, mobile: 20s)
+ * - Timeouts adaptativos según dispositivo y sistema operativo
+ *   * Desktop: 5s base
+ *   * Android Tablet: 15s base
+ *   * iPad: 20s base (Safari más lento con CORS)
+ *   * iPhone: 25s base
  * - Reintentos con backoff exponencial (intento 1: timeout × 1, intento 2: timeout × 1.5, intento 3: timeout × 2)
  * - Soporte para URLs fallback (thumbnails, CDN alternativo)
  * - Logging detallado de cada intento
  * - Callback de progreso para UI
+ * - Detección especial para iOS (Safari tiene limitaciones únicas)
  *
  * @param url - URL principal de la imagen
  * @param options - Opciones de carga
@@ -256,12 +318,33 @@ export async function safeFetchImageGarantizado(
 
   const baseTimeout = getDeviceTimeout(deviceType)
   const allUrls = [url, ...fallbackUrls].filter(u => u && isValidImageUrl(u))
+  const isIOS = isIOSDevice()
 
   if (allUrls.length === 0) {
     throw new Error('[PDF] No hay URLs válidas para cargar la imagen')
   }
 
+  // Advertencia especial para iOS
+  if (isIOS) {
+    console.log(`[PDF] 🍎 Dispositivo iOS detectado - Usando configuración optimizada para Safari`)
+  }
+
   console.log(`[PDF] Iniciando carga garantizada - Dispositivo: ${deviceType}, Timeout base: ${baseTimeout}ms, URLs disponibles: ${allUrls.length}`)
+
+  // CRÍTICO PARA iOS: Advertir si la pestaña pierde foco durante carga
+  if (isIOS && typeof document !== 'undefined') {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.warn('[PDF] ⚠️ IMPORTANTE: Pestaña en background - Safari puede pausar descargas')
+        console.warn('[PDF] ⚠️ Mantén esta pestaña visible hasta que termine el PDF')
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    // Limpiar listener después de la carga (se limpia en el ámbito de la función)
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, baseTimeout * maxRetries * 2)
+  }
 
   const errors: string[] = []
 
@@ -307,10 +390,20 @@ export async function safeFetchImageGarantizado(
   // Si llegamos aquí, fallaron todos los intentos
   const totalAttempts = allUrls.length * maxRetries
   const errorDetail = errors.join('\n  - ')
-  const errorMessage = `[PDF] ERROR CRÍTICO: No se pudo cargar imagen después de ${totalAttempts} intentos\n  - ${errorDetail}`
 
-  console.error(errorMessage)
-  throw new Error(errorMessage)
+  // Detectar si es un error esperado (imagen no existe) vs error crítico
+  const isExpectedError = errors.some(e => e.includes('HTTP 400') || e.includes('HTTP 404'))
+
+  if (isExpectedError) {
+    // Imagen no existe - silenciar error (se manejará con placeholder)
+    console.log(`[PDF] Imagen no disponible después de ${totalAttempts} intentos (se usará placeholder)`)
+  } else {
+    // Error real - logear como crítico
+    const errorMessage = `[PDF] ERROR CRÍTICO: No se pudo cargar imagen después de ${totalAttempts} intentos\n  - ${errorDetail}`
+    console.error(errorMessage)
+  }
+
+  throw new Error(`No se pudo cargar imagen después de ${totalAttempts} intentos`)
 }
 
 /**

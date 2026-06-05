@@ -9,7 +9,12 @@
  */
 
 import { PDFDocument, type PDFFont, type PDFImage, type PDFPage, StandardFonts, rgb } from 'pdf-lib'
-import { detectDeviceType, safeFetchImageGarantizado } from '../pdf/imageUrlValidator'
+import {
+  detectDeviceType,
+  safeFetchImageGarantizado,
+  isIOSDevice,
+  getRecommendedImageLimit
+} from '../pdf/imageUrlValidator'
 import type { PillarBucket, VentaFotoRow, VentasFotosKpis, VentasFotosMarca, VentasFotosPillarStats } from './types'
 
 // ─── Paleta ──────────────────────────────────────────────────────────────────
@@ -694,17 +699,30 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
 
   // Detectar tipo de dispositivo para adaptar timeouts y concurrencia
   const deviceType = detectDeviceType()
+  const isIOS = isIOSDevice()
+  const recommendedLimit = getRecommendedImageLimit(deviceType)
 
+  console.log('[PDF Ventas-Fotos] ═══════════════════════════════════════════════════')
   console.log('[PDF Ventas-Fotos] Iniciando generación...')
   console.log('[PDF Ventas-Fotos] Dispositivo detectado:', deviceType)
+  if (isIOS) {
+    console.log('[PDF Ventas-Fotos] 🍎 Sistema operativo: iOS (Safari)')
+    console.log('[PDF Ventas-Fotos] ⚠️  IMPORTANTE: Mantén esta pestaña visible durante toda la generación')
+    console.log('[PDF Ventas-Fotos] ⚠️  Safari puede pausar descargas si cambias de pestaña')
+  }
   console.log('[PDF Ventas-Fotos] Filas totales:', data.rows.length)
 
   try {
-    const MAX_FILAS_PDF = 80
+    // Usar límite recomendado según dispositivo (iOS tiene límite más bajo)
+    const MAX_FILAS_PDF = Math.min(recommendedLimit, 80)
     const rowsLimitadas = data.rows.slice(0, MAX_FILAS_PDF)
     const esLimitado = data.rows.length > MAX_FILAS_PDF
+
     if (esLimitado) {
-      console.warn(`[PDF Ventas-Fotos] Limitando a ${MAX_FILAS_PDF} filas de ${data.rows.length} para performance`)
+      console.warn(`[PDF Ventas-Fotos] Limitando a ${MAX_FILAS_PDF} filas de ${data.rows.length}`)
+      if (isIOS) {
+        console.warn(`[PDF Ventas-Fotos] 🍎 Límite reducido para iOS por restricciones de memoria en Safari`)
+      }
     }
 
     const pdfDoc = await PDFDocument.create()
@@ -725,12 +743,31 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     const pdfBytes = await pdfDoc.save()
     const endTime = performance.now()
     const durationMs = Math.round(endTime - startTime)
-    console.log(`[PDF Ventas-Fotos] ✓ PDF generado en ${durationMs}ms`)
+    const durationSec = (durationMs / 1000).toFixed(1)
+
+    console.log(`[PDF Ventas-Fotos] ═══════════════════════════════════════════════════`)
+    console.log(`[PDF Ventas-Fotos] ✅ PDF GENERADO EXITOSAMENTE`)
+    console.log(`[PDF Ventas-Fotos]   - Tiempo total: ${durationSec}s (${durationMs}ms)`)
     console.log(`[PDF Ventas-Fotos]   - Filas procesadas: ${rowsLimitadas.length}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes descargadas: ${imageMetrics.downloaded}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes en caché: ${imageMetrics.cached}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes fallback: ${imageMetrics.fallback}`)
+
+    // CRÍTICO: Verificar que no haya placeholders
+    if (imageMetrics.fallback > 0) {
+      console.error(`[PDF Ventas-Fotos] ❌ ADVERTENCIA: ${imageMetrics.fallback} imágenes no se pudieron cargar`)
+      console.error(`[PDF Ventas-Fotos] ❌ El PDF contiene placeholders "S/IMG"`)
+      if (isIOS) {
+        console.error(`[PDF Ventas-Fotos] 🍎 ¿Cambiaste de pestaña durante la generación?`)
+        console.error(`[PDF Ventas-Fotos] 🍎 Safari pausa descargas cuando la pestaña no está visible`)
+      }
+    } else {
+      console.log(`[PDF Ventas-Fotos]   ✅ TODAS las imágenes cargadas correctamente`)
+    }
+
     console.log(`[PDF Ventas-Fotos]   - Tamaño: ${Math.round(pdfBytes.length / 1024)}KB`)
+    console.log(`[PDF Ventas-Fotos] ═══════════════════════════════════════════════════`)
+
     return Buffer.from(pdfBytes)
   } catch (error) {
     console.error('[PDF Ventas-Fotos] Exception en generación:', error)

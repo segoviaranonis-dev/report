@@ -165,7 +165,7 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
 
   return (
     <article
-      className="group flex h-full flex-col overflow-hidden transition-all duration-300 hover:-translate-y-0.5"
+      className="group flex h-full flex-col overflow-hidden transition-all duration-300 hover:-translate-y-0.5 print-card"
       style={{
         borderRadius: 16,
         backgroundColor: shell.shellBackground,

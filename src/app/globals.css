@@ -21,17 +21,21 @@ body {
   @apply border border-report-rule px-3 py-2 text-report-ink;
 }
 
-/* Estilos de impresión para PDF */
+/* ========================================
+   ESTILOS PARA IMPRESIÓN / PDF
+   ======================================== */
 @media print {
   @page {
-    size: landscape;
-    margin: 1.5cm;
+    size: A4 portrait;
+    margin: 1cm;
   }
 
   body {
     background: white !important;
     color: black !important;
     font-size: 11pt;
+    margin: 0;
+    padding: 0;
   }
 
   h1 { font-size: 18pt; }
@@ -41,19 +45,29 @@ body {
   /* Ocultar elementos no imprimibles */
   button,
   nav,
-  .print\:hidden {
+  header,
+  .print\:hidden,
+  .no-print {
     display: none !important;
   }
 
-  /* Forzar colores para impresión */
+  /* CRÍTICO: Evitar que las tarjetas se corten entre páginas */
+  .print-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Evitar saltos de página dentro de tablas y secciones */
+  table, tr, td, th, section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Forzar colores exactos para impresión */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-  }
-
-  /* Evitar saltos de página dentro de elementos */
-  table, tr, td, th, section {
-    page-break-inside: avoid;
+    color-adjust: exact !important;
   }
 
   /* Mejorar legibilidad de tablas */
