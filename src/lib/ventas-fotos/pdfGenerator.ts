@@ -9,7 +9,7 @@
  */
 
 import { PDFDocument, type PDFFont, type PDFImage, type PDFPage, StandardFonts, rgb } from 'pdf-lib'
-import { safeFetchImage } from '../pdf/imageUrlValidator'
+import { detectDeviceType, safeFetchImageGarantizado } from '../pdf/imageUrlValidator'
 import type { PillarBucket, VentaFotoRow, VentasFotosKpis, VentasFotosMarca, VentasFotosPillarStats } from './types'
 
 // ─── Paleta ──────────────────────────────────────────────────────────────────
@@ -494,32 +494,47 @@ async function fetchImage(
   cache: Map<string, PDFImage>,
   url: string,
   metrics: ImageMetrics,
+  deviceType: 'desktop' | 'tablet' | 'mobile',
 ): Promise<PDFImage | null> {
   const cached = cache.get(url)
   if (cached) {
     metrics.cached++
     return cached
   }
+
   try {
-    const resp = await safeFetchImage(url, 800)
-    if (!resp) {
-      metrics.fallback++
-      return null
-    }
+    console.log(`[PDF Ventas-Fotos] Descargando imagen - Dispositivo: ${deviceType}`)
+
+    const resp = await safeFetchImageGarantizado(url, {
+      deviceType,
+      maxRetries: 3,
+      onProgress: (attempt, max, currentUrl) => {
+        console.log(`[PDF Ventas-Fotos]   Intento ${attempt}/${max} para ${currentUrl.split('/').pop()}`)
+      }
+    })
+
     const bytes = await resp.arrayBuffer()
     const lower = url.toLowerCase()
     let img: PDFImage | null = null
-    if (lower.endsWith('.png')) img = await pdfDoc.embedPng(bytes)
-    else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) img = await pdfDoc.embedJpg(bytes)
+
+    if (lower.endsWith('.png')) {
+      img = await pdfDoc.embedPng(bytes)
+    } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      img = await pdfDoc.embedJpg(bytes)
+    }
+
     if (img) {
       cache.set(url, img)
       metrics.downloaded++
       return img
     }
+
+    console.warn('[PDF Ventas-Fotos] Formato de imagen no soportado:', url)
     metrics.fallback++
     return null
   } catch (e) {
-    console.warn('[PDF Ventas-Fotos] Error cargando imagen', url, e)
+    // Si falla después de todos los reintentos, registrar error crítico
+    console.error('[PDF Ventas-Fotos] FALLO CRÍTICO cargando imagen después de reintentos:', url, e)
     metrics.fallback++
     return null
   }
@@ -542,6 +557,7 @@ async function renderDetalle(
   data: PDFVentasFotosData,
   rowsLimitadas: VentaFotoRow[],
   metrics: ImageMetrics,
+  deviceType: 'desktop' | 'tablet' | 'mobile',
 ) {
   if (!rowsLimitadas.length) return
 
@@ -573,7 +589,7 @@ async function renderDetalle(
     // Imagen
     const imgY = rowBottom + (DETALLE_ROW_H - L.imgSize) / 2
     if (row.imagen_valid && row.image_url) {
-      const img = await fetchImage(pdfDoc, cache, row.image_url, metrics)
+      const img = await fetchImage(pdfDoc, cache, row.image_url, metrics, deviceType)
       if (img) {
         // Mantener proporción dentro del cuadro.
         const ratio = img.width / img.height
@@ -675,7 +691,12 @@ function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
 // ─── Entrada principal ──────────────────────────────────────────────────────
 export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
   const startTime = performance.now()
+
+  // Detectar tipo de dispositivo para adaptar timeouts y concurrencia
+  const deviceType = detectDeviceType()
+
   console.log('[PDF Ventas-Fotos] Iniciando generación...')
+  console.log('[PDF Ventas-Fotos] Dispositivo detectado:', deviceType)
   console.log('[PDF Ventas-Fotos] Filas totales:', data.rows.length)
 
   try {
@@ -698,7 +719,7 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     const imageMetrics: ImageMetrics = { downloaded: 0, cached: 0, fallback: 0 }
 
     await renderPaginaEjecutiva(pdfDoc, fonts, data, stats, esLimitado, data.rows.length)
-    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageMetrics)
+    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageMetrics, deviceType)
     drawFooters(pdfDoc, fonts)
 
     const pdfBytes = await pdfDoc.save()
