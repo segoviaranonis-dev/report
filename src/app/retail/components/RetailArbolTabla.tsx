@@ -85,10 +85,13 @@ function FilaArbol({
 }
 
 type Props = {
+  apiUrl: string;
+  titulo: string;
+  descripcionJerarquia: string;
   filtros?: RetailFilterState;
 };
 
-export function RetailArbolSnapshot({ filtros }: Props = {}) {
+export function RetailArbolTabla({ apiUrl, titulo, descripcionJerarquia, filtros }: Props) {
   const [data, setData] = useState<RetailArbolSnapshotResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -99,7 +102,7 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
     setErr(null);
     try {
       const filtrosQuery = filtros ? retailFiltersToQuery(filtros) : "";
-      const r = await fetch(`/api/retail/arbol-snapshot${filtrosQuery ? "?" + filtrosQuery.slice(1) : ""}`);
+      const r = await fetch(`${apiUrl}${filtrosQuery ? "?" + filtrosQuery.slice(1) : ""}`);
       const text = await r.text();
       let j: RetailArbolSnapshotResponse;
       try {
@@ -110,7 +113,7 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
       if (!r.ok) throw new Error(j.error ?? "Error al cargar resumen");
       setData(j);
       if (j.error) setErr(j.error);
-      // Iniciar COLAPSADO (no expandido)
+      // Iniciar COLAPSADO
       setExpandidos(new Set());
     } catch (e) {
       setData(null);
@@ -118,7 +121,7 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
     } finally {
       setLoading(false);
     }
-  }, [filtros]);
+  }, [apiUrl, filtros]);
 
   useEffect(() => {
     void cargar();
@@ -139,7 +142,7 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
   const configured = data?.configured === true;
 
   if (loading && !data) {
-    return <p className="text-sm text-report-muted py-8">Cargando resumen operativo…</p>;
+    return <p className="text-sm text-report-muted py-8">Cargando {titulo.toLowerCase()}…</p>;
   }
 
   if (!configured) {
@@ -152,6 +155,8 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
 
   return (
     <div className="space-y-4">
+      <h3 className="text-base font-bold text-report-navy">{titulo}</h3>
+
       <p className="text-sm text-report-muted">
         Snapshot completo del Excel en{" "}
         <code className="rounded bg-report-paper2 px-1 text-xs">registro_st_vt_rc_reposicion</code>
@@ -167,7 +172,7 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
             · <span className="tabular-nums">{kpis.filasExcel.toLocaleString("es-PY")}</span> filas procesadas
           </>
         ) : null}
-        . Jerarquía: <strong>Ente → Género → Marca → SKU</strong> (suma de cantidad sin grada). Columnas{" "}
+        . Jerarquía: <strong>{descripcionJerarquia}</strong> (suma de cantidad sin grada). Columnas{" "}
         <strong>Stock</strong> y <strong>Venta</strong> del Excel.
       </p>
 
@@ -198,7 +203,7 @@ export function RetailArbolSnapshot({ filtros }: Props = {}) {
           disabled={loading}
           className="ml-auto rounded-lg bg-report-navy px-4 py-1.5 text-xs text-white hover:bg-report-navy2 disabled:opacity-50"
         >
-          {loading ? "Actualizando…" : "Actualizar resumen"}
+          {loading ? "Actualizando…" : "Actualizar"}
         </button>
       </div>
 

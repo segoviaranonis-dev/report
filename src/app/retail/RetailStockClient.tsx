@@ -8,12 +8,14 @@ import {
 } from "@/lib/retail/retail-filters";
 import type { RetailFiltrosPayload } from "@/lib/retail/query-filtros";
 import { STOCK_BOARD_DEMO_COLUMNAS } from "@/lib/retail/stock-board-demo";
-import type { RetailBatchSummary, RetailMetaResponse, RetailStockBoardResponse, ColumnaStockRetail } from "@/lib/retail/types";
+import type { RetailBatchSummary, RetailMetaResponse, RetailStockBoardResponse } from "@/lib/retail/types";
 import { RetailFiltrosHeader } from "./components/RetailFiltrosHeader";
 import { RetailStockBoard } from "./components/RetailStockBoard";
 import { RetailArbolSnapshot } from "./components/RetailArbolSnapshot";
+import { RetailArbolTabla } from "./components/RetailArbolTabla";
 import { exportarAnalisisPDF } from "@/lib/retail/pdf-export";
 import { generarPDFRetail } from "@/lib/retail/pdfGeneratorRetail";
+import { InformeVentasContent } from "./InformeVentasContent";
 
 function fmtInt(n: number) {
   return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -23,7 +25,7 @@ type Props = {
   todayLabel: string;
 };
 
-type TabType = "catalogo" | "analisis";
+type TabType = "catalogo" | "analisis" | "informe";
 
 export function RetailStockClient({ todayLabel }: Props) {
   const [meta, setMeta] = useState<RetailMetaResponse | null>(null);
@@ -40,6 +42,7 @@ export function RetailStockClient({ todayLabel }: Props) {
     current: 0,
     total: 0
   });
+  const [arbolData, setArbolData] = useState<{ configured: boolean; arbol: any[] } | null>(null);
 
   const configured = meta?.configured === true;
   const batches: RetailBatchSummary[] = meta?.batches ?? [];
@@ -89,6 +92,15 @@ export function RetailStockClient({ todayLabel }: Props) {
     if (!configured) return;
     void cargar();
   }, [configured, cargar]);
+
+  useEffect(() => {
+    if (!configured) return;
+    const filtrosQuery = retailFiltersToQuery(filtros);
+    fetch(`/api/retail/arbol-snapshot${filtrosQuery ? "?" + filtrosQuery.slice(1) : ""}`)
+      .then((r) => r.json())
+      .then((j) => setArbolData({ configured: j.configured, arbol: j.arbol || [] }))
+      .catch(() => setArbolData(null));
+  }, [configured, filtros]);
 
   const usandoDemo = !configured || (!data && !loading);
   const columnas = usandoDemo
@@ -196,6 +208,17 @@ export function RetailStockClient({ todayLabel }: Props) {
                 >
                   📊 Análisis de Ventas
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("informe")}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors rounded-t ${
+                    activeTab === "informe"
+                      ? "bg-report-paper text-report-navy border-t-2 border-x border-report-navy"
+                      : "bg-report-paper2 text-report-muted hover:text-report-ink"
+                  }`}
+                >
+                  📄 Informe de Ventas
+                </button>
               </div>
             </div>
           </div>
@@ -252,6 +275,47 @@ export function RetailStockClient({ todayLabel }: Props) {
         {/* Tab Content: Análisis */}
         {activeTab === "analisis" && kpis && configured && !usandoDemo ? (
           <>
+            <KpiStrip arbol={arbolData?.arbol || null} />
+            <div className="border-t border-report-rule bg-report-paper">
+              <div className="mx-auto max-w-6xl px-6 py-8 space-y-12">
+                <div>
+                  <h2 className="mb-4 text-lg font-bold text-report-navy">
+                    1. Resumen operativo (Ente → Género → Marca → SKU)
+                  </h2>
+                  <RetailArbolSnapshot filtros={filtros} />
+                </div>
+
+                <div className="pt-8 border-t border-report-rule">
+                  <h2 className="mb-4 text-lg font-bold text-report-navy">
+                    2. Análisis por Ente → Estilo → Marca → SKU
+                  </h2>
+                  <RetailArbolTabla
+                    apiUrl="/api/retail/arbol-local-estilo-marca"
+                    titulo="Tabla 1: Ente → Estilo → Marca → Artículo"
+                    descripcionJerarquia="Ente → Estilo → Marca → SKU"
+                    filtros={filtros}
+                  />
+                </div>
+
+                <div className="pt-8 border-t border-report-rule">
+                  <h2 className="mb-4 text-lg font-bold text-report-navy">
+                    3. Análisis por Ente → Marca → Estilo → SKU
+                  </h2>
+                  <RetailArbolTabla
+                    apiUrl="/api/retail/arbol-local-marca-estilo"
+                    titulo="Tabla 2: Ente → Marca → Estilo → Artículo"
+                    descripcionJerarquia="Ente → Marca → Estilo → SKU"
+                    filtros={filtros}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {/* Tab Content: Informe de Ventas */}
+        {activeTab === "informe" && kpis && configured && !usandoDemo ? (
+          <>
             <div className="border-b border-report-rule bg-report-paper px-6 py-3 flex justify-end">
               <button
                 type="button"
@@ -260,7 +324,6 @@ export function RetailStockClient({ todayLabel }: Props) {
                     await exportarAnalisisPDF(
                       kpis,
                       data?.batchLabel || batchId?.slice(0, 8) || 'Retail',
-                      // TODO: Agregar filtros aplicados como string
                     );
                   } catch (e) {
                     alert('Error al generar PDF: ' + (e instanceof Error ? e.message : 'Error desconocido'));
@@ -268,18 +331,10 @@ export function RetailStockClient({ todayLabel }: Props) {
                 }}
                 className="rounded bg-report-navy px-4 py-2 text-sm font-semibold text-white hover:bg-report-navy2 transition-colors"
               >
-                📊 Exportar PDF Análisis
+                📄 Exportar PDF Informe
               </button>
             </div>
-            <KpiStrip kpis={kpis} />
-            <div className="border-t border-report-rule bg-report-paper">
-              <div className="mx-auto max-w-6xl px-6 py-8">
-                <h2 className="mb-1 text-lg font-bold text-report-navy">
-                  1. Resumen operativo
-                </h2>
-                <RetailArbolSnapshot />
-              </div>
-            </div>
+            <InformeVentasContent arbol={arbolData?.arbol || []} />
           </>
         ) : null}
       </section>
@@ -357,23 +412,28 @@ function RetailBatchControls({
   );
 }
 
-function KpiStrip({ kpis }: { kpis: NonNullable<RetailStockBoardResponse["kpis"]> }) {
+function KpiStrip({ arbol }: { arbol: any[] | null }) {
+  // Filtrar solo tiendas (excluir RIMEC)
+  const tiendas = (arbol || []).filter(n => n.nombre !== "RIMEC");
+
   return (
     <div className="border-b border-report-rule bg-report-paper2">
-      <div className="mx-auto grid max-w-6xl gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-3">
-        {[
-          { k: "Pares en red (stock tiendas)", v: kpis.paresEnRed },
-          { k: "Referencias (SKU)", v: kpis.referenciasActivas },
-          { k: "Filas pilares OK", v: kpis.filasPilaresOk },
-          { k: "Filas pilares pendientes", v: kpis.filasPilaresPendientes },
-          { k: "Stock importadora", v: kpis.paresImportadora },
-          { k: "Venta total (pares)", v: kpis.paresVentaTotal },
-        ].map((x) => (
-          <div key={x.k} className="border border-report-rule bg-white px-4 py-3 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-report-muted">{x.k}</p>
-            <p className="mt-1 font-serif text-2xl font-bold text-report-navy tabular-nums">{fmtInt(x.v)}</p>
-          </div>
-        ))}
+      <div className="mx-auto max-w-6xl px-6 py-6">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {tiendas.map((tienda) => (
+            <div key={tienda.nombre} className="border border-report-rule bg-white px-4 py-3 shadow-sm">
+              <p className="text-sm font-bold text-report-navy mb-2">{tienda.nombre}</p>
+              <div className="space-y-1">
+                <p className="text-xs text-report-muted">
+                  Total Stock: <span className="font-semibold text-report-ink tabular-nums">{fmtInt(tienda.stock || 0)}</span>
+                </p>
+                <p className="text-xs text-report-muted">
+                  Total Venta: <span className="font-semibold text-report-ink tabular-nums">{fmtInt(tienda.venta || 0)}</span>
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

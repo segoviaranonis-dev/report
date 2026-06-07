@@ -4,7 +4,7 @@ import type {
   RetailArbolNodo,
 } from "@/lib/retail/arbol-snapshot-types";
 
-const ENTE_ORDER = ["Tienda_1", "Tienda_2", "Tienda_3", "RIMEC"];
+const ENTE_ORDER = ["RIMEC", "Fernando", "San Martín", "San Martin", "Palma"];
 
 function sortEnte(a: string, b: string): number {
   const ia = ENTE_ORDER.indexOf(a);

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import type { RetailArbolSnapshotResponse } from "@/lib/retail/arbol-snapshot-types";
-import { calcularKpisArbol, construirArbolRetail } from "@/lib/retail/build-arbol-snapshot";
-import { loadRetailArbolLeaves } from "@/lib/retail/load-arbol-leaves";
+import { construirArbolAlternativo, calcularKpisAlternativo } from "@/lib/retail/build-arbol-alternativo";
+import { loadArbolAlternativoLeaves } from "@/lib/retail/load-arbol-alternativo";
 import { parseRetailFiltersFromSearchParams } from "@/lib/retail/retail-filters";
 import { buildWhereClause } from "@/lib/retail/apply-filters-sql";
 
@@ -14,6 +14,9 @@ const KPI_VACIO = {
   filasExcel: 0,
 };
 
+/**
+ * API: Árbol Ente → Marca → Estilo → SKU
+ */
 export async function GET(request: Request) {
   if (!isRimecDatabaseConfigured()) {
     const body: RetailArbolSnapshotResponse = {
@@ -31,9 +34,9 @@ export async function GET(request: Request) {
     const filters = parseRetailFiltersFromSearchParams(searchParams);
     const whereClause = buildWhereClause(filters);
 
-    const { leaves, meta, totalFilas } = await loadRetailArbolLeaves(whereClause);
-    const arbol = construirArbolRetail(leaves);
-    const kpis = calcularKpisArbol(leaves, totalFilas);
+    const { leaves, meta, totalFilas } = await loadArbolAlternativoLeaves(whereClause);
+    const arbol = construirArbolAlternativo(leaves, "ente-marca-estilo");
+    const kpis = calcularKpisAlternativo(leaves, totalFilas);
 
     const body: RetailArbolSnapshotResponse = {
       configured: true,
@@ -43,7 +46,7 @@ export async function GET(request: Request) {
     };
     return NextResponse.json(body);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error árbol retail";
+    const msg = e instanceof Error ? e.message : "Error árbol retail (local-marca-estilo)";
     return NextResponse.json(
       {
         configured: true,
