@@ -134,9 +134,11 @@ export const config = {
     '/ventas-fotos/:path*',
     '/informes/:path*',
     '/aprobaciones/:path*',
+    '/depositos-bazzar/:path*',
     '/api/rimec/:path*',
     '/api/retail/:path*',
     '/api/ventas-fotos/:path*',
     '/api/aprobaciones/:path*',
+    '/api/depositos/:path*',
   ],
 }
