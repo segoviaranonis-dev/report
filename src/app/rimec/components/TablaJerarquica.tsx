@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { FullSnapshotJerarquiaLeaf } from "@/lib/rimec/full-snapshot-types";
 import { variacionPctVsObjetivo } from "@/lib/rimec/variacion-objetivo";
+import { MES_NOMBRES } from "@/modules/sales-report/constants";
 
 const fmtGs = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
 const fmtPct = (n: number | null) => (n === null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(1)}%`);
@@ -13,7 +14,7 @@ function num(v: unknown): number {
 }
 
 export type NodoJerarquia = {
-  tipo: "cadena" | "cliente" | "marca";
+  tipo: "cadena" | "cliente" | "marca" | "mes";
   nombre: string;
   nivel: number;
   montoObj: number;
@@ -24,6 +25,8 @@ export type NodoJerarquia = {
   path: string;
   /** Presente en cliente y marca para estilos por segmento (cartera). */
   idCliente?: number;
+  /** Índice del mes (1-12) para ordenamiento cronológico */
+  mes_idx?: number;
 };
 
 export type SegmentoCarteraCliente = "crecimiento" | "riesgo" | "sin_compra";
@@ -100,20 +103,62 @@ export function construirJerarquiaDesdeHojas(
       }
       const varCliente = variacionPctVsObjetivo(montoObjCliente, monto26Cliente);
 
+      // Agrupar por marca
+      const byMarca = new Map<number, { desc: string; leaves: FullSnapshotJerarquiaLeaf[] }>();
+      for (const L of leavesCli) {
+        const cur = byMarca.get(L.id_marca) ?? { desc: L.descp_marca, leaves: [] };
+        cur.desc = L.descp_marca;
+        cur.leaves.push(L);
+        byMarca.set(L.id_marca, cur);
+      }
+
       const hijosMarca: NodoJerarquia[] = [];
 
-      for (const L of leavesCli) {
-        const mObj = num(L.monto_objetivo);
-        const m26 = num(L.monto_2026);
+      for (const [idMarca, bucketMarca] of byMarca) {
+        const leavesMarca = bucketMarca.leaves;
+        const displayMarca = bucketMarca.desc || "S/I";
+
+        let montoObjMarca = 0;
+        let monto26Marca = 0;
+        for (const L of leavesMarca) {
+          montoObjMarca += num(L.monto_objetivo);
+          monto26Marca += num(L.monto_2026);
+        }
+        const varMarca = variacionPctVsObjetivo(montoObjMarca, monto26Marca);
+
+        // Construir hijos de mes
+        const hijosMes: NodoJerarquia[] = [];
+        for (const L of leavesMarca) {
+          const nombreMes = MES_NOMBRES[L.mes_idx] || `Mes ${L.mes_idx}`;
+          const mObj = num(L.monto_objetivo);
+          const m26 = num(L.monto_2026);
+          hijosMes.push({
+            tipo: "mes",
+            nombre: nombreMes,
+            nivel: 4,
+            montoObj: mObj,
+            monto26: m26,
+            variacionPct: L.variacion_vs_objetivo_pct,
+            count: 1,
+            path: `${idCadena}|${idCliente}|${idMarca}|${L.mes_idx}`,
+            idCliente,
+            mes_idx: L.mes_idx,  // Guardar mes_idx para ordenar
+          });
+        }
+
+        // Ordenar por mes cronológico (no por monto)
+        hijosMes.sort((a, b) => (a.mes_idx || 0) - (b.mes_idx || 0));
+
         hijosMarca.push({
           tipo: "marca",
-          nombre: L.descp_marca || "S/I",
+          nombre: displayMarca,
           nivel: 3,
-          montoObj: mObj,
-          monto26: m26,
-          variacionPct: L.variacion_vs_objetivo_pct,
-          count: 1,
-          path: `${idCadena}|${idCliente}|${L.id_marca}`,
+          montoObj: montoObjMarca,
+          monto26: monto26Marca,
+          variacionPct: varMarca,
+          count: hijosMes.length,
+          hijos: hijosMes,
+          path: `${idCadena}|${idCliente}|${idMarca}`,
           idCliente,
         });
       }

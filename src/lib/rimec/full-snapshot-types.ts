@@ -52,6 +52,7 @@ export type FullSnapshotJerarquiaLeaf = {
   descp_cliente: string;
   id_marca: number;
   descp_marca: string;
+  mes_idx: number;
   monto_2025: number;
   monto_2026: number;
   monto_objetivo: number;

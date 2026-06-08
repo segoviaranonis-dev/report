@@ -42,11 +42,12 @@ SELECT
   MAX(fl.cliente)::text AS descp_cliente,
   fl.id_marca,
   MAX(fl.marca)::text AS descp_marca,
+  fl.mes_idx,
   SUM(CASE WHEN fl.y = 2026 THEN fl.monto ELSE 0 END)::float8 AS monto_26,
   SUM(CASE WHEN fl.y = 2025 THEN fl.monto ELSE 0 END)::float8 AS monto_25
 FROM (${LINEAS_SUBQUERY}) AS fl
 ${whereSql}
-GROUP BY fl.id_cadena, fl.id_cliente, fl.id_marca
+GROUP BY fl.id_cadena, fl.id_cliente, fl.id_marca, fl.mes_idx
 ORDER BY SUM(CASE WHEN fl.y = 2026 THEN fl.monto ELSE 0 END) DESC NULLS LAST
 `.trim();
   return { text, values };
@@ -68,6 +69,7 @@ export function mapJerarquiaQueryRows(
       descp_cliente: String(r.descp_cliente ?? ""),
       id_marca: Number(r.id_marca) || 0,
       descp_marca: String(r.descp_marca ?? ""),
+      mes_idx: Number(r.mes_idx) || 0,
       monto_2025: m25,
       monto_2026: m26,
       monto_objetivo: monto_obj,
