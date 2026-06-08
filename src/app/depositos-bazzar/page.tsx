@@ -230,7 +230,7 @@ export default function DepositosBazzarPage() {
             <strong>Sincronización diaria desde:</strong> registro_st_vt_rc_reposicion
           </p>
           <p className="mt-2">
-            <strong>Filtro:</strong> cliente_id específico + tipo_movimiento = 'stock'
+            <strong>Filtro:</strong> cliente_id específico + tipo_movimiento = &apos;stock&apos;
           </p>
         </div>
       </div>
