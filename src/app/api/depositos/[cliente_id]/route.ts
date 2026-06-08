@@ -1,0 +1,205 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+
+const DEPOSITOS_MAP: Record<number, string> = {
+  2100: "deposito_tienda_fernando_adultos",
+  2900: "deposito_tienda_fernando_ninos",
+  2400: "deposito_tienda_sanmartin_adultos",
+  2700: "deposito_tienda_sanmartin_ninos",
+  3100: "deposito_tienda_palma_adultos",
+  3200: "deposito_tienda_palma_ninos",
+};
+
+const ENTES_MAP: Record<number, { ente: string; tipo: string }> = {
+  2100: { ente: "Fernando", tipo: "Adultos" },
+  2900: { ente: "Fernando", tipo: "Niños" },
+  2400: { ente: "San Martin", tipo: "Adultos" },
+  2700: { ente: "San Martin", tipo: "Niños" },
+  3100: { ente: "Palma", tipo: "Adultos" },
+  3200: { ente: "Palma", tipo: "Niños" },
+};
+
+export type DepositoRow = {
+  linea_codigo_proveedor: string;
+  referencia_codigo_proveedor: string;
+  material_code: string;
+  color_code: string;
+  marca: string;
+  genero: string;
+  estilo: string;
+  tipo_v2: string;
+  descp_material: string | null;
+  descp_color: string | null;
+  grada: string;
+  cantidad: number;
+  imagen_nombre: string | null;
+  linea_id: number | null;
+  referencia_id: number | null;
+  material_id: number;
+  color_id: number;
+  marca_id: number | null;
+  genero_id: number | null;
+  grupo_estilo_id: number | null;
+  tipo_1_id: number | null;
+  tipo_v2_id: number | null;
+};
+
+/**
+ * GET /api/depositos/[cliente_id]?limit=30
+ *
+ * Retorna TOP N productos por marca del depósito
+ * Query params:
+ *  - limit: 30 | 50 | 100 | 'all' (default: 30)
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ cliente_id: string }> }
+) {
+  if (!isRimecDatabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      productos: [],
+      error: "Base de datos no configurada",
+    });
+  }
+
+  const { cliente_id: clienteIdStr } = await params;
+  const cliente_id = parseInt(clienteIdStr);
+
+  if (!DEPOSITOS_MAP[cliente_id]) {
+    return NextResponse.json(
+      {
+        configured: true,
+        productos: [],
+        error: `cliente_id ${cliente_id} no válido`,
+      },
+      { status: 400 }
+    );
+  }
+
+  const tabla = DEPOSITOS_MAP[cliente_id];
+  const info = ENTES_MAP[cliente_id];
+
+  // Leer parámetro limit del query string
+  const { searchParams } = new URL(req.url);
+  const limitParam = searchParams.get('limit') || '30';
+  const limit = limitParam === 'all' ? null : parseInt(limitParam);
+
+  try {
+    const pool = getRimecPool();
+
+    // Query optimizado: TOP N productos por marca
+    const whereClause = limit ? `WHERE rank_por_marca <= ${limit}` : '';
+
+    const { rows } = await pool.query<DepositoRow>(`
+      WITH ranked_products AS (
+        SELECT
+          s.linea_codigo_proveedor,
+          s.referencia_codigo_proveedor,
+          COALESCE(
+            NULLIF(btrim(s.excel_material_code::text), ''),
+            CASE
+              WHEN mat.id IS NULL THEN NULL
+              WHEN mat.codigo_proveedor = -999001::bigint THEN NULL
+              ELSE trim(mat.codigo_proveedor::text)
+            END,
+            ''
+          ) AS material_code,
+          COALESCE(
+            NULLIF(btrim(s.excel_color_code::text), ''),
+            CASE
+              WHEN col.id IS NULL THEN NULL
+              WHEN col.codigo_proveedor = -999001::bigint THEN NULL
+              ELSE trim(col.codigo_proveedor::text)
+            END,
+            ''
+          ) AS color_code,
+          s.material_id,
+          s.color_id,
+          s.marca_id,
+          s.genero_id,
+          s.grupo_estilo_id,
+          s.tipo_1_id,
+          s.tipo_v2_id,
+          s.grada,
+          s.cantidad::float8 AS cantidad,
+          s.linea_id,
+          s.referencia_id,
+          COALESCE(NULLIF(btrim(mv.descp_marca::text), ''), '(sin marca)') AS marca,
+          COALESCE(
+            NULLIF(btrim(g.descripcion::text), ''),
+            NULLIF(btrim(g.codigo::text), ''),
+            '(sin género)'
+          ) AS genero,
+          COALESCE(
+            NULLIF(btrim(ge.descp_grupo_estilo::text), ''),
+            '(sin estilo)'
+          ) AS estilo,
+          COALESCE(
+            NULLIF(btrim(tv.descp_tipo::text), ''),
+            '(sin tipo)'
+          ) AS tipo_v2,
+          NULLIF(btrim(mat.descripcion::text), '') AS descp_material,
+          NULLIF(btrim(col.nombre::text), '') AS descp_color,
+          NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
+          ROW_NUMBER() OVER (PARTITION BY s.marca_id ORDER BY s.cantidad DESC) AS rank_por_marca
+        FROM public.${tabla} s
+        LEFT JOIN public.material mat ON mat.id = s.material_id
+        LEFT JOIN public.color col ON col.id = s.color_id
+        LEFT JOIN public.marca_v2 mv ON mv.id_marca = s.marca_id
+        LEFT JOIN public.genero g ON g.id = s.genero_id
+        LEFT JOIN public.grupo_estilo_v2 ge ON ge.id_grupo_estilo = s.grupo_estilo_id
+        LEFT JOIN public.tipo_v2 tv ON tv.id_tipo = s.tipo_v2_id
+      )
+      SELECT
+        linea_codigo_proveedor,
+        referencia_codigo_proveedor,
+        material_code,
+        color_code,
+        material_id,
+        color_id,
+        marca_id,
+        genero_id,
+        grupo_estilo_id,
+        tipo_1_id,
+        tipo_v2_id,
+        grada,
+        cantidad,
+        linea_id,
+        referencia_id,
+        marca,
+        genero,
+        estilo,
+        tipo_v2,
+        descp_material,
+        descp_color,
+        imagen_nombre
+      FROM ranked_products
+      ${whereClause}
+      ORDER BY marca, cantidad DESC
+    `);
+
+    return NextResponse.json({
+      configured: true,
+      cliente_id,
+      ente: info.ente,
+      tipo: info.tipo,
+      productos: rows,
+      total: rows.length,
+    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Error desconocido";
+    return NextResponse.json(
+      {
+        configured: true,
+        cliente_id,
+        ente: info.ente,
+        tipo: info.tipo,
+        productos: [],
+        total: 0,
+        error: errorMsg,
+      },
+      { status: 500 }
+    );
+  }
+}

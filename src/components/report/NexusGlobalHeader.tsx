@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "informes";
+export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "informes";
 
 const baseLink = "text-xs tracking-widest uppercase text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
 const activeLink = "text-xs tracking-widest uppercase text-[#D4AF37] font-semibold py-1.5 border-b-2 border-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
@@ -15,6 +15,7 @@ const navItems: Array<{ key: NexusNavKey; href: string; label: string; roles: nu
   { key: "retail", href: "/retail", label: "Stock / Retail", roles: [1, 2] },
   { key: "ventas-fotos", href: "/ventas-fotos", label: "Ventas + Fotos", roles: [1, 3] },
   { key: "aprobaciones", href: "/aprobaciones", label: "Aprobaciones", roles: [1] },
+  { key: "depositos-bazzar", href: "/depositos-bazzar", label: "Depósitos Bazzar", roles: [1] },
   { key: "informes", href: "/informes", label: "Anexo Documental", roles: [1] },
 ];
 
@@ -50,7 +51,7 @@ export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max
   const visibleNav = rolId == null ? [] : navItems.filter((item) => item.roles.includes(rolId));
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#070b12]/90 border-b border-slate-800/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 w-full bg-[#070b12] border-b border-slate-800">
       <div className={`mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-3.5 ${maxWidthClass}`}>
         <div className="flex items-center gap-3">
           <Link href="/" className="font-serif text-lg tracking-widest text-white hover:opacity-90 transition-opacity">

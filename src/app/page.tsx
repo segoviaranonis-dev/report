@@ -44,6 +44,13 @@ const MODULES: ModuleCard[] = [
     roles: [1],
   },
   {
+    href: "/depositos-bazzar",
+    title: "Depósitos Bazzar",
+    description: "Administrador de depósitos · Gestión de stock para 6 tiendas (Fernando/San Martin/Palma × Adultos/Niños). Sincronización diaria para POS tablet.",
+    icon: "🏪",
+    roles: [1],
+  },
+  {
     href: "/informes",
     title: "Anexo Documental",
     description: "Repositorio de reportes · Documentación técnica, guías de uso, mapas de paridad, procedimientos operativos.",
@@ -89,6 +96,9 @@ export default function HomePage() {
 
   const visibleModules = MODULES.filter(m => m.roles.includes(rolId));
 
+  // DEBUG: Log visible modules
+  console.log('[DEBUG] Visible modules:', visibleModules.map(m => ({ title: m.title, href: m.href })));
+
   return (
     <div className="min-h-screen bg-report-bg text-report-ink">
       <NexusGlobalHeader />
@@ -108,6 +118,9 @@ export default function HomePage() {
             <Link
               key={mod.href}
               href={mod.href}
+              onClick={(e) => {
+                console.log('[DEBUG] Link clicked:', mod.title, 'href:', mod.href);
+              }}
               className="group block rounded-2xl border border-report-border bg-white p-6 shadow-sm transition hover:shadow-md hover:border-report-primary/30"
             >
               <div className="mb-4 text-4xl">{mod.icon}</div>
