@@ -48,7 +48,7 @@ const MODULES: ModuleCard[] = [
     title: "Depósitos Bazzar",
     description: "Administrador de depósitos · Gestión de stock para 6 tiendas (Fernando/San Martin/Palma × Adultos/Niños). Sincronización diaria para POS tablet.",
     icon: "🏪",
-    roles: [1],
+    roles: [1, 2],
   },
   {
     href: "/informes",
@@ -96,8 +96,16 @@ export default function HomePage() {
 
   const visibleModules = MODULES.filter(m => m.roles.includes(rolId));
 
-  // DEBUG: Log visible modules
-  console.log('[DEBUG] Visible modules:', visibleModules.map(m => ({ title: m.title, href: m.href })));
+  // Agrupar módulos por sección
+  const rimecModules = visibleModules.filter(m =>
+    ['/rimec', '/ventas-fotos', '/aprobaciones'].includes(m.href)
+  );
+  const bazzarModules = visibleModules.filter(m =>
+    ['/retail', '/depositos-bazzar'].includes(m.href)
+  );
+  const otrosModules = visibleModules.filter(m =>
+    !['/rimec', '/ventas-fotos', '/aprobaciones', '/retail', '/depositos-bazzar'].includes(m.href)
+  );
 
   return (
     <div className="min-h-screen bg-report-bg text-report-ink">
@@ -113,25 +121,107 @@ export default function HomePage() {
           </p>
         </header>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleModules.map((mod) => (
-            <Link
-              key={mod.href}
-              href={mod.href}
-              onClick={(e) => {
-                console.log('[DEBUG] Link clicked:', mod.title, 'href:', mod.href);
-              }}
-              className="group block rounded-2xl border border-report-border bg-white p-6 shadow-sm transition hover:shadow-md hover:border-report-primary/30"
-            >
-              <div className="mb-4 text-4xl">{mod.icon}</div>
-              <h2 className="mb-2 font-serif text-xl font-semibold text-report-primary group-hover:text-report-accent">
-                {mod.title}
-              </h2>
-              <p className="text-sm leading-relaxed text-report-muted">
-                {mod.description}
-              </p>
-            </Link>
-          ))}
+        {/* Acordeones de módulos */}
+        <div className="space-y-6">
+          {/* RIMEC */}
+          {rimecModules.length > 0 && (
+            <details open className="group rounded-2xl border-2 border-blue-200 bg-white shadow-sm">
+              <summary className="cursor-pointer bg-gradient-to-r from-blue-50 to-white px-6 py-4 font-bold text-blue-900 hover:from-blue-100 hover:to-blue-50">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-3 text-xl">
+                    <span>🏢</span>
+                    <span>RIMEC</span>
+                    <span className="text-sm font-normal text-blue-600">
+                      ({rimecModules.length} módulos)
+                    </span>
+                  </span>
+                  <span className="text-sm text-blue-600">
+                    Roles: {rolId === 1 ? '1 (Admin)' : rolId === 3 ? '3 (Vendedor)' : rolId}
+                  </span>
+                </div>
+              </summary>
+              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+                {rimecModules.map((mod) => (
+                  <Link
+                    key={mod.href}
+                    href={mod.href}
+                    className="group block rounded-xl border border-report-border bg-white p-5 shadow-sm transition hover:shadow-md hover:border-blue-400"
+                  >
+                    <div className="mb-3 text-3xl">{mod.icon}</div>
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-report-primary group-hover:text-blue-600">
+                      {mod.title}
+                    </h2>
+                    <p className="text-xs leading-relaxed text-report-muted">
+                      {mod.description}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* BAZZAR */}
+          {bazzarModules.length > 0 && (
+            <details open className="group rounded-2xl border-2 border-green-200 bg-white shadow-sm">
+              <summary className="cursor-pointer bg-gradient-to-r from-green-50 to-white px-6 py-4 font-bold text-green-900 hover:from-green-100 hover:to-green-50">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-3 text-xl">
+                    <span>🏪</span>
+                    <span>BAZZAR</span>
+                    <span className="text-sm font-normal text-green-600">
+                      ({bazzarModules.length} módulos)
+                    </span>
+                  </span>
+                  <span className="text-sm text-green-600">
+                    Roles: {rolId === 1 ? '1 (Admin)' : rolId === 2 ? '2 (Retail)' : rolId}
+                  </span>
+                </div>
+              </summary>
+              <div className="grid gap-4 p-6 sm:grid-cols-2">
+                {bazzarModules.map((mod) => (
+                  <Link
+                    key={mod.href}
+                    href={mod.href}
+                    className="group block rounded-xl border border-report-border bg-white p-5 shadow-sm transition hover:shadow-md hover:border-green-400"
+                  >
+                    <div className="mb-3 text-3xl">{mod.icon}</div>
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-report-primary group-hover:text-green-600">
+                      {mod.title}
+                    </h2>
+                    <p className="text-xs leading-relaxed text-report-muted">
+                      {mod.description}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Otros módulos (sin acordeón) */}
+          {otrosModules.length > 0 && (
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">
+                Recursos Adicionales
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {otrosModules.map((mod) => (
+                  <Link
+                    key={mod.href}
+                    href={mod.href}
+                    className="group block rounded-xl border border-report-border bg-white p-5 shadow-sm transition hover:shadow-md hover:border-report-primary/30"
+                  >
+                    <div className="mb-3 text-3xl">{mod.icon}</div>
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-report-primary group-hover:text-report-accent">
+                      {mod.title}
+                    </h2>
+                    <p className="text-xs leading-relaxed text-report-muted">
+                      {mod.description}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <footer className="mt-16 text-center text-xs text-report-muted">
