@@ -13,6 +13,7 @@ type FiltrosData = {
   estilos: RetailFilterItem[];
   lineas: RetailFilterItem[];
   tipos: RetailFilterItem[];
+  tipoV2: RetailFilterItem[];  // NUEVO: Calzados/Confecciones
   colores: RetailFilterItem[];
 };
 
@@ -144,6 +145,7 @@ export function RetailFiltrosHeader({ filtros, onChange, filtrosData, totalModel
     !!filtros.grupoEstiloId ||
     filtros.lineaIds.length > 0 ||
     filtros.tipoIds.length > 0 ||
+    filtros.tipoV2Ids.length > 0 ||  // NUEVO
     filtros.colorIds.length > 0 ||
     !!filtros.q.trim();
 
@@ -174,6 +176,7 @@ export function RetailFiltrosHeader({ filtros, onChange, filtrosData, totalModel
                 grupoEstiloId: "",
                 lineaIds: [],
                 tipoIds: [],
+                tipoV2Ids: [],  // NUEVO
                 colorIds: [],
                 q: "",
               })
@@ -249,6 +252,12 @@ export function RetailFiltrosHeader({ filtros, onChange, filtrosData, totalModel
         <div className="flex flex-wrap items-center gap-3">
           {filtrosData ? (
             <>
+              <DropdownIds
+                label="Producto"
+                options={filtrosData.tipoV2}
+                selectedIds={filtros.tipoV2Ids}
+                onApply={(tipoV2Ids) => patch({ tipoV2Ids })}
+              />
               <DropdownIds
                 label="Línea"
                 options={filtrosData.lineas}

@@ -51,6 +51,13 @@ const MODULES: ModuleCard[] = [
     roles: [1, 2],
   },
   {
+    href: "/tablet-bazzar",
+    title: "Tablet Bazzar",
+    description: "Punto de venta en tienda · Sistema tablet para vendedores. Registro de clientes, generación de tickets, gestión de ventas retail con pilares y agrupaciones.",
+    icon: "📱",
+    roles: [1, 2],
+  },
+  {
     href: "/informes",
     title: "Anexo Documental",
     description: "Repositorio de reportes · Documentación técnica, guías de uso, mapas de paridad, procedimientos operativos.",
@@ -101,10 +108,10 @@ export default function HomePage() {
     ['/rimec', '/ventas-fotos', '/aprobaciones'].includes(m.href)
   );
   const bazzarModules = visibleModules.filter(m =>
-    ['/retail', '/depositos-bazzar'].includes(m.href)
+    ['/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
   const otrosModules = visibleModules.filter(m =>
-    !['/rimec', '/ventas-fotos', '/aprobaciones', '/retail', '/depositos-bazzar'].includes(m.href)
+    !['/rimec', '/ventas-fotos', '/aprobaciones', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
 
   return (

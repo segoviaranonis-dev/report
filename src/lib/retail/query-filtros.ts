@@ -8,6 +8,7 @@ export type RetailFiltrosPayload = {
   estilos: RetailFilterItem[];
   lineas: RetailFilterItem[];
   tipos: RetailFilterItem[];
+  tipoV2: RetailFilterItem[];  // NUEVO: Calzados/Confecciones
   colores: RetailFilterItem[];
 };
 
@@ -17,6 +18,7 @@ export const EMPTY_RETAIL_FILTROS_PAYLOAD: RetailFiltrosPayload = {
   estilos: [],
   lineas: [],
   tipos: [],
+  tipoV2: [],  // NUEVO
   colores: [],
 };
 
@@ -95,6 +97,11 @@ export async function loadRetailFiltrosForBatch(batchId: string): Promise<Retail
     estilos: [...estilos.entries()].map(([id, label]) => ({ id, label })).sort(sortLabel),
     lineas: [...lineas.entries()].map(([id, label]) => ({ id, label })).sort(sortLabel),
     tipos: [...tipos.entries()].map(([id, label]) => ({ id, label })).sort(sortLabel),
+    // NUEVO: Tipo V2 - Valores fijos (1=CALZADO, 2=CONFECCIONES)
+    tipoV2: [
+      { id: 1, label: "Calzados" },
+      { id: 2, label: "Confecciones" }
+    ],
     colores: [...colores.entries()].map(([id, label]) => ({ id, label })).sort(sortLabel),
   };
 }

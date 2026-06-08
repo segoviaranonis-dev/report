@@ -44,6 +44,12 @@ export function buildWhereClause(filters: RetailFilterState): string {
     whereClauses.push(`s.tipo_1_id IN (${ids})`);
   }
 
+  // Filtro por tipo V2 - Calzados/Confecciones (IN clause)
+  if (filters.tipoV2Ids.length > 0) {
+    const ids = filters.tipoV2Ids.map(id => Number(id)).join(',');
+    whereClauses.push(`s.tipo_v2_id IN (${ids})`);
+  }
+
   // Filtro por colores (IN clause)
   if (filters.colorIds.length > 0) {
     const ids = filters.colorIds.map(id => Number(id)).join(',');

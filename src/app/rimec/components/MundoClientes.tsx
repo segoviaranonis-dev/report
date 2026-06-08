@@ -326,16 +326,22 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
       </div>
 
       {/* Cartera Unificada (Tablas) */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md">
+      <div
+        className={`flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md transition-all ${
+          carteraCompletaVisible
+            ? "fixed inset-4 z-50 bg-slate-950/95 backdrop-blur-xl"
+            : "flex-1"
+        }`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/20 p-6">
           <h3 className="font-serif text-sm uppercase tracking-widest text-white/90">Cartera Unificada</h3>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setCarteraCompletaVisible((v) => !v)}
-              className={`rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-wider transition-colors ${
+              className={`rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-wider transition-all ${
                 carteraCompletaVisible
-                  ? "border-yellow-400/60 bg-yellow-500/15 text-yellow-200"
+                  ? "border-yellow-400/60 bg-yellow-500/15 text-yellow-200 shadow-lg shadow-yellow-500/20"
                   : "border-white/15 bg-white/5 text-white/75 hover:border-white/25 hover:bg-white/10"
               }`}
             >

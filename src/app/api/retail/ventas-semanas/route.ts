@@ -48,13 +48,11 @@ export async function GET() {
     }>(`
       SELECT
         CASE
-          WHEN lower(btrim(s.origen_holding)) LIKE '%import%' OR lower(btrim(s.origen_holding)) = 'rimec'
-            OR lower(btrim(s.origen_holding)) LIKE '%depósit%' OR lower(btrim(s.origen_holding)) LIKE '%deposit%'
-          THEN 'RIMEC'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%fernando%' THEN 'Fernando'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%san%mart%' THEN 'San Martin'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%palma%' THEN 'Palma'
-          ELSE btrim(s.origen_holding)
+          WHEN s.cliente_id IN (2100, 2900) THEN 'Fernando'
+          WHEN s.cliente_id IN (2400, 2700) THEN 'San Martin'
+          WHEN s.cliente_id IN (3100, 3200) THEN 'Palma'
+          WHEN s.cliente_id IS NULL THEN 'RIMEC'
+          ELSE 'Otros'
         END AS ente_norm,
         EXTRACT(WEEK FROM s.fecha_mov)::int AS numero_semana,
         MIN(s.fecha_mov)::text AS fecha_inicio,
@@ -75,13 +73,11 @@ export async function GET() {
     }>(`
       SELECT
         CASE
-          WHEN lower(btrim(s.origen_holding)) LIKE '%import%' OR lower(btrim(s.origen_holding)) = 'rimec'
-            OR lower(btrim(s.origen_holding)) LIKE '%depósit%' OR lower(btrim(s.origen_holding)) LIKE '%deposit%'
-          THEN 'RIMEC'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%fernando%' THEN 'Fernando'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%san%mart%' THEN 'San Martin'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%palma%' THEN 'Palma'
-          ELSE btrim(s.origen_holding)
+          WHEN s.cliente_id IN (2100, 2900) THEN 'Fernando'
+          WHEN s.cliente_id IN (2400, 2700) THEN 'San Martin'
+          WHEN s.cliente_id IN (3100, 3200) THEN 'Palma'
+          WHEN s.cliente_id IS NULL THEN 'RIMEC'
+          ELSE 'Otros'
         END AS ente_norm,
         EXTRACT(WEEK FROM s.fecha_mov)::int AS numero_semana,
         EXTRACT(DOW FROM s.fecha_mov)::int AS dia_semana,

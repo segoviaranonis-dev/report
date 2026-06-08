@@ -48,7 +48,7 @@ function agregarHojas(detalle: Record<string, unknown>[]): HojaMarcaVendedor[] {
   const map = new Map<string, HojaMarcaVendedor>();
   for (const r of detalle) {
     const marca = String(r.marca ?? "S/I").trim();
-    const cadena = String(r.cadena ?? "S/C").trim();
+    const cadena = String(r.cadena ?? "Clientes sin cadenas").trim();
     const cliente = String(r.cliente ?? "S/I").trim();
     const vendedor = String(r.vendedor ?? "S/I").trim();
     const key = `${marca}\u0001${cadena}\u0001${cliente}\u0001${vendedor}`;

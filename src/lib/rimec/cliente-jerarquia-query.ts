@@ -16,7 +16,7 @@ SELECT
   v.id_cliente::text AS codigo_cliente,
   v.id_cliente::integer AS id_cliente,
   TRIM(ven.descp_vendedor) AS vendedor,
-  COALESCE(TRIM(cad.descp_cadena), 'S/C') AS cadena,
+  COALESCE(TRIM(cad.descp_cadena), 'Clientes sin cadenas') AS cadena,
   COALESCE(cad.id_cadena, 0)::integer AS id_cadena,
   EXTRACT(MONTH FROM v.fecha)::integer AS mes_idx,
   v.id_categoria,
@@ -63,7 +63,7 @@ export function mapJerarquiaQueryRows(
     const monto_obj = m25 * mult;
     return {
       id_cadena: Number(r.id_cadena) || 0,
-      descp_cadena: String(r.descp_cadena ?? "S/C"),
+      descp_cadena: String(r.descp_cadena ?? "Clientes sin cadenas"),
       id_cliente: Number(r.id_cliente) || 0,
       descp_cliente: String(r.descp_cliente ?? ""),
       id_marca: Number(r.id_marca) || 0,

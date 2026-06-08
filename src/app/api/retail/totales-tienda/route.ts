@@ -41,13 +41,11 @@ export async function GET(request: Request) {
     }>(`
       SELECT
         CASE
-          WHEN lower(btrim(s.origen_holding)) LIKE '%import%' OR lower(btrim(s.origen_holding)) = 'rimec'
-            OR lower(btrim(s.origen_holding)) LIKE '%depósit%' OR lower(btrim(s.origen_holding)) LIKE '%deposit%'
-          THEN 'RIMEC'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%fernando%' THEN 'Fernando'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%san%mart%' THEN 'San Martín'
-          WHEN lower(btrim(s.origen_holding)) LIKE '%palma%' THEN 'Palma'
-          ELSE btrim(s.origen_holding)
+          WHEN s.cliente_id IN (2100, 2900) THEN 'Fernando'
+          WHEN s.cliente_id IN (2400, 2700) THEN 'San Martín'
+          WHEN s.cliente_id IN (3100, 3200) THEN 'Palma'
+          WHEN s.cliente_id IS NULL THEN 'RIMEC'
+          ELSE 'Otros'
         END AS tienda_norm,
         SUM(CASE WHEN lower(btrim(s.tipo_movimiento)) = 'stock' THEN s.cantidad::float8 ELSE 0 END)::text AS stock,
         SUM(CASE WHEN lower(btrim(s.tipo_movimiento)) = 'venta' THEN s.cantidad::float8 ELSE 0 END)::text AS venta

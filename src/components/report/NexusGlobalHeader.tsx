@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "informes";
+export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes";
 
 const baseLink = "text-xs tracking-widest uppercase text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
 const activeLink = "text-xs tracking-widest uppercase text-[#D4AF37] font-semibold py-1.5 border-b-2 border-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
@@ -15,7 +15,8 @@ const navItems: Array<{ key: NexusNavKey; href: string; label: string; roles: nu
   { key: "retail", href: "/retail", label: "Stock / Retail", roles: [1, 2] },
   { key: "ventas-fotos", href: "/ventas-fotos", label: "Ventas + Fotos", roles: [1, 3] },
   { key: "aprobaciones", href: "/aprobaciones", label: "Aprobaciones", roles: [1] },
-  { key: "depositos-bazzar", href: "/depositos-bazzar", label: "Depósitos Bazzar", roles: [1] },
+  { key: "depositos-bazzar", href: "/depositos-bazzar", label: "Depósitos Bazzar", roles: [1, 2] },
+  { key: "tablet-bazzar", href: "/tablet-bazzar", label: "Tablet Bazzar", roles: [1, 2] },
   { key: "informes", href: "/informes", label: "Anexo Documental", roles: [1] },
 ];
 

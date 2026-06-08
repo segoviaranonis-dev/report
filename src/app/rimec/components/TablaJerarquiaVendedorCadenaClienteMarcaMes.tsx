@@ -56,7 +56,7 @@ function agregarHojas(detalle: Record<string, unknown>[]): HojaVendMes[] {
   const map = new Map<string, HojaVendMes>();
   for (const r of detalle) {
     const vendedor = String(r.vendedor ?? "S/I").trim();
-    const cadena = String(r.cadena ?? "S/C").trim();
+    const cadena = String(r.cadena ?? "Clientes sin cadenas").trim();
     const cliente = String(r.cliente ?? "S/I").trim();
     const marca = String(r.marca ?? "S/I").trim();
     const mes = etiquetaMes(r);

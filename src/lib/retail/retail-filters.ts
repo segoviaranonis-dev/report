@@ -6,6 +6,7 @@ export type RetailFilterState = {
   grupoEstiloId: string;
   lineaIds: number[];
   tipoIds: number[];
+  tipoV2Ids: number[];  // NUEVO: Filtro Calzados/Confecciones
   colorIds: number[];
   q: string;
 };
@@ -16,6 +17,7 @@ export const EMPTY_RETAIL_FILTERS: RetailFilterState = {
   grupoEstiloId: "",
   lineaIds: [],
   tipoIds: [],
+  tipoV2Ids: [],  // NUEVO
   colorIds: [],
   q: "",
 };
@@ -35,6 +37,7 @@ export function parseRetailFiltersFromSearchParams(sp: URLSearchParams): RetailF
     grupoEstiloId: sp.get("grupo_estilo_id") ?? "",
     lineaIds: parseIdList(sp.get("linea_ids")),
     tipoIds: parseIdList(sp.get("tipo_ids")),
+    tipoV2Ids: parseIdList(sp.get("tipo_v2_ids")),  // NUEVO
     colorIds: parseIdList(sp.get("color_ids")),
     q: sp.get("q") ?? "",
   };
@@ -47,6 +50,7 @@ export function retailFiltersToQuery(f: RetailFilterState): string {
   if (f.grupoEstiloId) p.set("grupo_estilo_id", f.grupoEstiloId);
   if (f.lineaIds.length) p.set("linea_ids", f.lineaIds.join(","));
   if (f.tipoIds.length) p.set("tipo_ids", f.tipoIds.join(","));
+  if (f.tipoV2Ids.length) p.set("tipo_v2_ids", f.tipoV2Ids.join(","));  // NUEVO
   if (f.colorIds.length) p.set("color_ids", f.colorIds.join(","));
   if (f.q.trim()) p.set("q", f.q.trim());
   const s = p.toString();
@@ -84,6 +88,12 @@ export function applyRetailFilters(rows: RetailStagingRow[], f: RetailFilterStat
   if (f.tipoIds.length) {
     const set = new Set(f.tipoIds);
     out = out.filter((r) => r.tipo_1_id != null && set.has(Number(r.tipo_1_id)));
+  }
+
+  // Tipo V2 (Calzados/Confecciones): normalizar a número
+  if (f.tipoV2Ids.length) {
+    const set = new Set(f.tipoV2Ids);
+    out = out.filter((r) => r.tipo_v2_id != null && set.has(Number(r.tipo_v2_id)));
   }
 
   // Color: normalizar a número

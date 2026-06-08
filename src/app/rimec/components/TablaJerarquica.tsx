@@ -68,7 +68,7 @@ export function construirJerarquiaDesdeHojas(
 
   for (const [idCadena, bucketCad] of byCadena) {
     const leavesCad = bucketCad.leaves;
-    const displayCadena = bucketCad.desc || "S/C";
+    const displayCadena = bucketCad.desc || "Clientes sin cadenas";
 
     let montoObjCadena = 0;
     let monto26Cadena = 0;

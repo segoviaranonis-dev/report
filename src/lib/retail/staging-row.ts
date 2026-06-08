@@ -14,6 +14,7 @@ export type RetailStagingRow = {
   genero_id: number | null;
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
+  tipo_v2_id: number | null;  // NUEVO: 1=CALZADO, 2=CONFECCIONES
   grada: string;
   cantidad: number;
   sku_key: string;
@@ -68,6 +69,7 @@ export const RETAIL_STAGING_SELECT_SQL = `
     s.genero_id,
     s.grupo_estilo_id,
     s.tipo_1_id,
+    s.tipo_v2_id,
     s.grada,
     s.cantidad::float8 AS cantidad,
     s.sku_key,

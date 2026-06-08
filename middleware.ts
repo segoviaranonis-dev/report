@@ -23,15 +23,15 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/depositos-bazzar', '/informes'],
-  2: ['/retail'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/depositos-bazzar', '/tablet-bazzar', '/informes'],
+  2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
   3: ['/ventas-fotos'],
 }
 
 // APIs permitidas por rol
 const ROLE_API_ROUTES: Record<number, RegExp[]> = {
   1: [/.*/], // Todo
-  2: [/^\/api\/retail\//, /^\/api\/auth\//],
+  2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/auth\//],
   3: [/^\/api\/ventas-fotos\//, /^\/api\/auth\//],
 }
 
@@ -135,10 +135,12 @@ export const config = {
     '/informes/:path*',
     '/aprobaciones/:path*',
     '/depositos-bazzar/:path*',
+    '/tablet-bazzar/:path*',
     '/api/rimec/:path*',
     '/api/retail/:path*',
     '/api/ventas-fotos/:path*',
     '/api/aprobaciones/:path*',
     '/api/depositos/:path*',
+    '/api/tablet-bazzar/:path*',
   ],
 }
