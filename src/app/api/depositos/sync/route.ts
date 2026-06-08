@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
     const inicio = Date.now();
 
     // Si se especifica cliente_id, sincronizar solo ese depósito
-    let depositosASincronizar = DEPOSITOS_CONFIG;
+    let depositosASincronizar: DepositoConfig[] = [...DEPOSITOS_CONFIG];
     if (cliente_id) {
       const deposito = DEPOSITOS_CONFIG.find((d) => d.cliente_id === cliente_id);
       if (!deposito) {
