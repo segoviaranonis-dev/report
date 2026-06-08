@@ -87,7 +87,9 @@ export async function GET(
           total_skus: 0,
           total_marcas: 0,
         },
-        arbol: [],
+        resumen_operativo: [],
+        analisis_por_estilo: [],
+        analisis_por_marca: [],
         error: `cliente_id ${cliente_id} no válido`,
       } satisfies AnalisisResponse,
       { status: 400 }
