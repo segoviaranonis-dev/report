@@ -69,6 +69,7 @@ const MODULES: ModuleCard[] = [
 export default function HomePage() {
   const router = useRouter();
   const [rolId, setRolId] = useState<number | null>(null);
+  const [categoria, setCategoria] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -76,7 +77,9 @@ export default function HomePage() {
       .then(data => {
         if (data.authenticated) {
           const userRolId = data.user.rol_id || 1;
+          const userCategoria = data.user.categoria || 'ADMIN';
           setRolId(userRolId);
+          setCategoria(userCategoria);
 
           // Redirect según rol
           if (userRolId === 2) {
@@ -92,7 +95,7 @@ export default function HomePage() {
   }, [router]);
 
   // Mientras carga, no mostrar nada (evita flash de contenido)
-  if (rolId === null) {
+  if (rolId === null || categoria === null) {
     return null;
   }
 
@@ -101,7 +104,30 @@ export default function HomePage() {
     return null;
   }
 
-  const visibleModules = MODULES.filter(m => m.roles.includes(rolId));
+  // Filtrar módulos por rol + categoría
+  const visibleModules = MODULES.filter(m => {
+    // Rol 1: acceso total
+    if (rolId === 1) return m.roles.includes(1);
+
+    // Validar permisos específicos por categoría
+    if (m.href === '/tablet-bazzar') {
+      // Tablet: Solo ADMIN y SU (no VENDEDOR)
+      return rolId === 1 || (rolId === 2 && (categoria === 'ADMIN' || categoria === 'SU'));
+    }
+
+    if (m.href === '/depositos-bazzar') {
+      // Depósitos: Solo ADMIN (no SU ni VENDEDOR)
+      return rolId === 1 || (rolId === 2 && categoria === 'ADMIN');
+    }
+
+    if (m.href === '/retail') {
+      // Retail: ADMIN y VENDEDOR (no SU)
+      return rolId === 1 || (rolId === 2 && (categoria === 'ADMIN' || categoria === 'VENDEDOR'));
+    }
+
+    // Otros módulos: filtro estándar por rol
+    return m.roles.includes(rolId);
+  });
 
   // Agrupar módulos por sección
   const rimecModules = visibleModules.filter(m =>

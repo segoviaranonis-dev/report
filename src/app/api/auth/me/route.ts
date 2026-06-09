@@ -23,6 +23,7 @@ export async function GET() {
         name: session.name,
         role: session.role,
         rol_id: session.rol_id,
+        categoria: session.role, // categoria es lo mismo que role
       },
     })
   } catch (error) {

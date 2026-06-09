@@ -319,13 +319,16 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                 const cargandoFacturas = loadingFacturas === pedido.id;
 
                 return (
-                  <div key={pedido.id} className="border border-report-rule bg-white shadow-sm">
+                  <div
+                    key={pedido.id}
+                    className="border-2 border-slate-200 bg-white shadow-sm rounded-lg overflow-hidden transition-all duration-300 hover:bg-blue-50/40 hover:shadow-lg hover:border-rimec-azul/30"
+                  >
                     {/* Header del pedido */}
-                    <div className="border-b border-report-rule bg-report-paper2 p-4">
+                    <div className="border-b-2 border-slate-100 bg-white p-4">
                       <div className="flex items-start gap-4">
                         <button
                           onClick={() => togglePedido(pedido.id)}
-                          className="flex-shrink-0 pt-1 text-report-navy2 hover:text-report-navy"
+                          className="flex-shrink-0 pt-1 text-rimec-azul hover:text-rimec-azul-light transition-colors"
                         >
                           {expandido ? "▼" : "▶"}
                         </button>
@@ -334,9 +337,9 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                           {/* Header compacto */}
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
-                              <h3 className="font-mono text-lg font-bold text-report-navy2">{pedido.nro_pedido}</h3>
-                              <p className="text-sm font-semibold text-report-navy">{pedido.cliente}</p>
-                              <div className="mt-1 flex gap-4 text-sm text-neutral-ink-medium">
+                              <h3 className="font-mono text-lg font-bold text-rimec-azul-dark">{pedido.nro_pedido}</h3>
+                              <p className="text-sm font-semibold text-rimec-azul">{pedido.cliente}</p>
+                              <div className="mt-1 flex gap-4 text-sm text-neutral-700">
                                 <span className="tabular-nums">{pedido.items_count} pares</span>
                                 <MoneyDisplay amount={pedido.total} size="sm" className="text-neutral-ink" />
                               </div>
