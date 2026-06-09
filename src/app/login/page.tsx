@@ -6,7 +6,7 @@ import { Button, FormField, TextInput, LoadingSpinner } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +20,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ usuario, password }),
       });
 
       const data = await res.json();
@@ -73,8 +73,8 @@ export default function LoginPage() {
               hint="Ingrese su nombre de usuario"
             >
               <TextInput
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
                 placeholder="DIRECTOR"
                 disabled={loading}
                 autoFocus
@@ -102,7 +102,7 @@ export default function LoginPage() {
               variant="primary"
               size="lg"
               loading={loading}
-              disabled={loading || !username || !password}
+              disabled={loading || !usuario || !password}
               className="w-full text-base font-bold shadow-lg hover:shadow-xl transition-all"
             >
               {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
