@@ -50,18 +50,25 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   const visibleBazzar = rolId == null ? [] : bazzarModules.filter((item) => item.roles.includes(rolId));
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-neutral-200 shadow-sm">
+    <header className="sticky top-0 z-50 w-full bg-white border-b-4 border-rimec-azul shadow-lg">
       <div className={`mx-auto ${maxWidthClass}`}>
-        {/* Top Bar: Marca + Logout - Zen minimalista */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-100">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="font-serif text-xl tracking-wide text-neutral-800 group-hover:text-neutral-600 transition-colors">
-              NEXUS
-            </span>
-            <span className="text-neutral-300">·</span>
-            <span className="font-sans text-sm font-light text-neutral-500 tracking-wide uppercase">
-              Report
-            </span>
+        {/* Top Bar: Marca + Logout - Con marco y animación */}
+        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-neutral-200 bg-gradient-to-r from-white to-rimec-celeste/20">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 rounded-lg bg-rimec-azul flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+              </svg>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-serif text-xl tracking-wide text-rimec-azul-dark group-hover:text-rimec-azul transition-colors font-bold">
+                NEXUS
+              </span>
+              <span className="text-neutral-300 font-bold">·</span>
+              <span className="font-sans text-sm font-light text-neutral-500 tracking-wide uppercase group-hover:text-neutral-700 transition-colors">
+                Report
+              </span>
+            </div>
           </Link>
 
           {rolId != null && (
@@ -69,24 +76,24 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="text-xs font-medium text-neutral-500 hover:text-neutral-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 rounded-lg text-xs font-semibold text-neutral-600 hover:bg-semantic-error/10 hover:text-semantic-error border-2 border-transparent hover:border-semantic-error-light transition-all disabled:opacity-50"
             >
               {loggingOut ? "Saliendo..." : "× Cerrar Sesión"}
             </button>
           )}
         </div>
 
-        {/* Navigation Bar: RIMEC (celeste) vs BAZZAR (borde naranja) - Estilo ZEN */}
-        <div className="grid grid-cols-2 divide-x divide-neutral-100">
-          {/* RIMEC Section - Fondo celeste pastel */}
+        {/* Navigation Bar: RIMEC (celeste) vs BAZZAR (naranja) - Con animaciones */}
+        <div className="grid grid-cols-2 divide-x-2 divide-neutral-300">
+          {/* RIMEC Section - Fondo celeste con marco azul */}
           {visibleRimec.length > 0 && (
-            <div className="bg-rimec-celeste px-6 py-4">
+            <div className="bg-rimec-celeste px-6 py-5 border-l-4 border-rimec-azul">
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-base">🏢</span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-rimec-azul">
+                <span className="text-lg animate-pulse">🏢</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-rimec-azul-dark">
                   RIMEC
                 </span>
-                <span className="text-xs text-rimec-azul/60">
+                <span className="text-xs text-rimec-azul/60 font-medium">
                   ({visibleRimec.length})
                 </span>
               </div>
@@ -95,10 +102,10 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                   <Link
                     key={item.key}
                     href={item.href}
-                    className={`text-xs font-medium uppercase tracking-wide px-3 py-1.5 rounded-full transition-all ${
+                    className={`text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded-full transition-all duration-300 ${
                       active === item.key
-                        ? "bg-rimec-azul text-white shadow-sm"
-                        : "text-rimec-azul-dark hover:bg-rimec-celeste-medium"
+                        ? "bg-rimec-azul text-white shadow-lg scale-105"
+                        : "text-rimec-azul-dark bg-white border-2 border-rimec-celeste-medium hover:bg-rimec-celeste-medium hover:border-rimec-azul hover:scale-105 hover:shadow-md"
                     }`}
                   >
                     {item.label}
@@ -108,15 +115,15 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
             </div>
           )}
 
-          {/* BAZZAR Section - Fondo claro con borde naranja */}
+          {/* BAZZAR Section - Fondo claro con marco naranja grueso */}
           {visibleBazzar.length > 0 && (
-            <div className="bg-bazzar-fondo px-6 py-4 border-l-4 border-bazzar-naranja">
+            <div className="bg-bazzar-fondo px-6 py-5 border-r-4 border-bazzar-naranja">
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-base">🏪</span>
-                <span className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
+                <span className="text-lg animate-pulse">🏪</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-bazzar-naranja">
                   BAZZAR
                 </span>
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-bazzar-naranja/60 font-medium">
                   ({visibleBazzar.length})
                 </span>
               </div>
@@ -125,10 +132,10 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                   <Link
                     key={item.key}
                     href={item.href}
-                    className={`text-xs font-medium uppercase tracking-wide px-3 py-1.5 rounded-full transition-all ${
+                    className={`text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded-full transition-all duration-300 ${
                       active === item.key
-                        ? "bg-bazzar-naranja text-white shadow-sm"
-                        : "text-neutral-700 hover:bg-bazzar-naranja/10 hover:text-bazzar-naranja"
+                        ? "bg-bazzar-naranja text-white shadow-lg scale-105"
+                        : "text-neutral-700 bg-white border-2 border-bazzar-naranja-light hover:bg-bazzar-naranja/10 hover:text-bazzar-naranja hover:border-bazzar-naranja hover:scale-105 hover:shadow-md"
                     }`}
                   >
                     {item.label}

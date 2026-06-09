@@ -1,117 +1,124 @@
-'use client'
+"use client";
 
-/**
- * OT-REPORT-ROLES-Y-ESTILO-BANANA-001: Login Report con estilo Banana Republic
- */
-
-import { useState } from 'react'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button, FormField, TextInput, LoadingSpinner } from "@/components/ui";
 
 export default function LoginPage() {
-  const [usuario, setUsuario] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario, password }),
-      })
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
-      if (!res.ok) {
-        setError(data.error || data.message || 'Error al iniciar sesión')
-        setLoading(false)
-        return
+      if (data.success) {
+        router.push("/");
+        router.refresh();
+      } else {
+        setError(data.error || "Credenciales inválidas");
       }
-
-      // Login exitoso
-      window.location.href = '/'
     } catch (err) {
-      setError('Error de conexión')
-      setLoading(false)
+      setError("Error de conexión");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-report-bg">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl border border-report-border p-8">
-          {/* Logo/Header */}
-          <div className="text-center mb-8">
-            <div className="inline-block bg-report-primary rounded-full p-4 mb-4">
-              <svg className="w-12 h-12 text-report-paper" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    <div className="min-h-screen bg-gradient-to-br from-rimec-celeste via-white to-rimec-celeste flex items-center justify-center p-4">
+      {/* Card Login con animación de entrada */}
+      <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-3xl shadow-2xl border-4 border-rimec-azul overflow-hidden">
+          {/* Header con gradiente institucional */}
+          <div className="bg-gradient-to-r from-rimec-azul to-rimec-azul-dark px-8 py-10 text-center">
+            <div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-full bg-white shadow-lg">
+              <svg className="w-12 h-12 text-rimec-azul" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-report-primary">Report · RIMEC</h1>
-            <p className="text-sm text-report-muted mt-1">Centro Comercial y Analítica</p>
+            <h1 className="font-serif text-3xl font-bold text-white mb-2">
+              Report · RIMEC
+            </h1>
+            <p className="text-rimec-celeste text-sm">
+              Centro Comercial y Analítica
+            </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="usuario" className="block text-sm font-medium text-report-ink mb-2">
-                Usuario
-              </label>
-              <input
-                id="usuario"
-                name="username"
-                type="text"
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                className="w-full px-4 py-3 border border-report-border rounded-lg focus:ring-2 focus:ring-report-primary focus:border-transparent outline-none transition-all"
-                placeholder="Ingrese su usuario"
-                required
-                autoComplete="username"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-report-ink mb-2">
-                Contraseña
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-report-border rounded-lg focus:ring-2 focus:ring-report-primary focus:border-transparent outline-none transition-all"
-                placeholder="Ingrese su contraseña"
-                required
-                autoComplete="current-password"
-              />
-            </div>
-
+          {/* Formulario */}
+          <form onSubmit={handleSubmit} className="px-8 py-8 space-y-6">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+              <div className="flex items-start gap-3 rounded-lg border-2 border-semantic-error-light bg-semantic-error/10 px-4 py-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <span className="text-semantic-error text-xl flex-shrink-0">⚠</span>
+                <p className="text-sm font-medium text-semantic-error">{error}</p>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-report-primary text-white font-semibold py-3 px-4 rounded-lg hover:bg-report-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            <FormField
+              label="Usuario"
+              required
+              hint="Ingrese su nombre de usuario"
             >
-              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-            </button>
-          </form>
+              <TextInput
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="DIRECTOR"
+                disabled={loading}
+                autoFocus
+                className="text-base"
+              />
+            </FormField>
 
-          <div className="mt-6 text-center text-xs text-report-muted">
-            Acceso restringido a usuarios autorizados
-          </div>
+            <FormField
+              label="Contraseña"
+              required
+              hint="Ingrese su contraseña"
+            >
+              <TextInput
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                disabled={loading}
+                className="text-base"
+              />
+            </FormField>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              disabled={loading || !username || !password}
+              className="w-full text-base font-bold shadow-lg hover:shadow-xl transition-all"
+            >
+              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
+            </Button>
+
+            <p className="text-center text-xs text-neutral-600 pt-4 border-t border-neutral-200">
+              Acceso restringido a usuarios autorizados
+            </p>
+          </form>
+        </div>
+
+        {/* Footer minimalista */}
+        <div className="text-center mt-6 text-sm text-neutral-600">
+          NEXUS · Report {new Date().getFullYear()}
         </div>
       </div>
     </div>
-  )
+  );
 }
