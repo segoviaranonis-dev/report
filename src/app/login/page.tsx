@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, TextInput, LoadingSpinner } from "@/components/ui";
+import { Button, FormField, TextInput } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
