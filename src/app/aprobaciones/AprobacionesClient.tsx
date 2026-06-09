@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button, Modal, LoadingSpinner, Skeleton, MoneyDisplay, FormField, TextArea } from "@/components/ui";
 
 type Pedido = {
   id: number;
@@ -125,9 +126,12 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
     }
   }
 
-  async function rechazarPedido(pedidoId: number) {
-    const motivo = prompt("Motivo del rechazo (opcional):");
+  const [modalRechazo, setModalRechazo] = useState<{
+    pedidoId: number;
+    motivo: string;
+  } | null>(null);
 
+  async function rechazarPedido(pedidoId: number, motivo: string) {
     setProcesando(pedidoId);
     setMensaje(null);
 
@@ -147,6 +151,7 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
 
       if (result.success) {
         setMensaje({ tipo: "success", texto: `Pedido ${pedidoId} rechazado` });
+        setModalRechazo(null);
         await cargarPedidos();
       } else {
         setMensaje({ tipo: "error", texto: result.error || "Error al rechazar" });
@@ -157,6 +162,16 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
     } finally {
       setProcesando(null);
       setTimeout(() => setMensaje(null), 4000);
+    }
+  }
+
+  function abrirModalRechazo(pedidoId: number) {
+    setModalRechazo({ pedidoId, motivo: "" });
+  }
+
+  function confirmarRechazo() {
+    if (modalRechazo) {
+      rechazarPedido(modalRechazo.pedidoId, modalRechazo.motivo);
     }
   }
 
@@ -215,29 +230,29 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
       <section className="border-b border-report-rule bg-white py-6">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-4 sm:grid-cols-4">
-            <div className="rounded border border-report-rule bg-report-paper p-4">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-report-muted">
+            <div className="rounded border border-neutral-300 bg-neutral-50 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-neutral-ink-muted">
                 Total Pedidos
               </div>
-              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-report-navy">
+              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-neutral-ink">
                 {stats.total}
               </div>
             </div>
-            <div className="rounded border border-amber-200 bg-amber-50 p-4">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Pendientes</div>
-              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-amber-900">
+            <div className="rounded border border-semantic-warning-light/30 bg-semantic-warning/10 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-semantic-warning">Pendientes</div>
+              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-semantic-warning">
                 {stats.pendientes}
               </div>
             </div>
-            <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Aprobados</div>
-              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-emerald-900">
+            <div className="rounded border border-semantic-success-light/30 bg-semantic-success/10 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-semantic-success">Aprobados</div>
+              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-semantic-success">
                 {stats.aprobados}
               </div>
             </div>
-            <div className="rounded border border-red-200 bg-red-50 p-4">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-red-700">Rechazados</div>
-              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-red-900">
+            <div className="rounded border border-semantic-error-light/30 bg-semantic-error/10 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-semantic-error">Rechazados</div>
+              <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-semantic-error">
                 {stats.rechazados}
               </div>
             </div>
@@ -250,17 +265,14 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex flex-wrap gap-2">
             {(["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"] as const).map((f) => (
-              <button
+              <Button
                 key={f}
+                variant={filtro === f ? "primary" : "secondary"}
+                size="sm"
                 onClick={() => setFiltro(f)}
-                className={`rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
-                  filtro === f
-                    ? "bg-report-navy text-white shadow-sm"
-                    : "border border-report-rule bg-white text-report-muted hover:border-report-navy2 hover:text-report-navy"
-                }`}
               >
                 {f}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -270,13 +282,16 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
       {mensaje && (
         <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
           <div
-            className={`rounded border p-3 text-sm ${
+            className={`rounded-lg border-2 p-4 text-sm font-medium flex items-start gap-3 ${
               mensaje.tipo === "success"
-                ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                : "border-red-300 bg-red-50 text-red-900"
+                ? "border-semantic-success-light bg-semantic-success/10 text-semantic-success"
+                : "border-semantic-error-light bg-semantic-error/10 text-semantic-error"
             }`}
           >
-            <strong>{mensaje.tipo === "success" ? "✓" : "✗"}</strong> {mensaje.texto}
+            <span className="text-xl flex-shrink-0">
+              {mensaje.tipo === "success" ? "✓" : "✗"}
+            </span>
+            <span>{mensaje.texto}</span>
           </div>
         </div>
       )}
@@ -316,22 +331,20 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                             <div className="flex-1">
                               <h3 className="font-mono text-lg font-bold text-report-navy2">{pedido.nro_pedido}</h3>
                               <p className="text-sm font-semibold text-report-navy">{pedido.cliente}</p>
-                              <div className="mt-1 flex gap-4 text-sm text-report-muted">
-                                <span>{pedido.items_count} pares</span>
-                                <span className="font-semibold tabular-nums text-report-navy">
-                                  Gs. {pedido.total.toLocaleString("es-PY")}
-                                </span>
+                              <div className="mt-1 flex gap-4 text-sm text-neutral-ink-medium">
+                                <span className="tabular-nums">{pedido.items_count} pares</span>
+                                <MoneyDisplay amount={pedido.total} size="sm" className="text-neutral-ink" />
                               </div>
                             </div>
 
                             <div className="flex items-center gap-2">
                               <span
-                                className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                className={`inline-block rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
                                   pedido.estado === "PENDIENTE"
-                                    ? "bg-amber-100 text-amber-800"
+                                    ? "bg-semantic-warning/20 text-semantic-warning"
                                     : pedido.estado === "APROBADO"
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : "bg-red-100 text-red-800"
+                                    ? "bg-semantic-success/20 text-semantic-success"
+                                    : "bg-semantic-error/20 text-semantic-error"
                                 }`}
                               >
                                 {pedido.estado}
@@ -339,20 +352,23 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
 
                               {pedido.estado === "PENDIENTE" && (
                                 <>
-                                  <button
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
                                     onClick={() => aprobarPedido(pedido.id)}
+                                    loading={procesando === pedido.id}
                                     disabled={procesando === pedido.id}
-                                    className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                                   >
-                                    {procesando === pedido.id ? "..." : "Aprobar"}
-                                  </button>
-                                  <button
-                                    onClick={() => rechazarPedido(pedido.id)}
+                                    Aprobar
+                                  </Button>
+                                  <Button
+                                    variant="danger"
+                                    size="sm"
+                                    onClick={() => abrirModalRechazo(pedido.id)}
                                     disabled={procesando === pedido.id}
-                                    className="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                                   >
-                                    {procesando === pedido.id ? "..." : "Rechazar"}
-                                  </button>
+                                    Rechazar
+                                  </Button>
                                 </>
                               )}
                             </div>
@@ -363,11 +379,43 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
 
                     {/* Detalle expandible: Facturas e Items */}
                     {expandido && (
-                      <div className="p-4">
+                      <div className="p-4 bg-neutral-50">
                         {cargandoFacturas ? (
-                          <p className="py-4 text-center text-sm text-report-muted">Cargando facturas...</p>
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm text-neutral-ink-medium">
+                              <LoadingSpinner size="sm" />
+                              <span>Cargando facturas e items...</span>
+                            </div>
+                            {/* Skeleton de facturas */}
+                            <div className="space-y-3">
+                              {[1, 2].map((i) => (
+                                <div key={i} className="rounded-lg border border-neutral-300 bg-white p-4 space-y-3">
+                                  <div className="flex gap-3">
+                                    <Skeleton className="h-6 w-32" />
+                                    <Skeleton className="h-6 w-24" />
+                                  </div>
+                                  <div className="flex gap-4">
+                                    <Skeleton className="h-4 w-40" />
+                                    <Skeleton className="h-4 w-32" />
+                                  </div>
+                                  {/* Skeleton de items */}
+                                  <div className="space-y-2">
+                                    {[1, 2, 3].map((j) => (
+                                      <div key={j} className="flex gap-3">
+                                        <Skeleton className="h-16 w-16" />
+                                        <div className="flex-1 space-y-2">
+                                          <Skeleton className="h-4 w-3/4" />
+                                          <Skeleton className="h-3 w-1/2" />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         ) : facturasDelPedido.length === 0 ? (
-                          <p className="py-4 text-sm text-report-muted">No hay facturas para este pedido.</p>
+                          <p className="py-4 text-sm text-neutral-ink-muted">No hay facturas para este pedido.</p>
                         ) : (
                           <div className="space-y-6">
                             {facturasDelPedido.map((factura) => {
@@ -585,6 +633,52 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
           </div>
         )}
       </article>
+
+      {/* Modal de rechazo con fricción segura + validación inline */}
+      <Modal
+        isOpen={modalRechazo !== null}
+        onClose={() => setModalRechazo(null)}
+        onConfirm={confirmarRechazo}
+        title="Rechazar Pedido"
+        confirmText="Confirmar Rechazo"
+        cancelText="Cancelar"
+        variant="danger"
+        confirmDisabled={!modalRechazo?.motivo.trim() || (modalRechazo?.motivo.trim().length || 0) < 10}
+        loading={procesando === modalRechazo?.pedidoId}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-neutral-ink-medium">
+            ¿Está seguro que desea rechazar este pedido? Esta acción quedará registrada en el historial.
+          </p>
+          <FormField
+            label="Motivo del rechazo"
+            required
+            error={
+              modalRechazo?.motivo.trim() && modalRechazo.motivo.trim().length < 10
+                ? "El motivo debe tener al menos 10 caracteres"
+                : undefined
+            }
+            hint={
+              !modalRechazo?.motivo.trim()
+                ? "El botón de rechazo se habilitará cuando escriba un motivo válido (mínimo 10 caracteres)."
+                : `${modalRechazo.motivo.trim().length}/10 caracteres mínimos`
+            }
+          >
+            <TextArea
+              value={modalRechazo?.motivo || ""}
+              onChange={(e) =>
+                setModalRechazo((prev) =>
+                  prev ? { ...prev, motivo: e.target.value } : null
+                )
+              }
+              placeholder="Ej: Stock insuficiente, cliente sin crédito disponible..."
+              rows={4}
+              disabled={procesando === modalRechazo?.pedidoId}
+              error={modalRechazo != null && modalRechazo.motivo.trim() !== "" && modalRechazo.motivo.trim().length < 10}
+            />
+          </FormField>
+        </div>
+      </Modal>
     </>
   );
 }

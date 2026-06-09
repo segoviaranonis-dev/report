@@ -9,6 +9,70 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // ====================================================
+        // SISTEMA NIIF UI - PALETA UNIFICADA SEMÁNTICA
+        // Consolida rim + exec + report en un solo sistema
+        // ====================================================
+
+        /** ESTADOS SEMÁNTICOS - Uso universal en toda la app */
+        semantic: {
+          // Éxito / Positivo (fusión exec.pos + rim.good)
+          success: "#2f4f3e",      // Verde oscuro (WCAG AA)
+          "success-light": "#34d399", // Verde vibrante (alertas)
+
+          // Error / Negativo (fusión exec.neg + rim.bad)
+          error: "#8c3b3b",        // Rojo oscuro (WCAG AA)
+          "error-light": "#fb7185", // Rosa-rojo (alertas)
+
+          // Advertencia (rim.warn)
+          warning: "#d97706",      // Ámbar oscuro (WCAG AA)
+          "warning-light": "#fbbf24", // Amarillo (alertas)
+
+          // Información (rim.accent)
+          info: "#0284c7",         // Azul oscuro (WCAG AA)
+          "info-light": "#38bdf8", // Azul cielo (alertas)
+        },
+
+        /** NEUTROS - Fondos, textos, bordes */
+        neutral: {
+          // Fondos oscuros (RIMEC inmersivo - rim.*)
+          950: "#070b12",  // void - Fondo principal oscuro
+          900: "#0c1220",  // ink - Fondo secundario oscuro
+          800: "#111827",  // panel - Paneles oscuros
+          700: "#1e293b",  // line - Líneas oscuras
+
+          // Fondos claros (Report/Admin - exec.* + report.*)
+          50: "#faf8f3",   // paper - Fondo principal claro
+          100: "#f4f2ee",  // canvas - Fondo secundario claro
+          200: "#ede9df",  // paper2 - Fondo terciario
+          300: "#d4cfc4",  // rule - Bordes suaves
+          400: "#c9c3b8",  // border - Bordes definidos
+
+          // Textos oscuros (sobre fondos claros)
+          ink: "#2d2520",       // WCAG AAA - Texto principal
+          "ink-medium": "#4a3f35", // WCAG AA - Texto secundario
+          "ink-muted": "#6b6660",  // WCAG AA - Texto terciario
+          "ink-subtle": "#8a7f75", // Hints/placeholders
+
+          // Textos claros (sobre fondos oscuros)
+          light: "#ffffff",      // Blanco puro
+          "light-88": "rgba(255,255,255,0.88)", // Principal
+          "light-72": "rgba(255,255,255,0.72)", // Secundario
+          "light-55": "rgba(255,255,255,0.55)", // Terciario
+          "light-40": "rgba(255,255,255,0.40)", // Muted
+        },
+
+        /** ACENTOS DE MARCA - Oro elegante (retail/moda) */
+        brand: {
+          gold: "#D4AF37",      // Oro primario
+          "gold-dark": "#B89329", // Oro oscuro
+          bronze: "#8b7355",    // Bronce/accent
+        },
+
+        // ====================================================
+        // LEGACY - Mantener temporalmente para compatibilidad
+        // TODO: Migrar todos los usos a semantic/neutral/brand
+        // ====================================================
         yellow: {
           400: "#D4AF37",
           500: "#B89329",
@@ -24,7 +88,6 @@ const config: Config = {
           bad: "#fb7185",
           muted: "#94a3b8",
         },
-        /** Informe RIMEC — estética minimal retail (neutros cálidos, sin oro / sin UI oscura tipo Streamlit). */
         exec: {
           canvas: "#f4f2ee",
           wash: "#ebe8e2",
