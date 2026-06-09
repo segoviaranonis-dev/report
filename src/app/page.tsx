@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
+import { NexusHeaderDivided } from "@/components/report/NexusHeaderDivided";
 import { ReportFooter } from "@/components/report/ReportFooter";
 
 type ModuleCard = {
@@ -116,7 +116,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-ink">
-      <NexusGlobalHeader />
+      <NexusHeaderDivided />
 
       <main className="mx-auto max-w-6xl px-6 py-12">
         <header className="mb-12 text-center">
@@ -132,17 +132,17 @@ export default function HomePage() {
         <div className="space-y-6">
           {/* RIMEC */}
           {rimecModules.length > 0 && (
-            <details open className="group rounded-2xl border-2 border-semantic-info-light/30 bg-white shadow-lg">
-              <summary className="cursor-pointer bg-gradient-to-r from-semantic-info/10 to-white px-6 py-4 font-bold text-semantic-info hover:from-semantic-info/15 hover:to-neutral-50 transition-colors">
+            <details open className="group rounded-2xl border-2 border-rimec-light/30 bg-white shadow-lg">
+              <summary className="cursor-pointer bg-gradient-to-r from-rimec-petroleo/5 to-white px-6 py-4 font-bold text-rimec-azul hover:from-rimec-celeste/10 hover:to-neutral-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏢</span>
                     <span>RIMEC</span>
-                    <span className="text-sm font-normal text-semantic-info-light">
+                    <span className="text-sm font-normal text-rimec-azul/70">
                       ({rimecModules.length} módulos)
                     </span>
                   </span>
-                  <span className="text-sm text-semantic-info-light">
+                  <span className="text-sm text-rimec-celeste">
                     Roles: {rolId === 1 ? '1 (Admin)' : rolId === 3 ? '3 (Vendedor)' : rolId}
                   </span>
                 </div>
@@ -152,10 +152,10 @@ export default function HomePage() {
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-semantic-info hover:-translate-y-0.5"
+                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-rimec-celeste hover:-translate-y-0.5"
                   >
                     <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-semantic-info transition-colors">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-rimec-azul transition-colors">
                       {mod.title}
                     </h2>
                     <p className="text-sm leading-relaxed text-neutral-ink-muted">
@@ -169,17 +169,17 @@ export default function HomePage() {
 
           {/* BAZZAR */}
           {bazzarModules.length > 0 && (
-            <details open className="group rounded-2xl border-2 border-semantic-success-light/30 bg-white shadow-lg">
-              <summary className="cursor-pointer bg-gradient-to-r from-semantic-success/10 to-white px-6 py-4 font-bold text-semantic-success hover:from-semantic-success/15 hover:to-neutral-50 transition-colors">
+            <details open className="group rounded-2xl border-2 border-bazzar-naranja-light/30 bg-white shadow-lg">
+              <summary className="cursor-pointer bg-gradient-to-r from-bazzar-azul/5 to-white px-6 py-4 font-bold text-bazzar-azul hover:from-bazzar-naranja/10 hover:to-neutral-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏪</span>
                     <span>BAZZAR</span>
-                    <span className="text-sm font-normal text-semantic-success-light">
+                    <span className="text-sm font-normal text-bazzar-azul/70">
                       ({bazzarModules.length} módulos)
                     </span>
                   </span>
-                  <span className="text-sm text-semantic-success-light">
+                  <span className="text-sm text-bazzar-naranja">
                     Roles: {rolId === 1 ? '1 (Admin)' : rolId === 2 ? '2 (Retail)' : rolId}
                   </span>
                 </div>
@@ -189,10 +189,10 @@ export default function HomePage() {
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-semantic-success hover:-translate-y-0.5"
+                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja hover:-translate-y-0.5"
                   >
                     <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-semantic-success transition-colors">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-bazzar-azul transition-colors">
                       {mod.title}
                     </h2>
                     <p className="text-sm leading-relaxed text-neutral-ink-muted">

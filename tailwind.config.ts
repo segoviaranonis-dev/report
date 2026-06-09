@@ -69,6 +69,20 @@ const config: Config = {
           bronze: "#8b7355",    // Bronce/accent
         },
 
+        /** COLORES INSTITUCIONALES - RIMEC y BAZZAR */
+        rimec: {
+          "celeste": "#87CEEB",      // Celeste cielo
+          "azul": "#1E3A8A",          // Azul marino normal
+          "petroleo": "#0C2340",      // Azul marino petróleo (oscuro)
+          "light": "#BFDBFE",         // Celeste claro para fondos
+        },
+        bazzar: {
+          "azul": "#2563EB",          // Azul institucional
+          "naranja": "#F97316",       // Naranja institucional
+          "azul-light": "#DBEAFE",    // Azul claro para fondos
+          "naranja-light": "#FED7AA", // Naranja claro para fondos
+        },
+
         // ====================================================
         // LEGACY - Mantener temporalmente para compatibilidad
         // TODO: Migrar todos los usos a semantic/neutral/brand
