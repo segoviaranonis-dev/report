@@ -76,10 +76,11 @@ const config: Config = {
         "app-bg-alt": "#e2e8f0",      // Alternativa celeste slate
         "card-bg": "#ffffff",         // Tarjetas blanco puro (flotan sobre fondo)
 
-        // 2. RIMEC - Azul Marino Profundo (Importadora/Logística)
+        // 2. RIMEC - Azul Institucional Exacto (RGB: 0, 43, 78)
         rimec: {
-          "azul": "#1e3a8a",          // Azul marino brand principal (contraste AAA)
-          "azul-dark": "#0f172a",     // Azul marino profundo (headers/títulos)
+          "azul": "#002B4E",          // Azul institucional RIMEC (HSL: 138, 240, 37)
+          "azul-dark": "#001829",     // Azul ultra oscuro (headers)
+          "azul-light": "#003d6b",    // Azul claro para hover
           "celeste-bg": "#f1f5f9",    // Fondo sección (mismo que app-bg)
           "text-white": "#ffffff",    // Texto sobre azul
         },
