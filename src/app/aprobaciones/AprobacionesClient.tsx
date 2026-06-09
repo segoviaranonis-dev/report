@@ -260,24 +260,6 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
         </div>
       </section>
 
-      {/* Filtros - Azul institucional RIMEC */}
-      <section className="border-b-2 border-rimec-azul/20 bg-app-bg-alt py-4">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-wrap gap-2">
-            {(["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"] as const).map((f) => (
-              <Button
-                key={f}
-                variant={filtro === f ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => setFiltro(f)}
-                className={filtro === f ? "bg-rimec-azul hover:bg-rimec-azul-light" : ""}
-              >
-                {f}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Mensaje feedback */}
       {mensaje && (
@@ -297,8 +279,30 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
         </div>
       )}
 
-      {/* Lista de pedidos - Fondo celeste NIIF */}
-      <article className="mx-auto max-w-6xl px-4 py-8 sm:px-6 bg-app-bg">
+      {/* Filtros Integrados en Contenido */}
+      <section className="bg-app-bg py-4 border-b border-neutral-300">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-neutral-ink">Filtrar por estado:</h2>
+            <div className="flex gap-2">
+              {(["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"] as const).map((f) => (
+                <Button
+                  key={f}
+                  variant={filtro === f ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => setFiltro(f)}
+                  className={filtro === f ? "bg-rimec-azul hover:bg-rimec-azul-light" : ""}
+                >
+                  {f}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Lista de pedidos */}
+      <article className="mx-auto max-w-6xl px-6 py-8 bg-app-bg">
         {pedidosFiltrados.length === 0 ? (
           <div className="rounded-lg border-2 border-neutral-300 bg-card-bg p-6 text-center shadow-sm">
             <p className="text-sm text-neutral-700">

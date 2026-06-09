@@ -1,4 +1,4 @@
-import { ReportAppNav } from "@/components/report/ReportAppNav";
+import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { ReportSection } from "@/components/report/ReportSection";
 import { AprobacionesClient } from "./AprobacionesClient";
@@ -57,19 +57,17 @@ export default async function AprobacionesPage() {
   console.log(`[SSR] Pedidos cargados en ${t1 - t0}ms (servidor)`);
 
   return (
-    <div className="min-h-screen bg-report-paper pb-16 text-report-ink">
-      <ReportAppNav active="aprobaciones" title="Aprobación de Pedidos Web" maxWidthClass="max-w-6xl" />
+    <div className="min-h-screen bg-app-bg pb-16 text-neutral-ink">
+      {/* Header Unificado con Tabs Empresariales */}
+      <NexusHeaderZen active="aprobaciones" />
 
-      {/* Header sección */}
-      <section className="border-b border-report-rule bg-report-paper">
-        <div className="mx-auto max-w-6xl px-4 pb-4 pt-6 sm:px-6">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-report-muted/70">
-            Tercer módulo · Gestión
-          </p>
-          <h1 className="pt-1 font-serif text-3xl font-light tracking-tight text-report-navy">
+      {/* Título del Módulo - Serif Elegante */}
+      <section className="bg-card-bg border-b-2 border-neutral-300 py-8">
+        <div className="mx-auto max-w-6xl px-6">
+          <h1 className="font-serif text-4xl font-light text-rimec-azul-dark">
             Aprobación de Pedidos RIMEC Web
           </h1>
-          <p className="mt-2 text-sm text-report-muted">Control centralizado de pedidos · {today}</p>
+          <p className="mt-2 text-sm text-neutral-700">Control centralizado de pedidos · {today}</p>
         </div>
       </section>
 
