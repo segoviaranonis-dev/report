@@ -39,21 +39,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rimec-celeste via-white to-rimec-celeste flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-app-bg via-card-bg to-app-bg-alt flex items-center justify-center p-4">
       {/* Card Login con animación de entrada */}
       <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
-        <div className="bg-white rounded-3xl shadow-2xl border-4 border-rimec-azul overflow-hidden">
-          {/* Header con gradiente institucional */}
+        <div className="bg-card-bg rounded-3xl shadow-2xl border-4 border-rimec-azul-dark overflow-hidden">
+          {/* Header con gradiente institucional - Azul Marino Profundo */}
           <div className="bg-gradient-to-r from-rimec-azul to-rimec-azul-dark px-8 py-10 text-center">
-            <div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-full bg-white shadow-lg">
+            <div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-full bg-card-bg shadow-lg">
               <svg className="w-12 h-12 text-rimec-azul" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
               </svg>
             </div>
-            <h1 className="font-serif text-3xl font-bold text-white mb-2">
+            <h1 className="font-serif text-3xl font-bold text-rimec-text-white mb-2">
               Report · RIMEC
             </h1>
-            <p className="text-rimec-celeste text-sm">
+            <p className="text-app-bg-alt text-sm">
               Centro Comercial y Analítica
             </p>
           </div>

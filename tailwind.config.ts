@@ -69,17 +69,28 @@ const config: Config = {
           bronze: "#8b7355",    // Bronce/accent
         },
 
-        /** COLORES INSTITUCIONALES - RIMEC y BAZZAR (Estilo ZEN) */
+        /** COLORES INSTITUCIONALES NIIF PRO - RIMEC y BAZZAR */
+
+        // 1. FONDOS CELESTES (Griseados/Profesionales)
+        "app-bg": "#f1f5f9",          // Fondo general celeste griseado (8 horas sin cansancio)
+        "app-bg-alt": "#e2e8f0",      // Alternativa celeste slate
+        "card-bg": "#ffffff",         // Tarjetas blanco puro (flotan sobre fondo)
+
+        // 2. RIMEC - Azul Marino Profundo (Importadora/Logística)
         rimec: {
-          "celeste": "#E0F2FE",       // Celeste pastel suave (fondo principal)
-          "celeste-medium": "#BAE6FD", // Celeste medio
-          "azul": "#0EA5E9",          // Azul sky para textos/acentos
-          "azul-dark": "#0369A1",     // Azul oscuro para hover
+          "azul": "#1e3a8a",          // Azul marino brand principal (contraste AAA)
+          "azul-dark": "#0f172a",     // Azul marino profundo (headers/títulos)
+          "celeste-bg": "#f1f5f9",    // Fondo sección (mismo que app-bg)
+          "text-white": "#ffffff",    // Texto sobre azul
         },
+
+        // 3. BAZZAR - Naranja Quemado Premium (Retail/Moda)
         bazzar: {
-          "naranja": "#FB923C",       // Naranja vibrante (borde/acento)
-          "naranja-light": "#FDBA74", // Naranja claro
-          "fondo": "#F8FAFC",         // Fondo claro neutro
+          "naranja": "#ea580c",       // Naranja arcilla principal (brand)
+          "naranja-dark": "#c2410c",  // Naranja quemado oscuro
+          "text-white": "#ffffff",    // Texto blanco sobre naranja (WCAG AA)
+          "text-dark": "#431407",     // Marrón oscuro alternativa (WCAG AA)
+          "fondo": "#f1f5f9",         // Fondo sección (mismo que app-bg)
         },
 
         // ====================================================

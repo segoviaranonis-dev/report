@@ -115,7 +115,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="min-h-screen bg-rimec-celeste text-neutral-ink">
+    <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusHeaderZen />
 
       <main className="mx-auto max-w-6xl px-6 py-12">
@@ -132,10 +132,10 @@ export default function HomePage() {
 
         {/* Acordeones de módulos */}
         <div className="space-y-6">
-          {/* RIMEC */}
+          {/* RIMEC - Azul Marino Profundo */}
           {rimecModules.length > 0 && (
-            <details open className="group rounded-2xl border-3 border-rimec-azul bg-white shadow-lg transition-all hover:shadow-xl">
-              <summary className="cursor-pointer bg-white px-6 py-4 rounded-t-2xl transition-all hover:bg-rimec-celeste/30">
+            <details open className="group rounded-2xl border-3 border-rimec-azul-dark bg-card-bg shadow-lg transition-all hover:shadow-xl">
+              <summary className="cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all hover:bg-rimec-celeste-bg">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏢</span>
@@ -149,12 +149,12 @@ export default function HomePage() {
                   </span>
                 </div>
               </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-white rounded-b-2xl">
+              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-card-bg rounded-b-2xl">
                 {rimecModules.map((mod) => (
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-rimec-celeste-medium bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:border-rimec-azul hover:-translate-y-1 hover:scale-105"
+                    className="group block rounded-xl border-2 border-rimec-azul/20 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:border-rimec-azul hover:-translate-y-1 hover:scale-105"
                   >
                     <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
                     <h2 className="mb-2 font-serif text-lg font-semibold text-rimec-azul-dark transition-colors group-hover:text-rimec-azul">
@@ -169,14 +169,14 @@ export default function HomePage() {
             </details>
           )}
 
-          {/* BAZZAR */}
+          {/* BAZZAR - Naranja Quemado Premium */}
           {bazzarModules.length > 0 && (
-            <details open className="group rounded-2xl border-3 border-bazzar-naranja bg-white shadow-lg transition-all hover:shadow-xl">
-              <summary className="cursor-pointer bg-white px-6 py-4 rounded-t-2xl transition-all hover:bg-bazzar-naranja/10">
+            <details open className="group rounded-2xl border-3 border-bazzar-naranja-dark bg-card-bg shadow-lg transition-all hover:shadow-xl">
+              <summary className="cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all hover:bg-bazzar-naranja/10">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏪</span>
-                    <span className="font-bold text-bazzar-naranja">BAZZAR</span>
+                    <span className="font-bold text-bazzar-naranja-dark">BAZZAR</span>
                     <span className="text-sm font-normal text-bazzar-naranja/70">
                       ({bazzarModules.length} módulos)
                     </span>
@@ -186,15 +186,15 @@ export default function HomePage() {
                   </span>
                 </div>
               </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2 bg-white rounded-b-2xl">
+              <div className="grid gap-4 p-6 sm:grid-cols-2 bg-card-bg rounded-b-2xl">
                 {bazzarModules.map((mod) => (
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-bazzar-naranja-light bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja hover:-translate-y-1 hover:scale-105"
+                    className="group block rounded-xl border-2 border-bazzar-naranja/20 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja-dark hover:-translate-y-1 hover:scale-105"
                   >
                     <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-bazzar-naranja transition-colors group-hover:text-bazzar-naranja">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-bazzar-naranja-dark transition-colors group-hover:text-bazzar-naranja">
                       {mod.title}
                     </h2>
                     <p className="text-sm leading-relaxed text-neutral-700">

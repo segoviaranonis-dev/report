@@ -85,15 +85,15 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
 
         {/* Navigation Bar: RIMEC (celeste) vs BAZZAR (naranja) - Con sombra y hover */}
         <div className="grid grid-cols-2 divide-x-2 divide-neutral-300">
-          {/* RIMEC Section - Con sombra de profundidad */}
+          {/* RIMEC Section - Azul Marino Profundo */}
           {visibleRimec.length > 0 && (
-            <div className="bg-rimec-celeste px-6 py-5 border-l-4 border-rimec-azul shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-0.5">
+            <div className="bg-rimec-celeste-bg px-6 py-5 border-l-4 border-rimec-azul-dark shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-0.5">
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg animate-pulse">🏢</span>
+                <span className="text-lg">🏢</span>
                 <span className="text-xs font-bold uppercase tracking-wider text-rimec-azul-dark">
                   RIMEC
                 </span>
-                <span className="text-xs text-rimec-azul/60 font-medium">
+                <span className="text-xs text-rimec-azul/70 font-medium">
                   ({visibleRimec.length})
                 </span>
               </div>
@@ -104,8 +104,8 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                     href={item.href}
                     className={`text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded-full transition-all duration-300 ${
                       active === item.key
-                        ? "bg-rimec-azul text-white shadow-lg scale-105"
-                        : "text-rimec-azul-dark bg-white border-2 border-rimec-celeste-medium hover:bg-rimec-celeste-medium hover:border-rimec-azul hover:scale-105 hover:shadow-md"
+                        ? "bg-rimec-azul text-rimec-text-white shadow-lg scale-105"
+                        : "text-rimec-azul-dark bg-card-bg border-2 border-rimec-azul/20 hover:bg-rimec-azul/10 hover:border-rimec-azul hover:scale-105 hover:shadow-md"
                     }`}
                   >
                     {item.label}
@@ -115,15 +115,15 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
             </div>
           )}
 
-          {/* BAZZAR Section - Con sombra de profundidad */}
+          {/* BAZZAR Section - Naranja Quemado Premium */}
           {visibleBazzar.length > 0 && (
-            <div className="bg-bazzar-fondo px-6 py-5 border-r-4 border-bazzar-naranja shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-0.5">
+            <div className="bg-bazzar-fondo px-6 py-5 border-r-4 border-bazzar-naranja-dark shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-0.5">
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg animate-pulse">🏪</span>
-                <span className="text-xs font-bold uppercase tracking-wider text-bazzar-naranja">
+                <span className="text-lg">🏪</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-bazzar-naranja-dark">
                   BAZZAR
                 </span>
-                <span className="text-xs text-bazzar-naranja/60 font-medium">
+                <span className="text-xs text-bazzar-naranja/70 font-medium">
                   ({visibleBazzar.length})
                 </span>
               </div>
@@ -134,8 +134,8 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                     href={item.href}
                     className={`text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded-full transition-all duration-300 ${
                       active === item.key
-                        ? "bg-bazzar-naranja text-white shadow-lg scale-105"
-                        : "text-neutral-700 bg-white border-2 border-bazzar-naranja-light hover:bg-bazzar-naranja/10 hover:text-bazzar-naranja hover:border-bazzar-naranja hover:scale-105 hover:shadow-md"
+                        ? "bg-bazzar-naranja text-bazzar-text-white shadow-lg scale-105"
+                        : "text-bazzar-text-dark bg-card-bg border-2 border-bazzar-naranja/20 hover:bg-bazzar-naranja/10 hover:text-bazzar-naranja-dark hover:border-bazzar-naranja hover:scale-105 hover:shadow-md"
                     }`}
                   >
                     {item.label}
