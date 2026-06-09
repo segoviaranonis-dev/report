@@ -226,11 +226,11 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
 
   return (
     <>
-      {/* Métricas ejecutivas */}
-      <section className="border-b border-report-rule bg-white py-6">
+      {/* Métricas ejecutivas - Fondo celeste griseado NIIF */}
+      <section className="border-b border-neutral-300 bg-app-bg py-6">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-4 sm:grid-cols-4">
-            <div className="rounded border border-neutral-300 bg-neutral-50 p-4">
+            <div className="rounded-lg border-2 border-neutral-300 bg-card-bg p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wider text-neutral-ink-muted">
                 Total Pedidos
               </div>
@@ -238,19 +238,19 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                 {stats.total}
               </div>
             </div>
-            <div className="rounded border border-semantic-warning-light/30 bg-semantic-warning/10 p-4">
+            <div className="rounded-lg border-2 border-semantic-warning/30 bg-semantic-warning/10 p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wider text-semantic-warning">Pendientes</div>
               <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-semantic-warning">
                 {stats.pendientes}
               </div>
             </div>
-            <div className="rounded border border-semantic-success-light/30 bg-semantic-success/10 p-4">
+            <div className="rounded-lg border-2 border-semantic-success/30 bg-semantic-success/10 p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wider text-semantic-success">Aprobados</div>
               <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-semantic-success">
                 {stats.aprobados}
               </div>
             </div>
-            <div className="rounded border border-semantic-error-light/30 bg-semantic-error/10 p-4">
+            <div className="rounded-lg border-2 border-semantic-error/30 bg-semantic-error/10 p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wider text-semantic-error">Rechazados</div>
               <div className="mt-2 font-serif text-3xl font-semibold tabular-nums text-semantic-error">
                 {stats.rechazados}
@@ -260,8 +260,8 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
         </div>
       </section>
 
-      {/* Filtros */}
-      <section className="border-b border-report-rule bg-report-paper2 py-3">
+      {/* Filtros - Azul institucional RIMEC */}
+      <section className="border-b-2 border-rimec-azul/20 bg-app-bg-alt py-4">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex flex-wrap gap-2">
             {(["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"] as const).map((f) => (
@@ -270,6 +270,7 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                 variant={filtro === f ? "primary" : "secondary"}
                 size="sm"
                 onClick={() => setFiltro(f)}
+                className={filtro === f ? "bg-rimec-azul hover:bg-rimec-azul-light" : ""}
               >
                 {f}
               </Button>
@@ -296,12 +297,12 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
         </div>
       )}
 
-      {/* Lista de pedidos */}
-      <article className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      {/* Lista de pedidos - Fondo celeste NIIF */}
+      <article className="mx-auto max-w-6xl px-4 py-8 sm:px-6 bg-app-bg">
         {pedidosFiltrados.length === 0 ? (
-          <div className="rounded border border-report-rule bg-white p-6 text-center">
-            <p className="text-sm text-report-muted">
-              No hay pedidos con el filtro: <strong>{filtro}</strong>
+          <div className="rounded-lg border-2 border-neutral-300 bg-card-bg p-6 text-center shadow-sm">
+            <p className="text-sm text-neutral-700">
+              No hay pedidos con el filtro: <strong className="text-rimec-azul">{filtro}</strong>
             </p>
           </div>
         ) : (
