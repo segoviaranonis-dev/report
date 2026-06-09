@@ -115,15 +115,15 @@ export default function HomePage() {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 text-neutral-ink">
+    <div className="min-h-screen bg-rimec-celeste text-neutral-ink">
       <NexusHeaderZen />
 
       <main className="mx-auto max-w-6xl px-6 py-12">
         <header className="mb-12 text-center">
-          <h1 className="font-serif text-5xl font-light text-neutral-ink mb-4">
+          <h1 className="font-serif text-5xl font-light text-neutral-800 mb-4">
             Report · RIMEC Holding
           </h1>
-          <p className="text-lg text-neutral-ink-medium max-w-2xl mx-auto">
+          <p className="text-lg text-neutral-700 max-w-2xl mx-auto">
             Centro de mando comercial · Analítica, stock, aprobaciones y documentación para dirección y operaciones.
           </p>
         </header>
@@ -132,33 +132,33 @@ export default function HomePage() {
         <div className="space-y-6">
           {/* RIMEC */}
           {rimecModules.length > 0 && (
-            <details open className="group rounded-2xl border-2 border-rimec-light/30 bg-white shadow-lg">
-              <summary className="cursor-pointer bg-gradient-to-r from-rimec-petroleo/5 to-white px-6 py-4 font-bold text-rimec-azul hover:from-rimec-celeste/10 hover:to-neutral-50 transition-colors">
+            <details open className="group rounded-2xl border-3 border-rimec-azul bg-white shadow-lg transition-all hover:shadow-xl">
+              <summary className="cursor-pointer bg-white px-6 py-4 rounded-t-2xl transition-all hover:bg-rimec-celeste/30">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏢</span>
-                    <span>RIMEC</span>
+                    <span className="font-bold text-rimec-azul-dark">RIMEC</span>
                     <span className="text-sm font-normal text-rimec-azul/70">
                       ({rimecModules.length} módulos)
                     </span>
                   </span>
-                  <span className="text-sm text-rimec-celeste">
+                  <span className="text-sm text-rimec-azul">
                     Roles: {rolId === 1 ? '1 (Admin)' : rolId === 3 ? '3 (Vendedor)' : rolId}
                   </span>
                 </div>
               </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-white rounded-b-2xl">
                 {rimecModules.map((mod) => (
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-rimec-celeste hover:-translate-y-0.5"
+                    className="group block rounded-xl border-2 border-rimec-celeste-medium bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:border-rimec-azul hover:-translate-y-1 hover:scale-105"
                   >
-                    <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-rimec-azul transition-colors">
+                    <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-rimec-azul-dark transition-colors group-hover:text-rimec-azul">
                       {mod.title}
                     </h2>
-                    <p className="text-sm leading-relaxed text-neutral-ink-muted">
+                    <p className="text-sm leading-relaxed text-neutral-700">
                       {mod.description}
                     </p>
                   </Link>
@@ -169,13 +169,13 @@ export default function HomePage() {
 
           {/* BAZZAR */}
           {bazzarModules.length > 0 && (
-            <details open className="group rounded-2xl border-2 border-bazzar-naranja-light/30 bg-white shadow-lg">
-              <summary className="cursor-pointer bg-gradient-to-r from-bazzar-azul/5 to-white px-6 py-4 font-bold text-bazzar-azul hover:from-bazzar-naranja/10 hover:to-neutral-50 transition-colors">
+            <details open className="group rounded-2xl border-3 border-bazzar-naranja bg-white shadow-lg transition-all hover:shadow-xl">
+              <summary className="cursor-pointer bg-white px-6 py-4 rounded-t-2xl transition-all hover:bg-bazzar-naranja/10">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏪</span>
-                    <span>BAZZAR</span>
-                    <span className="text-sm font-normal text-bazzar-azul/70">
+                    <span className="font-bold text-bazzar-naranja">BAZZAR</span>
+                    <span className="text-sm font-normal text-bazzar-naranja/70">
                       ({bazzarModules.length} módulos)
                     </span>
                   </span>
@@ -184,18 +184,18 @@ export default function HomePage() {
                   </span>
                 </div>
               </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2">
+              <div className="grid gap-4 p-6 sm:grid-cols-2 bg-white rounded-b-2xl">
                 {bazzarModules.map((mod) => (
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja hover:-translate-y-0.5"
+                    className="group block rounded-xl border-2 border-bazzar-naranja-light bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja hover:-translate-y-1 hover:scale-105"
                   >
-                    <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-bazzar-azul transition-colors">
+                    <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-bazzar-naranja transition-colors group-hover:text-bazzar-naranja">
                       {mod.title}
                     </h2>
-                    <p className="text-sm leading-relaxed text-neutral-ink-muted">
+                    <p className="text-sm leading-relaxed text-neutral-700">
                       {mod.description}
                     </p>
                   </Link>
@@ -231,7 +231,7 @@ export default function HomePage() {
           )}
         </div>
 
-        <footer className="mt-16 text-center text-xs text-neutral-ink-muted">
+        <footer className="mt-16 text-center text-xs text-neutral-600">
           Acceso restringido · Solo usuarios autorizados
         </footer>
       </main>
