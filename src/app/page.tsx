@@ -115,15 +115,15 @@ export default function HomePage() {
   );
 
   return (
-    <div className="min-h-screen bg-report-bg text-report-ink">
+    <div className="min-h-screen bg-neutral-100 text-neutral-ink">
       <NexusGlobalHeader />
 
       <main className="mx-auto max-w-6xl px-6 py-12">
         <header className="mb-12 text-center">
-          <h1 className="font-serif text-5xl font-light text-report-primary mb-4">
+          <h1 className="font-serif text-5xl font-light text-neutral-ink mb-4">
             Report · RIMEC Holding
           </h1>
-          <p className="text-lg text-report-muted max-w-2xl mx-auto">
+          <p className="text-lg text-neutral-ink-medium max-w-2xl mx-auto">
             Centro de mando comercial · Analítica, stock, aprobaciones y documentación para dirección y operaciones.
           </p>
         </header>
@@ -132,17 +132,17 @@ export default function HomePage() {
         <div className="space-y-6">
           {/* RIMEC */}
           {rimecModules.length > 0 && (
-            <details open className="group rounded-2xl border-2 border-blue-200 bg-white shadow-sm">
-              <summary className="cursor-pointer bg-gradient-to-r from-blue-50 to-white px-6 py-4 font-bold text-blue-900 hover:from-blue-100 hover:to-blue-50">
+            <details open className="group rounded-2xl border-2 border-semantic-info-light/30 bg-white shadow-lg">
+              <summary className="cursor-pointer bg-gradient-to-r from-semantic-info/10 to-white px-6 py-4 font-bold text-semantic-info hover:from-semantic-info/15 hover:to-neutral-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏢</span>
                     <span>RIMEC</span>
-                    <span className="text-sm font-normal text-blue-600">
+                    <span className="text-sm font-normal text-semantic-info-light">
                       ({rimecModules.length} módulos)
                     </span>
                   </span>
-                  <span className="text-sm text-blue-600">
+                  <span className="text-sm text-semantic-info-light">
                     Roles: {rolId === 1 ? '1 (Admin)' : rolId === 3 ? '3 (Vendedor)' : rolId}
                   </span>
                 </div>
@@ -152,13 +152,13 @@ export default function HomePage() {
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border border-report-border bg-white p-5 shadow-sm transition hover:shadow-md hover:border-blue-400"
+                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-semantic-info hover:-translate-y-0.5"
                   >
                     <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-report-primary group-hover:text-blue-600">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-semantic-info transition-colors">
                       {mod.title}
                     </h2>
-                    <p className="text-xs leading-relaxed text-report-muted">
+                    <p className="text-sm leading-relaxed text-neutral-ink-muted">
                       {mod.description}
                     </p>
                   </Link>
@@ -169,17 +169,17 @@ export default function HomePage() {
 
           {/* BAZZAR */}
           {bazzarModules.length > 0 && (
-            <details open className="group rounded-2xl border-2 border-green-200 bg-white shadow-sm">
-              <summary className="cursor-pointer bg-gradient-to-r from-green-50 to-white px-6 py-4 font-bold text-green-900 hover:from-green-100 hover:to-green-50">
+            <details open className="group rounded-2xl border-2 border-semantic-success-light/30 bg-white shadow-lg">
+              <summary className="cursor-pointer bg-gradient-to-r from-semantic-success/10 to-white px-6 py-4 font-bold text-semantic-success hover:from-semantic-success/15 hover:to-neutral-50 transition-colors">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-3 text-xl">
                     <span>🏪</span>
                     <span>BAZZAR</span>
-                    <span className="text-sm font-normal text-green-600">
+                    <span className="text-sm font-normal text-semantic-success-light">
                       ({bazzarModules.length} módulos)
                     </span>
                   </span>
-                  <span className="text-sm text-green-600">
+                  <span className="text-sm text-semantic-success-light">
                     Roles: {rolId === 1 ? '1 (Admin)' : rolId === 2 ? '2 (Retail)' : rolId}
                   </span>
                 </div>
@@ -189,13 +189,13 @@ export default function HomePage() {
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border border-report-border bg-white p-5 shadow-sm transition hover:shadow-md hover:border-green-400"
+                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-semantic-success hover:-translate-y-0.5"
                   >
                     <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-report-primary group-hover:text-green-600">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-semantic-success transition-colors">
                       {mod.title}
                     </h2>
-                    <p className="text-xs leading-relaxed text-report-muted">
+                    <p className="text-sm leading-relaxed text-neutral-ink-muted">
                       {mod.description}
                     </p>
                   </Link>
@@ -206,8 +206,8 @@ export default function HomePage() {
 
           {/* Otros módulos (sin acordeón) */}
           {otrosModules.length > 0 && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">
+            <div className="rounded-2xl border-2 border-neutral-300 bg-white p-6 shadow-lg">
+              <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-neutral-ink-muted">
                 Recursos Adicionales
               </h3>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -215,13 +215,13 @@ export default function HomePage() {
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border border-report-border bg-white p-5 shadow-sm transition hover:shadow-md hover:border-report-primary/30"
+                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-brand-gold hover:-translate-y-0.5"
                   >
                     <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-report-primary group-hover:text-report-accent">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-brand-gold transition-colors">
                       {mod.title}
                     </h2>
-                    <p className="text-xs leading-relaxed text-report-muted">
+                    <p className="text-sm leading-relaxed text-neutral-ink-muted">
                       {mod.description}
                     </p>
                   </Link>
@@ -231,7 +231,7 @@ export default function HomePage() {
           )}
         </div>
 
-        <footer className="mt-16 text-center text-xs text-report-muted">
+        <footer className="mt-16 text-center text-xs text-neutral-ink-muted">
           Acceso restringido · Solo usuarios autorizados
         </footer>
       </main>

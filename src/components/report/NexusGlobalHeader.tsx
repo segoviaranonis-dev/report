@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes";
 
-const baseLink = "text-xs tracking-widest uppercase text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
-const activeLink = "text-xs tracking-widest uppercase text-[#D4AF37] font-semibold py-1.5 border-b-2 border-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
+const baseLink = "text-xs tracking-widest uppercase text-neutral-light-55 hover:text-brand-gold hover:border-brand-gold/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
+const activeLink = "text-xs tracking-widest uppercase text-brand-gold font-semibold py-1.5 border-b-2 border-brand-gold drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
 
 const navItems: Array<{ key: NexusNavKey; href: string; label: string; roles: number[] }> = [
   { key: "home", href: "/", label: "Hub Comercial", roles: [1] },
@@ -52,19 +52,19 @@ export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max
   const visibleNav = rolId == null ? [] : navItems.filter((item) => item.roles.includes(rolId));
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#070b12] border-b border-slate-800">
+    <header className="sticky top-0 z-50 w-full bg-neutral-950 border-b border-neutral-800">
       <div className={`mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-3.5 ${maxWidthClass}`}>
         <div className="flex items-center gap-3">
-          <Link href="/" className="font-serif text-lg tracking-widest text-white hover:opacity-90 transition-opacity">
-            NEXUS <span className="text-[#D4AF37] font-sans">·</span> <span className="font-sans text-xs font-light text-[#94a3b8] tracking-widest uppercase">Report</span>
+          <Link href="/" className="font-serif text-lg tracking-widest text-neutral-light hover:opacity-90 transition-opacity">
+            NEXUS <span className="text-brand-gold font-sans">·</span> <span className="font-sans text-xs font-light text-neutral-light-55 tracking-widest uppercase">Report</span>
           </Link>
           {title && (
-            <span className="text-[10px] text-slate-500 border-l border-slate-800 pl-3 uppercase tracking-widest hidden sm:inline">
+            <span className="text-xs text-neutral-light-40 border-l border-neutral-800 pl-3 uppercase tracking-widest hidden sm:inline">
               {title}
             </span>
           )}
         </div>
-        
+
         <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
           {visibleNav.map((item) => (
             <Link key={item.key} href={item.href} className={active === item.key ? activeLink : baseLink}>
@@ -76,7 +76,7 @@ export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded border border-slate-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-slate-200 transition hover:border-[#D4AF37] hover:text-[#D4AF37] disabled:opacity-50"
+              className="rounded border border-neutral-700 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-light-88 transition hover:border-brand-gold hover:text-brand-gold disabled:opacity-50"
             >
               {loggingOut ? "Saliendo..." : "Cerrar sesión"}
             </button>
