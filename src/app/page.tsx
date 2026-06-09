@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { NexusHeaderDivided } from "@/components/report/NexusHeaderDivided";
+import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
 
 type ModuleCard = {
@@ -116,7 +116,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-neutral-100 text-neutral-ink">
-      <NexusHeaderDivided />
+      <NexusHeaderZen />
 
       <main className="mx-auto max-w-6xl px-6 py-12">
         <header className="mb-12 text-center">

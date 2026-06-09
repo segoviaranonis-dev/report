@@ -69,18 +69,17 @@ const config: Config = {
           bronze: "#8b7355",    // Bronce/accent
         },
 
-        /** COLORES INSTITUCIONALES - RIMEC y BAZZAR */
+        /** COLORES INSTITUCIONALES - RIMEC y BAZZAR (Estilo ZEN) */
         rimec: {
-          "celeste": "#87CEEB",      // Celeste cielo
-          "azul": "#1E3A8A",          // Azul marino normal
-          "petroleo": "#0C2340",      // Azul marino petróleo (oscuro)
-          "light": "#BFDBFE",         // Celeste claro para fondos
+          "celeste": "#E0F2FE",       // Celeste pastel suave (fondo principal)
+          "celeste-medium": "#BAE6FD", // Celeste medio
+          "azul": "#0EA5E9",          // Azul sky para textos/acentos
+          "azul-dark": "#0369A1",     // Azul oscuro para hover
         },
         bazzar: {
-          "azul": "#2563EB",          // Azul institucional
-          "naranja": "#F97316",       // Naranja institucional
-          "azul-light": "#DBEAFE",    // Azul claro para fondos
-          "naranja-light": "#FED7AA", // Naranja claro para fondos
+          "naranja": "#FB923C",       // Naranja vibrante (borde/acento)
+          "naranja-light": "#FDBA74", // Naranja claro
+          "fondo": "#F8FAFC",         // Fondo claro neutro
         },
 
         // ====================================================
