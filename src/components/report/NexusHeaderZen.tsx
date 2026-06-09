@@ -83,11 +83,11 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
           )}
         </div>
 
-        {/* Navigation Bar: RIMEC (celeste) vs BAZZAR (naranja) - Con animaciones */}
+        {/* Navigation Bar: RIMEC (celeste) vs BAZZAR (naranja) - Con sombra y hover */}
         <div className="grid grid-cols-2 divide-x-2 divide-neutral-300">
-          {/* RIMEC Section - Fondo celeste con marco azul */}
+          {/* RIMEC Section - Con sombra de profundidad */}
           {visibleRimec.length > 0 && (
-            <div className="bg-rimec-celeste px-6 py-5 border-l-4 border-rimec-azul">
+            <div className="bg-rimec-celeste px-6 py-5 border-l-4 border-rimec-azul shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-0.5">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-lg animate-pulse">🏢</span>
                 <span className="text-xs font-bold uppercase tracking-wider text-rimec-azul-dark">
@@ -115,9 +115,9 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
             </div>
           )}
 
-          {/* BAZZAR Section - Fondo claro con marco naranja grueso */}
+          {/* BAZZAR Section - Con sombra de profundidad */}
           {visibleBazzar.length > 0 && (
-            <div className="bg-bazzar-fondo px-6 py-5 border-r-4 border-bazzar-naranja">
+            <div className="bg-bazzar-fondo px-6 py-5 border-r-4 border-bazzar-naranja shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-0.5">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-lg animate-pulse">🏪</span>
                 <span className="text-xs font-bold uppercase tracking-wider text-bazzar-naranja">

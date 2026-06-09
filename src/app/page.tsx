@@ -119,13 +119,15 @@ export default function HomePage() {
       <NexusHeaderZen />
 
       <main className="mx-auto max-w-6xl px-6 py-12">
-        <header className="mb-12 text-center">
-          <h1 className="font-serif text-5xl font-light text-neutral-800 mb-4">
-            Report · RIMEC Holding
+        <header className="mb-12 text-center group cursor-default">
+          <h1 className="font-serif text-5xl font-light text-neutral-800 mb-4 transition-all duration-300 group-hover:scale-105">
+            RIMEC Holding
           </h1>
-          <p className="text-lg text-neutral-700 max-w-2xl mx-auto">
-            Centro de mando comercial · Analítica, stock, aprobaciones y documentación para dirección y operaciones.
-          </p>
+          <div className="max-h-0 opacity-0 overflow-hidden transition-all duration-500 group-hover:max-h-20 group-hover:opacity-100">
+            <p className="text-lg text-neutral-700 max-w-2xl mx-auto py-2">
+              Centro de mando comercial · Analítica, stock, aprobaciones y documentación para dirección y operaciones.
+            </p>
+          </div>
         </header>
 
         {/* Acordeones de módulos */}
