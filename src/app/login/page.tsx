@@ -116,7 +116,7 @@ export default function LoginPage() {
 
         {/* Footer minimalista */}
         <div className="text-center mt-6 text-sm text-neutral-600">
-          NEXUS · Report {new Date().getFullYear()}
+          Report · RIMEC {new Date().getFullYear()}
         </div>
       </div>
     </div>

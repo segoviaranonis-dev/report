@@ -101,13 +101,13 @@ body {
   }
 
   th, td {
-    border: 1px solid #ddd;
+    border: 1px solid #cbd5e1;
     padding: 8px;
     text-align: left;
   }
 
   th {
-    background-color: #f3f4f6 !important;
+    background-color: #f1f5f9 !important;
     font-weight: bold;
   }
 }

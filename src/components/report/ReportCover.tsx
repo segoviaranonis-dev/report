@@ -14,7 +14,7 @@ export function ReportCover({ title, subtitle, meta, children }: Props) {
   return (
     <header className="border-b-2 border-report-navy bg-report-paper pb-10 pt-12">
       <div className="mx-auto max-w-3xl px-6">
-        <p className="font-serif text-xs font-semibold uppercase tracking-[0.25em] text-report-gold">
+        <p className="font-serif text-xs font-semibold uppercase tracking-[0.25em] text-report-accent">
           Documento de trabajo — demostración
         </p>
         <h1 className="mt-4 font-serif text-3xl font-bold leading-tight text-report-navy sm:text-[2.15rem]">

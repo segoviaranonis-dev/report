@@ -10,14 +10,14 @@ import type { ColumnaStockRetail } from './types'
 import { safeFetchImage } from '../pdf/imageUrlValidator'
 
 // ─── PALETA RIMEC ────────────────────────────────────────────────────────────
-const NAVY = rgb(0.118, 0.227, 0.373)        // #1e3a5f - report-navy
-const NAVY2 = rgb(0.176, 0.294, 0.451)       // #2d4b73 - report-navy2
+const NAVY = rgb(0.000, 0.169, 0.306)        // #002B4E - report-navy
+const NAVY2 = rgb(0.000, 0.239, 0.420)       // #003d6b - report-navy2
 const INK = rgb(0.200, 0.200, 0.200)         // #333333 - report-ink
 const INK_MUTED = rgb(0.451, 0.451, 0.451)   // #737373 - report-muted
 const MUTED = rgb(0.451, 0.451, 0.451)       // #737373 - report-muted
-const PAPER = rgb(0.980, 0.973, 0.961)       // #faf8f5 - report-paper
+const PAPER = rgb(0.980, 0.973, 0.961)       // #f1f5f9 - report-paper
 const PAPER2 = rgb(0.969, 0.957, 0.937)      // #f7f4ef - report-paper2
-const RULE = rgb(0.855, 0.824, 0.784)        // #dad2c8 - report-rule
+const RULE = rgb(0.855, 0.824, 0.784)        // #cbd5e1 - report-rule
 const WHITE = rgb(1, 1, 1)
 
 // Colores para badges de tarjetas (tonos pastel suaves)

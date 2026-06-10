@@ -133,7 +133,7 @@ export default function DepositosBazzarPage() {
             Cargando depósitos Bazzar...
           </div>
           <div className="h-2 w-64 overflow-hidden rounded-full bg-gray-200">
-            <div className="h-full animate-pulse bg-blue-500" style={{ width: "60%" }} />
+            <div className="h-full animate-pulse bg-bazzar-naranja" style={{ width: "60%" }} />
           </div>
         </div>
       </div>
@@ -158,19 +158,19 @@ export default function DepositosBazzarPage() {
 
           {/* Estadísticas globales */}
           <div className="mb-6 flex items-center gap-6">
-            <div className="rounded-lg bg-blue-50 px-6 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+            <div className="rounded-lg bg-bazzar-naranja/10 px-6 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
                 Total Registros
               </div>
-              <div className="text-2xl font-bold text-blue-800">
+              <div className="text-2xl font-bold text-bazzar-text-dark">
                 {totalRegistros.toLocaleString("es-PY")}
               </div>
             </div>
-            <div className="rounded-lg bg-green-50 px-6 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-green-600">
+            <div className="rounded-lg bg-semantic-success/10 px-6 py-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-semantic-success">
                 Depósitos Activos
               </div>
-              <div className="text-2xl font-bold text-green-800">
+              <div className="text-2xl font-bold text-semantic-success">
                 {depositos.filter((d) => d.registros > 0).length} / 6
               </div>
             </div>
@@ -184,7 +184,7 @@ export default function DepositosBazzarPage() {
             className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all ${
               syncingAll
                 ? "cursor-not-allowed bg-gray-400"
-                : "bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 active:from-blue-800 active:to-green-800"
+                : "bg-gradient-to-r from-bazzar-naranja to-bazzar-naranja-dark hover:from-bazzar-naranja-dark hover:to-bazzar-naranja-dark active:from-bazzar-text-dark active:to-bazzar-text-dark"
             }`}
           >
             {syncingAll ? "Sincronizando todos los depósitos..." : "⚡ Sincronizar TODOS los depósitos"}
@@ -199,7 +199,7 @@ export default function DepositosBazzarPage() {
         )}
 
         {successMessage && (
-          <div className="mb-6 rounded-xl border-2 border-green-300 bg-green-50 p-4 text-green-800">
+          <div className="mb-6 rounded-xl border-2 border-semantic-success/30 bg-semantic-success/10 p-4 text-semantic-success">
             <strong>Éxito:</strong> {successMessage}
           </div>
         )}

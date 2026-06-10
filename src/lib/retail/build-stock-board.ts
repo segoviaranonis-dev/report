@@ -5,9 +5,9 @@ import type { ColumnaStockRetail, ImportadoraBloque, TiendaTallaBloque } from "@
 import type { RetailStagingRow } from "@/lib/retail/staging-row";
 
 const GRADIENTS = [
-  "bg-gradient-to-br from-violet-300 via-purple-500 to-indigo-950",
+  "bg-gradient-to-br from-bazzar-naranja/40 via-bazzar-naranja to-bazzar-naranja-dark",
   "bg-gradient-to-br from-amber-100 via-amber-300 to-amber-900",
-  "bg-gradient-to-br from-fuchsia-200 via-purple-600 to-slate-950",
+  "bg-gradient-to-br from-bazzar-naranja/30 via-bazzar-naranja-dark to-rimec-azul-dark",
   "bg-gradient-to-br from-sky-200 via-cyan-600 to-slate-900",
   "bg-gradient-to-br from-emerald-200 via-teal-700 to-slate-950",
   "bg-gradient-to-br from-rose-200 via-rose-600 to-slate-900",

@@ -56,7 +56,7 @@ export function TextInput({ error, className = "", ...props }: TextInputProps) {
         ${
           error
             ? "border-semantic-error focus:border-semantic-error focus:ring-semantic-error/20"
-            : "border-neutral-300 focus:border-semantic-info focus:ring-semantic-info/20"
+            : "border-neutral-300 focus:border-rimec-azul focus:ring-rimec-azul/20"
         }
         ${className}
       `}
@@ -80,7 +80,7 @@ export function TextArea({ error, className = "", ...props }: TextAreaProps) {
         ${
           error
             ? "border-semantic-error focus:border-semantic-error focus:ring-semantic-error/20"
-            : "border-neutral-300 focus:border-semantic-info focus:ring-semantic-info/20"
+            : "border-neutral-300 focus:border-rimec-azul focus:ring-rimec-azul/20"
         }
         ${className}
       `}

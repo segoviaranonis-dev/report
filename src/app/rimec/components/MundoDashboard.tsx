@@ -46,7 +46,7 @@ function SubtotalEvolucionRow({
 }) {
   const base =
     tone === "anual"
-      ? "bg-gradient-to-r from-yellow-400/12 via-amber-400/8 to-transparent border-t border-b border-yellow-400/25"
+      ? "bg-gradient-to-r from-rimec-azul-light/15 via-amber-400/8 to-transparent border-t border-b border-rimec-text-white/25"
       : tone === "s1"
         ? "bg-white/[0.04] border-t border-white/10"
         : "bg-white/[0.04] border-t border-white/10";
@@ -54,11 +54,11 @@ function SubtotalEvolucionRow({
     <tr className={`${base} font-medium`}>
       <td className="px-4 py-3">
         <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">{subtitle}</span>
-        <span className="text-xs tracking-wide text-yellow-200/95">{label}</span>
+        <span className="text-xs tracking-wide text-rimec-text-white/95">{label}</span>
       </td>
       <td className="px-4 py-3 text-right tabular-nums text-white/55">{fmtGs(agg.real_2025)}</td>
       <td className="px-4 py-3 text-right tabular-nums text-white/55">{fmtGs(agg.objetivo)}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-yellow-100">{fmtGs(agg.real_2026)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-rimec-text-white">{fmtGs(agg.real_2026)}</td>
       <td
         className={`px-4 py-3 text-right tabular-nums ${
           agg.desvio_pct >= 0 ? "text-emerald-400/95" : "text-red-400/95"
@@ -158,7 +158,7 @@ function SemesterRealRadialCard({
     <div className="flex min-h-[240px] flex-col items-center justify-between px-1">
       <div className="w-full text-center">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">{subtitle}</p>
-        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-yellow-400/90">{title}</p>
+        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-rimec-text-white/90">{title}</p>
       </div>
       <div className="relative mt-2 h-[168px] w-[168px] shrink-0">
         <svg viewBox="0 0 120 120" className="h-full w-full">
@@ -212,8 +212,8 @@ function SemesterRealRadialCard({
           <span className="tabular-nums text-white/70">{fmtGs(real2025)}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="uppercase tracking-wider text-yellow-500/70">Real 2026</span>
-          <span className="tabular-nums text-yellow-100/95">{fmtGs(real2026)}</span>
+          <span className="uppercase tracking-wider text-rimec-text-white/70">Real 2026</span>
+          <span className="tabular-nums text-rimec-text-white/95">{fmtGs(real2026)}</span>
         </div>
       </div>
     </div>
@@ -300,7 +300,7 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
         </div>
 
         {/* Real 2025 vs 2026 por semestre (radial); un solo gráfico si solo hay meses de un semestre */}
-        <div className="relative flex flex-col rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 hover:border-yellow-400/30 hover:shadow-[0_0_30px_rgba(250,204,21,0.05)]">
+        <div className="relative flex flex-col rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-text-white/30 hover:shadow-[0_0_30px_rgba(250,204,21,0.05)]">
           <h3 className="absolute left-6 top-6 max-w-[calc(100%-3rem)] font-serif text-sm uppercase tracking-widest text-white/70">
             Real 2025 vs 2026
           </h3>
@@ -360,7 +360,7 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
           <tbody>
             {mesesOrdenados.map((m) => (
               <tr key={m.mes} className="group border-b border-white/5 transition-colors hover:bg-white/5">
-                <td className="px-4 py-3 text-white/70 transition-colors group-hover:text-yellow-400">{m.mes}</td>
+                <td className="px-4 py-3 text-white/70 transition-colors group-hover:text-rimec-text-white">{m.mes}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-white/50">{fmtGs(m.real_2025)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-white/50">{fmtGs(m.objetivo)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-white">{fmtGs(m.real_2026)}</td>
@@ -416,7 +416,7 @@ function KpiCard({
   return (
     <div
       className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 group hover:bg-white/10 ${
-        highlight ? "ring-1 ring-white/20 hover:ring-yellow-400/50" : ""
+        highlight ? "ring-1 ring-white/20 hover:ring-rimec-text-white/50" : ""
       }`}
     >
       <h4 className="mb-2 font-sans text-xs uppercase tracking-widest text-white/50 transition-colors group-hover:text-white/70">
@@ -436,7 +436,7 @@ function KpiCard({
 
       {progress !== undefined && (
         <div className="absolute bottom-0 left-0 h-1 w-full bg-white/10">
-          <div className="h-full bg-yellow-400" style={{ width: `${Math.min(100, progress)}%` }} />
+          <div className="h-full bg-rimec-text-white" style={{ width: `${Math.min(100, progress)}%` }} />
         </div>
       )}
 

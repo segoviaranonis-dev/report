@@ -20,7 +20,7 @@ export const STOCK_BOARD_DEMO_COLUMNAS: ColumnaStockRetail[] = [
     origenRaw: "",
     esImportadora: false,
     etiqueta: "L4202 R500 - 37 pares venta Otros",
-    imagenClass: "bg-gradient-to-br from-violet-300 via-purple-500 to-indigo-950",
+    imagenClass: "bg-gradient-to-br from-bazzar-naranja/40 via-bazzar-naranja to-bazzar-naranja-dark",
     imageSearchName: "4202-500-26598-15787.jpg",
     tiendas: [
       { nombre: "Fernando", tallas: ["38", "39"], venta: [5, 7], stock: [1, 4] },
@@ -53,7 +53,7 @@ export const STOCK_BOARD_DEMO_COLUMNAS: ColumnaStockRetail[] = [
     origenRaw: "",
     esImportadora: false,
     etiqueta: "L1122 R828 - 0 pares venta VIZZANO",
-    imagenClass: "bg-gradient-to-br from-fuchsia-200 via-purple-600 to-slate-950",
+    imagenClass: "bg-gradient-to-br from-bazzar-naranja/30 via-bazzar-naranja-dark to-rimec-azul-dark",
     imageSearchName: "1122-828-5881-15745.jpg",
     tiendas: [],
     importadora: { etiquetaGrada: "34(1 2 3 3 2 1)39", stockTotal: 24 },

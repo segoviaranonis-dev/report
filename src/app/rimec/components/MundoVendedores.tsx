@@ -30,13 +30,13 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
               key={v.vendedor}
               className={`group relative flex-1 rounded-2xl border bg-white/5 p-6 backdrop-blur-md transition-all duration-500 ${
                 i === 0
-                  ? "-mb-4 -mt-4 mb-4 border-yellow-400/50 shadow-[0_0_30px_rgba(250,204,21,0.1)]"
+                  ? "-mb-4 -mt-4 mb-4 border-rimec-text-white/50 shadow-[0_0_30px_rgba(0,43,78,0.2)]"
                   : "mt-4 -mb-4 border-white/10"
               }`}
             >
               <div className="absolute right-4 top-4 font-serif text-4xl italic opacity-20">#{i + 1}</div>
               <h4 className="mb-1 font-sans text-sm uppercase tracking-widest text-white/50">Vendedor</h4>
-              <p className={`mb-6 truncate font-serif text-xl ${i === 0 ? "text-yellow-400" : "text-white"}`}>{v.vendedor}</p>
+              <p className={`mb-6 truncate font-serif text-xl ${i === 0 ? "text-rimec-text-white" : "text-white"}`}>{v.vendedor}</p>
 
               <div className="space-y-4">
                 <div>
@@ -48,7 +48,7 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className={`h-full ${v.cumplimiento_pct >= 100 ? "bg-green-400" : "bg-yellow-400"}`}
+                        className={`h-full ${v.cumplimiento_pct >= 100 ? "bg-green-400" : "bg-rimec-text-white"}`}
                         style={{ width: `${Math.min(100, v.cumplimiento_pct)}%` }}
                       />
                     </div>
@@ -125,7 +125,7 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
                   <tr key={`${v.vendedor}-${rowIdx}`} className="border-b border-white/5 transition-colors hover:bg-white/5">
                     <td className="px-6 py-3 font-medium text-white/80">{v.vendedor}</td>
                     <td className="px-6 py-3 text-right tabular-nums text-white/50">{fmtGs(v.objetivo)}</td>
-                    <td className="px-6 py-3 text-right tabular-nums text-yellow-400">{fmtGs(v.monto_2026)}</td>
+                    <td className="px-6 py-3 text-right tabular-nums text-rimec-text-white">{fmtGs(v.monto_2026)}</td>
                     <td className={`px-6 py-3 text-right tabular-nums ${varClass}`}>{fmtPct(varVsObj)}</td>
                   </tr>
                 );

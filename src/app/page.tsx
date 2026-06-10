@@ -243,10 +243,10 @@ export default function HomePage() {
                   <Link
                     key={mod.href}
                     href={mod.href}
-                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-brand-gold hover:-translate-y-0.5"
+                    className="group block rounded-xl border-2 border-neutral-300 bg-neutral-50 p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja hover:-translate-y-0.5"
                   >
                     <div className="mb-3 text-3xl">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-brand-gold transition-colors">
+                    <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-bazzar-naranja transition-colors">
                       {mod.title}
                     </h2>
                     <p className="text-sm leading-relaxed text-neutral-ink-muted">

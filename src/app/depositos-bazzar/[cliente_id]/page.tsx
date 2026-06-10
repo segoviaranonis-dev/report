@@ -129,7 +129,7 @@ export default function DepositoDetailPage() {
             Cargando depósito...
           </div>
           <div className="h-2 w-64 overflow-hidden rounded-full bg-gray-200">
-            <div className="h-full w-3/5 animate-pulse bg-blue-500" />
+            <div className="h-full w-3/5 animate-pulse bg-bazzar-naranja" />
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function DepositoDetailPage() {
           <div className="mx-auto max-w-6xl px-4 py-4">
             <button
               onClick={() => router.push("/depositos-bazzar")}
-              className="mb-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+              className="mb-2 text-sm font-semibold text-bazzar-naranja hover:text-bazzar-naranja-dark"
             >
               ← Volver a Depósitos
             </button>
@@ -193,8 +193,8 @@ export default function DepositoDetailPage() {
             </p>
 
             {preview && (
-              <div className="mb-8 rounded-xl bg-blue-50 p-6">
-                <h3 className="mb-4 text-lg font-semibold text-blue-900">
+              <div className="mb-8 rounded-xl bg-bazzar-naranja/10 p-6">
+                <h3 className="mb-4 text-lg font-semibold text-bazzar-text-dark">
                   📊 Disponible para Sincronizar:
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -202,7 +202,7 @@ export default function DepositoDetailPage() {
                     <div className="text-sm font-semibold uppercase tracking-wider text-gray-500">
                       Total Registros
                     </div>
-                    <div className="text-3xl font-bold text-blue-600">
+                    <div className="text-3xl font-bold text-bazzar-naranja">
                       {preview.total_registros.toLocaleString("es-PY")}
                     </div>
                   </div>
@@ -210,7 +210,7 @@ export default function DepositoDetailPage() {
                     <div className="text-sm font-semibold uppercase tracking-wider text-gray-500">
                       Total Pares
                     </div>
-                    <div className="text-3xl font-bold text-green-600">
+                    <div className="text-3xl font-bold text-semantic-success">
                       {Math.round(preview.total_pares).toLocaleString("es-PY")}
                     </div>
                   </div>
@@ -226,7 +226,7 @@ export default function DepositoDetailPage() {
                           <span className="text-gray-600">
                             {parseInt(t.registros).toLocaleString("es-PY")} registros
                           </span>
-                          <span className="font-semibold text-blue-600">
+                          <span className="font-semibold text-bazzar-naranja">
                             {Math.round(parseFloat(t.pares)).toLocaleString("es-PY")} pares
                           </span>
                         </div>
@@ -243,7 +243,7 @@ export default function DepositoDetailPage() {
               className={`rounded-xl px-8 py-4 text-lg font-bold text-white transition-all ${
                 syncing
                   ? "cursor-not-allowed bg-gray-400"
-                  : "bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700"
+                  : "bg-gradient-to-r from-bazzar-naranja to-bazzar-naranja-dark hover:from-bazzar-naranja-dark hover:to-bazzar-naranja-dark"
               }`}
             >
               {syncing ? "Sincronizando..." : "⚡ Sincronizar Ahora"}
@@ -301,12 +301,12 @@ export default function DepositoDetailPage() {
         <div className="mx-auto max-w-6xl px-4 py-4">
           <button
             onClick={() => router.push("/depositos-bazzar")}
-            className="mb-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+            className="mb-2 text-sm font-semibold text-bazzar-naranja hover:text-bazzar-naranja-dark"
           >
             ← Volver a Depósitos
           </button>
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-2xl">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-bazzar-naranja/15 text-2xl">
               🏪
             </div>
             <div>
@@ -350,19 +350,19 @@ export default function DepositoDetailPage() {
             {/* Acordeones por marca - TOP N productos */}
             <div className="mx-auto max-w-6xl px-4 pb-12">
               {/* Selector de límite y mensaje informativo */}
-              <div className="mb-4 flex flex-col gap-3 rounded-xl bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm font-semibold text-blue-800">
+              <div className="mb-4 flex flex-col gap-3 rounded-xl bg-bazzar-naranja/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm font-semibold text-bazzar-text-dark">
                   📊 Mostrando {limitePorMarca === 'all' ? 'TODOS los' : `TOP ${limitePorMarca}`} productos por marca · {marcasOrdenadas.length} marcas · {productosArray.length} productos
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-blue-700">
+                  <label className="text-xs font-semibold text-bazzar-naranja-dark">
                     Productos por marca:
                   </label>
                   <select
                     value={limitePorMarca}
                     onChange={(e) => setLimitePorMarca(e.target.value as 30 | 50 | 100 | 'all')}
-                    className="rounded-lg border-2 border-blue-300 bg-white px-3 py-1.5 text-sm font-semibold text-blue-800 transition-all hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="rounded-lg border-2 border-bazzar-naranja/40 bg-white px-3 py-1.5 text-sm font-semibold text-bazzar-text-dark transition-all hover:border-bazzar-naranja/70 focus:border-bazzar-naranja focus:outline-none focus:ring-2 focus:ring-bazzar-naranja/20"
                   >
                     <option value="30">TOP 30</option>
                     <option value="50">TOP 50</option>
@@ -383,9 +383,9 @@ export default function DepositoDetailPage() {
                     <details
                       key={marca}
                       open={idx === 0}
-                      className="group overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow transition-all hover:border-blue-300"
+                      className="group overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow transition-all hover:border-bazzar-naranja/40"
                     >
-                      <summary className="cursor-pointer bg-gradient-to-r from-gray-50 to-white px-6 py-4 font-bold text-gray-800 hover:from-blue-50 hover:to-white">
+                      <summary className="cursor-pointer bg-gradient-to-r from-gray-50 to-white px-6 py-4 font-bold text-gray-800 hover:from-bazzar-naranja/10 hover:to-white">
                         <div className="flex items-center justify-between">
                           <span className="flex items-center gap-3">
                             <span className="text-2xl">🏷️</span>
@@ -394,7 +394,7 @@ export default function DepositoDetailPage() {
                               {productos.length} productos
                             </span>
                           </span>
-                          <span className="text-blue-600">{Math.round(totalMarca)} pares</span>
+                          <span className="text-bazzar-naranja">{Math.round(totalMarca)} pares</span>
                         </div>
                       </summary>
 
@@ -443,7 +443,7 @@ export default function DepositoDetailPage() {
                               linea: p.linea_codigo_proveedor,
                               ref: p.referencia_codigo_proveedor
                             })}
-                            className="group relative block h-14 w-14 overflow-hidden rounded-lg shadow-sm ring-1 ring-gray-200 transition-all hover:ring-2 hover:ring-blue-500 hover:shadow-md"
+                            className="group relative block h-14 w-14 overflow-hidden rounded-lg shadow-sm ring-1 ring-gray-200 transition-all hover:ring-2 hover:ring-bazzar-naranja hover:shadow-md"
                           >
                             <Image
                               src={publicStorageObjectUrl("productos", p.imagen_nombre)}
@@ -485,8 +485,8 @@ export default function DepositoDetailPage() {
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-semibold ${
                             p.tipo_v2_id === 1
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
+                              ? "bg-bazzar-naranja/15 text-bazzar-text-dark"
+                              : "bg-semantic-success/15 text-semantic-success"
                           }`}
                         >
                           {p.tipo_v2}

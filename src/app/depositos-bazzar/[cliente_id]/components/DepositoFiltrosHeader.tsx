@@ -41,7 +41,7 @@ function Pill({
       onClick={onClick}
       className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
         active
-          ? "bg-blue-600 text-white border-blue-600"
+          ? "bg-bazzar-naranja text-white border-bazzar-naranja"
           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
       }`}
     >
@@ -82,7 +82,7 @@ export function DepositoFiltrosHeader({
             {ente} · {tipo}
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            <span className="font-semibold text-blue-600">
+            <span className="font-semibold text-bazzar-naranja">
               {totalProductos.toLocaleString("es-PY")} productos
             </span>
             <span className="mx-2">·</span>
@@ -214,7 +214,7 @@ export function DepositoFiltrosHeader({
             value={filtros.q}
             onChange={(e) => patch({ q: e.target.value })}
             placeholder="Buscar línea, ref, marca, material, color..."
-            className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-bazzar-naranja focus:outline-none focus:ring-2 focus:ring-bazzar-naranja/20"
           />
         </div>
       </div>

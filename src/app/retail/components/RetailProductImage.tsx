@@ -74,7 +74,7 @@ export function RetailProductImage({
   }
 
   return (
-    <div className={`group/img relative ${aspectClass} w-full overflow-hidden rounded-t-2xl bg-[#F8FAFC]`}>
+    <div className={`group/img relative ${aspectClass} w-full overflow-hidden rounded-t-2xl bg-app-bg`}>
       <img
         src={src}
         alt={alt}
