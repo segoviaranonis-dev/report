@@ -182,32 +182,32 @@ function FilaMarca({
     nodo.nivel === 1
       ? "bg-gradient-to-r from-rimec-azul-light/15 to-transparent"
       : nodo.nivel === 2
-        ? "bg-white/[0.03]"
+        ? "bg-rimec-azul/5"
         : "";
 
   const textColor =
     nodo.nivel === 1
-      ? "text-rimec-text-white/95 font-semibold"
+      ? "text-rimec-azul font-semibold"
       : nodo.nivel === 2
-        ? "text-white/88 font-medium"
+        ? "text-neutral-ink font-medium"
         : nodo.nivel === 3
-          ? "text-white/78"
-          : "text-white/65";
+          ? "text-neutral-ink/78"
+          : "text-neutral-ink/65";
 
   const variacionColor =
     nodo.variacionPct === null
-      ? "text-white/40"
+      ? "text-neutral-ink-muted"
       : nodo.variacionPct >= 0
-        ? "text-emerald-400/95"
-        : "text-red-400/95";
+        ? "text-semantic-success"
+        : "text-rimec-azul";
 
   const variacionBg =
-    nodo.variacionPct !== null && nodo.variacionPct < 0 ? "bg-red-500/10" : "";
+    nodo.variacionPct !== null && nodo.variacionPct < 0 ? "bg-rimec-azul/5" : "";
 
   return (
     <>
       <tr
-        className={`${bgColor} border-b border-white/5 transition-colors ${tieneHijos ? "cursor-pointer hover:bg-white/[0.07]" : "hover:bg-white/[0.04]"}`}
+        className={`${bgColor} border-b border-rimec-azul/10 transition-colors ${tieneHijos ? "cursor-pointer hover:bg-rimec-azul/5" : "hover:bg-rimec-azul/5"}`}
         onClick={
           tieneHijos
             ? (e) => {
@@ -220,20 +220,20 @@ function FilaMarca({
         <td className="px-3 py-2.5 align-middle" style={{ paddingLeft: `${indent + 12}px` }}>
           <div className="flex min-w-0 items-center gap-2">
             {tieneHijos ? (
-              <span className="w-3 shrink-0 text-center text-[10px] text-white/45">{expandido ? "▼" : "▶"}</span>
+              <span className="w-3 shrink-0 text-center text-[10px] text-neutral-ink-muted">{expandido ? "▼" : "▶"}</span>
             ) : (
               <span className="w-3 shrink-0" />
             )}
             <span className={`min-w-0 truncate ${textColor}`}>
               {nodo.nombre}
               {nodo.nivel < 4 ? (
-                <span className="ml-1.5 text-[10px] font-normal tabular-nums text-white/35">({nodo.count})</span>
+                <span className="ml-1.5 text-[10px] font-normal tabular-nums text-neutral-ink-muted">({nodo.count})</span>
               ) : null}
             </span>
           </div>
         </td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-white/55">{fmtGs(nodo.montoObj)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-white">{fmtGs(nodo.monto26)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-ink-medium">{fmtGs(nodo.montoObj)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-ink">{fmtGs(nodo.monto26)}</td>
         <td className={`px-3 py-2.5 text-right tabular-nums ${variacionColor} ${variacionBg}`}>{fmtPct(nodo.variacionPct)}</td>
       </tr>
       {expandido && tieneHijos
@@ -277,7 +277,7 @@ export function TablaJerarquiaMarcaCadenaClienteVendedor({
 
   if (!detalleOperativo.length) {
     return (
-      <div className="rounded-lg border border-white/10 bg-black/20 py-10 text-center text-sm text-white/40">
+      <div className="rounded-lg border border-rimec-azul/15 bg-app-bg py-10 text-center text-sm text-neutral-ink-muted">
         Sin detalle operativo para armar la jerarquía.
       </div>
     );
@@ -285,7 +285,7 @@ export function TablaJerarquiaMarcaCadenaClienteVendedor({
 
   if (!jerarquia.length) {
     return (
-      <div className="rounded-lg border border-white/10 bg-black/20 py-10 text-center text-sm text-white/40">
+      <div className="rounded-lg border border-rimec-azul/15 bg-app-bg py-10 text-center text-sm text-neutral-ink-muted">
         No hay filas agrupables (marca / cadena / cliente / vendedor).
       </div>
     );
@@ -300,8 +300,8 @@ export function TablaJerarquiaMarcaCadenaClienteVendedor({
           <col className="w-[16%]" />
           <col className="w-[16%]" />
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-md">
-          <tr className="border-b border-white/15 text-[10px] uppercase tracking-wider text-white/45">
+        <thead className="sticky top-0 z-10 bg-white backdrop-blur-md">
+          <tr className="border-b border-rimec-azul/20 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
             <th className="px-3 py-3 font-normal">Estructura de análisis</th>
             <th className="px-3 py-3 text-right font-normal">Monto Obj</th>
             <th className="px-3 py-3 text-right font-normal">Monto 26</th>

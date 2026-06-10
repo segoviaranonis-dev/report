@@ -67,8 +67,8 @@ export function RetailProductImage({
         role="img"
         aria-label={alt}
       >
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/55">Sin foto</p>
-        <p className="break-all font-mono text-[10px] leading-snug text-white/85">productos/{label}</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">Sin foto</p>
+        <p className="break-all font-mono text-[10px] leading-snug text-slate-600">productos/{label}</p>
       </div>
     );
   }

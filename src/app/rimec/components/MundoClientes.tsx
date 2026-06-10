@@ -48,11 +48,11 @@ type FilaCarteraCompleta = {
 function sombraSegmento(segmento: SegmentoCartera): string {
   switch (segmento) {
     case "crecimiento":
-      return "shadow-[0_0_24px_-6px_rgba(34,197,94,0.55)] border-emerald-500/25";
+      return "shadow-[0_0_24px_-6px_rgba(47,79,62,0.35)] border-semantic-success/25";
     case "riesgo":
-      return "shadow-[0_0_24px_-6px_rgba(249,115,22,0.42)] border-rimec-text-white/25";
+      return "shadow-[0_0_24px_-6px_rgba(249,115,22,0.42)] border-rimec-azul/25";
     case "sin_compra":
-      return "shadow-[0_0_24px_-6px_rgba(248,113,113,0.38)] border-red-400/22";
+      return "shadow-[0_0_24px_-6px_rgba(140,59,59,0.28)] border-semantic-error/25";
     default:
       return "";
   }
@@ -226,30 +226,30 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
   return (
     <div className="flex h-full flex-col gap-6 p-2">
       <div className="grid h-[400px] shrink-0 grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:border-white/20">
-          <h3 className="mb-1 font-serif text-sm uppercase tracking-widest text-white/70">Sumatoria montos globales</h3>
-          <p className="mb-4 max-w-xl text-[10px] leading-snug text-white/40">
+        <div className="group relative overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all hover:border-rimec-azul/25">
+          <h3 className="mb-1 font-serif text-sm uppercase tracking-widest text-rimec-azul/80">Sumatoria montos globales</h3>
+          <p className="mb-4 max-w-xl text-[10px] leading-snug text-neutral-ink-muted">
             Totales del informe con filtros actuales: Real 2025, objetivo y Real 2026 (mismo criterio que las tarjetas del dashboard).
           </p>
           <div className="h-[calc(100%-4.5rem)] min-h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barTotales} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,43,78,0.08)" vertical={false} />
                 <XAxis
                   dataKey="etiqueta"
-                  stroke="rgba(255,255,255,0.25)"
-                  tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 10 }}
+                  stroke="rgba(0,43,78,0.18)"
+                  tick={{ fill: "rgba(45,37,32,0.70)", fontSize: 10 }}
                   interval={0}
                   height={52}
                   tickMargin={6}
                 />
                 <YAxis
-                  stroke="rgba(255,255,255,0.25)"
+                  stroke="rgba(0,43,78,0.18)"
                   tickFormatter={(v) => `${(Number(v) / 1_000_000_000).toFixed(0)}B`}
-                  tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }}
+                  tick={{ fill: "rgba(45,37,32,0.62)", fontSize: 11 }}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  cursor={{ fill: "rgba(0,43,78,0.05)" }}
                   {...RIMEC_RECHARTS_TOOLTIP}
                   formatter={(value) => (typeof value === 'number' ? fmtGs(value) : "")}
                 />
@@ -270,13 +270,13 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-2 flex flex-wrap justify-center gap-4 text-[10px] uppercase tracking-wider text-white/45">
+          <div className="mt-2 flex flex-wrap justify-center gap-4 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
             <span className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-sm" style={{ background: COLOR_REAL_ANTERIOR }} />
               Real 2025
             </span>
             <span className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-sm bg-white/25" />
+              <span className="inline-block h-2 w-2 rounded-sm" style={{ background: COLOR_OBJETIVO }} />
               Objetivo
             </span>
             <span className="flex items-center gap-2">
@@ -286,39 +286,39 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
           </div>
         </div>
 
-        <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:border-white/20">
-          <h3 className="mb-1 font-serif text-sm uppercase tracking-widest text-white/70">Segmentos — línea y proyección</h3>
-          <p className="mb-4 max-w-xl text-[10px] leading-snug text-white/40">
-            Cada serie suma la base 2025 de su lista (crecimiento y riesgo: <span className="text-white/55">monto_2025</span>; sin compra:{" "}
-            <span className="text-white/55">último monto</span>). La proyección multiplica esas sumas por el factor global Real 2026 ÷ Real 2025 del
+        <div className="group relative overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all hover:border-rimec-azul/25">
+          <h3 className="mb-1 font-serif text-sm uppercase tracking-widest text-rimec-azul/80">Segmentos — línea y proyección</h3>
+          <p className="mb-4 max-w-xl text-[10px] leading-snug text-neutral-ink-muted">
+            Cada serie suma la base 2025 de su lista (crecimiento y riesgo: <span className="text-neutral-ink-medium">monto_2025</span>; sin compra:{" "}
+            <span className="text-neutral-ink-medium">último monto</span>). La proyección multiplica esas sumas por el factor global Real 2026 ÷ Real 2025 del
             informe
             {hayBaseGlobal ? ` (${ratioGlobal.toFixed(3)}×)` : " (sin base 2025, factor 1×)"}.
           </p>
           <div className="h-[calc(100%-5.5rem)] min-h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData} margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,43,78,0.08)" />
                 <XAxis
                   dataKey="etapa"
-                  stroke="rgba(255,255,255,0.25)"
-                  tick={{ fill: "rgba(255,255,255,0.55)", fontSize: 10 }}
+                  stroke="rgba(0,43,78,0.18)"
+                  tick={{ fill: "rgba(45,37,32,0.70)", fontSize: 10 }}
                   interval={0}
                   height={56}
                   tickMargin={4}
                 />
                 <YAxis
-                  stroke="rgba(255,255,255,0.25)"
+                  stroke="rgba(0,43,78,0.18)"
                   tickFormatter={(v) => `${(Number(v) / 1_000_000_000).toFixed(0)}B`}
-                  tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }}
+                  tick={{ fill: "rgba(45,37,32,0.62)", fontSize: 11 }}
                 />
                 <Tooltip
                   {...RIMEC_RECHARTS_TOOLTIP}
                   formatter={(value) => (typeof value === 'number' ? fmtGs(value) : "")}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" />
-                <Line type="monotone" dataKey="crecimiento" name="Crecimiento (Σ 2025)" stroke="#4ade80" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="riesgo" name="Riesgo (Σ 2025)" stroke="#f87171" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="sinCompra" name="Sin compra (Σ último)" stroke="#9ca3af" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="crecimiento" name="Crecimiento (Σ 2025)" stroke="#22C55E" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="riesgo" name="Riesgo (Σ 2025)" stroke="#002B4E" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="sinCompra" name="Sin compra (Σ último)" stroke="#94A3B8" strokeWidth={2} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -327,22 +327,22 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
 
       {/* Cartera Unificada (Tablas) */}
       <div
-        className={`flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md transition-all ${
+        className={`flex flex-col overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white backdrop-blur-md transition-all ${
           carteraCompletaVisible
-            ? "fixed inset-4 z-50 bg-slate-950/95 backdrop-blur-xl"
+            ? "fixed inset-4 z-50 bg-white backdrop-blur-xl"
             : "flex-1"
         }`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/20 p-6">
-          <h3 className="font-serif text-sm uppercase tracking-widest text-white/90">Cartera Unificada</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rimec-azul/15 bg-app-bg p-6">
+          <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Cartera Unificada</h3>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setCarteraCompletaVisible((v) => !v)}
               className={`rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-wider transition-all ${
                 carteraCompletaVisible
-                  ? "border-rimec-text-white/60 bg-rimec-azul-light/20 text-rimec-text-white shadow-lg shadow-rimec-azul-light/20"
-                  : "border-white/15 bg-white/5 text-white/75 hover:border-white/25 hover:bg-white/10"
+                  ? "border-rimec-azul/60 bg-rimec-azul-light/20 text-rimec-azul shadow-lg shadow-rimec-azul-light/20"
+                  : "border-rimec-azul/20 bg-white text-neutral-ink hover:border-rimec-azul/25 hover:bg-rimec-azul/5"
               }`}
             >
               {carteraCompletaVisible ? "Ocultar lista total" : "Toda la cartera"}
@@ -350,7 +350,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
             <input
               type="text"
               placeholder="Buscar cliente..."
-              className="w-64 min-w-[12rem] rounded-full border border-white/10 bg-black/50 px-4 py-2 text-sm text-white focus:border-rimec-text-white focus:outline-none"
+              className="w-64 min-w-[12rem] rounded-full border border-rimec-azul/15 bg-white px-4 py-2 text-sm text-neutral-ink focus:border-rimec-azul focus:outline-none"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -359,36 +359,36 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
 
         <div className="custom-scrollbar flex-1 space-y-12 overflow-y-auto p-6">
           {carteraCompletaVisible ? (
-            <section className="rounded-xl border border-white/10 bg-black/25 p-4">
+            <section className="rounded-xl border border-rimec-azul/15 bg-app-bg p-4">
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <h4 className="font-serif text-base text-white/90">Lista completa de cartera</h4>
-                  <p className="mt-1 max-w-3xl text-[10px] leading-snug text-white/40">
-                    Misma vista <span className="text-white/55">Cadena → Cliente → Marca</span> que el resto del informe (datos agregados en base).
+                  <h4 className="font-serif text-base text-rimec-azul">Lista completa de cartera</h4>
+                  <p className="mt-1 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
+                    Misma vista <span className="text-neutral-ink-medium">Cadena → Cliente → Marca</span> que el resto del informe (datos agregados en base).
                     Colores de sombra en cliente/marca según segmento (crecimiento / riesgo / sin compra). Abajo: clientes de la cartera sin líneas de
                     venta en el período (solo aparecen como listado auxiliar).
                   </p>
                 </div>
-                <p className="text-[10px] text-white/45">
+                <p className="text-[10px] text-neutral-ink-muted">
                   {carteraCompletaOrdenada.length} cliente{carteraCompletaOrdenada.length === 1 ? "" : "s"}
                 </p>
               </div>
-              <div className="mb-4 flex flex-wrap gap-4 text-[10px] uppercase tracking-wider text-white/50">
+              <div className="mb-4 flex flex-wrap gap-4 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
                 <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(34,197,94,0.5)] ring-1 ring-emerald-400/40" />
+                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(47,79,62,0.35)] ring-1 ring-semantic-success/40" />
                   Crecimiento
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(249,115,22,0.45)] ring-1 ring-rimec-text-white/35" />
+                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(249,115,22,0.45)] ring-1 ring-rimec-azul/35" />
                   Riesgo
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(248,113,113,0.45)] ring-1 ring-red-400/30" />
+                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(140,59,59,0.35)] ring-1 ring-semantic-error/30" />
                   Sin compra
                 </span>
               </div>
               {carteraCompletaOrdenada.length === 0 ? (
-                <p className="py-8 text-center text-sm text-white/35">No hay clientes que coincidan con la búsqueda.</p>
+                <p className="py-8 text-center text-sm text-neutral-ink-muted">No hay clientes que coincidan con la búsqueda.</p>
               ) : (
                 <>
                   {jerarquiaLeaves.length > 0 ? (
@@ -399,33 +399,33 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
                       title="Cadena → Cliente → Marca (toda la cartera)"
                     />
                   ) : (
-                    <p className="rounded-lg border border-white/10 bg-black/30 py-6 text-center text-sm text-white/45">
+                    <p className="rounded-lg border border-rimec-azul/15 bg-app-bg py-6 text-center text-sm text-neutral-ink-muted">
                       No hay bloque de jerarquía desde el servidor para estos filtros. Revisá sincronización o filtros.
                     </p>
                   )}
                   {clientesSinDesgloseJerarquia.length > 0 ? (
                     <div className="mt-6">
-                      <h5 className="mb-2 font-medium text-white/70">Clientes en cartera sin ventas en el período (sin desglose marca)</h5>
-                      <p className="mb-3 text-[10px] text-white/40">
+                      <h5 className="mb-2 font-medium text-rimec-azul/80">Clientes en cartera sin ventas en el período (sin desglose marca)</h5>
+                      <p className="mb-3 text-[10px] text-neutral-ink-muted">
                         No generan filas en la jerarquía SQL (monto 2026 en período = 0). Último monto y mes a modo de referencia.
                       </p>
                       <ul className="max-h-[min(40vh,320px)] space-y-2 overflow-y-auto pr-1">
                         {clientesSinDesgloseJerarquia.map((row, idx) => (
                           <li
                             key={row.id_cliente > 0 ? `sd-${row.id_cliente}` : `sd-${row.codigo}-${idx}`}
-                            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white/[0.03] px-4 py-3 ${sombraSegmento(row.segmento)}`}
+                            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-rimec-azul/5 px-4 py-3 ${sombraSegmento(row.segmento)}`}
                           >
                             <div className="min-w-0 flex-1">
-                              <span className="font-medium text-white/90">{row.nombre}</span>
-                              <span className="ml-2 text-[11px] text-white/40">ID {row.codigo}</span>
+                              <span className="font-medium text-rimec-azul">{row.nombre}</span>
+                              <span className="ml-2 text-[11px] text-neutral-ink-muted">ID {row.codigo}</span>
                               {row.cadena ? (
-                                <span className="ml-2 max-w-[200px] truncate text-[11px] text-white/45">{row.cadena}</span>
+                                <span className="ml-2 max-w-[200px] truncate text-[11px] text-neutral-ink-muted">{row.cadena}</span>
                               ) : null}
                             </div>
                             <div className="text-right">
-                              <p className="text-[9px] uppercase tracking-wider text-white/35">Último monto</p>
-                              <p className="tabular-nums text-sm text-white/90">{fmtGs(row.montoOrden)}</p>
-                              {row.ultimo_mes ? <p className="text-[10px] text-white/35">Últ. mes {row.ultimo_mes}</p> : null}
+                              <p className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Último monto</p>
+                              <p className="tabular-nums text-sm text-rimec-azul">{fmtGs(row.montoOrden)}</p>
+                              {row.ultimo_mes ? <p className="text-[10px] text-neutral-ink-muted">Últ. mes {row.ultimo_mes}</p> : null}
                             </div>
                           </li>
                         ))}
@@ -438,11 +438,11 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
           ) : null}
           {crec.length > 0 ? (
             <section>
-              <h4 className="mb-1 font-serif text-lg text-green-400">En crecimiento</h4>
-              <p className="mb-3 text-[10px] leading-snug text-white/40">
-                Cadena → Cliente → Marca. Agregación en base por <span className="text-white/55">id_cadena</span>,{" "}
-                <span className="text-white/55">id_cliente</span> e <span className="text-white/55">id_marca</span>; la UI solo muestra
-                descripciones de FK. Cartera filtrada por <span className="text-white/55">id_cliente</span> en crecimiento.
+              <h4 className="mb-1 font-serif text-lg text-semantic-success">En crecimiento</h4>
+              <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
+                Cadena → Cliente → Marca. Agregación en base por <span className="text-neutral-ink-medium">id_cadena</span>,{" "}
+                <span className="text-neutral-ink-medium">id_cliente</span> e <span className="text-neutral-ink-medium">id_marca</span>; la UI solo muestra
+                descripciones de FK. Cartera filtrada por <span className="text-neutral-ink-medium">id_cliente</span> en crecimiento.
               </p>
               <TablaJerarquica
                 jerarquiaLeaves={jerarquiaLeaves}
@@ -451,13 +451,13 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               />
             </section>
           ) : (
-            <p className="text-sm text-white/35">No hay clientes en crecimiento con los filtros actuales.</p>
+            <p className="text-sm text-neutral-ink-muted">No hay clientes en crecimiento con los filtros actuales.</p>
           )}
           {ries.length > 0 ? (
             <section>
-              <h4 className="mb-1 font-serif text-lg text-red-400">En riesgo</h4>
-              <p className="mb-3 text-[10px] leading-snug text-white/40">
-                Misma jerarquía desde Postgres (ids); cartera en riesgo filtrada por <span className="text-white/55">id_cliente</span>.
+              <h4 className="mb-1 font-serif text-lg text-rimec-azul">En riesgo</h4>
+              <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
+                Misma jerarquía desde Postgres (ids); cartera en riesgo filtrada por <span className="text-neutral-ink-medium">id_cliente</span>.
               </p>
               <TablaJerarquica
                 jerarquiaLeaves={jerarquiaLeaves}
@@ -466,7 +466,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               />
             </section>
           ) : (
-            <p className="text-sm text-white/35">No hay clientes en riesgo con los filtros actuales.</p>
+            <p className="text-sm text-neutral-ink-muted">No hay clientes en riesgo con los filtros actuales.</p>
           )}
           <TablaSinCompra title="Sin compra reciente" data={sinc} />
         </div>
@@ -482,8 +482,8 @@ function TablaSinCompra({ title, data }: { title: string; data: FullSnapshotClie
       <h4 className="mb-4 font-serif text-lg text-gray-400">{title}</h4>
       <div className="overflow-x-auto">
         <table className="w-full whitespace-nowrap text-left text-sm">
-          <thead className="sticky top-0 bg-slate-900/90 backdrop-blur">
-            <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-white/40">
+          <thead className="sticky top-0 bg-white backdrop-blur">
+            <tr className="border-b border-rimec-azul/15 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
               <th className="px-4 py-3 font-normal">Cliente</th>
               <th className="px-4 py-3 text-right font-normal">Último Monto (2025)</th>
               <th className="px-4 py-3 text-right font-normal">Último Mes</th>
@@ -491,7 +491,7 @@ function TablaSinCompra({ title, data }: { title: string; data: FullSnapshotClie
           </thead>
           <tbody>
             {data.map((c) => (
-              <tr key={c.id_cliente > 0 ? `sc-${c.id_cliente}` : c.codigo} className="border-b border-white/5 transition-colors hover:bg-white/5">
+              <tr key={c.id_cliente > 0 ? `sc-${c.id_cliente}` : c.codigo} className="border-b border-rimec-azul/10 transition-colors hover:bg-white">
                 <td className="px-4 py-3 text-gray-300">{c.nombre}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-400">{fmtGs(c.ultimo_monto)}</td>
                 <td className="px-4 py-3 text-right text-gray-500">{c.ultimo_mes}</td>

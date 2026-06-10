@@ -35,9 +35,9 @@ const CARD_SHELLS = [
   {
     shellBackground: "#F1F5F9",
     shellBorder: "1px solid #CBD5E1",
-    badgeBackground: "#2f4f3e",
+    badgeBackground: "#22C55E",
     badgeColor: "#FFFFFF",
-    accentColor: "#2f4f3e",
+    accentColor: "#22C55E",
     boxShadow: "0 4px 18px rgba(4, 120, 87, 0.09)",
   },
 ] as const;
@@ -74,29 +74,29 @@ function TablaOrigenTienda({
   const stockTotal = sumStockTiendas(bloque);
   const ventaTotal = sumVentaTiendas(bloque);
   return (
-    <div className="overflow-hidden rounded-xl border border-stone-200/80 bg-white/80">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/80">
       <div
-        className="flex items-center justify-between gap-2 border-b border-stone-200/70 px-2.5 py-1.5"
+        className="flex items-center justify-between gap-2 border-b border-slate-200 px-2.5 py-1.5"
         style={{ backgroundColor: "rgba(255,255,255,0.6)" }}
       >
         <span
-          className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white"
+          className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-rimec-text-white"
           style={{ backgroundColor: accentColor }}
         >
           {nombre}
         </span>
-        <span className="shrink-0 text-[9px] font-bold tabular-nums text-stone-500">
+        <span className="shrink-0 text-[9px] font-bold tabular-nums text-slate-500">
           {ventaTotal > 0 ? `${fmt(ventaTotal)} v` : ""}
           {ventaTotal > 0 && stockTotal > 0 ? " · " : ""}
           {stockTotal > 0 ? `${fmt(stockTotal)} st` : ""}
         </span>
       </div>
-      <table className="w-full border-collapse text-center text-[10px] text-stone-800">
+      <table className="w-full border-collapse text-center text-[10px] text-slate-800">
         <thead>
-          <tr className="bg-stone-50/90">
-            <th className="border-b border-stone-200/60 px-1 py-1 font-medium text-stone-500" />
+          <tr className="bg-slate-50">
+            <th className="border-b border-slate-200 px-1 py-1 font-medium text-slate-500" />
             {tallas.map((t) => (
-              <th key={t} className="border-b border-stone-200/60 px-1 py-1 font-semibold tabular-nums text-stone-700">
+              <th key={t} className="border-b border-slate-200 px-1 py-1 font-semibold tabular-nums text-slate-700">
                 {t}
               </th>
             ))}
@@ -104,17 +104,17 @@ function TablaOrigenTienda({
         </thead>
         <tbody>
           <tr>
-            <td className="border-b border-stone-100 bg-stone-50/50 px-1.5 py-1 text-left text-[9px] font-semibold uppercase tracking-wide text-stone-500">
+            <td className="border-b border-slate-100 bg-slate-50 px-1.5 py-1 text-left text-[9px] font-semibold uppercase tracking-wide text-slate-500">
               Venta
             </td>
             {tallas.map((_, i) => (
-              <td key={`v-${i}`} className="border-b border-stone-100 px-1 py-1 tabular-nums">
+              <td key={`v-${i}`} className="border-b border-slate-100 px-1 py-1 tabular-nums">
                 {fmt(venta[i] ?? null)}
               </td>
             ))}
           </tr>
           <tr>
-            <td className="bg-stone-50/50 px-1.5 py-1 text-left text-[9px] font-semibold uppercase tracking-wide text-stone-500">
+            <td className="bg-slate-50 px-1.5 py-1 text-left text-[9px] font-semibold uppercase tracking-wide text-slate-500">
               Stock
             </td>
             {tallas.map((_, i) => (
@@ -132,15 +132,15 @@ function TablaOrigenTienda({
 function TablaImportadora({ bloque, accentColor }: { bloque: ImportadoraBloque; accentColor: string }) {
   if (bloque.stockTotal <= 0 && bloque.etiquetaGrada === "—") return null;
   return (
-    <div className="overflow-hidden rounded-xl border border-stone-200/80 bg-white/80">
-      <div className="flex items-center justify-between gap-2 border-b border-stone-200/70 px-2.5 py-1.5 bg-stone-50/90">
-        <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/80">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-2.5 py-1.5 bg-slate-50">
+        <span className="rounded-full bg-rimec-azul px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-rimec-text-white">
           RIMEC — Stock Importadora
         </span>
-        <span className="font-mono text-[9px] font-medium leading-snug text-stone-600">{bloque.etiquetaGrada}</span>
+        <span className="font-mono text-[9px] font-medium leading-snug text-slate-600">{bloque.etiquetaGrada}</span>
       </div>
       <div className="flex items-center justify-between px-3 py-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Stock importadora</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Stock importadora</span>
         <span className="font-serif text-lg font-bold tabular-nums" style={{ color: accentColor }}>
           {fmt(bloque.stockTotal)}
         </span>
@@ -206,7 +206,7 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <p className="truncate font-mono text-[10px] font-semibold leading-snug text-stone-700" title={imagenNombre}>
+        <p className="truncate font-mono text-[10px] font-semibold leading-snug text-slate-700" title={imagenNombre}>
           {imagenNombre}
         </p>
 
@@ -240,7 +240,7 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
           {(parsed.linea || parsed.referencia) && (
             <div className="flex min-w-0 items-center gap-1 truncate text-[11px] font-extrabold">
               {parsed.linea ? <span className="text-report-navy">L{parsed.linea}</span> : null}
-              {parsed.linea && parsed.referencia ? <span className="text-stone-300">·</span> : null}
+              {parsed.linea && parsed.referencia ? <span className="text-slate-300">·</span> : null}
               {parsed.referencia ? (
                 <span style={{ color: shell.accentColor }}>R{parsed.referencia}</span>
               ) : null}
@@ -248,7 +248,7 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
           )}
         </div>
 
-        <div className="mt-1 flex flex-col gap-2 border-t border-stone-200/60 pt-3">
+        <div className="mt-1 flex flex-col gap-2 border-t border-slate-200 pt-3">
           {col.tiendas.map((bloque) => (
             <TablaOrigenTienda key={bloque.nombre} bloque={bloque} accentColor={shell.accentColor} />
           ))}

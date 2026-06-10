@@ -22,24 +22,10 @@ import type {
   VentasFotosPillarStats,
   VentasFotosResponse,
 } from "@/lib/ventas-fotos/types";
+import { chartColorAt, RIMEC_RECHARTS_TOOLTIP } from "@/app/rimec/chart-theme";
 
 const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 const fmtPct = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-
-const PILLAR_PALETTE = [
-  "#002B4E", // RIMEC azul NIIF
-  "#ea580c", // BAZZAR naranja NIIF
-  "#003d6b", // RIMEC hover
-  "#c2410c", // BAZZAR oscuro
-  "#2f4f3e", // semantic success
-  "#8c3b3b", // semantic error
-  "#d97706", // semantic warning
-  "#4a3f35", // neutral ink
-];
-
-function colorAt(idx: number): string {
-  return PILLAR_PALETTE[idx % PILLAR_PALETTE.length];
-}
 
 const DEMO_MARCAS: VentasFotosMarca[] = [{ id_marca: 1, descp_marca: "Marca demo" }];
 
@@ -651,10 +637,11 @@ function PillarPie({ data }: { data: PillarBucket[] }) {
           stroke="#ffffff"
         >
           {data.map((_, i) => (
-            <Cell key={i} fill={colorAt(i)} />
+            <Cell key={i} fill={chartColorAt(i)} />
           ))}
         </Pie>
         <Tooltip
+          {...RIMEC_RECHARTS_TOOLTIP}
           formatter={(value, _name, ctx) => {
             const n = Number(value ?? 0);
             const bucket = ctx?.payload as PillarBucket | undefined;
@@ -689,7 +676,8 @@ function PillarBars({ data }: { data: PillarBucket[] }) {
           interval={0}
         />
         <Tooltip
-          cursor={{ fill: "rgba(27,58,107,0.05)" }}
+          cursor={{ fill: "rgba(0,43,78,0.05)" }}
+          {...RIMEC_RECHARTS_TOOLTIP}
           formatter={(value, _name, ctx) => {
             const n = Number(value ?? 0);
             const bucket = ctx?.payload as PillarBucket | undefined;
@@ -701,7 +689,7 @@ function PillarBars({ data }: { data: PillarBucket[] }) {
         />
         <Bar dataKey="pares" radius={[0, 3, 3, 0]}>
           {data.map((_, i) => (
-            <Cell key={i} fill={colorAt(i)} />
+            <Cell key={i} fill={chartColorAt(i)} />
           ))}
         </Bar>
       </BarChart>
@@ -728,7 +716,7 @@ function PillarTable({ rows }: { rows: PillarBucket[] }) {
             <tr key={r.label} className="border-b border-report-rule/40 last:border-0">
               <td className="py-1.5">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: colorAt(i) }} />
+                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: chartColorAt(i) }} />
                   {r.label}
                 </span>
               </td>

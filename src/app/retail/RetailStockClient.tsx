@@ -114,7 +114,7 @@ export function RetailStockClient({ todayLabel }: Props) {
     <>
       {/* Barra de progreso PDF */}
       {pdfProgress.show && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
             <h3 className="text-lg font-semibold text-report-navy mb-4">Generando PDF...</h3>
             <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden mb-2">

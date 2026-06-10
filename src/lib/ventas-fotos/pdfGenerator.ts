@@ -26,16 +26,11 @@ const RULE_SOFT = rgb(0.910, 0.902, 0.886)   // #e8e6e1
 const PAPER_ALT = rgb(0.976, 0.969, 0.957)   // #f9f7f4
 const WHITE = rgb(1, 1, 1)
 
-// Acentos cálidos para gráficos.
+// Política de gráficos: azul / verde / gris (no paleta institucional).
 const PALETTE = [
-  rgb(0.918, 0.345, 0.047), // BAZZAR NIIF #ea580c
-  rgb(0.761, 0.255, 0.047), // BAZZAR dark #c2410c
-  rgb(0.000, 0.169, 0.306), // RIMEC NIIF #002B4E
-  rgb(0.000, 0.239, 0.420), // RIMEC hover #003d6b
-  rgb(0.184, 0.310, 0.243), // semantic success #2f4f3e
-  rgb(0.549, 0.231, 0.231), // semantic error #8c3b3b
-  rgb(0.851, 0.467, 0.024), // semantic warning #d97706
-  rgb(0.290, 0.247, 0.208), // neutral ink #4a3f35
+  rgb(0.000, 0.169, 0.306), // #002B4E anterior
+  rgb(0.133, 0.773, 0.369), // #22C55E actual
+  rgb(0.580, 0.639, 0.722), // #94A3B8 referencia
 ]
 
 function colorAt(i: number) {

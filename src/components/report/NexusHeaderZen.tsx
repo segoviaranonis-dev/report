@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes";
@@ -27,12 +27,43 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   const router = useRouter();
   const [rolId, setRolId] = useState<number | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const hoverRef = useRef(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setRolId(data?.authenticated ? Number(data.user?.rol_id) || 0 : null))
       .catch(() => setRolId(null));
+  }, []);
+
+  useEffect(() => {
+    const clearHideTimer = () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    };
+
+    const scheduleHide = () => {
+      clearHideTimer();
+      hideTimerRef.current = setTimeout(() => {
+        if (!hoverRef.current) setVisible(false);
+      }, 1400);
+    };
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (event.clientY <= 28) {
+        setVisible(true);
+        scheduleHide();
+      }
+    };
+
+    scheduleHide();
+    window.addEventListener("mousemove", onMouseMove);
+    return () => {
+      clearHideTimer();
+      window.removeEventListener("mousemove", onMouseMove);
+    };
   }, []);
 
   async function handleLogout() {
@@ -50,7 +81,25 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   const visibleBazzar = rolId == null ? [] : bazzarModules.filter((item) => item.roles.includes(rolId));
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b-4 border-rimec-azul shadow-lg">
+    <>
+    <div
+      className="fixed left-0 top-0 z-[60] h-4 w-full"
+      onMouseEnter={() => setVisible(true)}
+      aria-hidden="true"
+    />
+    <header
+      onMouseEnter={() => {
+        hoverRef.current = true;
+        setVisible(true);
+      }}
+      onMouseLeave={() => {
+        hoverRef.current = false;
+        setVisible(false);
+      }}
+      className={`fixed top-0 z-50 w-full border-b-4 border-rimec-azul bg-white shadow-lg transition-transform duration-300 ease-out ${
+        visible ? "translate-y-0" : "-translate-y-[calc(100%-6px)]"
+      }`}
+    >
       <div className={`mx-auto ${maxWidthClass}`}>
         {/* Top Bar: Marca + Logout - Con marco y animación */}
         <div className="flex items-center justify-between px-6 py-4 border-b-2 border-neutral-200 bg-gradient-to-r from-white to-rimec-celeste-bg">
@@ -147,5 +196,6 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
         </div>
       </div>
     </header>
+    </>
   );
 }
