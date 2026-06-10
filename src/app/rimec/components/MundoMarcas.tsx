@@ -54,21 +54,21 @@ function MatrizTooltip(props: any) {
             <span className="inline-block h-2 w-2 shrink-0 rounded-sm" style={{ background: COLOR_REAL_ANTERIOR }} />
             Real 2025
           </span>
-          <span style={{ color: "#fff" }}>{fmtGs(d.monto_2025)}</span>
+          <span style={{ color: "#2d2520" }}>{fmtGs(d.monto_2025)}</span>
         </li>
         <li className="flex justify-between gap-6 tabular-nums">
           <span className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 shrink-0 rounded-sm border border-rimec-azul/30" style={{ background: COLOR_OBJETIVO }} />
             Objetivo
           </span>
-          <span style={{ color: "#fff" }}>{fmtGs(d.objetivo)}</span>
+          <span style={{ color: "#2d2520" }}>{fmtGs(d.objetivo)}</span>
         </li>
         <li className="flex justify-between gap-6 tabular-nums">
           <span className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 shrink-0 rounded-sm" style={{ background: COLOR_REAL_ACTUAL }} />
             Real 2026
           </span>
-          <span style={{ color: "#fff" }}>{fmtGs(d.monto_2026)}</span>
+          <span style={{ color: "#2d2520" }}>{fmtGs(d.monto_2026)}</span>
         </li>
         <li className="mt-2 border-t border-rimec-azul/15 pt-2 text-[11px] text-neutral-ink">
           Cumplimiento (Real 2026 ÷ Objetivo): <strong className="text-neutral-ink">{d.cumplimiento.toFixed(1)}%</strong>
@@ -137,7 +137,7 @@ export function MundoMarcas({ data }: { data: FullSnapshotResponse }) {
           </ResponsiveContainer>
         </div>
 
-        {/* Bubble Desempeño — color de burbuja = Real 2026 (misma serie amarilla del Top 10); eje X = ese monto. */}
+        {/* Bubble Desempeño — color de burbuja = Real 2026 (misma serie verde del Top 10); eje X = ese monto. */}
         <div className="bg-white backdrop-blur-md border border-rimec-azul/15 rounded-2xl p-6 relative group hover:border-rimec-azul/25 transition-all">
           <h3 className="font-serif text-rimec-azul/80 uppercase tracking-widest text-sm mb-1">Matriz de Desempeño</h3>
           <p className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-neutral-ink-muted">
@@ -225,7 +225,7 @@ export function MundoMarcas({ data }: { data: FullSnapshotResponse }) {
                   <td className="px-6 py-3 text-right tabular-nums text-neutral-ink-muted">{fmtGs(m.objetivo)}</td>
                   <td className="px-6 py-3 text-right tabular-nums text-rimec-azul">{fmtGs(m.monto_2026)}</td>
                   <td
-                    className={`px-6 py-3 text-right tabular-nums ${m.cumplimiento_pct >= 100 ? "text-semantic-success" : "text-semantic-error"}`}
+                    className={`px-6 py-3 text-right tabular-nums ${m.cumplimiento_pct >= 100 ? "text-semantic-success" : "text-rimec-azul"}`}
                   >
                     {fmtPct(varVsObj)}
                   </td>

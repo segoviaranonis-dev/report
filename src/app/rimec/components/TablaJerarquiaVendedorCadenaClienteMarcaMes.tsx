@@ -239,9 +239,9 @@ function FilaVend({
       ? "text-neutral-ink-muted"
       : nodo.variacionPct >= 0
         ? "text-semantic-success"
-        : "text-semantic-error";
+        : "text-rimec-azul";
 
-  const variacionBg = nodo.variacionPct !== null && nodo.variacionPct < 0 ? "bg-semantic-error/10" : "";
+  const variacionBg = nodo.variacionPct !== null && nodo.variacionPct < 0 ? "bg-rimec-azul/5" : "";
 
   return (
     <>

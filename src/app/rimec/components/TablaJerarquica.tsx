@@ -38,7 +38,7 @@ function claseSombraSegmento(segmento: SegmentoCarteraCliente): string {
     case "riesgo":
       return "shadow-[0_0_16px_-5px_rgba(249,115,22,0.38)] border-l-2 border-l-rimec-azul/60";
     case "sin_compra":
-      return "shadow-[0_0_16px_-5px_rgba(140,59,59,0.28)] border-l-2 border-l-semantic-error";
+      return "shadow-[0_0_16px_-5px_rgba(140,59,59,0.28)] border-l-2 border-l-rimec-azul";
     default:
       return "";
   }
@@ -227,7 +227,7 @@ function FilaJerarquica({
 
   const textColor =
     nodo.nivel === 1
-      ? "text-rimec-text-rimec-azul font-semibold"
+      ? "text-rimec-azul font-semibold"
       : nodo.nivel === 2
         ? "text-neutral-ink font-medium"
         : "text-neutral-ink-medium";
@@ -237,7 +237,7 @@ function FilaJerarquica({
       ? "text-neutral-ink-muted"
       : nodo.variacionPct >= 0
         ? "text-semantic-success"
-        : "text-semantic-error";
+        : "text-rimec-azul";
 
   return (
     <>

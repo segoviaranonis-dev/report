@@ -217,7 +217,7 @@ export function ImmersiveClient() {
                 Modo demo (sin base)
               </button>
             )}
-            {err ? <p className="mt-4 text-xs text-semantic-error">{err}</p> : null}
+            {err ? <p className="mt-4 text-xs text-rimec-azul">{err}</p> : null}
           </div>
         </aside>
 

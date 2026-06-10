@@ -187,7 +187,7 @@ function FilaMarca({
 
   const textColor =
     nodo.nivel === 1
-      ? "text-rimec-text-rimec-azul font-semibold"
+      ? "text-rimec-azul font-semibold"
       : nodo.nivel === 2
         ? "text-neutral-ink font-medium"
         : nodo.nivel === 3
@@ -199,10 +199,10 @@ function FilaMarca({
       ? "text-neutral-ink-muted"
       : nodo.variacionPct >= 0
         ? "text-semantic-success"
-        : "text-semantic-error";
+        : "text-rimec-azul";
 
   const variacionBg =
-    nodo.variacionPct !== null && nodo.variacionPct < 0 ? "bg-semantic-error/10" : "";
+    nodo.variacionPct !== null && nodo.variacionPct < 0 ? "bg-rimec-azul/5" : "";
 
   return (
     <>

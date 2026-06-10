@@ -54,14 +54,14 @@ function SubtotalEvolucionRow({
     <tr className={`${base} font-medium`}>
       <td className="px-4 py-3">
         <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-neutral-ink-muted">{subtitle}</span>
-        <span className="text-xs tracking-wide text-rimec-text-rimec-azul">{label}</span>
+        <span className="text-xs tracking-wide text-rimec-azul">{label}</span>
       </td>
       <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-medium">{fmtGs(agg.real_2025)}</td>
       <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-medium">{fmtGs(agg.objetivo)}</td>
       <td className="px-4 py-3 text-right tabular-nums text-rimec-azul">{fmtGs(agg.real_2026)}</td>
       <td
         className={`px-4 py-3 text-right tabular-nums ${
-          agg.desvio_pct >= 0 ? "text-semantic-success" : "text-semantic-error"
+          agg.desvio_pct >= 0 ? "text-semantic-success" : "text-rimec-azul"
         }`}
       >
         {fmtPct(agg.desvio_pct)}
@@ -158,7 +158,7 @@ function SemesterRealRadialCard({
     <div className="flex min-h-[240px] flex-col items-center justify-between px-1">
       <div className="w-full text-center">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-ink-muted">{subtitle}</p>
-        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-rimec-text-rimec-azul">{title}</p>
+        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-rimec-azul">{title}</p>
       </div>
       <div className="relative mt-2 h-[168px] w-[168px] shrink-0">
         <svg viewBox="0 0 120 120" className="h-full w-full">
@@ -212,8 +212,8 @@ function SemesterRealRadialCard({
           <span className="tabular-nums text-rimec-azul/80">{fmtGs(real2025)}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="uppercase tracking-wider text-rimec-text-rimec-azul/80">Real 2026</span>
-          <span className="tabular-nums text-rimec-text-rimec-azul">{fmtGs(real2026)}</span>
+          <span className="uppercase tracking-wider text-rimec-azul/80">Real 2026</span>
+          <span className="tabular-nums text-rimec-azul">{fmtGs(real2026)}</span>
         </div>
       </div>
     </div>
@@ -305,7 +305,7 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
             Real 2025 vs 2026
           </h3>
           <p className="absolute left-6 top-[2.35rem] max-w-[calc(100%-3rem)] text-[10px] leading-snug text-neutral-ink-muted">
-            Porcentaje: Real 2026 respecto a Real 2025 del semestre (filtros aplicados). Anillo azul hasta 100%; oro = por encima.
+            Porcentaje: Real 2026 respecto a Real 2025 del semestre (filtros aplicados). Anillo azul hasta 100%; verde = por encima.
           </p>
           <div className={`mt-20 grid flex-1 ${radialGridClass}`}>
             {showSem1Chart ? (
@@ -365,7 +365,7 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
                 <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-muted">{fmtGs(m.objetivo)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-neutral-ink">{fmtGs(m.real_2026)}</td>
                 <td
-                  className={`px-4 py-3 text-right tabular-nums ${m.desvio_pct >= 0 ? "text-semantic-success" : "text-semantic-error"}`}
+                  className={`px-4 py-3 text-right tabular-nums ${m.desvio_pct >= 0 ? "text-semantic-success" : "text-rimec-azul"}`}
                 >
                   {fmtPct(m.desvio_pct)}
                 </td>
@@ -427,7 +427,7 @@ function KpiCard({
           type === "percent"
             ? isPos
               ? "text-semantic-success drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]"
-              : "text-semantic-error drop-shadow-[0_0_8px_rgba(140,59,59,0.35)]"
+              : "text-rimec-azul "
             : "text-neutral-ink"
         }`}
       >

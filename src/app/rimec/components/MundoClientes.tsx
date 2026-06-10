@@ -316,9 +316,9 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
                   formatter={(value) => (typeof value === 'number' ? fmtGs(value) : "")}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" />
-                <Line type="monotone" dataKey="crecimiento" name="Crecimiento (Σ 2025)" stroke="#4ade80" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="riesgo" name="Riesgo (Σ 2025)" stroke="#f87171" strokeWidth={2} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="sinCompra" name="Sin compra (Σ último)" stroke="#9ca3af" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="crecimiento" name="Crecimiento (Σ 2025)" stroke="#22C55E" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="riesgo" name="Riesgo (Σ 2025)" stroke="#002B4E" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="sinCompra" name="Sin compra (Σ último)" stroke="#94A3B8" strokeWidth={2} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -455,7 +455,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
           )}
           {ries.length > 0 ? (
             <section>
-              <h4 className="mb-1 font-serif text-lg text-semantic-error">En riesgo</h4>
+              <h4 className="mb-1 font-serif text-lg text-rimec-azul">En riesgo</h4>
               <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
                 Misma jerarquía desde Postgres (ids); cartera en riesgo filtrada por <span className="text-neutral-ink-medium">id_cliente</span>.
               </p>

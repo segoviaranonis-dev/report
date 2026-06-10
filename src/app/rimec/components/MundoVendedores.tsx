@@ -17,7 +17,7 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
   const pct = totalObj > 0 ? (total2026 / totalObj) * 100 : 0;
   const clampedPct = Math.min(100, Math.max(0, pct));
   const gaugeData = [
-    { name: "Completado", value: clampedPct, color: pct >= 100 ? "#4ade80" : pct >= 80 ? "#eab308" : "#f87171" },
+    { name: "Completado", value: clampedPct, color: pct >= 100 ? "#22C55E" : pct >= 80 ? "#94A3B8" : "#002B4E" },
     { name: "Restante", value: 100 - clampedPct, color: "rgba(0,43,78,0.07)" },
   ];
 
@@ -120,7 +120,7 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
                     ? "text-neutral-ink-muted"
                     : varVsObj >= 0
                       ? "text-semantic-success"
-                      : "text-semantic-error";
+                      : "text-rimec-azul";
                 return (
                   <tr key={`${v.vendedor}-${rowIdx}`} className="border-b border-rimec-azul/10 transition-colors hover:bg-white">
                     <td className="px-6 py-3 font-medium text-neutral-ink">{v.vendedor}</td>
