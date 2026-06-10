@@ -300,7 +300,7 @@ export function RimecClient() {
               <h3 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-exec-subtle">Clasificación</h3>
               <label className="mt-3 block text-[11px] text-exec-muted">Departamento / tipo</label>
               <select
-                className="mt-1.5 w-full border-b border-exec-line bg-transparent py-2 text-xs font-medium uppercase tracking-wide text-exec-ink outline-none transition focus:border-exec-navy"
+                className="mt-1.5 w-full border-b border-exec-line bg-white py-2 text-xs font-medium uppercase tracking-wide text-exec-ink outline-none transition focus:border-exec-navy"
                 value={filtros.departamento.trim().toUpperCase()}
                 onChange={(e) => setFiltros((f) => ({ ...f, departamento: e.target.value }))}
               >
@@ -372,7 +372,7 @@ export function RimecClient() {
               <label className="mt-3 block text-[11px] text-exec-muted">Código cliente (exacto)</label>
               <input
                 type="text"
-                className="mt-1.5 w-full border-b border-exec-line bg-transparent py-2 font-mono text-[12px] text-exec-ink outline-none placeholder:text-exec-subtle focus:border-exec-navy"
+                className="mt-1.5 w-full border-b border-exec-line bg-white py-2 font-mono text-[12px] text-exec-ink outline-none placeholder:text-exec-subtle focus:border-exec-navy"
                 value={filtros.id_cliente_exacto ?? ""}
                 onChange={(e) =>
                   setFiltros((f) => ({
@@ -412,7 +412,7 @@ export function RimecClient() {
 
         <main
           id="rimec-print-root"
-          className={`min-h-[520px] flex-1 p-6 lg:p-10 lg:pl-12 ${pkg ? "bg-gradient-to-br from-[#0a0e1a] via-[#0f1629] to-[#121c33] text-slate-200 print:bg-white print:text-exec-ink" : "bg-exec-surface"}`}
+          className={`min-h-[520px] flex-1 p-6 lg:p-10 lg:pl-12 ${pkg ? "bg-gradient-to-br from-white via-app-bg to-white text-neutral-ink print:bg-white print:text-exec-ink" : "bg-exec-surface"}`}
         >
           {err ? (
             <p className="border border-exec-neg/25 bg-exec-canvas px-4 py-3 text-sm text-exec-neg">{err}</p>
@@ -428,10 +428,10 @@ export function RimecClient() {
             </div>
           ) : (
             <div
-              className="space-y-10 print:space-y-4 [&_.border-exec-line]:border-white/10 [&_.border-exec-line-subtle]:border-white/5 [&_.text-exec-ink]:text-slate-100 [&_.text-exec-muted]:text-slate-400 [&_.text-exec-subtle]:text-slate-500 [&_.bg-exec-surface]:bg-white/[0.04] [&_.bg-exec-canvas]:bg-white/[0.06] [&_.bg-exec-canvas\\/60]:bg-white/[0.06] [&_.bg-exec-canvas\\/50]:bg-white/[0.04] [&_.bg-exec-canvas\\/40]:bg-white/[0.03] [&_.bg-exec-canvas\\/35]:bg-white/[0.03] [&_section]:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] [&_section]:backdrop-blur-sm print:[&_section]:shadow-none"
+              className="space-y-10 print:space-y-4 [&_.border-exec-line]:border-rimec-azul/15 [&_.border-exec-line-subtle]:border-rimec-azul/10 [&_.text-exec-ink]:text-neutral-ink [&_.text-exec-muted]:text-neutral-ink-muted [&_.text-exec-subtle]:text-neutral-ink-muted [&_.bg-exec-surface]:bg-rimec-azul/5 [&_.bg-exec-canvas]:bg-white [&_.bg-exec-canvas\\/60]:bg-white [&_.bg-exec-canvas\\/50]:bg-rimec-azul/5 [&_.bg-exec-canvas\\/40]:bg-rimec-azul/5 [&_.bg-exec-canvas\\/35]:bg-rimec-azul/5 [&_section]:shadow-[0_0_0_1px_rgba(0,43,78,0.08)] [&_section]:backdrop-blur-sm print:[&_section]:shadow-none"
             >
               <nav
-                className="sticky top-0 z-20 -mx-6 mb-2 flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#0a0e1a]/85 px-2 py-3 backdrop-blur-md lg:-mx-10 lg:px-0 print:hidden"
+                className="sticky top-0 z-20 -mx-6 mb-2 flex flex-wrap items-center gap-2 border-b border-rimec-azul/15 bg-white/95 px-2 py-3 backdrop-blur-md lg:-mx-10 lg:px-0 print:hidden"
                 aria-label="Secciones del informe"
               >
                 {SECTION_NAV.map(({ id, label }) => (
@@ -439,7 +439,7 @@ export function RimecClient() {
                     key={id}
                     type="button"
                     onClick={() => scrollToId(id)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-300 transition hover:border-indigo-400/40 hover:bg-indigo-500/20 hover:text-white"
+                    className="rounded-full border border-rimec-azul/15 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-ink-medium transition hover:border-rimec-azul/40 hover:bg-rimec-azul/10 hover:text-neutral-ink"
                   >
                     {label}
                   </button>
@@ -447,7 +447,7 @@ export function RimecClient() {
               </nav>
 
               <section id="rim-t1" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-indigo-300/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-rimec-azul/80 print:hidden">
                   Tabla 1 · Evolución semestral
                 </p>
                 <DashboardView
@@ -461,7 +461,7 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t2" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-400/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-semantic-success print:hidden">
                   Tabla 2 · Crecimiento
                 </p>
                 <ClienteBlock
@@ -477,7 +477,7 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t3" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-400/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-semantic-warning print:hidden">
                   Tabla 3 · Riesgo
                 </p>
                 <ClienteBlock
@@ -493,7 +493,7 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t4" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-neutral-ink-muted print:hidden">
                   Tabla 4 · Sin compra
                 </p>
                 <ClienteBlock
@@ -506,7 +506,7 @@ export function RimecClient() {
               </section>
 
               <section id="rim-cartera" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-neutral-ink-muted print:hidden">
                   Cartera completa
                 </p>
                 <ClienteBlock
@@ -519,7 +519,7 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t5" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-indigo-300/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-rimec-azul/80 print:hidden">
                   Tabla 5 · Ranking marcas
                 </p>
                 <PanelTable
@@ -532,12 +532,12 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t6" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-indigo-300/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-rimec-azul/80 print:hidden">
                   Tabla 6 · Matriz marcas (detalle)
                 </p>
-                <div className="mb-3 rounded-lg border border-indigo-400/20 bg-indigo-500/10 px-4 py-2 text-[11px] text-indigo-100/90 print:hidden">
-                  La <strong className="text-slate-200">matriz Marca → Cadena → Cliente → Vendedor</strong> y el detalle jerárquico están en la{" "}
-                  <strong className="text-slate-200">vista inmersiva</strong> (<code className="rounded bg-black/30 px-1">/rimec</code>, pestaña Marcas). Esta vista
+                <div className="mb-3 rounded-lg border border-rimec-azul/20 bg-rimec-azul/5 px-4 py-2 text-[11px] text-neutral-ink-muted print:hidden">
+                  La <strong className="text-rimec-azul">matriz Marca → Cadena → Cliente → Vendedor</strong> y el detalle jerárquico están en la{" "}
+                  <strong className="text-rimec-azul">vista inmersiva</strong> (<code className="rounded bg-app-bg px-1">/rimec</code>, pestaña Marcas). Esta vista
                   clásica conserva el ranking agregado por marca (Tabla 5) como tabla ampliada para impresión y PDF.
                 </div>
                 <PanelTable
@@ -550,7 +550,7 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t7" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-indigo-300/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-rimec-azul/80 print:hidden">
                   Tabla 7 · Ranking vendedores
                 </p>
                 <PanelTable
@@ -565,12 +565,12 @@ export function RimecClient() {
               </section>
 
               <section id="rim-t8" className="scroll-mt-28">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-indigo-300/90 print:hidden">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-rimec-azul/80 print:hidden">
                   Tabla 8 · Gestión detallada / operativo
                 </p>
-                <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-[11px] text-slate-400 print:hidden">
-                  La <strong className="text-slate-200">jerarquía Vendedor → Cadena → Cliente → Marca → Mes</strong> está en la vista inmersiva (
-                  <code className="rounded bg-black/30 px-1">/rimec</code>, pestaña Vendedores). Aquí se muestra el <strong className="text-slate-200">detalle pivot</strong>{" "}
+                <div className="mb-3 rounded-lg border border-rimec-azul/15 bg-white px-4 py-2 text-[11px] text-neutral-ink-muted print:hidden">
+                  La <strong className="text-rimec-azul">jerarquía Vendedor → Cadena → Cliente → Marca → Mes</strong> está en la vista inmersiva (
+                  <code className="rounded bg-app-bg px-1">/rimec</code>, pestaña Vendedores). Aquí se muestra el <strong className="text-rimec-azul">detalle pivot</strong>{" "}
                   plano (mismas filas que alimentan el snapshot) para auditoría y exportación clásica.
                 </div>
                 <PanelTable
@@ -589,9 +589,9 @@ export function RimecClient() {
               </section>
 
               {pkg._debug ? (
-                <details className="mt-6 text-[10px] text-slate-500 print:hidden">
+                <details className="mt-6 text-[10px] text-neutral-ink-muted print:hidden">
                   <summary className="cursor-pointer uppercase tracking-wider">Depuración (desarrollo)</summary>
-                  <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 font-mono text-slate-400">
+                  <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-rimec-azul/15 bg-app-bg p-3 font-mono text-neutral-ink-muted">
                     {typeof pkg._debug.sql === "string"
                       ? pkg._debug.sql
                       : JSON.stringify(pkg._debug, null, 2)}
@@ -733,7 +733,7 @@ function DashboardView({
                   ALIAS_VARIATION,
                 ])
               }
-              className="border border-exec-line bg-transparent px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-exec-ink transition hover:bg-exec-canvas"
+              className="border border-exec-line bg-white px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-exec-ink transition hover:bg-exec-canvas"
             >
               Ampliar
             </button>

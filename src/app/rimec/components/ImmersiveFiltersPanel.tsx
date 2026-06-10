@@ -36,20 +36,20 @@ function CascadeBlock({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30">
+    <div className="rounded-xl border border-rimec-azul/15 bg-app-bg">
       <button
         type="button"
         disabled={disabled}
         onClick={() => !disabled && onOpen()}
-        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition hover:bg-rimec-azul/5 disabled:cursor-not-allowed disabled:opacity-40"
       >
         <div className="min-w-0 flex-1">
-          <div className="text-[9px] font-semibold uppercase tracking-widest text-white/40">{title}</div>
-          <div className="truncate text-xs text-rimec-text-white/90">{summary}</div>
+          <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-ink-muted">{title}</div>
+          <div className="truncate text-xs text-rimec-azul">{summary}</div>
         </div>
-        <span className="shrink-0 text-white/50">{open ? "▲" : "▼"}</span>
+        <span className="shrink-0 text-neutral-ink-muted">{open ? "▲" : "▼"}</span>
       </button>
-      {open ? <div className="border-t border-white/10 px-2 py-2">{children}</div> : null}
+      {open ? <div className="border-t border-rimec-azul/10 px-2 py-2">{children}</div> : null}
     </div>
   );
 }
@@ -115,7 +115,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
                 <button
                   type="button"
                   className={`w-full rounded-lg px-3 py-2 text-left text-xs transition ${
-                    active ? "bg-rimec-azul-light/20 text-rimec-text-white" : "text-white/80 hover:bg-white/10"
+                    active ? "bg-rimec-azul-light/20 text-rimec-azul" : "text-neutral-ink hover:bg-rimec-azul/5"
                   }`}
                   onClick={() => {
                     setFiltros((f) => ({
@@ -137,7 +137,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
       </CascadeBlock>
 
       <div>
-        <div className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-white/40">Período rápido</div>
+        <div className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-neutral-ink-muted">Período rápido</div>
         <div className="flex gap-2">
           {(
             [
@@ -150,7 +150,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
               key={k}
               type="button"
               onClick={() => setSem(k)}
-              className="flex-1 rounded-full border border-white/10 bg-black/20 py-1.5 text-[10px] uppercase text-white/60 transition hover:border-rimec-text-white/50 hover:text-rimec-text-white"
+              className="flex-1 rounded-full border border-rimec-azul/15 bg-white py-1.5 text-[10px] uppercase text-neutral-ink-medium transition hover:border-rimec-azul/40 hover:text-rimec-azul"
             >
               {lab}
             </button>
@@ -183,8 +183,8 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
                 }
                 className={`rounded-full border px-2.5 py-1 text-[10px] uppercase transition ${
                   on
-                    ? "border-rimec-text-white bg-rimec-text-white text-rimec-azul"
-                    : "border-white/10 bg-black/30 text-white/60 hover:border-white/30"
+                    ? "border-rimec-azul bg-rimec-azul text-rimec-text-white"
+                    : "border-rimec-azul/15 bg-white text-neutral-ink-muted hover:border-rimec-azul/40"
                 }`}
               >
                 {m.substring(0, 3)}
@@ -219,8 +219,8 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
                 }
                 className={`rounded-full border px-2.5 py-1 text-[10px] uppercase transition ${
                   on
-                    ? "border-white/40 bg-white/15 text-white"
-                    : "border-white/10 bg-black/30 text-white/50 hover:border-white/25"
+                    ? "border-rimec-azul bg-rimec-azul/10 text-rimec-azul"
+                    : "border-rimec-azul/15 bg-app-bg text-neutral-ink-muted hover:border-rimec-azul/25"
                 }`}
               >
                 {c.nombre}
@@ -237,7 +237,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         onOpen={() => toggleOpen("marca")}
         disabled={!canPick || !cascada?.marcas.length}
       >
-        <div className="mb-2 flex justify-end gap-2 text-[9px] text-rimec-text-white/80">
+        <div className="mb-2 flex justify-end gap-2 text-[9px] text-rimec-azul">
           <button
             type="button"
             className="hover:underline"
@@ -252,7 +252,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         <ul className="max-h-44 space-y-1 overflow-y-auto custom-scrollbar">
           {cascada?.marcas.map((opt, i) => (
             <li key={`${opt}-${i}`}>
-              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px] text-white/80 hover:bg-white/10">
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px] text-neutral-ink hover:bg-rimec-azul/5">
                 <input
                   type="checkbox"
                   className="h-3 w-3 accent-rimec-azul-light"
@@ -278,7 +278,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         onOpen={() => toggleOpen("cadena")}
         disabled={!canPick || !cascada?.cadenas.length}
       >
-        <div className="mb-2 flex justify-end gap-2 text-[9px] text-rimec-text-white/80">
+        <div className="mb-2 flex justify-end gap-2 text-[9px] text-rimec-azul">
           <button
             type="button"
             className="hover:underline"
@@ -297,7 +297,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         <ul className="max-h-44 space-y-1 overflow-y-auto custom-scrollbar">
           {cascada?.cadenas.map((opt, i) => (
             <li key={`${opt}-${i}`}>
-              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px] text-white/80 hover:bg-white/10">
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px] text-neutral-ink hover:bg-rimec-azul/5">
                 <input
                   type="checkbox"
                   className="h-3 w-3 accent-rimec-azul-light"
@@ -323,7 +323,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         onOpen={() => toggleOpen("vend")}
         disabled={!canPick || !cascada?.vendedores.length}
       >
-        <div className="mb-2 flex justify-end gap-2 text-[9px] text-rimec-text-white/80">
+        <div className="mb-2 flex justify-end gap-2 text-[9px] text-rimec-azul">
           <button
             type="button"
             className="hover:underline"
@@ -342,7 +342,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         <ul className="max-h-44 space-y-1 overflow-y-auto custom-scrollbar">
           {cascada?.vendedores.map((opt, i) => (
             <li key={`${opt}-${i}`}>
-              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px] text-white/80 hover:bg-white/10">
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px] text-neutral-ink hover:bg-rimec-azul/5">
                 <input
                   type="checkbox"
                   className="h-3 w-3 accent-rimec-azul-light"
@@ -364,11 +364,11 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         </ul>
       </CascadeBlock>
 
-      <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
-        <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-white/40">Cód. cliente (exacto)</div>
+      <div className="rounded-xl border border-rimec-azul/15 bg-app-bg px-3 py-2">
+        <div className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-neutral-ink-muted">Cód. cliente (exacto)</div>
         <input
           type="text"
-          className="w-full border-b border-white/10 bg-transparent py-1.5 text-xs text-white outline-none focus:border-rimec-text-white"
+          className="w-full border-b border-rimec-azul/15 bg-white py-1.5 text-xs text-neutral-ink outline-none focus:border-rimec-azul"
           value={filtros.id_cliente_exacto ?? ""}
           onChange={(e) => setFiltros((f) => ({ ...f, id_cliente_exacto: e.target.value.trim() || null }))}
           placeholder="Opcional"

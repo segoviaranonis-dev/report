@@ -46,22 +46,22 @@ function SubtotalEvolucionRow({
 }) {
   const base =
     tone === "anual"
-      ? "bg-gradient-to-r from-rimec-azul-light/15 via-amber-400/8 to-transparent border-t border-b border-rimec-text-white/25"
+      ? "bg-gradient-to-r from-rimec-azul-light/15 via-rimec-azul/5 to-transparent border-t border-b border-rimec-azul/25"
       : tone === "s1"
-        ? "bg-white/[0.04] border-t border-white/10"
-        : "bg-white/[0.04] border-t border-white/10";
+        ? "bg-rimec-azul/5 border-t border-rimec-azul/15"
+        : "bg-rimec-azul/5 border-t border-rimec-azul/15";
   return (
     <tr className={`${base} font-medium`}>
       <td className="px-4 py-3">
-        <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">{subtitle}</span>
-        <span className="text-xs tracking-wide text-rimec-text-white/95">{label}</span>
+        <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-neutral-ink-muted">{subtitle}</span>
+        <span className="text-xs tracking-wide text-rimec-text-rimec-azul">{label}</span>
       </td>
-      <td className="px-4 py-3 text-right tabular-nums text-white/55">{fmtGs(agg.real_2025)}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-white/55">{fmtGs(agg.objetivo)}</td>
-      <td className="px-4 py-3 text-right tabular-nums text-rimec-text-white">{fmtGs(agg.real_2026)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-medium">{fmtGs(agg.real_2025)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-medium">{fmtGs(agg.objetivo)}</td>
+      <td className="px-4 py-3 text-right tabular-nums text-rimec-azul">{fmtGs(agg.real_2026)}</td>
       <td
         className={`px-4 py-3 text-right tabular-nums ${
-          agg.desvio_pct >= 0 ? "text-emerald-400/95" : "text-red-400/95"
+          agg.desvio_pct >= 0 ? "text-semantic-success" : "text-semantic-error"
         }`}
       >
         {fmtPct(agg.desvio_pct)}
@@ -157,8 +157,8 @@ function SemesterRealRadialCard({
   return (
     <div className="flex min-h-[240px] flex-col items-center justify-between px-1">
       <div className="w-full text-center">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">{subtitle}</p>
-        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-rimec-text-white/90">{title}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-ink-muted">{subtitle}</p>
+        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-rimec-text-rimec-azul">{title}</p>
       </div>
       <div className="relative mt-2 h-[168px] w-[168px] shrink-0">
         <svg viewBox="0 0 120 120" className="h-full w-full">
@@ -176,7 +176,7 @@ function SemesterRealRadialCard({
             cy={cy}
             r={r}
             fill="none"
-            stroke="rgba(255,255,255,0.08)"
+            stroke="rgba(0,43,78,0.10)"
             strokeWidth={strokeW}
             strokeLinecap="round"
           />
@@ -202,18 +202,18 @@ function SemesterRealRadialCard({
           ) : null}
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-1">
-          <span className="font-serif text-2xl font-semibold tabular-nums tracking-tight text-white">{centerLabel}</span>
-          <span className="mt-1 h-1 w-10 rounded-full bg-white/15" aria-hidden />
+          <span className="font-serif text-2xl font-semibold tabular-nums tracking-tight text-neutral-ink">{centerLabel}</span>
+          <span className="mt-1 h-1 w-10 rounded-full bg-rimec-azul/10" aria-hidden />
         </div>
       </div>
       <div className="mt-3 w-full space-y-2 px-1 text-[10px] leading-tight">
-        <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-1.5">
-          <span className="uppercase tracking-wider text-white/40">Real 2025</span>
-          <span className="tabular-nums text-white/70">{fmtGs(real2025)}</span>
+        <div className="flex items-center justify-between gap-2 border-b border-rimec-azul/10 pb-1.5">
+          <span className="uppercase tracking-wider text-neutral-ink-muted">Real 2025</span>
+          <span className="tabular-nums text-rimec-azul/80">{fmtGs(real2025)}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="uppercase tracking-wider text-rimec-text-white/70">Real 2026</span>
-          <span className="tabular-nums text-rimec-text-white/95">{fmtGs(real2026)}</span>
+          <span className="uppercase tracking-wider text-rimec-text-rimec-azul/80">Real 2026</span>
+          <span className="tabular-nums text-rimec-text-rimec-azul">{fmtGs(real2026)}</span>
         </div>
       </div>
     </div>
@@ -269,24 +269,24 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
 
       <div className="grid min-h-[400px] flex-1 grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Barras: orden Real 2025 | Objetivo | Real 2026 */}
-        <div className="flex flex-col rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 hover:border-white/20 lg:col-span-2">
-          <h3 className="mb-6 font-serif text-sm uppercase tracking-widest text-white/70">Evolución Mensual</h3>
+        <div className="flex flex-col rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-azul/25 lg:col-span-2">
+          <h3 className="mb-6 font-serif text-sm uppercase tracking-widest text-rimec-azul/80">Evolución Mensual</h3>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={mesesOrdenados} margin={{ top: 10, right: 10, left: 20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,43,78,0.07)" vertical={false} />
                 <XAxis
                   dataKey="mes"
-                  stroke="rgba(255,255,255,0.3)"
-                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
+                  stroke="rgba(0,43,78,0.28)"
+                  tick={{ fill: "rgba(45,37,32,0.65)", fontSize: 12 }}
                 />
                 <YAxis
-                  stroke="rgba(255,255,255,0.3)"
+                  stroke="rgba(0,43,78,0.28)"
                   tickFormatter={(val) => `${(val / 1000000).toFixed(0)}M`}
-                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
+                  tick={{ fill: "rgba(45,37,32,0.65)", fontSize: 12 }}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  cursor={{ fill: "rgba(0,43,78,0.07)" }}
                   {...RIMEC_RECHARTS_TOOLTIP}
                   formatter={(value) => (typeof value === 'number' ? fmtGs(value) : "")}
                 />
@@ -300,11 +300,11 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
         </div>
 
         {/* Real 2025 vs 2026 por semestre (radial); un solo gráfico si solo hay meses de un semestre */}
-        <div className="relative flex flex-col rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-text-white/30 hover:shadow-[0_0_30px_rgba(250,204,21,0.05)]">
-          <h3 className="absolute left-6 top-6 max-w-[calc(100%-3rem)] font-serif text-sm uppercase tracking-widest text-white/70">
+        <div className="relative flex flex-col rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-azul/30 hover:shadow-sm">
+          <h3 className="absolute left-6 top-6 max-w-[calc(100%-3rem)] font-serif text-sm uppercase tracking-widest text-rimec-azul/80">
             Real 2025 vs 2026
           </h3>
-          <p className="absolute left-6 top-[2.35rem] max-w-[calc(100%-3rem)] text-[10px] leading-snug text-white/35">
+          <p className="absolute left-6 top-[2.35rem] max-w-[calc(100%-3rem)] text-[10px] leading-snug text-neutral-ink-muted">
             Porcentaje: Real 2026 respecto a Real 2025 del semestre (filtros aplicados). Anillo azul hasta 100%; oro = por encima.
           </p>
           <div className={`mt-20 grid flex-1 ${radialGridClass}`}>
@@ -327,12 +327,12 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
               />
             ) : null}
             {!showSem1Chart && !showSem2Chart ? (
-              <p className="col-span-full py-12 text-center text-sm text-white/40">
+              <p className="col-span-full py-12 text-center text-sm text-neutral-ink-muted">
                 No hay meses en el rango seleccionado para dibujar la comparativa.
               </p>
             ) : null}
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-6 border-t border-white/5 pt-3 text-[10px] uppercase tracking-wider text-white/45">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-6 border-t border-rimec-azul/10 pt-3 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
             <span className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: COLOR_REAL_ANTERIOR }} />
               Avance hasta 100% (vs 2025)
@@ -346,10 +346,10 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
       </div>
 
       {/* Tabla */}
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 hover:border-white/20">
+      <div className="overflow-x-auto rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-azul/25">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-white/40">
+            <tr className="border-b border-rimec-azul/15 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
               <th className="px-4 py-3 font-normal">Mes</th>
               <th className="px-4 py-3 text-right font-normal">Real 2025</th>
               <th className="px-4 py-3 text-right font-normal">Objetivo</th>
@@ -359,13 +359,13 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
           </thead>
           <tbody>
             {mesesOrdenados.map((m) => (
-              <tr key={m.mes} className="group border-b border-white/5 transition-colors hover:bg-white/5">
-                <td className="px-4 py-3 text-white/70 transition-colors group-hover:text-rimec-text-white">{m.mes}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-white/50">{fmtGs(m.real_2025)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-white/50">{fmtGs(m.objetivo)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-white">{fmtGs(m.real_2026)}</td>
+              <tr key={m.mes} className="group border-b border-rimec-azul/10 transition-colors hover:bg-white">
+                <td className="px-4 py-3 text-rimec-azul/80 transition-colors group-hover:text-rimec-azul">{m.mes}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-muted">{fmtGs(m.real_2025)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-muted">{fmtGs(m.objetivo)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-neutral-ink">{fmtGs(m.real_2026)}</td>
                 <td
-                  className={`px-4 py-3 text-right tabular-nums ${m.desvio_pct >= 0 ? "text-green-400" : "text-red-400"}`}
+                  className={`px-4 py-3 text-right tabular-nums ${m.desvio_pct >= 0 ? "text-semantic-success" : "text-semantic-error"}`}
                 >
                   {fmtPct(m.desvio_pct)}
                 </td>
@@ -415,32 +415,32 @@ function KpiCard({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all duration-500 group hover:bg-white/10 ${
-        highlight ? "ring-1 ring-white/20 hover:ring-rimec-text-white/50" : ""
+      className={`relative overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all duration-500 group hover:bg-rimec-azul/5 ${
+        highlight ? "ring-1 ring-rimec-azul/20 hover:ring-rimec-azul/35" : ""
       }`}
     >
-      <h4 className="mb-2 font-sans text-xs uppercase tracking-widest text-white/50 transition-colors group-hover:text-white/70">
+      <h4 className="mb-2 font-sans text-xs uppercase tracking-widest text-neutral-ink-muted transition-colors group-hover:text-rimec-azul/80">
         {title}
       </h4>
       <div
         className={`font-serif text-3xl font-light tabular-nums ${
           type === "percent"
             ? isPos
-              ? "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]"
-              : "text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.5)]"
-            : "text-white"
+              ? "text-semantic-success drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]"
+              : "text-semantic-error drop-shadow-[0_0_8px_rgba(140,59,59,0.35)]"
+            : "text-neutral-ink"
         }`}
       >
         {type === "currency" ? fmtGs(value || 0) : type === "percent" ? fmtPct(value) : value || 0}
       </div>
 
       {progress !== undefined && (
-        <div className="absolute bottom-0 left-0 h-1 w-full bg-white/10">
-          <div className="h-full bg-rimec-text-white" style={{ width: `${Math.min(100, progress)}%` }} />
+        <div className="absolute bottom-0 left-0 h-1 w-full bg-rimec-azul/5">
+          <div className="h-full bg-rimec-azul" style={{ width: `${Math.min(100, progress)}%` }} />
         </div>
       )}
 
-      <div className="pointer-events-none absolute -inset-10 rounded-full bg-white/5 opacity-0 mix-blend-screen blur-2xl transition-opacity duration-700 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute -inset-10 rounded-full bg-white opacity-0 mix-blend-screen blur-2xl transition-opacity duration-700 group-hover:opacity-100" />
     </div>
   );
 }

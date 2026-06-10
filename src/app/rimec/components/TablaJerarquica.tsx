@@ -34,11 +34,11 @@ export type SegmentoCarteraCliente = "crecimiento" | "riesgo" | "sin_compra";
 function claseSombraSegmento(segmento: SegmentoCarteraCliente): string {
   switch (segmento) {
     case "crecimiento":
-      return "shadow-[0_0_16px_-5px_rgba(34,197,94,0.42)] border-l-2 border-l-emerald-400/65";
+      return "shadow-[0_0_16px_-5px_rgba(47,79,62,0.30)] border-l-2 border-l-semantic-success";
     case "riesgo":
-      return "shadow-[0_0_16px_-5px_rgba(249,115,22,0.38)] border-l-2 border-l-rimec-text-white/60";
+      return "shadow-[0_0_16px_-5px_rgba(249,115,22,0.38)] border-l-2 border-l-rimec-azul/60";
     case "sin_compra":
-      return "shadow-[0_0_16px_-5px_rgba(248,113,113,0.35)] border-l-2 border-l-red-400/55";
+      return "shadow-[0_0_16px_-5px_rgba(140,59,59,0.28)] border-l-2 border-l-semantic-error";
     default:
       return "";
   }
@@ -222,27 +222,27 @@ function FilaJerarquica({
     nodo.nivel === 1
       ? "bg-gradient-to-r from-rimec-azul-light/15 to-transparent"
       : nodo.nivel === 2
-        ? "bg-white/[0.03]"
+        ? "bg-rimec-azul/5"
         : "";
 
   const textColor =
     nodo.nivel === 1
-      ? "text-rimec-text-white/95 font-semibold"
+      ? "text-rimec-text-rimec-azul font-semibold"
       : nodo.nivel === 2
-        ? "text-white/88 font-medium"
-        : "text-white/72";
+        ? "text-neutral-ink font-medium"
+        : "text-neutral-ink-medium";
 
   const variacionColor =
     nodo.variacionPct === null
-      ? "text-white/40"
+      ? "text-neutral-ink-muted"
       : nodo.variacionPct >= 0
-        ? "text-emerald-400/95"
-        : "text-red-400/95";
+        ? "text-semantic-success"
+        : "text-semantic-error";
 
   return (
     <>
       <tr
-        className={`${bgColor} ${segClass} border-b border-white/5 transition-colors ${tieneHijos ? "cursor-pointer hover:bg-white/[0.07]" : "hover:bg-white/[0.04]"}`}
+        className={`${bgColor} ${segClass} border-b border-rimec-azul/10 transition-colors ${tieneHijos ? "cursor-pointer hover:bg-rimec-azul/5" : "hover:bg-rimec-azul/5"}`}
         onClick={
           tieneHijos
             ? (e) => {
@@ -255,20 +255,20 @@ function FilaJerarquica({
         <td className="px-3 py-2.5 align-middle" style={{ paddingLeft: `${indent + 12}px` }}>
           <div className="flex min-w-0 items-center gap-2">
             {tieneHijos ? (
-              <span className="w-3 shrink-0 text-center text-[10px] text-white/45">{expandido ? "▼" : "▶"}</span>
+              <span className="w-3 shrink-0 text-center text-[10px] text-neutral-ink-muted">{expandido ? "▼" : "▶"}</span>
             ) : (
               <span className="w-3 shrink-0" />
             )}
             <span className={`min-w-0 truncate ${textColor}`}>
               {nodo.nombre}
               {nodo.nivel < 3 ? (
-                <span className="ml-1.5 text-[10px] font-normal tabular-nums text-white/35">({nodo.count})</span>
+                <span className="ml-1.5 text-[10px] font-normal tabular-nums text-neutral-ink-muted">({nodo.count})</span>
               ) : null}
             </span>
           </div>
         </td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-white/55">{fmtGs(nodo.montoObj)}</td>
-        <td className="px-3 py-2.5 text-right tabular-nums text-white">{fmtGs(nodo.monto26)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-ink-medium">{fmtGs(nodo.montoObj)}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-ink">{fmtGs(nodo.monto26)}</td>
         <td className={`px-3 py-2.5 text-right tabular-nums ${variacionColor}`}>{fmtPct(nodo.variacionPct)}</td>
       </tr>
       {expandido && tieneHijos
@@ -329,7 +329,7 @@ export function TablaJerarquica({
 
   if (!jerarquiaLeaves.length) {
     return (
-      <div className="rounded-lg border border-white/10 bg-black/20 py-10 text-center text-sm text-white/40">
+      <div className="rounded-lg border border-rimec-azul/15 bg-app-bg py-10 text-center text-sm text-neutral-ink-muted">
         Sin jerarquía desde servidor (revisá conexión a BD o filtros).
       </div>
     );
@@ -337,7 +337,7 @@ export function TablaJerarquica({
 
   if (!jerarquia.length) {
     return (
-      <div className="rounded-lg border border-white/10 bg-black/20 py-10 text-center text-sm text-white/40">
+      <div className="rounded-lg border border-rimec-azul/15 bg-app-bg py-10 text-center text-sm text-neutral-ink-muted">
         Sin filas para esta cartera con los datos actuales (ids de cliente sin coincidencia en la jerarquía).
       </div>
     );
@@ -345,7 +345,7 @@ export function TablaJerarquica({
 
   return (
     <div className="overflow-x-auto">
-      {title ? <p className="mb-2 text-[10px] uppercase tracking-wider text-white/35">{title}</p> : null}
+      {title ? <p className="mb-2 text-[10px] uppercase tracking-wider text-neutral-ink-muted">{title}</p> : null}
       <table className="w-full min-w-[640px] table-fixed whitespace-nowrap text-left text-sm">
         <colgroup>
           <col className="w-[52%]" />
@@ -353,8 +353,8 @@ export function TablaJerarquica({
           <col className="w-[16%]" />
           <col className="w-[16%]" />
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-md">
-          <tr className="border-b border-white/15 text-[10px] uppercase tracking-wider text-white/45">
+        <thead className="sticky top-0 z-10 bg-white backdrop-blur-md">
+          <tr className="border-b border-rimec-azul/20 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
             <th className="px-3 py-3 font-normal">Estructura de análisis</th>
             <th className="px-3 py-3 text-right font-normal">Monto Obj</th>
             <th className="px-3 py-3 text-right font-normal">Monto 26</th>
