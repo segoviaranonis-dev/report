@@ -42,7 +42,7 @@ if (typeof document !== 'undefined') {
 }
 
 const fmtInt = (n: number) => n.toLocaleString("es-PY", { maximumFractionDigits: 0 });
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c'];
+const COLORS = ['#ea580c', '#c2410c', '#9a3412', '#002B4E', '#003d6b', '#2f4f3e', '#8c3b3b'];
 const MARCAS_ADULTOS = ['BEIRA RIO', 'VIZZANO', 'MOLECA', 'MODARE', 'BR SPORT', 'ACTVITTA', 'CHINELO'];
 const MARCAS_NINOS = ['MOLEKINHA', 'MOLEKINHO'];
 
@@ -316,7 +316,7 @@ function SegmentoRendimientoGeneral({
             <XAxis dataKey="marca" angle={-45} textAnchor="end" height={100} />
             <YAxis />
             <Tooltip formatter={(value) => `₲${fmtInt(Number(value))}`} />
-            <Bar dataKey="monto" fill="#8884d8" />
+            <Bar dataKey="monto" fill="#ea580c" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -426,9 +426,9 @@ function SegmentoRendimiento({
   });
 
   const COLORES_TIENDAS: { [key: string]: string } = {
-    'Fernando': '#0088FE',
-    'San Martin': '#00C49F',
-    'Palma': '#FFBB28',
+    'Fernando': '#ea580c',
+    'San Martin': '#c2410c',
+    'Palma': '#9a3412',
   };
 
   const formatValor = (valor: number) => {
@@ -479,7 +479,7 @@ function SegmentoRendimiento({
             <Tooltip formatter={(value) => formatValor(Number(value))} />
             <Legend />
             {nombresTiendas.map(tienda => (
-              <Bar key={tienda} dataKey={tienda} fill={COLORES_TIENDAS[tienda] || '#999'} />
+              <Bar key={tienda} dataKey={tienda} fill={COLORES_TIENDAS[tienda] || '#002B4E'} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -578,7 +578,7 @@ function SegmentoMarcas({ titulo, marcas, icono }: { titulo: string; marcas: { m
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                fill="#8884d8"
+                fill="#ea580c"
                 dataKey="value"
                 label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
               >

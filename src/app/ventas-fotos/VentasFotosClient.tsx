@@ -27,18 +27,14 @@ const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 const fmtPct = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 
 const PILLAR_PALETTE = [
-  "#1B3A6B", // azul nexus
-  "#D4AF37", // dorado
-  "#3b82f6", // azul medio
-  "#0e7490", // teal
-  "#7c3aed", // violeta
-  "#10b981", // verde
-  "#f59e0b", // ámbar
-  "#ef4444", // rojo
-  "#64748b", // slate
-  "#a855f7", // púrpura
-  "#ec4899", // rosa
-  "#0891b2", // cyan
+  "#002B4E", // RIMEC azul NIIF
+  "#ea580c", // BAZZAR naranja NIIF
+  "#003d6b", // RIMEC hover
+  "#c2410c", // BAZZAR oscuro
+  "#2f4f3e", // semantic success
+  "#8c3b3b", // semantic error
+  "#d97706", // semantic warning
+  "#4a3f35", // neutral ink
 ];
 
 function colorAt(idx: number): string {
@@ -684,11 +680,11 @@ function PillarBars({ data }: { data: PillarBucket[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
-        <XAxis type="number" tick={{ fontSize: 10, fill: "#475569" }} tickFormatter={(v) => fmtInt.format(v)} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: "#4a3f35" }} tickFormatter={(v) => fmtInt.format(v)} />
         <YAxis
           type="category"
           dataKey="label"
-          tick={{ fontSize: 10, fill: "#1B3A6B" }}
+          tick={{ fontSize: 10, fill: "#002B4E" }}
           width={90}
           interval={0}
         />

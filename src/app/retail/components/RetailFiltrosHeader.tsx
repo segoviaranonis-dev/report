@@ -4,9 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RetailFilterState } from "@/lib/retail/retail-filters";
 import type { RetailFilterItem } from "@/lib/retail/query-filtros";
 
-const RIMEC_BLUE = "#1E40AF";
-const RIMEC_CELESTE = "#0EA5E9";
-
 type FiltrosData = {
   generos: RetailFilterItem[];
   marcas: RetailFilterItem[];

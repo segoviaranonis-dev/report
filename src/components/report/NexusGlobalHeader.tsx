@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes";
 
-const baseLink = "text-xs tracking-widest uppercase text-neutral-light-55 hover:text-brand-gold hover:border-brand-gold/50 transition-all duration-300 py-1.5 border-b-2 border-transparent";
-const activeLink = "text-xs tracking-widest uppercase text-brand-gold font-semibold py-1.5 border-b-2 border-brand-gold drop-shadow-[0_0_8px_rgba(212,175,55,0.3)]";
+const baseLink = "text-xs tracking-widest uppercase text-rimec-text-white/70 hover:text-rimec-text-white hover:border-rimec-text-white/60 transition-all duration-300 py-1.5 border-b-2 border-transparent";
+const activeLink = "text-xs tracking-widest uppercase text-rimec-text-white font-semibold py-1.5 border-b-2 border-rimec-text-white drop-shadow-[0_0_8px_rgba(0,43,78,0.35)]";
 
 const navItems: Array<{ key: NexusNavKey; href: string; label: string; roles: number[] }> = [
   { key: "home", href: "/", label: "Hub Comercial", roles: [1] },
@@ -52,14 +52,14 @@ export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max
   const visibleNav = rolId == null ? [] : navItems.filter((item) => item.roles.includes(rolId));
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-neutral-950 border-b border-neutral-800">
+    <header className="sticky top-0 z-50 w-full bg-rimec-azul border-b border-rimec-azul-dark">
       <div className={`mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-3.5 ${maxWidthClass}`}>
         <div className="flex items-center gap-3">
-          <Link href="/" className="font-serif text-lg tracking-widest text-neutral-light hover:opacity-90 transition-opacity">
-            NEXUS <span className="text-brand-gold font-sans">·</span> <span className="font-sans text-xs font-light text-neutral-light-55 tracking-widest uppercase">Report</span>
+          <Link href="/" className="font-serif text-lg tracking-widest text-rimec-text-white hover:opacity-90 transition-opacity">
+            Report <span className="text-rimec-text-white/70 font-sans">·</span> <span className="font-sans text-xs font-light text-rimec-text-white/70 tracking-widest uppercase">RIMEC</span>
           </Link>
           {title && (
-            <span className="text-xs text-neutral-light-40 border-l border-neutral-800 pl-3 uppercase tracking-widest hidden sm:inline">
+            <span className="text-xs text-rimec-text-white/60 border-l border-rimec-text-white/20 pl-3 uppercase tracking-widest hidden sm:inline">
               {title}
             </span>
           )}
@@ -76,7 +76,7 @@ export function NexusGlobalHeader({ active = "home", title, maxWidthClass = "max
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded border border-neutral-700 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-light-88 transition hover:border-brand-gold hover:text-brand-gold disabled:opacity-50"
+              className="rounded border border-rimec-text-white/30 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-rimec-text-white transition hover:border-rimec-text-white hover:bg-rimec-text-white/10 disabled:opacity-50"
             >
               {loggingOut ? "Saliendo..." : "Cerrar sesión"}
             </button>

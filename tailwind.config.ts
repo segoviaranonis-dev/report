@@ -28,9 +28,9 @@ const config: Config = {
           warning: "#d97706",      // Ámbar oscuro (WCAG AA)
           "warning-light": "#fbbf24", // Amarillo (alertas)
 
-          // Información (rim.accent)
-          info: "#0284c7",         // Azul oscuro (WCAG AA)
-          "info-light": "#38bdf8", // Azul cielo (alertas)
+          // Información / acción primaria NIIF (RIMEC)
+          info: "#002B4E",         // Azul institucional RIMEC
+          "info-light": "#003d6b", // Azul RIMEC hover
         },
 
         /** NEUTROS - Fondos, textos, bordes */
@@ -62,11 +62,11 @@ const config: Config = {
           "light-40": "rgba(255,255,255,0.40)", // Muted
         },
 
-        /** ACENTOS DE MARCA - Oro elegante (retail/moda) */
+        /** ACENTOS DE MARCA - BAZZAR NIIF */
         brand: {
-          gold: "#D4AF37",      // Oro primario
-          "gold-dark": "#B89329", // Oro oscuro
-          bronze: "#8b7355",    // Bronce/accent
+          gold: "#ea580c",      // Alias legacy -> naranja BAZZAR
+          "gold-dark": "#c2410c", // Alias legacy -> naranja oscuro
+          bronze: "#9a3412",    // Acento tierra BAZZAR
         },
 
         /** COLORES INSTITUCIONALES NIIF PRO - RIMEC y BAZZAR */
@@ -82,6 +82,9 @@ const config: Config = {
           "azul-dark": "#001829",     // Azul ultra oscuro (headers)
           "azul-light": "#003d6b",    // Azul claro para hover
           "celeste-bg": "#f1f5f9",    // Fondo sección (mismo que app-bg)
+          "celeste": "#e2e8f0",       // Alias legacy para fondos suaves
+          "petroleo": "#002B4E",      // Alias legacy -> azul RIMEC
+          "light": "#ffffff",         // Alias legacy para texto claro
           "text-white": "#ffffff",    // Texto sobre azul
         },
 
@@ -89,6 +92,9 @@ const config: Config = {
         bazzar: {
           "naranja": "#ea580c",       // Naranja arcilla principal (brand)
           "naranja-dark": "#c2410c",  // Naranja quemado oscuro
+          "naranja-light": "#fb923c", // Alias legacy para hover/acento
+          "azul": "#ea580c",          // Alias legacy -> naranja BAZZAR
+          "azul-light": "#fb923c",    // Alias legacy -> naranja claro
           "text-white": "#ffffff",    // Texto blanco sobre naranja (WCAG AA)
           "text-dark": "#431407",     // Marrón oscuro alternativa (WCAG AA)
           "fondo": "#f1f5f9",         // Fondo sección (mismo que app-bg)
@@ -99,8 +105,8 @@ const config: Config = {
         // TODO: Migrar todos los usos a semantic/neutral/brand
         // ====================================================
         yellow: {
-          400: "#D4AF37",
-          500: "#B89329",
+          400: "#002B4E",
+          500: "#001829",
         },
         rim: {
           void: "#070b12",
@@ -127,18 +133,19 @@ const config: Config = {
           neg: "#8c3b3b",
         },
         report: {
-          primary: "#4a3f35",
-          accent: "#8b7355",
-          navy: "#3d342c",
-          navy2: "#2d2520",
-          nav: "#3d342c",
-          bg: "#f5f1e8",
-          paper: "#faf8f3",
-          paper2: "#ede9df",
+          primary: "#002B4E",
+          accent: "#ea580c",
+          gold: "#ea580c",
+          navy: "#002B4E",
+          navy2: "#001829",
+          nav: "#002B4E",
+          bg: "#f1f5f9",
+          paper: "#ffffff",
+          paper2: "#f1f5f9",
           ink: "#2d2520",
           muted: "#8a7f75",
-          rule: "#d4cfc4",
-          border: "#c9c3b8",
+          rule: "#cbd5e1",
+          border: "#94a3b8",
         },
       },
       boxShadow: {

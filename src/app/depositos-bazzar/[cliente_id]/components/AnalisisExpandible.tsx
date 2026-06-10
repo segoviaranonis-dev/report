@@ -10,9 +10,9 @@ type Props = {
 
 const COLORES_NIVEL = {
   pp: "bg-gray-700 text-white hover:bg-gray-800",
-  genero: "bg-blue-600 text-white hover:bg-blue-700",
-  marca: "bg-green-600 text-white hover:bg-green-700",
-  estilo: "bg-purple-100 text-purple-900 hover:bg-purple-200",
+  genero: "bg-bazzar-naranja text-white hover:bg-bazzar-naranja-dark",
+  marca: "bg-semantic-success text-white hover:bg-semantic-success/90",
+  estilo: "bg-bazzar-naranja/10 text-bazzar-text-dark hover:bg-bazzar-naranja/20",
   producto: "bg-white text-gray-800 hover:bg-gray-50",
 };
 

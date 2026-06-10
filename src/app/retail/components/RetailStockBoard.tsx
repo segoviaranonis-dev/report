@@ -9,35 +9,35 @@ function fmt(n: number | null) {
 
 const CARD_SHELLS = [
   {
-    shellBackground: "#FAF9F7",
-    shellBorder: "1px solid #E7E5E4",
-    badgeBackground: "#57534E",
+    shellBackground: "#F1F5F9",
+    shellBorder: "1px solid #CBD5E1",
+    badgeBackground: "#002B4E",
     badgeColor: "#FFFFFF",
-    accentColor: "#44403C",
+    accentColor: "#002B4E",
     boxShadow: "0 4px 18px rgba(28, 25, 23, 0.07)",
   },
   {
     shellBackground: "#FFF7ED",
-    shellBorder: "1px solid #FED7AA",
-    badgeBackground: "#C2410C",
+    shellBorder: "1px solid #FDBA74",
+    badgeBackground: "#ea580c",
     badgeColor: "#FFFFFF",
-    accentColor: "#9A3412",
+    accentColor: "#c2410c",
     boxShadow: "0 4px 18px rgba(194, 65, 12, 0.1)",
   },
   {
-    shellBackground: "#F5F3FF",
-    shellBorder: "1px solid #DDD6FE",
-    badgeBackground: "#6D28D9",
+    shellBackground: "#FFF7ED",
+    shellBorder: "1px solid #FDBA74",
+    badgeBackground: "#ea580c",
     badgeColor: "#FFFFFF",
-    accentColor: "#5B21B6",
+    accentColor: "#c2410c",
     boxShadow: "0 4px 18px rgba(109, 40, 217, 0.09)",
   },
   {
-    shellBackground: "#ECFDF5",
-    shellBorder: "1px solid #A7F3D0",
-    badgeBackground: "#047857",
+    shellBackground: "#F1F5F9",
+    shellBorder: "1px solid #CBD5E1",
+    badgeBackground: "#2f4f3e",
     badgeColor: "#FFFFFF",
-    accentColor: "#065F46",
+    accentColor: "#2f4f3e",
     boxShadow: "0 4px 18px rgba(4, 120, 87, 0.09)",
   },
 ] as const;
@@ -151,11 +151,11 @@ function TablaImportadora({ bloque, accentColor }: { bloque: ImportadoraBloque; 
 
 function marcaPillStyle(marca: string): CSSProperties {
   const m = marca.toLowerCase();
-  if (m.includes("vizzano")) return { background: "linear-gradient(135deg,#7c3aed,#5b21b6)" };
-  if (m.includes("beira")) return { background: "linear-gradient(135deg,#b45309,#92400e)" };
-  if (m.includes("modare")) return { background: "linear-gradient(135deg,#0d9488,#115e59)" };
-  if (m.includes("moleca")) return { background: "linear-gradient(135deg,#db2777,#9d174d)" };
-  return { background: "linear-gradient(135deg,#57534e,#292524)" };
+  if (m.includes("vizzano")) return { background: "linear-gradient(135deg,#ea580c,#c2410c)" };
+  if (m.includes("beira")) return { background: "linear-gradient(135deg,#ea580c,#9a3412)" };
+  if (m.includes("modare")) return { background: "linear-gradient(135deg,#002B4E,#003d6b)" };
+  if (m.includes("moleca")) return { background: "linear-gradient(135deg,#ea580c,#c2410c)" };
+  return { background: "linear-gradient(135deg,#002B4E,#001829)" };
 }
 
 function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx: number }) {
@@ -190,7 +190,7 @@ function ColumnaProducto({ col, shellIdx }: { col: ColumnaStockRetail; shellIdx:
           </span>
           <span
             className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide shadow-sm"
-            style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#57534E" }}
+            style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#002B4E" }}
           >
             VENTA
           </span>

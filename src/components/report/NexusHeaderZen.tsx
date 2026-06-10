@@ -53,7 +53,7 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
     <header className="sticky top-0 z-50 w-full bg-white border-b-4 border-rimec-azul shadow-lg">
       <div className={`mx-auto ${maxWidthClass}`}>
         {/* Top Bar: Marca + Logout - Con marco y animación */}
-        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-neutral-200 bg-gradient-to-r from-white to-rimec-celeste/20">
+        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-neutral-200 bg-gradient-to-r from-white to-rimec-celeste-bg">
           <Link href="/" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-lg bg-rimec-azul flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -62,11 +62,11 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
             </div>
             <div className="flex items-center gap-2">
               <span className="font-serif text-xl tracking-wide text-rimec-azul-dark group-hover:text-rimec-azul transition-colors font-bold">
-                NEXUS
+                Report
               </span>
               <span className="text-neutral-300 font-bold">·</span>
               <span className="font-sans text-sm font-light text-neutral-500 tracking-wide uppercase group-hover:text-neutral-700 transition-colors">
-                Report
+                RIMEC
               </span>
             </div>
           </Link>

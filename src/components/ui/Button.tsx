@@ -17,7 +17,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary: "bg-semantic-info text-white hover:bg-semantic-info/90 border-transparent",
+  primary: "bg-rimec-azul text-white hover:bg-rimec-azul-light border-transparent",
   secondary: "bg-transparent text-neutral-ink border-neutral-400 hover:bg-neutral-100",
   danger: "bg-semantic-error text-white hover:bg-semantic-error/90 border-transparent",
 };
@@ -46,7 +46,7 @@ export function Button({
         rounded-lg border font-semibold
         transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
-        focus:outline-none focus:ring-2 focus:ring-semantic-info/50 focus:ring-offset-2
+        focus:outline-none focus:ring-2 focus:ring-rimec-azul/50 focus:ring-offset-2
         ${variants[variant]}
         ${sizes[size]}
         ${className}

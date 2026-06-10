@@ -18,8 +18,8 @@ import {
 import type { PillarBucket, VentaFotoRow, VentasFotosKpis, VentasFotosMarca, VentasFotosPillarStats } from './types'
 
 // ─── Paleta ──────────────────────────────────────────────────────────────────
-const INK = rgb(0.110, 0.110, 0.110)         // #1c1c1c
-const INK_SOFT = rgb(0.341, 0.325, 0.302)    // #57534e
+const INK = rgb(0.000, 0.169, 0.306)         // #002B4E
+const INK_SOFT = rgb(0.000, 0.239, 0.420)    // #003d6b
 const INK_MUTED = rgb(0.510, 0.494, 0.471)   // #827d78
 const RULE = rgb(0.839, 0.827, 0.808)        // #d6d3d1
 const RULE_SOFT = rgb(0.910, 0.902, 0.886)   // #e8e6e1
@@ -28,14 +28,14 @@ const WHITE = rgb(1, 1, 1)
 
 // Acentos cálidos para gráficos.
 const PALETTE = [
-  rgb(0.639, 0.384, 0.247), // terracota   #a3623f
-  rgb(0.690, 0.545, 0.353), // camel       #b08b5a
-  rgb(0.420, 0.451, 0.333), // oliva       #6b7355
-  rgb(0.267, 0.251, 0.235), // grafito     #44403c
-  rgb(0.808, 0.537, 0.392), // cobre       #ce8964
-  rgb(0.514, 0.471, 0.388), // tabaco      #837863
-  rgb(0.557, 0.392, 0.275), // walnut      #8e6446
-  rgb(0.376, 0.349, 0.314), // basalto     #605954
+  rgb(0.918, 0.345, 0.047), // BAZZAR NIIF #ea580c
+  rgb(0.761, 0.255, 0.047), // BAZZAR dark #c2410c
+  rgb(0.000, 0.169, 0.306), // RIMEC NIIF #002B4E
+  rgb(0.000, 0.239, 0.420), // RIMEC hover #003d6b
+  rgb(0.184, 0.310, 0.243), // semantic success #2f4f3e
+  rgb(0.549, 0.231, 0.231), // semantic error #8c3b3b
+  rgb(0.851, 0.467, 0.024), // semantic warning #d97706
+  rgb(0.290, 0.247, 0.208), // neutral ink #4a3f35
 ]
 
 function colorAt(i: number) {
@@ -151,7 +151,7 @@ function drawHeader(page: PDFPage, fonts: Fonts, data: PDFVentasFotosData) {
   text(page, 'Informe de ventas con fotos', MARGIN, top - 6, 24, fonts.serifBold, INK)
 
   // Sello pequeño a la derecha.
-  textRight(page, 'NEXUS · REPORT', PAGE_W - MARGIN, top - 2, 8, fonts.sans, INK_MUTED)
+  textRight(page, 'REPORT · RIMEC', PAGE_W - MARGIN, top - 2, 8, fonts.sans, INK_MUTED)
   textRight(
     page,
     new Date().toLocaleDateString('es-PY', { day: '2-digit', month: 'long', year: 'numeric' }),

@@ -223,7 +223,7 @@ export function MundoMarcas({ data }: { data: FullSnapshotResponse }) {
                   <td className="px-6 py-3 font-medium text-white/80">{m.marca}</td>
                   <td className="px-6 py-3 text-right tabular-nums text-white/50">{fmtGs(m.monto_2025)}</td>
                   <td className="px-6 py-3 text-right tabular-nums text-white/50">{fmtGs(m.objetivo)}</td>
-                  <td className="px-6 py-3 text-right tabular-nums text-yellow-400">{fmtGs(m.monto_2026)}</td>
+                  <td className="px-6 py-3 text-right tabular-nums text-rimec-text-white">{fmtGs(m.monto_2026)}</td>
                   <td
                     className={`px-6 py-3 text-right tabular-nums ${m.cumplimiento_pct >= 100 ? "text-green-400" : "text-red-400"}`}
                   >

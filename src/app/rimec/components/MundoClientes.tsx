@@ -50,7 +50,7 @@ function sombraSegmento(segmento: SegmentoCartera): string {
     case "crecimiento":
       return "shadow-[0_0_24px_-6px_rgba(34,197,94,0.55)] border-emerald-500/25";
     case "riesgo":
-      return "shadow-[0_0_24px_-6px_rgba(249,115,22,0.42)] border-orange-400/25";
+      return "shadow-[0_0_24px_-6px_rgba(249,115,22,0.42)] border-rimec-text-white/25";
     case "sin_compra":
       return "shadow-[0_0_24px_-6px_rgba(248,113,113,0.38)] border-red-400/22";
     default:
@@ -341,7 +341,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               onClick={() => setCarteraCompletaVisible((v) => !v)}
               className={`rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-wider transition-all ${
                 carteraCompletaVisible
-                  ? "border-yellow-400/60 bg-yellow-500/15 text-yellow-200 shadow-lg shadow-yellow-500/20"
+                  ? "border-rimec-text-white/60 bg-rimec-azul-light/20 text-rimec-text-white shadow-lg shadow-rimec-azul-light/20"
                   : "border-white/15 bg-white/5 text-white/75 hover:border-white/25 hover:bg-white/10"
               }`}
             >
@@ -350,7 +350,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
             <input
               type="text"
               placeholder="Buscar cliente..."
-              className="w-64 min-w-[12rem] rounded-full border border-white/10 bg-black/50 px-4 py-2 text-sm text-white focus:border-yellow-400 focus:outline-none"
+              className="w-64 min-w-[12rem] rounded-full border border-white/10 bg-black/50 px-4 py-2 text-sm text-white focus:border-rimec-text-white focus:outline-none"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -379,7 +379,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
                   Crecimiento
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(249,115,22,0.45)] ring-1 ring-orange-400/35" />
+                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(249,115,22,0.45)] ring-1 ring-rimec-text-white/35" />
                   Riesgo
                 </span>
                 <span className="inline-flex items-center gap-2">

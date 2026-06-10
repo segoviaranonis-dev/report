@@ -180,14 +180,14 @@ function FilaMarca({
 
   const bgColor =
     nodo.nivel === 1
-      ? "bg-gradient-to-r from-yellow-500/12 to-transparent"
+      ? "bg-gradient-to-r from-rimec-azul-light/15 to-transparent"
       : nodo.nivel === 2
         ? "bg-white/[0.03]"
         : "";
 
   const textColor =
     nodo.nivel === 1
-      ? "text-yellow-200/95 font-semibold"
+      ? "text-rimec-text-white/95 font-semibold"
       : nodo.nivel === 2
         ? "text-white/88 font-medium"
         : nodo.nivel === 3

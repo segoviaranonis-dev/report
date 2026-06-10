@@ -10,12 +10,12 @@ import type { RetailStockBoardResponse } from './types';
 
 // Colores del tema RIMEC
 const COLORS = {
-  navy: [30, 58, 95] as [number, number, number],      // #1e3a5f - report-navy
+  navy: [0, 43, 78] as [number, number, number],      // #002B4E - report-navy
   navy2: [45, 75, 115] as [number, number, number],     // report-navy2
   ink: [51, 51, 51] as [number, number, number],        // #333 - report-ink
   muted: [115, 115, 115] as [number, number, number],   // #737373
-  paper: [250, 248, 245] as [number, number, number],   // #faf8f5
-  rule: [218, 210, 200] as [number, number, number],    // #dad2c8
+  paper: [250, 248, 245] as [number, number, number],   // #f1f5f9
+  rule: [218, 210, 200] as [number, number, number],    // #cbd5e1
 };
 
 /**
@@ -125,7 +125,7 @@ export async function exportarCatalogoPDF(
         scale: 2.0,
         useCORS: true,
         logging: false,
-        backgroundColor: '#faf8f5',
+        backgroundColor: '#f1f5f9',
         width: 1600,
         allowTaint: true, // Permitir imágenes cross-origin
       });

@@ -130,7 +130,7 @@ export function ImmersiveClient() {
       onClick={() => setMundo(id)}
       className={`px-6 py-3 font-serif tracking-widest uppercase text-sm transition-all duration-300 ${
         mundo === id
-          ? "text-yellow-400 border-b-2 border-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]"
+          ? "text-rimec-text-white border-b-2 border-rimec-text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
           : "text-white/60 hover:text-white hover:border-b-2 hover:border-white/30"
       }`}
     >
@@ -139,13 +139,13 @@ export function ImmersiveClient() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 font-sans text-white bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black overflow-x-hidden selection:bg-yellow-500/30">
+    <div className="min-h-screen bg-slate-950 font-sans text-white bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black overflow-x-hidden selection:bg-rimec-azul-light/30">
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-white/10 bg-black/40 px-8 py-2 backdrop-blur-xl">
         <div className="flex items-center gap-4">
           <Link href="/" className="font-serif text-2xl font-light tracking-widest text-white hover:opacity-85 transition-opacity drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
             RIMEC
           </Link>
-          <span className="rounded bg-yellow-400 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
+          <span className="rounded bg-rimec-text-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
             Sales Report v{SALES_REPORT_WEB_VERSION}
           </span>
         </div>
@@ -156,7 +156,7 @@ export function ImmersiveClient() {
           {navItem("vendedores", "Vendedores")}
           <Link
             href="/ventas-fotos"
-            className="px-6 py-3 font-serif text-sm uppercase tracking-widest text-white/60 transition-all hover:border-b-2 hover:border-yellow-400/60 hover:text-yellow-300"
+            className="px-6 py-3 font-serif text-sm uppercase tracking-widest text-white/60 transition-all hover:border-b-2 hover:border-rimec-text-white/60 hover:text-rimec-text-white"
           >
             Ventas + Fotos
           </Link>
@@ -166,7 +166,7 @@ export function ImmersiveClient() {
       <div className="flex h-[calc(100vh-70px)] gap-6 overflow-hidden p-6">
         <aside className="custom-scrollbar flex h-full w-[300px] shrink-0 flex-col gap-6 overflow-y-auto rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md">
           <div>
-            <h3 className="mb-4 font-serif text-xs uppercase tracking-widest text-yellow-400">Parámetros</h3>
+            <h3 className="mb-4 font-serif text-xs uppercase tracking-widest text-rimec-text-white">Parámetros</h3>
             <label className="text-xs uppercase tracking-wider text-white/50">Obj. Crecimiento (%)</label>
             <input
               type="range"
@@ -174,7 +174,7 @@ export function ImmersiveClient() {
               max={200}
               value={filtros.objetivo_pct}
               onChange={(e) => setFiltros({ ...filtros, objetivo_pct: Number(e.target.value) })}
-              className="mt-2 w-full accent-yellow-400"
+              className="mt-2 w-full accent-rimec-azul-light"
             />
             <div className="mt-1 text-right font-serif text-lg">{filtros.objetivo_pct}%</div>
           </div>
@@ -207,7 +207,7 @@ export function ImmersiveClient() {
               <button
                 type="button"
                 onClick={handleDemo}
-                className="mt-3 w-full rounded-xl border border-yellow-400/30 bg-yellow-400/10 py-3 text-xs uppercase tracking-widest text-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.1)] transition-all hover:bg-yellow-400 hover:text-black hover:shadow-[0_0_20px_rgba(250,204,21,0.5)]"
+                className="mt-3 w-full rounded-xl border border-rimec-text-white/30 bg-rimec-azul-light/15 py-3 text-xs uppercase tracking-widest text-rimec-text-white shadow-[0_0_10px_rgba(0,43,78,0.2)] transition-all hover:bg-rimec-text-white hover:text-rimec-azul hover:shadow-[0_0_20px_rgba(255,255,255,0.35)]"
               >
                 Modo demo (sin base)
               </button>

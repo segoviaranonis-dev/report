@@ -321,7 +321,7 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
                 return (
                   <div
                     key={pedido.id}
-                    className="border-2 border-slate-200 bg-white shadow-sm rounded-lg overflow-hidden transition-all duration-300 hover:bg-blue-50/40 hover:shadow-lg hover:border-rimec-azul/30"
+                    className="border-2 border-slate-200 bg-white shadow-sm rounded-lg overflow-hidden transition-all duration-300 hover:bg-rimec-azul/5 hover:shadow-lg hover:border-rimec-azul/30"
                   >
                     {/* Header del pedido */}
                     <div className="border-b-2 border-slate-100 bg-white p-4">

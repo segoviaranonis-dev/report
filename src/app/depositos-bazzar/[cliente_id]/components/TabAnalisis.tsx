@@ -54,7 +54,7 @@ export function TabAnalisis({ cliente_id }: Props) {
             Cargando análisis...
           </div>
           <div className="h-2 w-64 overflow-hidden rounded-full bg-gray-200">
-            <div className="h-full w-3/5 animate-pulse bg-blue-500" />
+            <div className="h-full w-3/5 animate-pulse bg-bazzar-naranja" />
           </div>
         </div>
       </div>
@@ -104,7 +104,7 @@ export function TabAnalisis({ cliente_id }: Props) {
               type="checkbox"
               checked={soloConSaldo}
               onChange={(e) => setSoloConSaldo(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-gray-300 text-bazzar-naranja focus:ring-bazzar-naranja"
             />
             Solo con saldo &gt; 0
           </label>
@@ -123,7 +123,7 @@ export function TabAnalisis({ cliente_id }: Props) {
         <button
           type="button"
           onClick={() => setSoloConSaldo(true)}
-          className="text-xs font-semibold text-blue-600 hover:underline"
+          className="text-xs font-semibold text-bazzar-naranja hover:underline"
         >
           Limpiar filtros
         </button>
@@ -132,47 +132,47 @@ export function TabAnalisis({ cliente_id }: Props) {
       {/* Cards de métricas */}
       <div className="mb-8 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {/* INICIAL */}
-        <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+        <div className="rounded-2xl border border-bazzar-naranja/25 bg-gradient-to-br from-bazzar-naranja/10 to-white p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
             Inicial
           </div>
-          <div className="mt-2 text-3xl font-bold text-blue-900">
+          <div className="mt-2 text-3xl font-bold text-bazzar-text-dark">
             {resumen.inicial.toLocaleString("es-PY")}
           </div>
-          <div className="mt-1 text-xs text-blue-600">pares</div>
+          <div className="mt-1 text-xs text-bazzar-naranja">pares</div>
         </div>
 
         {/* VENDIDO */}
-        <div className="rounded-2xl border border-green-200 bg-gradient-to-br from-green-50 to-white p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-green-600">
+        <div className="rounded-2xl border border-semantic-success/20 bg-gradient-to-br from-semantic-success/10 to-white p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-semantic-success">
             Vendido
           </div>
-          <div className="mt-2 text-3xl font-bold text-green-900">
+          <div className="mt-2 text-3xl font-bold text-semantic-success">
             {resumen.vendido.toLocaleString("es-PY")}
           </div>
-          <div className="mt-1 text-xs text-green-600">pares</div>
+          <div className="mt-1 text-xs text-semantic-success">pares</div>
         </div>
 
         {/* SALDO */}
-        <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-purple-600">
+        <div className="rounded-2xl border border-bazzar-naranja/25 bg-gradient-to-br from-bazzar-naranja/10 to-white p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja-dark">
             Saldo
           </div>
-          <div className="mt-2 text-3xl font-bold text-purple-900">
+          <div className="mt-2 text-3xl font-bold text-bazzar-text-dark">
             {resumen.saldo.toLocaleString("es-PY")}
           </div>
-          <div className="mt-1 text-xs text-purple-600">pares</div>
+          <div className="mt-1 text-xs text-bazzar-naranja-dark">pares</div>
         </div>
 
         {/* % VENDIDO */}
-        <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-white p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-orange-600">
+        <div className="rounded-2xl border border-bazzar-naranja/25 bg-gradient-to-br from-bazzar-naranja/10 to-white p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
             % Vendido
           </div>
-          <div className="mt-2 text-3xl font-bold text-orange-900">
+          <div className="mt-2 text-3xl font-bold text-bazzar-text-dark">
             {resumen.pct_vendido}%
           </div>
-          <div className="mt-1 text-xs text-orange-600">rotación</div>
+          <div className="mt-1 text-xs text-bazzar-naranja">rotación</div>
         </div>
 
         {/* SKUS */}
@@ -187,19 +187,19 @@ export function TabAnalisis({ cliente_id }: Props) {
         </div>
 
         {/* MARCAS */}
-        <div className="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50 to-white p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-pink-600">
+        <div className="rounded-2xl border border-bazzar-naranja/25 bg-gradient-to-br from-bazzar-naranja/10 to-white p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
             Marcas
           </div>
-          <div className="mt-2 text-3xl font-bold text-pink-900">
+          <div className="mt-2 text-3xl font-bold text-bazzar-text-dark">
             {resumen.total_marcas}
           </div>
-          <div className="mt-1 text-xs text-pink-600">lo pp</div>
+          <div className="mt-1 text-xs text-bazzar-naranja">lo pp</div>
         </div>
       </div>
 
       {/* Nota explicativa */}
-      <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+      <div className="mb-6 rounded-xl border border-bazzar-naranja/25 bg-bazzar-naranja/10 p-4 text-sm text-bazzar-text-dark">
         <div className="font-semibold">💡 Estructura de análisis:</div>
         <div className="mt-2 text-xs">
           Marque files con checkbox para armar reporte Estilo Sales Report — estructura de análisis.
@@ -209,8 +209,8 @@ export function TabAnalisis({ cliente_id }: Props) {
       {/* 3 ACORDEONES CON DIFERENTES AGRUPACIONES */}
       <div className="space-y-6">
         {/* ACORDEÓN 1: Resumen operativo (Ente → Género → Marca → SKU) */}
-        <details open className="group rounded-2xl border-2 border-blue-300 bg-white">
-          <summary className="cursor-pointer rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 font-bold text-blue-900 hover:from-blue-100 hover:to-blue-200">
+        <details open className="group rounded-2xl border-2 border-bazzar-naranja/40 bg-white">
+          <summary className="cursor-pointer rounded-xl bg-gradient-to-r from-bazzar-naranja/10 to-bazzar-naranja/20 px-6 py-4 font-bold text-bazzar-text-dark hover:from-bazzar-naranja/20 hover:to-bazzar-naranja/25">
             <span className="text-lg">1. Resumen operativo (Ente → Género → Marca → SKU)</span>
           </summary>
           <div className="space-y-3 p-4">
@@ -228,8 +228,8 @@ export function TabAnalisis({ cliente_id }: Props) {
         </details>
 
         {/* ACORDEÓN 2: Análisis por Estilo */}
-        <details className="group rounded-2xl border-2 border-purple-300 bg-white">
-          <summary className="cursor-pointer rounded-xl bg-gradient-to-r from-purple-50 to-purple-100 px-6 py-4 font-bold text-purple-900 hover:from-purple-100 hover:to-purple-200">
+        <details className="group rounded-2xl border-2 border-bazzar-naranja/40 bg-white">
+          <summary className="cursor-pointer rounded-xl bg-gradient-to-r from-bazzar-naranja/10 to-bazzar-naranja/20 px-6 py-4 font-bold text-bazzar-text-dark hover:from-bazzar-naranja/20 hover:to-bazzar-naranja/25">
             <span className="text-lg">2. Análisis por Ente → Estilo → Marca → SKU</span>
           </summary>
           <div className="space-y-3 p-4">
@@ -247,8 +247,8 @@ export function TabAnalisis({ cliente_id }: Props) {
         </details>
 
         {/* ACORDEÓN 3: Análisis por Marca */}
-        <details className="group rounded-2xl border-2 border-green-300 bg-white">
-          <summary className="cursor-pointer rounded-xl bg-gradient-to-r from-green-50 to-green-100 px-6 py-4 font-bold text-green-900 hover:from-green-100 hover:to-green-200">
+        <details className="group rounded-2xl border-2 border-semantic-success/30 bg-white">
+          <summary className="cursor-pointer rounded-xl bg-gradient-to-r from-semantic-success/10 to-semantic-success/15 px-6 py-4 font-bold text-semantic-success hover:from-semantic-success/15 hover:to-semantic-success/20">
             <span className="text-lg">3. Análisis por Ente → Marca → Estilo → SKU</span>
           </summary>
           <div className="space-y-3 p-4">

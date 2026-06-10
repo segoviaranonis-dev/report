@@ -50,17 +50,17 @@ export function NexusHeaderDivided({ active = "home", maxWidthClass = "max-w-6xl
   const visibleBazzar = rolId == null ? [] : bazzarModules.filter((item) => item.roles.includes(rolId));
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-neutral-950 border-b border-neutral-800 shadow-lg">
+    <header className="sticky top-0 z-50 w-full bg-rimec-azul border-b border-rimec-azul-dark shadow-lg">
       <div className={`mx-auto ${maxWidthClass}`}>
         {/* Top Bar: Marca + Logout */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-800">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-rimec-text-white/20">
           <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-            <span className="font-serif text-xl tracking-widest text-neutral-light">
-              NEXUS
-            </span>
-            <span className="text-brand-gold">·</span>
-            <span className="font-sans text-sm font-light text-neutral-light-55 tracking-widest uppercase">
+            <span className="font-serif text-xl tracking-widest text-rimec-text-white">
               Report
+            </span>
+            <span className="text-rimec-text-white/70">·</span>
+            <span className="font-sans text-sm font-light text-rimec-text-white/70 tracking-widest uppercase">
+              RIMEC
             </span>
           </Link>
 
@@ -69,7 +69,7 @@ export function NexusHeaderDivided({ active = "home", maxWidthClass = "max-w-6xl
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded-lg border-2 border-neutral-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-light-88 transition-all hover:border-brand-gold hover:text-brand-gold hover:bg-brand-gold/5 disabled:opacity-50"
+              className="rounded-lg border-2 border-rimec-text-white/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-rimec-text-white/90 transition-all hover:border-rimec-text-white hover:text-rimec-text-white hover:bg-rimec-text-white/10 disabled:opacity-50"
             >
               {loggingOut ? "Saliendo..." : "× Cerrar Sesión"}
             </button>
@@ -77,16 +77,16 @@ export function NexusHeaderDivided({ active = "home", maxWidthClass = "max-w-6xl
         </div>
 
         {/* Navigation Bar: RIMEC vs BAZZAR */}
-        <div className="grid grid-cols-2 divide-x divide-neutral-800">
+        <div className="grid grid-cols-2 divide-x divide-rimec-text-white/20">
           {/* RIMEC Section */}
           {visibleRimec.length > 0 && (
-            <div className="bg-gradient-to-br from-rimec-petroleo to-neutral-950 px-6 py-3">
+            <div className="bg-gradient-to-br from-rimec-azul to-rimec-azul-dark px-6 py-3">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">🏢</span>
-                <span className="text-xs font-bold uppercase tracking-wider text-rimec-celeste">
+                <span className="text-xs font-bold uppercase tracking-wider text-rimec-text-white">
                   RIMEC
                 </span>
-                <span className="text-xs text-rimec-light/60">
+                <span className="text-xs text-rimec-text-white/60">
                   ({visibleRimec.length} módulos)
                 </span>
               </div>
@@ -97,8 +97,8 @@ export function NexusHeaderDivided({ active = "home", maxWidthClass = "max-w-6xl
                     href={item.href}
                     className={`text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded transition-all ${
                       active === item.key
-                        ? "bg-rimec-celeste text-rimec-petroleo"
-                        : "text-rimec-light hover:text-rimec-celeste hover:bg-rimec-celeste/10"
+                        ? "bg-rimec-text-white text-rimec-azul"
+                        : "text-rimec-text-white/80 hover:text-rimec-text-white hover:bg-rimec-text-white/10"
                     }`}
                   >
                     {item.label}
@@ -110,13 +110,13 @@ export function NexusHeaderDivided({ active = "home", maxWidthClass = "max-w-6xl
 
           {/* BAZZAR Section */}
           {visibleBazzar.length > 0 && (
-            <div className="bg-gradient-to-br from-bazzar-azul/20 to-neutral-950 px-6 py-3">
+            <div className="bg-gradient-to-br from-bazzar-naranja/20 to-rimec-azul-dark px-6 py-3">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">🏪</span>
                 <span className="text-xs font-bold uppercase tracking-wider text-bazzar-naranja">
                   BAZZAR
                 </span>
-                <span className="text-xs text-bazzar-naranja-light/60">
+                <span className="text-xs text-bazzar-naranja/70">
                   ({visibleBazzar.length} módulos)
                 </span>
               </div>
@@ -128,7 +128,7 @@ export function NexusHeaderDivided({ active = "home", maxWidthClass = "max-w-6xl
                     className={`text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded transition-all ${
                       active === item.key
                         ? "bg-bazzar-naranja text-white"
-                        : "text-bazzar-azul-light hover:text-bazzar-naranja hover:bg-bazzar-naranja/10"
+                        : "text-bazzar-naranja-light hover:text-bazzar-naranja hover:bg-bazzar-naranja/10"
                     }`}
                   >
                     {item.label}

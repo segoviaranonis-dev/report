@@ -31,12 +31,12 @@ export function DepositoCard({
   };
 
   const colorClass = tipo === "Niños"
-    ? "border-green-500 bg-green-50"
-    : "border-blue-500 bg-blue-50";
+    ? "border-semantic-success bg-semantic-success/10"
+    : "border-bazzar-naranja bg-bazzar-naranja/10";
 
   const badgeClass = tipo === "Niños"
-    ? "bg-green-100 text-green-800"
-    : "bg-blue-100 text-blue-800";
+    ? "bg-semantic-success/15 text-semantic-success"
+    : "bg-bazzar-naranja/15 text-bazzar-text-dark";
 
   return (
     <div
@@ -82,8 +82,8 @@ export function DepositoCard({
           href={`/depositos-bazzar/${cliente_id}`}
           className={`block w-full rounded-xl py-3 text-center font-semibold text-white transition-all ${
             tipo === "Niños"
-              ? "bg-green-600 hover:bg-green-700"
-              : "bg-blue-600 hover:bg-blue-700"
+              ? "bg-semantic-success hover:bg-semantic-success/90"
+              : "bg-bazzar-naranja hover:bg-bazzar-naranja-dark"
           }`}
         >
           📋 Abrir Depósito
@@ -98,8 +98,8 @@ export function DepositoCard({
             loading || syncing
               ? "cursor-not-allowed bg-gray-400 text-white"
               : tipo === "Niños"
-              ? "border-2 border-green-600 bg-white text-green-600 hover:bg-green-50"
-              : "border-2 border-blue-600 bg-white text-blue-600 hover:bg-blue-50"
+              ? "border-2 border-semantic-success bg-white text-semantic-success hover:bg-semantic-success/10"
+              : "border-2 border-bazzar-naranja bg-white text-bazzar-naranja hover:bg-bazzar-naranja/10"
           }`}
         >
           {loading ? "Sincronizando..." : syncing ? "Esperando..." : "🔄 Sincronizar"}
