@@ -8,6 +8,17 @@ export const COLOR_REAL_ACTUAL = "#22C55E"; // Verde NIIF actual
 export const PIE_CALZADO = "#002B4E";
 export const PIE_CONFECCION = "#22C55E";
 
+/** Paleta cíclica para series múltiples (marcas, segmentos, pilares). Política de gráficos, no institucional. */
+export const CHART_PALETTE_CYCLE = [
+  COLOR_REAL_ANTERIOR,
+  COLOR_REAL_ACTUAL,
+  COLOR_OBJETIVO,
+] as const;
+
+export function chartColorAt(index: number): string {
+  return CHART_PALETTE_CYCLE[index % CHART_PALETTE_CYCLE.length];
+}
+
 /** Props comunes de `<Tooltip />` (Recharts): tema claro NIIF. */
 export const RIMEC_RECHARTS_TOOLTIP: {
   contentStyle: CSSProperties;

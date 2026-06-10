@@ -276,7 +276,7 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               Real 2025
             </span>
             <span className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-sm bg-rimec-azul/15" />
+              <span className="inline-block h-2 w-2 rounded-sm" style={{ background: COLOR_OBJETIVO }} />
               Objetivo
             </span>
             <span className="flex items-center gap-2">

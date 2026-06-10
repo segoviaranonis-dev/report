@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import {
+  COLOR_OBJETIVO,
+  COLOR_REAL_ACTUAL,
+  COLOR_REAL_ANTERIOR,
+  chartColorAt,
+  RIMEC_RECHARTS_TOOLTIP,
+} from "@/app/rimec/chart-theme";
 
 // Estilos CSS para impresión - reducir tamaño de gráficos en PDF
 if (typeof document !== 'undefined') {
@@ -42,7 +49,6 @@ if (typeof document !== 'undefined') {
 }
 
 const fmtInt = (n: number) => n.toLocaleString("es-PY", { maximumFractionDigits: 0 });
-const COLORS = ['#ea580c', '#c2410c', '#9a3412', '#002B4E', '#003d6b', '#2f4f3e', '#8c3b3b'];
 const MARCAS_ADULTOS = ['BEIRA RIO', 'VIZZANO', 'MOLECA', 'MODARE', 'BR SPORT', 'ACTVITTA', 'CHINELO'];
 const MARCAS_NINOS = ['MOLEKINHA', 'MOLEKINHO'];
 
@@ -315,8 +321,11 @@ function SegmentoRendimientoGeneral({
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="marca" angle={-45} textAnchor="end" height={100} />
             <YAxis />
-            <Tooltip formatter={(value) => `₲${fmtInt(Number(value))}`} />
-            <Bar dataKey="monto" fill="#ea580c" />
+            <Tooltip
+              {...RIMEC_RECHARTS_TOOLTIP}
+              formatter={(value) => `₲${fmtInt(Number(value))}`}
+            />
+            <Bar dataKey="monto" fill={COLOR_REAL_ACTUAL} name="Monto" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -426,9 +435,9 @@ function SegmentoRendimiento({
   });
 
   const COLORES_TIENDAS: { [key: string]: string } = {
-    'Fernando': '#ea580c',
-    'San Martin': '#c2410c',
-    'Palma': '#9a3412',
+    Fernando: COLOR_REAL_ACTUAL,
+    Palma: COLOR_REAL_ANTERIOR,
+    "San Martin": COLOR_OBJETIVO,
   };
 
   const formatValor = (valor: number) => {
@@ -476,10 +485,17 @@ function SegmentoRendimiento({
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="marca" angle={-45} textAnchor="end" height={100} />
             <YAxis />
-            <Tooltip formatter={(value) => formatValor(Number(value))} />
+            <Tooltip
+              {...RIMEC_RECHARTS_TOOLTIP}
+              formatter={(value) => formatValor(Number(value))}
+            />
             <Legend />
-            {nombresTiendas.map(tienda => (
-              <Bar key={tienda} dataKey={tienda} fill={COLORES_TIENDAS[tienda] || '#002B4E'} />
+            {nombresTiendas.map((tienda, idx) => (
+              <Bar
+                key={tienda}
+                dataKey={tienda}
+                fill={COLORES_TIENDAS[tienda] || chartColorAt(idx)}
+              />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -578,15 +594,18 @@ function SegmentoMarcas({ titulo, marcas, icono }: { titulo: string; marcas: { m
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                fill="#ea580c"
+                fill={COLOR_REAL_ANTERIOR}
                 dataKey="value"
                 label={({ percent }) => percent ? `${(percent * 100).toFixed(1)}%` : ''}
               >
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`cell-${index}`} fill={chartColorAt(index)} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => fmtInt(Number(value))} />
+              <Tooltip
+                {...RIMEC_RECHARTS_TOOLTIP}
+                formatter={(value) => fmtInt(Number(value))}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
