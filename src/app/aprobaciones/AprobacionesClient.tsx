@@ -131,10 +131,15 @@ export function AprobacionesClient({ pedidosIniciales }: Props) {
 
   return (
     <>
-      <section className="border-b border-neutral-300 bg-app-bg py-6">
+      {/* Panel Destacado: PREVENTAS (PV) */}
+      <section className="border-b-2 border-rimec-azul bg-white py-8 shadow-lg">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="grid gap-4 sm:grid-cols-4">
-            <StatCard label="Total Pedidos" value={stats.total} />
+          <div className="mb-6 flex items-center gap-3">
+            <span className="text-3xl">📊</span>
+            <h2 className="text-2xl font-bold text-rimec-azul">PREVENTAS (PV)</h2>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-4">
+            <StatCard label="Total" value={stats.total} />
             <StatCard label="Pendientes" value={stats.pendientes} tone="warning" />
             <StatCard label="Aprobados" value={stats.aprobados} tone="success" />
             <StatCard label="Rechazados" value={stats.rechazados} tone="error" />
