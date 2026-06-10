@@ -21,9 +21,34 @@ export default async function AprobacionesPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  // Usar MISMA query que Streamlit: pedido_venta_rimec con JOINs
   const { data, error } =
     supabaseUrl && supabaseKey
-      ? await createClient(supabaseUrl, supabaseKey).from("v_aprobaciones_detalladas").select("*").limit(50)
+      ? await createClient(supabaseUrl, supabaseKey)
+          .from("pedido_venta_rimec")
+          .select(`
+            id,
+            nro_pedido,
+            created_at,
+            vendedor_id,
+            cliente_id,
+            total_monto,
+            total_pares,
+            estado,
+            plazo_id,
+            lista_precio_id,
+            descuento_1,
+            descuento_2,
+            descuento_3,
+            descuento_4,
+            fecha_aprobacion,
+            fecha_rechazo,
+            motivo_rechazo,
+            cliente_v2!pedido_venta_rimec_cliente_id_fkey(descp_cliente),
+            usuario_v2!pedido_venta_rimec_vendedor_id_fkey(descp_usuario)
+          `)
+          .order("id", { ascending: false })
+          .limit(50)
       : { data: null, error: new Error("Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY") };
 
   if (error) {
@@ -33,9 +58,9 @@ export default async function AprobacionesPage() {
   const pedidos =
     data?.map((p: any) => ({
       id: p.id,
-      nro_pedido: p.nro_pedido || `PVR-${p.id}`,
-      fecha: p.fecha_creacion
-        ? new Date(p.fecha_creacion).toLocaleDateString("es-PY", {
+      nro_pedido: p.nro_pedido || `PV-${String(p.id).padStart(6, "0")}`,
+      fecha: p.created_at
+        ? new Date(p.created_at).toLocaleDateString("es-PY", {
             year: "numeric",
             month: "2-digit",
             day: "2-digit",
@@ -43,8 +68,8 @@ export default async function AprobacionesPage() {
             minute: "2-digit",
           })
         : "-",
-      vendedor: p.vendedor_nombre || `Vendedor ${p.vendedor_id || "?"}`,
-      cliente: p.cliente_nombre || `Cliente ${p.cliente_id || "?"}`,
+      vendedor: p.usuario_v2?.descp_usuario || `Vendedor ${p.vendedor_id || "?"}`,
+      cliente: p.cliente_v2?.descp_cliente || `Cliente ${p.cliente_id || "?"}`,
       total: p.total_monto || 0,
       items_count: p.total_pares || 0,
       estado: mapEstado(p.estado),
