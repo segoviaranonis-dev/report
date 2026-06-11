@@ -9,14 +9,15 @@ Misma fuente de datos (`factura_interna`, `pv_global`, `pedido_venta_rimec`, 4 p
 
 ## Nivel Dios — potestad y acceso
 
-| Concepto | Valor |
-|----------|--------|
-| **Nombre** | Nivel Dios |
-| **Qué es** | Instancia de control **superlativo**: lo que el operador cambia en pantalla **persiste de inmediato en BD** (transacción única). No hay “borrador” ni estado solo-UI. |
-| **Quién** | Solo profesionales **muy autorizados** en `usuario_v2`. |
-| **Condición 1** | `rol_id = 1` |
-| **Condición 2** | `categoria = 'DIOS'` (mayúsculas en sesión; en BD puede venir como `DIOS`) |
-| **Ambas** | Obligatorias. Sin ellas: middleware 403, página bloqueada, server actions rechazadas. |
+| Ámbito | Regla |
+|--------|--------|
+| **Entrar a Report (login)** | Usuario válido en `usuario_v2` con su `rol_id` (1, 2 o 3) |
+| **rol_id = 1** | Todos los módulos Report (RIMEC, retail, ventas-fotos, informes, etc.) |
+| **rol_id = 2** | Bazzar: retail / depósitos / tablet (según `categoria`) |
+| **rol_id = 3** | Solo ventas-fotos |
+| **Solo `/aprobaciones`** | **Adicional:** `rol_id = 1` **y** `categoria = 'DIOS'` |
+
+**Palabra clave holding:** **Nivel Dios** = instancia de control superlativo **solo en el módulo Aprobaciones**.
 
 ### Alta de usuario Nivel Dios (SQL)
 
@@ -37,7 +38,7 @@ Tras el cambio: **cerrar sesión y volver a login** para que la cookie traiga `c
 | Mutaciones | `src/app/aprobaciones/actions.ts` | `requireNivelDiosAction()` antes de confirmar/anular/rechazar/cambiar lista |
 | Helper | `src/lib/auth/nivel-dios.ts` | `isNivelDios()`, constantes `NIVEL_DIOS_ROL_ID`, `NIVEL_DIOS_CATEGORIA` |
 
-**Nota:** `rol_id=1` con `categoria=ADMIN` (Director legacy) **no** entra a Aprobaciones en Report; debe migrarse a `DIOS` si opera este módulo.
+**Nota:** `rol_id=1` con `categoria=ADMIN` (Director, Tito, etc.) **entra a Report con normalidad**; solo **no** ve ni accede a `/aprobaciones`. Para operar Aprobaciones: `categoria='DIOS'`.
 
 ---
 

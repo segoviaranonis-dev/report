@@ -16,3 +16,9 @@ export function isNivelDios(session: SessionData | null | undefined): boolean {
 export function mensajeAccesoNivelDios(): string {
   return "Acceso Nivel Dios requerido: rol_id = 1 y categoria = DIOS en usuario_v2.";
 }
+
+/** Solo el módulo /aprobaciones — el resto de Report sigue reglas por rol_id. */
+export function canAccessAprobaciones(rolId: number, categoria: string | null | undefined): boolean {
+  const cat = (categoria || "").toUpperCase().trim();
+  return rolId === NIVEL_DIOS_ROL_ID && cat === NIVEL_DIOS_CATEGORIA;
+}

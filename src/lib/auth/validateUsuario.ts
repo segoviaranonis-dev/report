@@ -29,12 +29,27 @@ function normalizarRol(rawRole: string): string {
   return ROLE_MAP[r] ?? r
 }
 
+/** Algunos hashes legacy se generaron con \\n al final del texto plano. */
+async function verificarPasswordHash(
+  passTrimmed: string,
+  passwordHash: string,
+): Promise<{ ok: boolean; needsRehash: boolean }> {
+  if (await bcrypt.compare(passTrimmed, passwordHash)) {
+    return { ok: true, needsRehash: false }
+  }
+  // Legacy: hash creado desde "password\n" en import/script
+  if (passTrimmed && (await bcrypt.compare(`${passTrimmed}\n`, passwordHash))) {
+    return { ok: true, needsRehash: true }
+  }
+  return { ok: false, needsRehash: false }
+}
+
 export async function validateUsuario(
   usuario: string,
   password: string,
 ): Promise<UsuarioValidado | null> {
   const userClean = (usuario ?? '').trim()
-  const passClean = password ?? ''
+  const passClean = (password ?? '').trim()
 
   if (!userClean || !passClean) return null
 
@@ -61,10 +76,18 @@ export async function validateUsuario(
 
     // SECURITY: Verificar con bcrypt si existe hash
     if (passwordHash) {
-      const valid = await bcrypt.compare(passClean, passwordHash)
-      if (!valid) {
+      const { ok, needsRehash } = await verificarPasswordHash(passClean, passwordHash)
+      if (!ok) {
         console.warn(`[validateUsuario] Contraseña incorrecta para '${userClean}'`)
         return null
+      }
+      if (needsRehash) {
+        const hashNew = await bcrypt.hash(passClean, 10)
+        await getRimecPool().query(
+          `UPDATE usuario_v2 SET password_hash = $1 WHERE id_usuario = $2`,
+          [hashNew, data.id_usuario],
+        )
+        console.warn(`[validateUsuario] Hash reparado (sin \\n) para '${userClean}'`)
       }
     }
     // FALLBACK temporal: Si no hay hash, verificar contra texto plano

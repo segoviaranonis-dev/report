@@ -1,6 +1,14 @@
-# Verificar usuarios Nivel Dios y login Guido
+# Verificar usuarios Nivel Dios y login
 
-## Usuarios autorizados (BD)
+## Matriz de acceso Report
+
+| Usuario | Entra a Report | Módulos | Aprobaciones |
+|---------|----------------|---------|--------------|
+| `rol_id=1` cualquier categoría | ✅ | Según rol 1 | Solo si `categoria=DIOS` |
+| `rol_id=2` | ✅ | Bazzar (retail, etc.) | ❌ |
+| `rol_id=3` | ✅ | ventas-fotos | ❌ |
+
+**Tito** (`rol_id=1`, categoría distinta de DIOS): entra a Report, **no** a Aprobaciones. Si login falla → contraseña incorrecta en BD, no es restricción DIOS.
 
 ```powershell
 cd C:\Users\hecto\Nexus_Core\report

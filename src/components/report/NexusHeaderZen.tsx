@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { canAccessAprobaciones } from "@/lib/auth/nivel-dios";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -14,7 +15,7 @@ type Props = {
 const rimecModules = [
   { key: "rimec", href: "/rimec", label: "Ventas", roles: [1] },
   { key: "ventas-fotos", href: "/ventas-fotos", label: "Ventas + Fotos", roles: [1, 3] },
-  { key: "aprobaciones", href: "/aprobaciones", label: "Aprobaciones", roles: [1] },
+  { key: "aprobaciones", href: "/aprobaciones", label: "Aprobaciones", roles: [1], nivelDios: true },
 ];
 
 const bazzarModules = [
@@ -26,6 +27,7 @@ const bazzarModules = [
 export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }: Props) {
   const router = useRouter();
   const [rolId, setRolId] = useState<number | null>(null);
+  const [categoria, setCategoria] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [visible, setVisible] = useState(true);
   const hoverRef = useRef(false);
@@ -34,7 +36,14 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setRolId(data?.authenticated ? Number(data.user?.rol_id) || 0 : null))
+      .then((data) => {
+        if (data?.authenticated) {
+          setRolId(Number(data.user?.rol_id) || 0);
+          setCategoria(data.user?.categoria ?? data.user?.role ?? null);
+        } else {
+          setRolId(null);
+        }
+      })
       .catch(() => setRolId(null));
   }, []);
 
@@ -77,7 +86,16 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
     }
   }
 
-  const visibleRimec = rolId == null ? [] : rimecModules.filter((item) => item.roles.includes(rolId));
+  const visibleRimec =
+    rolId == null
+      ? []
+      : rimecModules.filter((item) => {
+          if (!item.roles.includes(rolId)) return false;
+          if ("nivelDios" in item && item.nivelDios) {
+            return canAccessAprobaciones(rolId, categoria);
+          }
+          return true;
+        });
   const visibleBazzar = rolId == null ? [] : bazzarModules.filter((item) => item.roles.includes(rolId));
 
   return (

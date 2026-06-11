@@ -106,7 +106,12 @@ export default function HomePage() {
 
   // Filtrar módulos por rol + categoría
   const visibleModules = MODULES.filter(m => {
-    // Rol 1: acceso total
+    // Aprobaciones: solo Nivel Dios (rol 1 + DIOS)
+    if (m.href === '/aprobaciones') {
+      return rolId === 1 && (categoria || '').toUpperCase().trim() === 'DIOS';
+    }
+
+    // Rol 1: resto de módulos RIMEC/BAZZAR según lista
     if (rolId === 1) return m.roles.includes(1);
 
     // Validar permisos específicos por categoría

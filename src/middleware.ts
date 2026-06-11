@@ -1,9 +1,12 @@
 /**
  * OT-REPORT-ROLES-Y-ESTILO-BANANA-001: Middleware con control de acceso por rol
- * Roles:
- *  1 = Todo acceso
- *  2 = Solo Retail
- *  3 = Solo Ventas con Fotos
+ *
+ * Report (login): cualquier usuario válido en usuario_v2.
+ * rol_id 1 → todos los módulos de Report.
+ * rol_id 2 → Bazzar (retail, depósitos, tablet según categoría).
+ * rol_id 3 → ventas-fotos.
+ *
+ * Excepción única: /aprobaciones → rol_id=1 Y categoria=DIOS (Nivel Dios).
  */
 
 import { NextResponse } from 'next/server'
