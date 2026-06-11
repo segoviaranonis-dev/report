@@ -45,7 +45,7 @@ export async function validateUsuario(
     const result = await pool.query(
       `SELECT id_usuario, descp_usuario, categoria, password, password_hash, rol_id
        FROM usuario_v2
-       WHERE descp_usuario = $1
+       WHERE LOWER(TRIM(descp_usuario)) = LOWER(TRIM($1))
        LIMIT 1`,
       [userClean]
     )

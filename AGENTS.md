@@ -8,7 +8,7 @@ Modulos principales:
 - `/rimec`: Sales Report / gerencia.
 - `/retail`: stock / retail.
 - `/ventas-fotos`: ventas con fotos y PDF.
-- `/aprobaciones`: gestion interna.
+- `/aprobaciones`: **Nivel Dios** (`rol_id=1`, `categoria=DIOS`) — editor admin; cada cambio = transacción BD inmediata. Doc: `docs/APROBACIONES.md` — local: http://localhost:3000/aprobaciones — dev caído: `REINICIAR_DEV.bat`
 
 ## Leyes de trabajo
 

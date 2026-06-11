@@ -1,127 +1,58 @@
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
-import { ReportSection } from "@/components/report/ReportSection";
+import { getSession } from "@/lib/auth/session";
+import { isNivelDios, mensajeAccesoNivelDios } from "@/lib/auth/nivel-dios";
 import { AprobacionesClient } from "./AprobacionesClient";
-import { createClient } from "@supabase/supabase-js";
+import { fetchAprobacionesCatalogos, fetchAprobacionesData } from "./lib/aprobaciones-queries";
 
 export const dynamic = "force-dynamic";
 
 const today = new Intl.DateTimeFormat("es-AR", { dateStyle: "long" }).format(new Date());
 
-function mapEstado(dbEstado: string | null): "PENDIENTE" | "APROBADO" | "RECHAZADO" {
-  if (!dbEstado) return "PENDIENTE";
-  const upper = dbEstado.toUpperCase();
-  if (upper.includes("APROBADO") || upper.includes("CONFIRMADO")) return "APROBADO";
-  if (upper.includes("RECHAZADO") || upper.includes("CANCELADO")) return "RECHAZADO";
-  return "PENDIENTE";
-}
-
 export default async function AprobacionesPage() {
-  const t0 = Date.now();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // Usar MISMA query que Streamlit: pedido_venta_rimec con JOINs
-  const { data, error } =
-    supabaseUrl && supabaseKey
-      ? await createClient(supabaseUrl, supabaseKey)
-          .from("pedido_venta_rimec")
-          .select(`
-            id,
-            nro_pedido,
-            created_at,
-            vendedor_id,
-            cliente_id,
-            total_monto,
-            total_pares,
-            estado,
-            plazo_id,
-            lista_precio_id,
-            descuento_1,
-            descuento_2,
-            descuento_3,
-            descuento_4,
-            fecha_aprobacion,
-            fecha_rechazo,
-            motivo_rechazo,
-            cliente_v2!pedido_venta_rimec_cliente_id_fkey(descp_cliente),
-            usuario_v2!pedido_venta_rimec_vendedor_id_fkey(descp_usuario)
-          `)
-          .order("id", { ascending: false })
-          .limit(50)
-      : { data: null, error: new Error("Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY") };
-
-  if (error) {
-    console.error("Error fetching pedidos:", error);
+  const session = await getSession();
+  if (!isNivelDios(session)) {
+    return (
+      <div className="min-h-screen bg-app-bg pb-16 text-neutral-ink">
+        <NexusHeaderZen active="aprobaciones" />
+        <section className="mx-auto max-w-2xl px-6 py-16">
+          <h1 className="font-serif text-3xl text-rimec-azul-dark">Nivel Dios requerido</h1>
+          <p className="mt-4 text-neutral-700">{mensajeAccesoNivelDios()}</p>
+          <p className="mt-2 text-sm text-neutral-600">
+            Solo profesionales muy autorizados: <code>usuario_v2.rol_id = 1</code> y{" "}
+            <code>usuario_v2.categoria = &apos;DIOS&apos;</code>.
+          </p>
+        </section>
+        <ReportFooter note="Aprobaciones · acceso restringido Nivel Dios" />
+      </div>
+    );
   }
 
-  const pedidos =
-    data?.map((p: any) => ({
-      id: p.id,
-      nro_pedido: p.nro_pedido || `PV-${String(p.id).padStart(6, "0")}`,
-      fecha: p.created_at
-        ? new Date(p.created_at).toLocaleDateString("es-PY", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "-",
-      vendedor: p.usuario_v2?.descp_usuario || `Vendedor ${p.vendedor_id || "?"}`,
-      cliente: p.cliente_v2?.descp_cliente || `Cliente ${p.cliente_id || "?"}`,
-      total: p.total_monto || 0,
-      items_count: p.total_pares || 0,
-      estado: mapEstado(p.estado),
-      descuento_porcentaje: p.descuento_1 || 0,
-      plazo: p.plazo_id ? `Plazo ${p.plazo_id}` : "EFECTIVO",
-      lista_precio: p.lista_precio_id ? `LP${p.lista_precio_id}` : "LP1",
-    })) || [];
-
-  const t1 = Date.now();
-  console.log(`[SSR] Pedidos cargados en ${t1 - t0}ms (servidor)`);
+  const t0 = Date.now();
+  const [data, catalogos] = await Promise.all([
+    fetchAprobacionesData(),
+    fetchAprobacionesCatalogos(),
+  ]);
+  console.log(`[SSR] Aprobaciones FI-centric cargadas en ${Date.now() - t0}ms`);
 
   return (
     <div className="min-h-screen bg-app-bg pb-16 text-neutral-ink">
-      {/* Header Unificado con Tabs Empresariales */}
       <NexusHeaderZen active="aprobaciones" />
 
-      {/* Título del Módulo - Serif Elegante */}
-      <section className="bg-card-bg border-b-2 border-neutral-300 py-8">
+      <section className="border-b-2 border-neutral-300 bg-card-bg py-8">
         <div className="mx-auto max-w-6xl px-6">
           <h1 className="font-serif text-4xl font-light text-rimec-azul-dark">
-            Aprobación de Pedidos RIMEC Web
+            Aprobación de Pedidos RIMEC
           </h1>
-          <p className="mt-2 text-sm text-neutral-700">Control centralizado de pedidos · {today}</p>
+          <p className="mt-2 text-sm text-neutral-700">
+            Gemelo operativo Streamlit · PV global (PV000147) · {today}
+          </p>
         </div>
       </section>
 
-      {/* Client Component con interactividad */}
-      <AprobacionesClient pedidosIniciales={pedidos} />
+      <AprobacionesClient dataInicial={data} catalogos={catalogos} />
 
-      <article className="mx-auto max-w-6xl space-y-10 px-4 py-8 sm:px-6">
-        <ReportSection number="2." title="Notas de operación">
-          <ul className="list-inside list-disc space-y-1.5 text-sm text-report-muted">
-            <li>
-              Los pedidos con estado <strong className="text-report-ink">PENDIENTE</strong> requieren aprobación manual
-              del administrador.
-            </li>
-            <li>
-              Al <strong>aprobar</strong> un pedido, el estado cambia a{" "}
-              <strong className="text-emerald-700">APROBADO</strong> y queda registrado en el historial.
-            </li>
-            <li>
-              Al <strong>rechazar</strong> un pedido, se puede agregar un motivo opcional que quedará registrado.
-            </li>
-            <li>
-              Los datos se actualizan automáticamente después de cada acción. El historial completo está disponible con
-              el filtro <strong>TODOS</strong>.
-            </li>
-          </ul>
-        </ReportSection>
-      </article>
-
-      <ReportFooter note="Aprobación de Pedidos · Módulo de gestión para control centralizado de pedidos web generados desde RIMEC" />
+      <ReportFooter note="Aprobaciones · Misma lógica que Control Central (factura_interna + pv_global)" />
     </div>
   );
 }

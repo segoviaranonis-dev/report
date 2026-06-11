@@ -8,6 +8,10 @@ type RechazoModalProps = {
   onMotivoChange: (motivo: string) => void;
   loading: boolean;
   pedidoNro?: string;
+  titulo?: string;
+  confirmLabel?: string;
+  placeholder?: string;
+  minLength?: number;
 };
 
 export function RechazoModal({
@@ -18,17 +22,21 @@ export function RechazoModal({
   onMotivoChange,
   loading,
   pedidoNro,
+  titulo = "Rechazar Pedido",
+  confirmLabel = "Confirmar Rechazo",
+  placeholder = "Ej: Stock insuficiente, cliente sin crédito disponible...",
+  minLength = 10,
 }: RechazoModalProps) {
   const motivoTrim = motivo.trim();
-  const motivoValido = motivoTrim.length >= 10;
+  const motivoValido = motivoTrim.length >= minLength;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       onConfirm={onConfirm}
-      title="Rechazar Pedido"
-      confirmText="Confirmar Rechazo"
+      title={titulo}
+      confirmText={confirmLabel}
       cancelText="Cancelar"
       variant="danger"
       confirmDisabled={!motivoValido}
@@ -51,18 +59,20 @@ export function RechazoModal({
           label="Motivo del rechazo"
           required
           error={
-            motivoTrim && !motivoValido ? "El motivo debe tener al menos 10 caracteres" : undefined
+            motivoTrim && !motivoValido
+              ? `El motivo debe tener al menos ${minLength} caracteres`
+              : undefined
           }
           hint={
             !motivoTrim
-              ? "El botón de rechazo se habilitará cuando escriba un motivo válido (mínimo 10 caracteres)."
-              : `${motivoTrim.length}/10 caracteres mínimos`
+              ? `Mínimo ${minLength} caracteres.`
+              : `${motivoTrim.length}/${minLength} caracteres mínimos`
           }
         >
           <TextArea
             value={motivo}
             onChange={(e) => onMotivoChange(e.target.value)}
-            placeholder="Ej: Stock insuficiente, cliente sin crédito disponible..."
+            placeholder={placeholder}
             rows={4}
             disabled={loading}
             error={motivoTrim !== "" && !motivoValido}

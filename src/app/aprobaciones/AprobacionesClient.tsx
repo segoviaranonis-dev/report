@@ -1,298 +1,338 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui";
-import { aprobarPedidoAction, rechazarPedidoAction } from "./actions";
-import { PedidoCard } from "./components/PedidoCard";
+import { anularFiAction, confirmarFiAction, rechazarPedidoAction } from "./actions";
+import { FiCard } from "./components/FiCard";
+import { PedidoPendienteCard } from "./components/PedidoPendienteCard";
 import { RechazoModal } from "./components/RechazoModal";
 import type {
-  DescuentosFactura,
-  Factura,
-  FiltroEstado,
-  Item,
+  AprobacionesCatalogos,
+  AprobacionesData,
+  FiDetalle,
+  FiRecord,
   MensajeFeedback,
-  Pedido,
+  TabAprobaciones,
 } from "./lib/aprobaciones-types";
-import { PEDIDOS_POR_PAGINA } from "./lib/aprobaciones-types";
-import { calcStats } from "./lib/aprobaciones-utils";
 
 type Props = {
-  pedidosIniciales: Pedido[];
+  dataInicial: AprobacionesData;
+  catalogos: AprobacionesCatalogos;
 };
 
-export function AprobacionesClient({ pedidosIniciales }: Props) {
-  const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales);
-  const [procesando, setProcesando] = useState<number | null>(null);
+const TABS: { id: TabAprobaciones; label: string; icon: string }[] = [
+  { id: "pendientes", label: "Pendientes", icon: "📋" },
+  { id: "reservadas", label: "Reservadas", icon: "⏳" },
+  { id: "confirmadas", label: "Confirmadas", icon: "✓" },
+  { id: "anuladas", label: "Anuladas", icon: "✗" },
+];
+
+export function AprobacionesClient({ dataInicial, catalogos }: Props) {
+  const router = useRouter();
+  const [tab, setTab] = useState<TabAprobaciones>("confirmadas");
+  const [data, setData] = useState(dataInicial);
+  const [detallesPorFi, setDetallesPorFi] = useState(dataInicial.detallesPorFi);
+
+  useEffect(() => {
+    setData(dataInicial);
+    setDetallesPorFi(dataInicial.detallesPorFi);
+  }, [dataInicial]);
   const [mensaje, setMensaje] = useState<MensajeFeedback | null>(null);
-  const [filtro, setFiltro] = useState<FiltroEstado>("PENDIENTE");
+  const [procesandoFi, setProcesandoFi] = useState<number | null>(null);
+  const [rechazandoPedido, setRechazandoPedido] = useState<number | null>(null);
   const [pedidoExpandido, setPedidoExpandido] = useState<number | null>(null);
-  const [facturas, setFacturas] = useState<Record<number, Factura[]>>({});
-  const [items, setItems] = useState<Record<number, Item[]>>({});
-  const [loadingFacturas, setLoadingFacturas] = useState<number | null>(null);
-  const [descuentosFactura, setDescuentosFactura] = useState<Record<number, DescuentosFactura>>({});
-  const [listasFactura, setListasFactura] = useState<Record<number, number>>({});
-  const [imagenesVisibles, setImagenesVisibles] = useState<Set<number>>(new Set());
-  const [paginaActual, setPaginaActual] = useState(1);
-  const [modalRechazo, setModalRechazo] = useState<{ pedidoId: number; motivo: string } | null>(null);
+  const [fisPorPedido, setFisPorPedido] = useState<Record<number, FiRecord[]>>({});
+  const [cargandoFisPedido, setCargandoFisPedido] = useState<number | null>(null);
+  const [modalAnular, setModalAnular] = useState<{ fiId: number; motivo: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  async function cargarPedidos() {
-    const t0 = performance.now();
-    try {
-      const res = await fetch("/api/aprobaciones");
-      if (res.ok) {
-        const data = await res.json();
-        setPedidos(data);
-        console.log(`✓ Pedidos recargados en ${(performance.now() - t0).toFixed(0)}ms`);
-      }
-    } catch (error) {
-      console.error("Error cargando pedidos:", error);
-    }
+  function flash(tipo: MensajeFeedback["tipo"], texto: string) {
+    setMensaje({ tipo, texto });
+    setTimeout(() => setMensaje(null), 5000);
   }
 
-  async function aprobarPedido(pedidoId: number) {
-    setProcesando(pedidoId);
-    setMensaje(null);
-    try {
-      const result = await aprobarPedidoAction(pedidoId);
-      if (result?.success) {
-        setMensaje({ tipo: "success", texto: `Pedido ${pedidoId} aprobado` });
-        await cargarPedidos();
-      } else {
-        setMensaje({ tipo: "error", texto: result.error || "Error al aprobar" });
-      }
-    } catch (error) {
-      console.error("Error aprobando:", error);
-      setMensaje({ tipo: "error", texto: "Error de conexión" });
-    } finally {
-      setProcesando(null);
-      setTimeout(() => setMensaje(null), 4000);
-    }
+  function refrescar() {
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
-  async function rechazarPedido(pedidoId: number, motivo: string) {
-    setProcesando(pedidoId);
-    setMensaje(null);
-    try {
-      const result = await rechazarPedidoAction(pedidoId, motivo);
-      if (result?.success) {
-        setMensaje({ tipo: "success", texto: `Pedido ${pedidoId} rechazado` });
-        setModalRechazo(null);
-        await cargarPedidos();
-      } else {
-        setMensaje({ tipo: "error", texto: result.error || "Error al rechazar" });
-      }
-    } catch (error) {
-      console.error("Error rechazando:", error);
-      setMensaje({ tipo: "error", texto: "Error de conexión" });
-    } finally {
-      setProcesando(null);
-      setTimeout(() => setMensaje(null), 4000);
-    }
-  }
-
-  async function togglePedido(pedidoId: number) {
-    if (pedidoExpandido === pedidoId) {
-      setPedidoExpandido(null);
-      return;
-    }
-
-    setPedidoExpandido(pedidoId);
-    if (facturas[pedidoId]) return;
-
-    setLoadingFacturas(pedidoId);
-    const t0 = performance.now();
+  async function cargarFisPedido(pedidoId: number) {
+    if (fisPorPedido[pedidoId]) return;
+    setCargandoFisPedido(pedidoId);
     try {
       const res = await fetch(`/api/aprobaciones/${pedidoId}/facturas`);
       if (res.ok) {
-        const data: Factura[] = await res.json();
-        setFacturas((prev) => ({ ...prev, [pedidoId]: data }));
-
-        for (const factura of data) {
-          const itemsRes = await fetch(`/api/aprobaciones/facturas/${factura.id}/items`);
-          if (itemsRes.ok) {
-            const itemsData = await itemsRes.json();
-            setItems((prev) => ({ ...prev, [factura.id]: itemsData }));
-          }
-        }
-        console.log(`✓ Facturas e items cargados en ${(performance.now() - t0).toFixed(0)}ms`);
+        const fis: FiRecord[] = await res.json();
+        setFisPorPedido((prev) => ({ ...prev, [pedidoId]: fis }));
       }
-    } catch (error) {
-      console.error("Error cargando facturas:", error);
+    } catch (e) {
+      console.error(e);
     } finally {
-      setLoadingFacturas(null);
+      setCargandoFisPedido(null);
     }
   }
 
-  const pedidosFiltrados = filtro === "TODOS" ? pedidos : pedidos.filter((p) => p.estado === filtro);
-  const stats = calcStats(pedidos);
-  const pedidoRechazo = modalRechazo
-    ? pedidos.find((p) => p.id === modalRechazo.pedidoId)
-    : undefined;
+  async function loadDetalle(fiId: number): Promise<FiDetalle[]> {
+    const res = await fetch(`/api/aprobaciones/facturas/${fiId}/items`);
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  async function handleConfirmarFi(fiId: number) {
+    setProcesandoFi(fiId);
+    try {
+      const result = await confirmarFiAction(fiId);
+      if (result.success) {
+        flash("success", result.message || "FI confirmada");
+        refrescar();
+      } else {
+        flash("error", result.error || "Error al confirmar");
+      }
+    } finally {
+      setProcesandoFi(null);
+    }
+  }
+
+  async function handleAnularConfirmado() {
+    if (!modalAnular) return;
+    setProcesandoFi(modalAnular.fiId);
+    try {
+      const result = await anularFiAction(modalAnular.fiId, modalAnular.motivo);
+      if (result.success) {
+        flash("success", result.message || "FI anulada");
+        setModalAnular(null);
+        refrescar();
+      } else {
+        flash("error", result.error || "Error al anular");
+      }
+    } finally {
+      setProcesandoFi(null);
+    }
+  }
+
+  async function handleRechazarPedido(pedidoId: number, motivo: string) {
+    setRechazandoPedido(pedidoId);
+    try {
+      const result = await rechazarPedidoAction(pedidoId, motivo);
+      if (result.success) {
+        flash("success", result.message || "Pedido rechazado");
+        refrescar();
+      } else {
+        flash("error", result.error || "Error al rechazar");
+      }
+    } finally {
+      setRechazandoPedido(null);
+    }
+  }
+
+  const counts = {
+    pendientes: data.pendientes.length,
+    reservadas: data.reservadas.length,
+    confirmadas: data.confirmadas.length,
+    anuladas: data.anuladas.length,
+  };
 
   return (
     <>
-      {/* Panel Destacado: PREVENTAS (PV) */}
-      <section className="border-b-2 border-rimec-azul bg-white py-8 shadow-lg">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mb-6 flex items-center gap-3">
-            <span className="text-3xl">📊</span>
-            <h2 className="text-2xl font-bold text-rimec-azul">PREVENTAS (PV)</h2>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-4">
-            <StatCard label="Total" value={stats.total} />
-            <StatCard label="Pendientes" value={stats.pendientes} tone="warning" />
-            <StatCard label="Aprobados" value={stats.aprobados} tone="success" />
-            <StatCard label="Rechazados" value={stats.rechazados} tone="error" />
-          </div>
+      {/* Flujo + refresh — gemelo Streamlit header */}
+      <section className="border-b border-neutral-300 bg-white py-4">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-neutral-700">
+            Flujo: Aprobar célula → FI RESERVADA → Confirmar individualmente → FI CONFIRMADA
+          </p>
+          <Button variant="secondary" size="sm" onClick={refrescar} disabled={isPending}>
+            {isPending ? "Refrescando…" : "Refrescar"}
+          </Button>
+        </div>
+      </section>
+
+      {/* Tabs */}
+      <section className="border-b-2 border-rimec-azul bg-app-bg py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap gap-2 px-6">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                tab === t.id
+                  ? "bg-rimec-azul text-white shadow"
+                  : "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+              }`}
+            >
+              {t.icon} {t.label}
+              <span className="ml-1.5 tabular-nums opacity-80">({counts[t.id]})</span>
+            </button>
+          ))}
         </div>
       </section>
 
       {mensaje && (
-        <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+        <div className="mx-auto max-w-6xl px-6 pt-4">
           <div
-            className={`flex items-start gap-3 rounded-lg border-2 p-4 text-sm font-medium ${
+            className={`rounded-lg border-2 p-3 text-sm font-medium ${
               mensaje.tipo === "success"
-                ? "border-semantic-success-light bg-semantic-success/10 text-semantic-success"
-                : "border-semantic-error-light bg-semantic-error/10 text-semantic-error"
+                ? "border-semantic-success/30 bg-semantic-success/10 text-semantic-success"
+                : "border-semantic-error/30 bg-semantic-error/10 text-semantic-error"
             }`}
           >
-            <span className="flex-shrink-0 text-xl">{mensaje.tipo === "success" ? "✓" : "✗"}</span>
-            <span>{mensaje.texto}</span>
+            {mensaje.texto}
           </div>
         </div>
       )}
 
-      <section className="border-b border-neutral-300 bg-app-bg py-4">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-ink">Filtrar por estado:</h2>
-            <div className="flex gap-2">
-              {(["TODOS", "PENDIENTE", "APROBADO", "RECHAZADO"] as const).map((f) => (
-                <Button
-                  key={f}
-                  variant={filtro === f ? "primary" : "secondary"}
-                  size="sm"
-                  onClick={() => setFiltro(f)}
-                  className={filtro === f ? "bg-rimec-azul hover:bg-rimec-azul-light" : ""}
-                >
-                  {f}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <article className="mx-auto max-w-6xl bg-app-bg px-6 py-8">
-        {pedidosFiltrados.length === 0 ? (
-          <div className="rounded-lg border-2 border-neutral-300 bg-card-bg p-6 text-center shadow-sm">
-            <p className="text-sm text-neutral-700">
-              No hay pedidos con el filtro: <strong className="text-rimec-azul">{filtro}</strong>
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {pedidosFiltrados
-              .slice((paginaActual - 1) * PEDIDOS_POR_PAGINA, paginaActual * PEDIDOS_POR_PAGINA)
-              .map((pedido) => (
-                <PedidoCard
-                  key={pedido.id}
-                  pedido={pedido}
-                  expandido={pedidoExpandido === pedido.id}
-                  procesando={procesando === pedido.id}
-                  cargandoFacturas={loadingFacturas === pedido.id}
-                  facturas={facturas[pedido.id] || []}
-                  items={items}
-                  descuentosFactura={descuentosFactura}
-                  listasFactura={listasFactura}
-                  imagenesVisibles={imagenesVisibles}
-                  onToggleDetalle={() => togglePedido(pedido.id)}
-                  onAprobar={() => aprobarPedido(pedido.id)}
-                  onRechazar={() => setModalRechazo({ pedidoId: pedido.id, motivo: "" })}
-                  onListaChange={(facturaId, listaId) =>
-                    setListasFactura((prev) => ({ ...prev, [facturaId]: listaId }))
-                  }
-                  onDescuentoChange={(facturaId, descuentos) =>
-                    setDescuentosFactura((prev) => ({ ...prev, [facturaId]: descuentos }))
-                  }
-                  onImageVisible={(itemId) =>
-                    setImagenesVisibles((prev) => new Set(prev).add(itemId))
-                  }
-                />
-              ))}
-          </div>
+      <article className="mx-auto max-w-6xl px-6 py-8">
+        {tab === "pendientes" && (
+          <>
+            {data.pendientes.length === 0 ? (
+              <EmptyState icon="📋" text="No hay pedidos pendientes de aprobación." />
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-neutral-600">
+                  {data.pendientes.length} pedido(s) esperando autorización
+                </p>
+                <div className="space-y-4">
+                  {data.pendientes.map((p) => (
+                    <PedidoPendienteCard
+                      key={p.id}
+                      pedido={p}
+                      catalogos={catalogos}
+                      detallesPorFi={detallesPorFi}
+                      expandido={pedidoExpandido === p.id}
+                      fis={fisPorPedido[p.id] ?? null}
+                      cargandoFis={cargandoFisPedido === p.id}
+                      procesandoFi={procesandoFi}
+                      rechazando={rechazandoPedido === p.id}
+                      onExpandir={() => {
+                        const next = pedidoExpandido === p.id ? null : p.id;
+                        setPedidoExpandido(next);
+                        if (next) cargarFisPedido(next);
+                      }}
+                      onConfirmarFi={handleConfirmarFi}
+                      onAnularFi={(fiId) => setModalAnular({ fiId, motivo: "" })}
+                      onRechazarPedido={handleRechazarPedido}
+                      onLoadDetalle={loadDetalle}
+                      onFeedback={flash}
+                      onEditorApplied={refrescar}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
 
-        {pedidosFiltrados.length > PEDIDOS_POR_PAGINA && (
-          <div className="mt-6 flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
-              disabled={paginaActual === 1}
-              className="rounded border border-report-rule bg-white px-4 py-2 text-sm font-semibold text-report-navy disabled:opacity-30"
-            >
-              ← Anterior
-            </button>
-            <span className="px-4 text-sm text-report-muted">
-              Página {paginaActual} de {Math.ceil(pedidosFiltrados.length / PEDIDOS_POR_PAGINA)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setPaginaActual((p) =>
-                  Math.min(Math.ceil(pedidosFiltrados.length / PEDIDOS_POR_PAGINA), p + 1)
-                )
-              }
-              disabled={paginaActual >= Math.ceil(pedidosFiltrados.length / PEDIDOS_POR_PAGINA)}
-              className="rounded border border-report-rule bg-white px-4 py-2 text-sm font-semibold text-report-navy disabled:opacity-30"
-            >
-              Siguiente →
-            </button>
-          </div>
+        {tab === "reservadas" && (
+          <>
+            {data.reservadas.length === 0 ? (
+              <EmptyState icon="⏳" text="No hay facturas reservadas esperando confirmación." />
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-neutral-600">
+                  {data.reservadas.length} factura(s) esperando confirmación individual
+                </p>
+                <div className="space-y-4">
+                  {data.reservadas.map((fi) => (
+                    <FiCard
+                      key={fi.id}
+                      fi={fi}
+                      catalogos={catalogos}
+                      detalles={detallesPorFi[fi.id]}
+                      procesando={procesandoFi === fi.id}
+                      onConfirmar={handleConfirmarFi}
+                      onAnular={(fiId) => setModalAnular({ fiId, motivo: "" })}
+                      onLoadDetalle={loadDetalle}
+                      onFeedback={flash}
+                      onEditorApplied={refrescar}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {tab === "confirmadas" && (
+          <>
+            {data.confirmadas.length === 0 ? (
+              <EmptyState icon="✓" text="No hay facturas confirmadas aún." />
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-neutral-600">
+                  Últimas {data.confirmadas.length} facturas confirmadas
+                </p>
+                <div className="space-y-4">
+                  {data.confirmadas.map((fi) => (
+                    <FiCard
+                      key={fi.id}
+                      fi={fi}
+                      catalogos={catalogos}
+                      detalles={detallesPorFi[fi.id]}
+                      accionesColapsadas
+                      onLoadDetalle={loadDetalle}
+                      onFeedback={flash}
+                      onEditorApplied={refrescar}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {tab === "anuladas" && (
+          <>
+            {data.anuladas.length === 0 ? (
+              <EmptyState icon="✗" text="No hay facturas anuladas." />
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-neutral-600">
+                  {data.anuladas.length} factura(s) anuladas
+                </p>
+                <div className="space-y-4">
+                  {data.anuladas.map((fi) => (
+                    <FiCard
+                      key={fi.id}
+                      fi={fi}
+                      catalogos={catalogos}
+                      detalles={detallesPorFi[fi.id]}
+                      onLoadDetalle={loadDetalle}
+                      onFeedback={flash}
+                      onEditorApplied={refrescar}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </article>
 
       <RechazoModal
-        isOpen={modalRechazo !== null}
-        motivo={modalRechazo?.motivo || ""}
-        onClose={() => setModalRechazo(null)}
-        onConfirm={() => {
-          if (modalRechazo) rechazarPedido(modalRechazo.pedidoId, modalRechazo.motivo);
-        }}
+        isOpen={modalAnular !== null}
+        motivo={modalAnular?.motivo || ""}
+        onClose={() => setModalAnular(null)}
+        onConfirm={handleAnularConfirmado}
         onMotivoChange={(motivo) =>
-          setModalRechazo((prev) => (prev ? { ...prev, motivo } : null))
+          setModalAnular((prev) => (prev ? { ...prev, motivo } : null))
         }
-        loading={procesando === modalRechazo?.pedidoId}
-        pedidoNro={pedidoRechazo?.nro_pedido}
+        loading={procesandoFi === modalAnular?.fiId}
+        titulo="Anular factura interna"
+        confirmLabel="Confirmar anulación"
+        placeholder="Motivo de anulación…"
+        minLength={1}
       />
     </>
   );
 }
 
-function StatCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "warning" | "success" | "error";
-}) {
-  const toneClass =
-    tone === "warning"
-      ? "border-semantic-warning/30 bg-semantic-warning/10 text-semantic-warning"
-      : tone === "success"
-        ? "border-semantic-success/30 bg-semantic-success/10 text-semantic-success"
-        : tone === "error"
-          ? "border-semantic-error/30 bg-semantic-error/10 text-semantic-error"
-          : "border-neutral-300 bg-card-bg text-neutral-ink";
-
+function EmptyState({ icon, text }: { icon: string; text: string }) {
   return (
-    <div className={`rounded-lg border-2 p-4 shadow-sm ${toneClass}`}>
-      <div className="text-xs font-semibold uppercase tracking-wider text-neutral-ink-muted">{label}</div>
-      <div className={`mt-2 font-serif text-3xl font-semibold tabular-nums ${tone ? "" : "text-neutral-ink"}`}>
-        {value}
-      </div>
+    <div className="rounded-lg border-2 border-neutral-300 bg-card-bg p-8 text-center">
+      <span className="text-3xl">{icon}</span>
+      <p className="mt-2 text-sm text-neutral-700">{text}</p>
     </div>
   );
 }
