@@ -23,15 +23,15 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/depositos-bazzar', '/tablet-bazzar', '/informes'],
-  2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web'],
+  2: ['/retail', '/depositos-bazzar', '/tablet-bazzar', '/bazzar-web'],
   3: ['/ventas-fotos'],
 }
 
 // APIs permitidas por rol
 const ROLE_API_ROUTES: Record<number, RegExp[]> = {
   1: [/.*/], // Todo
-  2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/auth\//],
+  2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/bazzar-web\//, /^\/api\/auth\//],
   3: [/^\/api\/ventas-fotos\//, /^\/api\/auth\//],
 }
 
@@ -77,6 +77,37 @@ export async function middleware(request: NextRequest) {
     }
 
     const rol_id = Number(payload.rol_id) || 0
+    const categoria = String(payload.role ?? '').toUpperCase().trim()
+
+    // Motor precio BAZZAR WEB: solo rol_id=1
+    if (
+      pathname.startsWith('/bazzar-web/motor-precio') ||
+      pathname.startsWith('/api/bazzar-web/motor-precio') ||
+      pathname.startsWith('/bazzar-web/stock-sano') ||
+      pathname.startsWith('/api/bazzar-web/stock-sano')
+    ) {
+      if (rol_id !== 1) {
+        if (isApiRoute) {
+          return NextResponse.json({ error: 'RIMEC Admin requerido' }, { status: 403 })
+        }
+        const fallback = ROLE_HOME_REDIRECT[rol_id] || '/login'
+        return NextResponse.redirect(new URL(fallback, request.url))
+      }
+    }
+
+    if (
+      pathname.startsWith('/bazzar-web/compra') ||
+      pathname.startsWith('/bazzar-web/deposito-web')
+    ) {
+      const ok = rol_id === 1 || (rol_id === 2 && categoria === 'ADMIN')
+      if (!ok) {
+        if (isApiRoute) {
+          return NextResponse.json({ error: 'Bazzar Admin requerido' }, { status: 403 })
+        }
+        const fallback = ROLE_HOME_REDIRECT[rol_id] || '/login'
+        return NextResponse.redirect(new URL(fallback, request.url))
+      }
+    }
 
     // Si accede a /, redirigir según rol
     if (pathname === '/') {
@@ -136,11 +167,13 @@ export const config = {
     '/aprobaciones/:path*',
     '/depositos-bazzar/:path*',
     '/tablet-bazzar/:path*',
+    '/bazzar-web/:path*',
     '/api/rimec/:path*',
     '/api/retail/:path*',
     '/api/ventas-fotos/:path*',
     '/api/aprobaciones/:path*',
     '/api/depositos/:path*',
     '/api/tablet-bazzar/:path*',
+    '/api/bazzar-web/:path*',
   ],
 }

@@ -12,7 +12,63 @@ type ModuleCard = {
   description: string;
   icon: string;
   roles: number[]; // Roles permitidos
+  /** Solo rol 2 ADMIN (Compra / Depósito Web) */
+  bazzarAdminOnly?: boolean;
+  /** Solo rol 1 (Motor precio) */
+  rimecAdminOnly?: boolean;
 };
+
+const BAZZAR_WEB_MODULES: ModuleCard[] = [
+  {
+    href: "/bazzar-web/compra",
+    title: "Compra",
+    description: "Recepción web · Confirmar traspasos desde Facturación RIMEC hacia ALM_WEB_01 (migración Streamlit compra_web).",
+    icon: "🛒",
+    roles: [1, 2],
+    bazzarAdminOnly: true,
+  },
+  {
+    href: "/bazzar-web/deposito-web",
+    title: "Depósito Web",
+    description: "Stock ALM_WEB_01 · Resumen y detalle por 5 pilares + talla para catálogo e-commerce (migración Streamlit deposito_web).",
+    icon: "📦",
+    roles: [1, 2],
+    bazzarAdminOnly: true,
+  },
+  {
+    href: "/bazzar-web/motor-precio",
+    title: "Motor de precio",
+    description: "Precios WEB · Reglas markup por caso, lista activa y publicación precio_web para www.bazzar.com.py (nuevo).",
+    icon: "💰",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
+  {
+    href: "/bazzar-web/stock-sano",
+    title: "Stock Sano",
+    description: "Protocolo aduanero ALM_WEB_01 · Precio canonico L+R+Material, 60 pares, historial de ingresos.",
+    icon: "✓",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
+];
+
+const OTHER_MODULES: ModuleCard[] = [
+  {
+    href: "/informes",
+    title: "Anexo Documental",
+    description: "Repositorio de reportes · Documentación técnica, guías de uso, mapas de paridad, procedimientos operativos.",
+    icon: "📄",
+    roles: [1],
+  },
+  {
+    href: "/informes/bazzar-web",
+    title: "Índice BAZZAR WEB",
+    description: "Anexo e-commerce · Compra, Depósito Web, Motor de precio — cadena ALM_WEB_01 → precio_web → tienda.",
+    icon: "🌐",
+    roles: [1],
+  },
+];
 
 const MODULES: ModuleCard[] = [
   {
@@ -64,13 +120,7 @@ const MODULES: ModuleCard[] = [
     icon: "📱",
     roles: [1, 2],
   },
-  {
-    href: "/informes",
-    title: "Anexo Documental",
-    description: "Repositorio de reportes · Documentación técnica, guías de uso, mapas de paridad, procedimientos operativos.",
-    icon: "📄",
-    roles: [1],
-  },
+  ...OTHER_MODULES,
 ];
 
 export default function HomePage() {
@@ -141,6 +191,14 @@ export default function HomePage() {
     return m.roles.includes(rolId);
   });
 
+  const visibleBazzarWebModules = BAZZAR_WEB_MODULES.filter((m) => {
+    if (m.rimecAdminOnly) return rolId === 1;
+    if (m.bazzarAdminOnly) {
+      return rolId === 1 || (rolId === 2 && categoria === 'ADMIN');
+    }
+    return m.roles.includes(rolId);
+  });
+
   // Agrupar módulos por sección
   const rimecModules = visibleModules.filter(m =>
     ['/rimec', '/ventas-fotos', '/aprobaciones', '/rrhh'].includes(m.href)
@@ -151,6 +209,9 @@ export default function HomePage() {
   const otrosModules = visibleModules.filter(m =>
     !['/rimec', '/ventas-fotos', '/aprobaciones', '/rrhh', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
+
+  const WEB_NAVY = '#1E3A5F';
+  const WEB_ORANGE = '#F97316';
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
@@ -233,6 +294,44 @@ export default function HomePage() {
                   >
                     <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
                     <h2 className="mb-2 font-serif text-lg font-semibold text-bazzar-naranja-dark transition-colors group-hover:text-bazzar-naranja">
+                      {mod.title}
+                    </h2>
+                    <p className="text-sm leading-relaxed text-neutral-700">
+                      {mod.description}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* BAZZAR WEB — E-commerce */}
+          {visibleBazzarWebModules.length > 0 && (
+            <details open className="group rounded-2xl border-3 bg-card-bg shadow-lg transition-all hover:shadow-xl" style={{ borderColor: WEB_NAVY }}>
+              <summary className="cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all hover:bg-slate-50">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-3 text-xl">
+                    <span>🌐</span>
+                    <span className="font-bold" style={{ color: WEB_NAVY }}>BAZZAR WEB</span>
+                    <span className="text-sm font-normal opacity-70" style={{ color: WEB_ORANGE }}>
+                      ({visibleBazzarWebModules.length} módulos)
+                    </span>
+                  </span>
+                  <span className="text-sm" style={{ color: WEB_NAVY }}>
+                    Roles: {rolId === 1 ? '1 (Admin)' : '2 (Bazzar Admin)'}
+                  </span>
+                </div>
+              </summary>
+              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-card-bg rounded-b-2xl">
+                {visibleBazzarWebModules.map((mod) => (
+                  <Link
+                    key={mod.href}
+                    href={mod.href}
+                    className="group block rounded-xl border-2 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-105"
+                    style={{ borderColor: `${WEB_NAVY}33` }}
+                  >
+                    <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
+                    <h2 className="mb-2 font-serif text-lg font-semibold transition-colors" style={{ color: WEB_NAVY }}>
                       {mod.title}
                     </h2>
                     <p className="text-sm leading-relaxed text-neutral-700">

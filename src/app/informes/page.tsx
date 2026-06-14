@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ReportAppNav } from "@/components/report/ReportAppNav";
 import { ReportCover } from "@/components/report/ReportCover";
 import { ReportFooter } from "@/components/report/ReportFooter";
@@ -97,6 +98,19 @@ export default function InformesPage() {
             Próxima iteración: filtros persistentes (marca, línea, referencia, material, color, rango de fechas,
             canal) y gráficos de distribución y evolución temporal sobre la grada en formato Bazzar.
           </p>
+        </ReportSection>
+
+        <ReportSection number="5." title="BAZZAR WEB — e-commerce">
+          <p>
+            Índice operativo del ente BAZZAR WEB: Compra, Depósito Web y Motor de precio (migración Streamlit +
+            cadena ALM_WEB_01 → precio_web → tienda pública).
+          </p>
+          <Link
+            href="/informes/bazzar-web"
+            className="mt-4 inline-block rounded border border-report-navy bg-report-navy px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          >
+            Abrir índice BAZZAR WEB
+          </Link>
         </ReportSection>
       </article>
 
