@@ -82,8 +82,8 @@ export async function middleware(request: NextRequest) {
     const rol_id = Number(payload.rol_id) || 0
     const categoria = String(payload.role ?? '').toUpperCase().trim()
 
-    // Nivel Dios: /aprobaciones solo rol_id=1 + categoria=DIOS (usuario_v2)
-    if (pathname.startsWith('/aprobaciones')) {
+    // Nivel Dios: /aprobaciones y APIs del módulo
+    if (pathname.startsWith('/aprobaciones') || pathname.startsWith('/api/aprobaciones')) {
       if (rol_id !== 1 || categoria !== 'DIOS') {
         if (isApiRoute) {
           return NextResponse.json(

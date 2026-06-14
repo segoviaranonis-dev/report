@@ -7,6 +7,7 @@ import {
   estadoBadge,
   fiDisplayId,
   fiEsEditable,
+  fmtFechaConfirmacion,
   fmtGs,
   listaPrecioLabel,
   ppDisplay,
@@ -115,6 +116,16 @@ export function FiCard({
             onApplied={applied}
           />
           <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+            <div className="rounded-lg border-2 border-amber-500/50 bg-amber-50 px-3 py-1.5 text-left">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                Fecha confirmación
+              </p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-amber-950">
+                {estadoUpper === "CONFIRMADA"
+                  ? fmtFechaConfirmacion(fi.fecha_confirmacion)
+                  : "—"}
+              </p>
+            </div>
             <span className="rounded-lg bg-rimec-azul px-3 py-1.5 text-sm font-bold tabular-nums text-white shadow-sm">
               {displayId}
             </span>

@@ -32,8 +32,10 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
     const pedidoId = pedidoRes.rows[0]?.pedido_id ?? null;
 
     const updateRes = await client.query(
-      `UPDATE public.factura_interna SET estado = 'CONFIRMADA' WHERE id = $1 AND estado = 'RESERVADA'`,
-      [fiId]
+      `UPDATE public.factura_interna
+       SET estado = 'CONFIRMADA', fecha_confirmacion = NOW()
+       WHERE id = $1 AND estado = 'RESERVADA'`,
+      [fiId],
     );
 
     if ((updateRes.rowCount ?? 0) === 0) {

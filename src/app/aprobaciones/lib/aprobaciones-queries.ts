@@ -41,6 +41,8 @@ function mapFiRow(r: Record<string, unknown>): FiRecord {
     pp_estado: r.pp_estado != null ? String(r.pp_estado) : null,
     notas: r.notas != null ? String(r.notas) : null,
     created_at: r.created_at != null ? String(r.created_at) : null,
+    fecha_confirmacion:
+      r.fecha_confirmacion != null ? String(r.fecha_confirmacion) : null,
   };
 }
 
@@ -103,7 +105,7 @@ export async function fetchFiReservadas(): Promise<FiRecord[]> {
            fi.estado, fi.total_pares, fi.total_monto,
            fi.cliente_id, fi.vendedor_id, fi.plazo_id, fi.lista_precio_id,
            fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4,
-           fi.created_at,
+           fi.created_at, fi.fecha_confirmacion,
            c.descp_cliente AS cliente_nombre,
            v.descp_usuario AS vendedor_nombre,
            pl.descp_plazo AS plazo_nombre,
@@ -118,7 +120,7 @@ export async function fetchFiReservadas(): Promise<FiRecord[]> {
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
     WHERE fi.estado = 'RESERVADA'
-    ORDER BY fi.created_at DESC
+    ORDER BY fi.fecha_confirmacion DESC NULLS LAST, fi.created_at DESC
   `);
   return rows.map(mapFiRow);
 }
@@ -141,7 +143,8 @@ export async function fetchFiConfirmadas(): Promise<FiRecord[]> {
       pp.numero_proforma AS proforma,
       pp.estado AS pp_estado,
       qa.descripcion AS quincena_llegada,
-      fi.created_at
+      fi.created_at,
+      fi.fecha_confirmacion
     FROM factura_interna fi
     LEFT JOIN cliente_v2 c ON c.id_cliente = fi.cliente_id
     LEFT JOIN usuario_v2 v ON v.id_usuario = fi.vendedor_id
@@ -149,7 +152,7 @@ export async function fetchFiConfirmadas(): Promise<FiRecord[]> {
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
     WHERE fi.estado = 'CONFIRMADA'
-    ORDER BY fi.pv_global DESC
+    ORDER BY fi.fecha_confirmacion DESC NULLS LAST, fi.pv_global DESC
     LIMIT 200
   `);
   return rows.map(mapFiRow);
@@ -170,14 +173,15 @@ export async function fetchFiAnuladas(): Promise<FiRecord[]> {
            pp.numero_registro AS nro_pp,
            pp.numero_proforma AS proforma,
            pp.estado AS pp_estado,
-           fi.created_at
+           fi.created_at,
+           fi.fecha_confirmacion
     FROM factura_interna fi
     LEFT JOIN cliente_v2 c ON c.id_cliente = fi.cliente_id
     LEFT JOIN usuario_v2 v ON v.id_usuario = fi.vendedor_id
     LEFT JOIN plazo_v2 pl ON pl.id_plazo = fi.plazo_id
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     WHERE fi.estado = 'ANULADA'
-    ORDER BY fi.pv_global DESC NULLS LAST
+    ORDER BY COALESCE(fi.fecha_confirmacion, fi.created_at) DESC NULLS LAST
     LIMIT 200
   `);
   return rows.map(mapFiRow);
@@ -197,6 +201,7 @@ export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
       fi.cliente_id, fi.vendedor_id, fi.plazo_id, fi.lista_precio_id,
       fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4,
       fi.created_at,
+      fi.fecha_confirmacion,
       pp.numero_registro AS nro_pp,
       pp.numero_proforma AS proforma,
       pp.estado AS pp_estado,

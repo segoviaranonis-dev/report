@@ -32,6 +32,8 @@ export type FiRecord = {
   pp_estado: string | null;
   notas?: string | null;
   created_at?: string | null;
+  /** RESERVADA→CONFIRMADA (MIG-114) */
+  fecha_confirmacion?: string | null;
 };
 
 /** Pedido web pendiente — get_pedidos_pendientes() */

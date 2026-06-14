@@ -44,6 +44,13 @@ const MODULES: ModuleCard[] = [
     roles: [1],
   },
   {
+    href: "/rrhh",
+    title: "RRHH",
+    description: "Recursos Humanos · Gestión de funcionarios por ente (RIMEC + tiendas). Consulta de departamentos, cargos, antigüedad.",
+    icon: "👥",
+    roles: [1, 2],
+  },
+  {
     href: "/depositos-bazzar",
     title: "Depósitos Bazzar",
     description: "Administrador de depósitos · Gestión de stock para 6 tiendas (Fernando/San Martin/Palma × Adultos/Niños). Sincronización diaria para POS tablet.",
@@ -136,13 +143,13 @@ export default function HomePage() {
 
   // Agrupar módulos por sección
   const rimecModules = visibleModules.filter(m =>
-    ['/rimec', '/ventas-fotos', '/aprobaciones'].includes(m.href)
+    ['/rimec', '/ventas-fotos', '/aprobaciones', '/rrhh'].includes(m.href)
   );
   const bazzarModules = visibleModules.filter(m =>
     ['/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
   const otrosModules = visibleModules.filter(m =>
-    !['/rimec', '/ventas-fotos', '/aprobaciones', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
+    !['/rimec', '/ventas-fotos', '/aprobaciones', '/rrhh', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
 
   return (

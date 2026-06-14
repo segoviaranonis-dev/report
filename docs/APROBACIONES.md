@@ -2,8 +2,73 @@
 
 **Palabra clave holding:** **Nivel Dios** — instancia de control superlativo sobre pedidos y facturas internas.
 
-Gemelo funcional del módulo Streamlit `control_central/modules/aprobacion_pedidos`.  
+Gemelo histórico Streamlit `control_central/modules/aprobacion_pedidos` — **desde 2026-06-14 el canónico es Report**; no se evoluciona Streamlit para Aprobaciones salvo hotfix crítico.
+
 Misma fuente de datos (`factura_interna`, `pv_global`, `pedido_venta_rimec`, 4 pestañas FI-centric).
+
+---
+
+## Report canónico — CSV general y fecha confirmación
+
+### Migración obligatoria (una vez)
+
+```bash
+cd report
+python scripts/aplicar_migracion_114.py
+python scripts/verificar_aprobaciones_db.py   # smoke
+```
+
+SQL: `migrations/114_fi_fecha_confirmacion.sql`
+
+- Columna `fecha_confirmacion TIMESTAMPTZ`
+- Backfill CONFIRMADA históricas (`created_at`)
+- **Trigger** `trg_fi_fecha_confirmacion` — si pasa a CONFIRMADA sin fecha, la BD pone `NOW()`
+- Índices: confirmadas por fecha + sort CSV (`idx_fi_aprobaciones_csv_sort`)
+
+La API `/api/aprobaciones/csv-general` responde **503** con hint si falta la migración.
+
+### UI
+
+| Feature | Ubicación |
+|---------|-----------|
+| **Fecha confirmación** | Badge ámbar en `FiCard` (solo CONFIRMADA) |
+| **Orden confirmadas** | `fecha_confirmacion DESC` — más nuevo arriba |
+| **📄 CSV general** | Header Aprobaciones → `GET /api/aprobaciones/csv-general` |
+
+### CSV general
+
+- **Filas:** 1 × `factura_interna_detalle` · estados **RESERVADA, CONFIRMADA, ANULADA**
+- **Orden:** `fecha_confirmacion` (o `created_at`) **DESC** — lo más nuevo primero
+- **Columnas:** 6 meta (estado, fechas, PV, FI, PP) + **21 legacy** (paridad `MAPA_CSV_VENTAS_PP.md`)
+- **Lista:** desde `fi.lista_precio_id` (LPN/LPC…) — no hardcoded
+- **Código:** `lib/csv-general-export.ts`, `lib/grades-csv-compact.ts`
+
+Al confirmar FI (`confirmarFi`): `estado=CONFIRMADA` + `fecha_confirmacion=NOW()`. El **trigger** `trg_fi_fecha_confirmacion` garantiza fecha si algún cliente omite el SET.
+
+### Formato fecha (UI)
+
+`fmtFechaConfirmacion` en `aprobaciones-utils.ts` — cadena **determinística** (`formatToParts` + `America/Asuncion`) para evitar hydration mismatch Node vs Chrome (`p. m.` con espacio normal, no `U+202F`).
+
+### Dev local
+
+```bash
+cd report
+npm run dev          # http://localhost:3000
+# Si EADDRINUSE: matar node viejo en 3000 y reiniciar
+```
+
+Requiere sesión **Nivel Dios** (`rol_id=1`, `categoria=DIOS`).
+
+### Archivos clave (esta etapa)
+
+| Pieza | Ruta |
+|-------|------|
+| Migración | `migrations/114_fi_fecha_confirmacion.sql` |
+| Aplicar / smoke | `scripts/aplicar_migracion_114.py`, `verificar_aprobaciones_db.py` |
+| CSV export | `src/app/aprobaciones/lib/csv-general-export.ts` |
+| Schema guard API | `src/app/aprobaciones/lib/db-schema.ts` |
+| API | `src/app/api/aprobaciones/csv-general/route.ts` |
+| UI botón | `AprobacionesClient.tsx` → 📄 CSV general |
 
 ---
 
@@ -215,7 +280,9 @@ src/app/aprobaciones/
   actions.ts                        # server actions + requireNivelDios
   lib/require-nivel-dios.ts
   lib/aprobaciones-queries.ts
-  lib/aprobaciones-mutations.ts     # confirmar, anular, lista precio
+  lib/csv-general-export.ts           # CSV general 27 cols
+  lib/grades-csv-compact.ts
+  lib/aprobaciones-mutations.ts     # confirmar + fecha_confirmacion
   lib/fi-editor-sync.ts             # sync PVR tras mutación FI
   lib/aprobaciones-utils.ts
   lib/aprobaciones-types.ts
@@ -224,7 +291,9 @@ src/app/aprobaciones/
   components/ListaPrecioEditor.tsx
   components/ItemRow.tsx
   components/PedidoPendienteCard.tsx
-src/middleware.ts                   # /aprobaciones → rol 1 + DIOS
+src/app/api/aprobaciones/csv-general/route.ts
+src/middleware.ts                   # /aprobaciones + /api/aprobaciones → DIOS
+report/migrations/114_fi_fecha_confirmacion.sql
 REINICIAR_DEV.bat                   # fix «no se ejecuta»
 ```
 
@@ -238,4 +307,4 @@ Referencia Streamlit: `control_central/modules/aprobacion_pedidos/logic.py`, `co
 |-------|--------|
 | 2026-06-10 | Doc Nivel Dios completa; gate `rol_id=1` + `categoria=DIOS`; troubleshooting dev. |
 | 2026-06-11 | Contrato persistencia inmediata; `fi-editor-sync.ts`; editor LPN/LPC. |
-| 2026-06-10 | Layout 3 filas; productos en acordeón. |
+| 2026-06-14 | **Report canónico** — fecha confirmación, CSV general, MIG-114; Streamlit congelado para Aprobaciones. |

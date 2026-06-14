@@ -47,6 +47,35 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   const [modalAnular, setModalAnular] = useState<{ fiId: number; motivo: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [descargandoCsv, setDescargandoCsv] = useState(false);
+
+  async function descargarCsvGeneral() {
+    setDescargandoCsv(true);
+    try {
+      const res = await fetch("/api/aprobaciones/csv-general");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        flash("error", (err as { error?: string }).error || "Error al generar CSV");
+        return;
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition") || "";
+      const match = /filename="([^"]+)"/.exec(dispo);
+      const filename = match?.[1] || "aprobaciones_csv_general.csv";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      flash("success", "CSV general descargado");
+    } catch {
+      flash("error", "No se pudo descargar el CSV");
+    } finally {
+      setDescargandoCsv(false);
+    }
+  }
+
   function flash(tipo: MensajeFeedback["tipo"], texto: string) {
     setMensaje({ tipo, texto });
     setTimeout(() => setMensaje(null), 5000);
@@ -142,9 +171,19 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
           <p className="text-sm text-neutral-700">
             Flujo: Aprobar célula → FI RESERVADA → Confirmar individualmente → FI CONFIRMADA
           </p>
-          <Button variant="secondary" size="sm" onClick={refrescar} disabled={isPending}>
-            {isPending ? "Refrescando…" : "Refrescar"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={descargarCsvGeneral}
+              disabled={descargandoCsv || isPending}
+            >
+              {descargandoCsv ? "Generando CSV…" : "📄 CSV general"}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={refrescar} disabled={isPending}>
+              {isPending ? "Refrescando…" : "Refrescar"}
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -261,7 +300,7 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">
-                  Últimas {data.confirmadas.length} facturas confirmadas
+                  Últimas {data.confirmadas.length} confirmadas · más recientes arriba (fecha confirmación)
                 </p>
                 <div className="space-y-4">
                   {data.confirmadas.map((fi) => (

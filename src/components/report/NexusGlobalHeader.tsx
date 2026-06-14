@@ -2,7 +2,7 @@
 
 import { NexusHeaderZen } from "./NexusHeaderZen";
 
-export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes";
+export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes" | "rrhh";
 
 type Props = {
   active?: NexusNavKey;

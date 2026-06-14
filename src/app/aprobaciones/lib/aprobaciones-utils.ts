@@ -88,6 +88,53 @@ export function plazoDisplay(
   return "—";
 }
 
+const MESES_ES = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+] as const;
+
+const TZ_ASUNCION = "America/Asuncion";
+
+/** Fecha confirmación FI — MIG-114. Cadena fija (evita hydration: ICU Node vs Chrome en es-PY). */
+export function fmtFechaConfirmacion(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ_ASUNCION,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(d);
+
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  const day = Number(pick("day"));
+  const month = Number(pick("month"));
+  const year = pick("year");
+  const hour = pick("hour");
+  const minute = pick("minute").padStart(2, "0");
+  const pm = pick("dayPeriod").toLowerCase().startsWith("p");
+  const mes = MESES_ES[month - 1] ?? String(month);
+
+  return `${day} ${mes}. ${year}, ${hour}:${minute} ${pm ? "p. m." : "a. m."}`;
+}
+
 /** Siempre muestra los 4 descuentos, aunque sean 0 */
 export function fmtDescuentoPct(v: number | null | undefined): string {
   const n = Number(v);
