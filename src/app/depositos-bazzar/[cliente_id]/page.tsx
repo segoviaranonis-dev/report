@@ -2,17 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { DepositoFiltrosHeader } from "./components/DepositoFiltrosHeader";
 import { DepositoTabs } from "./components/DepositoTabs";
 import { TabAnalisis } from "./components/TabAnalisis";
-import { publicStorageObjectUrl } from "@/lib/storage-public-url";
+import { ProductHeroFrame } from "@/components/product/ProductHeroFrame";
+import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
+import {
+  productImageCandidatesForRow,
+  productImageHeroCandidates,
+} from "@/lib/retail/product-image";
 import {
   EMPTY_DEPOSITO_FILTERS,
   applyDepositoFilters,
   type DepositoFilterState,
 } from "@/lib/depositos/deposito-filters";
+import {
+  CATEGORIA_DEPOSITO_META,
+  parseCategoriaDeposito,
+  type CategoriaDeposito,
+} from "@/lib/depositos/depositos-config";
 
 type DepositoResponse = {
   configured: boolean;
@@ -30,7 +39,13 @@ export default function DepositoDetailPage() {
   const cliente_id = params.cliente_id as string;
 
   const [activeTab, setActiveTab] = useState<"analisis" | "articulos">("analisis");
-  const [imagenExpandida, setImagenExpandida] = useState<{ nombre: string; linea: string; ref: string } | null>(null);
+  const [imagenExpandida, setImagenExpandida] = useState<{
+    nombre: string;
+    linea: string;
+    ref: string;
+    material: string;
+    color: string;
+  } | null>(null);
   const [productos, setProductos] = useState<DepositoRow[]>([]);
   const [limitePorMarca, setLimitePorMarca] = useState<30 | 50 | 100 | 'all'>(30);
   const [filtros, setFiltros] = useState<DepositoFilterState>(EMPTY_DEPOSITO_FILTERS);
@@ -50,11 +65,21 @@ export default function DepositoDetailPage() {
     por_tipo_v2: Array<{ tipo_v2_id: number; tipo: string; registros: string; pares: string }>;
   } | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [categoria, setCategoria] = useState<CategoriaDeposito>("tienda");
+
+  const meta = CATEGORIA_DEPOSITO_META[categoria];
+  const esTienda = categoria === "tienda";
+  const catQuery = categoria === "tienda" ? "" : `&categoria=${categoria}`;
+  const backHref = categoria === "tienda" ? "/depositos-bazzar" : `/depositos-bazzar?categoria=${categoria}`;
+
+  useEffect(() => {
+    setCategoria(parseCategoriaDeposito(new URLSearchParams(window.location.search).get("categoria")));
+  }, []);
 
   useEffect(() => {
     const loadProductos = async () => {
       try {
-        const res = await fetch(`/api/depositos/${cliente_id}?limit=${limitePorMarca}`);
+        const res = await fetch(`/api/depositos/${cliente_id}?limit=${limitePorMarca}${catQuery}`);
         const data: DepositoResponse = await res.json();
 
         if (!data.configured) {
@@ -74,13 +99,13 @@ export default function DepositoDetailPage() {
 
         // Cargar filtros si hay productos
         if (data.productos.length > 0) {
-          const filtrosRes = await fetch(`/api/depositos/${cliente_id}/filtros`);
+          const filtrosRes = await fetch(`/api/depositos/${cliente_id}/filtros${catQuery.replace("&", "?")}`);
           const filtrosData = await filtrosRes.json();
           if (filtrosData.configured && !filtrosData.error) {
             setFiltrosData(filtrosData);
           }
-        } else {
-          // Si no hay productos, cargar preview
+        } else if (esTienda) {
+          // Si no hay productos en tienda, cargar preview sync
           const previewRes = await fetch(`/api/depositos/preview/${cliente_id}`);
           const previewData = await previewRes.json();
           if (previewData.preview) {
@@ -95,7 +120,7 @@ export default function DepositoDetailPage() {
     };
 
     loadProductos();
-  }, [cliente_id, limitePorMarca]);
+  }, [cliente_id, limitePorMarca, catQuery, esTienda]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -144,7 +169,7 @@ export default function DepositoDetailPage() {
           <div className="mb-2 text-xl font-bold text-red-800">Error</div>
           <div className="text-red-700">{error}</div>
           <button
-            onClick={() => router.push("/depositos-bazzar")}
+            onClick={() => router.push(backHref)}
             className="mt-4 rounded-xl bg-red-600 px-6 py-2 text-white hover:bg-red-700"
           >
             Volver
@@ -162,7 +187,7 @@ export default function DepositoDetailPage() {
         <div className="bg-white shadow">
           <div className="mx-auto max-w-6xl px-4 py-4">
             <button
-              onClick={() => router.push("/depositos-bazzar")}
+              onClick={() => router.push(backHref)}
               className="mb-2 text-sm font-semibold text-bazzar-naranja hover:text-bazzar-naranja-dark"
             >
               ← Volver a Depósitos
@@ -173,7 +198,7 @@ export default function DepositoDetailPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">
-                  Depósito {ente} · {tipo}
+                  Depósito {ente} · {tipo} · {meta.label}
                 </h1>
                 <p className="text-sm text-gray-600">Cliente ID: {cliente_id}</p>
               </div>
@@ -189,10 +214,12 @@ export default function DepositoDetailPage() {
               Depósito Vacío
             </h2>
             <p className="mb-8 text-gray-600">
-              Este depósito aún no tiene stock sincronizado.
+              {esTienda
+                ? "Este depósito aún no tiene stock sincronizado."
+                : `Depósito ${meta.label} vacío · ETL pendiente.`}
             </p>
 
-            {preview && (
+            {preview && esTienda && (
               <div className="mb-8 rounded-xl bg-bazzar-naranja/10 p-6">
                 <h3 className="mb-4 text-lg font-semibold text-bazzar-text-dark">
                   📊 Disponible para Sincronizar:
@@ -237,6 +264,7 @@ export default function DepositoDetailPage() {
               </div>
             )}
 
+            {esTienda && (
             <button
               onClick={handleSync}
               disabled={syncing}
@@ -248,10 +276,17 @@ export default function DepositoDetailPage() {
             >
               {syncing ? "Sincronizando..." : "⚡ Sincronizar Ahora"}
             </button>
+            )}
 
+            {esTienda ? (
             <p className="mt-4 text-sm text-gray-500">
               Se cargarán los registros desde registro_st_vt_rc_reposicion
             </p>
+            ) : (
+            <p className="mt-4 text-sm text-gray-500">
+              Vista consulta · sync solo en depósito TIENDA
+            </p>
+            )}
           </div>
         </div>
       </div>
@@ -300,7 +335,7 @@ export default function DepositoDetailPage() {
       <div className="bg-white shadow">
         <div className="mx-auto max-w-6xl px-4 py-4">
           <button
-            onClick={() => router.push("/depositos-bazzar")}
+            onClick={() => router.push(backHref)}
             className="mb-2 text-sm font-semibold text-bazzar-naranja hover:text-bazzar-naranja-dark"
           >
             ← Volver a Depósitos
@@ -311,7 +346,7 @@ export default function DepositoDetailPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">
-                Depósito {ente} · {tipo}
+                Depósito {ente} · {tipo} · {meta.label}
               </h1>
               <p className="text-sm text-gray-600">Cliente ID: {cliente_id}</p>
             </div>
@@ -329,7 +364,7 @@ export default function DepositoDetailPage() {
         onChange={(id) => setActiveTab(id as "analisis" | "articulos")}
       >
         {/* Tab Análisis */}
-        {activeTab === "analisis" && <TabAnalisis cliente_id={cliente_id} />}
+        {activeTab === "analisis" && <TabAnalisis cliente_id={cliente_id} categoria={categoria} />}
 
         {/* Tab Artículos */}
         {activeTab === "articulos" && (
@@ -436,23 +471,27 @@ export default function DepositoDetailPage() {
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-2 py-3">
                         {p.imagen_nombre ? (
-                          <button
-                            type="button"
-                            onClick={() => setImagenExpandida({
-                              nombre: p.imagen_nombre!,
-                              linea: p.linea_codigo_proveedor,
-                              ref: p.referencia_codigo_proveedor
-                            })}
-                            className="group relative block h-14 w-14 overflow-hidden rounded-lg shadow-sm ring-1 ring-gray-200 transition-all hover:ring-2 hover:ring-bazzar-naranja hover:shadow-md"
-                          >
-                            <Image
-                              src={publicStorageObjectUrl("productos", p.imagen_nombre)}
-                              alt={`${p.linea_codigo_proveedor}-${p.referencia_codigo_proveedor}`}
-                              fill
-                              className="object-contain p-1 transition-transform group-hover:scale-105"
-                              sizes="56px"
-                            />
-                          </button>
+                          <ProductThumbFrame
+                            alt={`${p.linea_codigo_proveedor}-${p.referencia_codigo_proveedor}`}
+                            candidates={productImageCandidatesForRow(
+                              p.linea_codigo_proveedor,
+                              p.referencia_codigo_proveedor,
+                              p.material_code,
+                              p.color_code,
+                              p.imagen_nombre,
+                              "thumb",
+                            )}
+                            size={56}
+                            onClick={() =>
+                              setImagenExpandida({
+                                nombre: p.imagen_nombre!,
+                                linea: p.linea_codigo_proveedor,
+                                ref: p.referencia_codigo_proveedor,
+                                material: p.material_code,
+                                color: p.color_code,
+                              })
+                            }
+                          />
                         ) : (
                           <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-gray-100 text-gray-400 ring-1 ring-gray-200">
                             <span className="text-lg">📷</span>
@@ -540,16 +579,16 @@ export default function DepositoDetailPage() {
 
             {/* Imagen completa - contenedor que se adapta */}
             <div className="relative flex-1 overflow-auto bg-gray-50 p-6">
-              <div className="relative mx-auto" style={{ maxWidth: '600px', maxHeight: '600px' }}>
-                <Image
-                  src={publicStorageObjectUrl("productos", imagenExpandida.nombre)}
-                  alt={`${imagenExpandida.linea}-${imagenExpandida.ref}`}
-                  width={600}
-                  height={600}
-                  className="h-auto w-full rounded-lg shadow-sm"
-                  priority
-                />
-              </div>
+              <ProductHeroFrame
+                alt={`${imagenExpandida.linea}-${imagenExpandida.ref}`}
+                candidates={productImageHeroCandidates(
+                  imagenExpandida.linea,
+                  imagenExpandida.ref,
+                  imagenExpandida.material,
+                  imagenExpandida.color,
+                  imagenExpandida.nombre,
+                )}
+              />
             </div>
 
             {/* Hint de cierre */}

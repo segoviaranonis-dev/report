@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getDepositoConfig,
+  parseCategoriaDeposito,
+} from "@/lib/depositos/depositos-config";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
-
-const DEPOSITOS_MAP: Record<number, string> = {
-  2100: "deposito_tienda_fernando_adultos",
-  2900: "deposito_tienda_fernando_ninos",
-  2400: "deposito_tienda_sanmartin_adultos",
-  2700: "deposito_tienda_sanmartin_ninos",
-  3100: "deposito_tienda_palma_adultos",
-  3200: "deposito_tienda_palma_ninos",
-};
-
-const ENTES_MAP: Record<number, { ente: string; tipo: string }> = {
-  2100: { ente: "Fernando", tipo: "Adultos" },
-  2900: { ente: "Fernando", tipo: "Niños" },
-  2400: { ente: "San Martin", tipo: "Adultos" },
-  2700: { ente: "San Martin", tipo: "Niños" },
-  3100: { ente: "Palma", tipo: "Adultos" },
-  3200: { ente: "Palma", tipo: "Niños" },
-};
 
 export type DepositoRow = {
   linea_codigo_proveedor: string;
@@ -65,8 +51,10 @@ export async function GET(
 
   const { cliente_id: clienteIdStr } = await params;
   const cliente_id = parseInt(clienteIdStr);
+  const categoria = parseCategoriaDeposito(new URL(req.url).searchParams.get("categoria"));
+  const config = getDepositoConfig(cliente_id, categoria);
 
-  if (!DEPOSITOS_MAP[cliente_id]) {
+  if (!config) {
     return NextResponse.json(
       {
         configured: true,
@@ -77,8 +65,8 @@ export async function GET(
     );
   }
 
-  const tabla = DEPOSITOS_MAP[cliente_id];
-  const info = ENTES_MAP[cliente_id];
+  const tabla = config.tabla;
+  const info = { ente: config.ente, tipo: config.tipo };
 
   // Leer parámetro limit del query string
   const { searchParams } = new URL(req.url);

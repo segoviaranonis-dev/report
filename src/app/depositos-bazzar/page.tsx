@@ -1,24 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DepositoCard } from "./components/DepositoCard";
+import { CategoriaDepositoToggle } from "./components/CategoriaDepositoToggle";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
+import {
+  CATEGORIA_DEPOSITO_META,
+  parseCategoriaDeposito,
+  type CategoriaDeposito,
+} from "@/lib/depositos/depositos-config";
 
 type DepositoEstado = {
   cliente_id: number;
   ente: string;
   tipo: "Adultos" | "Niños";
+  categoria: CategoriaDeposito;
+  tabla: string;
   registros: number;
   error?: string;
 };
 
 type DepositosResponse = {
   configured: boolean;
+  categoria?: CategoriaDeposito;
   depositos: DepositoEstado[];
   error?: string;
 };
 
-const DEPOSITOS_CONFIG = [
+const DEPOSITOS_UI = [
   { cliente_id: 2100, ente: "Fernando", tipo: "Adultos" as const },
   { cliente_id: 2900, ente: "Fernando", tipo: "Niños" as const },
   { cliente_id: 2400, ente: "San Martin", tipo: "Adultos" as const },
@@ -27,7 +36,13 @@ const DEPOSITOS_CONFIG = [
   { cliente_id: 3200, ente: "Palma", tipo: "Niños" as const },
 ];
 
+function categoriaFromUrl(): CategoriaDeposito {
+  if (typeof window === "undefined") return "tienda";
+  return parseCategoriaDeposito(new URLSearchParams(window.location.search).get("categoria"));
+}
+
 export default function DepositosBazzarPage() {
+  const [categoria, setCategoria] = useState<CategoriaDeposito>("tienda");
   const [depositos, setDepositos] = useState<DepositoEstado[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -35,11 +50,23 @@ export default function DepositosBazzarPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Cargar estado inicial
-  const loadEstados = async () => {
+  const meta = CATEGORIA_DEPOSITO_META[categoria];
+  const esTienda = categoria === "tienda";
+
+  const loadEstados = useCallback(async (cat: CategoriaDeposito) => {
     try {
-      const res = await fetch("/api/depositos/sync");
-      const data: DepositosResponse = await res.json();
+      const res = await fetch(`/api/depositos/sync?categoria=${cat}`);
+      const raw = await res.text();
+      let data: DepositosResponse;
+      try {
+        data = JSON.parse(raw) as DepositosResponse;
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Respuesta inválida del servidor"
+            : raw.slice(0, 120) || `HTTP ${res.status}`,
+        );
+      }
 
       if (!data.configured) {
         setError("Base de datos no configurada");
@@ -53,14 +80,31 @@ export default function DepositosBazzarPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadEstados();
   }, []);
 
-  // Sincronizar un depósito individual
+  useEffect(() => {
+    const initial = categoriaFromUrl();
+    setCategoria(initial);
+    loadEstados(initial);
+  }, [loadEstados]);
+
+  const handleCategoriaChange = (cat: CategoriaDeposito) => {
+    setCategoria(cat);
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    const url = new URL(window.location.href);
+    if (cat === "tienda") {
+      url.searchParams.delete("categoria");
+    } else {
+      url.searchParams.set("categoria", cat);
+    }
+    window.history.replaceState({}, "", url.toString());
+    loadEstados(cat);
+  };
+
   const handleSyncDeposito = async (cliente_id: number) => {
+    if (!esTienda) return;
     setSyncing(true);
     setError(null);
     setSuccessMessage(null);
@@ -83,8 +127,7 @@ export default function DepositosBazzarPage() {
         `${resultado.ente} ${resultado.tipo}: ${resultado.registros_insertados} registros sincronizados en ${resultado.duracion_ms}ms`,
       );
 
-      // Recargar estados
-      await loadEstados();
+      await loadEstados(categoria);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al sincronizar depósito");
     } finally {
@@ -92,8 +135,8 @@ export default function DepositosBazzarPage() {
     }
   };
 
-  // Sincronizar TODOS los depósitos
   const handleSyncAll = async () => {
+    if (!esTienda) return;
     setSyncingAll(true);
     setSyncing(true);
     setError(null);
@@ -112,11 +155,10 @@ export default function DepositosBazzarPage() {
       }
 
       setSuccessMessage(
-        `TODOS los depósitos sincronizados: ${data.total_registros} registros en ${data.duracion_total_ms}ms`,
+        `TODOS los depósitos tienda sincronizados: ${data.total_registros} registros en ${data.duracion_total_ms}ms`,
       );
 
-      // Recargar estados
-      await loadEstados();
+      await loadEstados(categoria);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al sincronizar todos los depósitos");
     } finally {
@@ -125,7 +167,7 @@ export default function DepositosBazzarPage() {
     }
   };
 
-  if (loading) {
+  if (loading && depositos.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -145,96 +187,111 @@ export default function DepositosBazzarPage() {
   return (
     <>
       <NexusGlobalHeader active="depositos-bazzar" title="Depósitos Bazzar" />
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-        {/* Header */}
-        <div className="mx-auto max-w-7xl">
-        <div className="mb-8 rounded-2xl bg-white p-8 shadow-lg">
-          <h1 className="mb-2 text-4xl font-bold text-gray-800">
-            Administrador de Depósitos Bazzar
-          </h1>
-          <p className="mb-6 text-gray-600">
-            Gestión de stock para las 6 tiendas · Sistema POS Tablet
-          </p>
+      <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-gray-50 to-gray-100 p-8">
+        <div className="mx-auto min-w-0 max-w-7xl">
+          <div className="mb-8 rounded-2xl bg-white p-8 shadow-lg">
+            <h1 className="mb-2 text-4xl font-bold text-gray-800">
+              Administrador de Depósitos Bazzar
+            </h1>
+            <p className="mb-6 text-gray-600">
+              {meta.descripcion}
+            </p>
 
-          {/* Estadísticas globales */}
-          <div className="mb-6 flex items-center gap-6">
-            <div className="rounded-lg bg-bazzar-naranja/10 px-6 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
-                Total Registros
+            <div className="mb-6 flex items-center gap-6">
+              <div className="rounded-lg bg-bazzar-naranja/10 px-6 py-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
+                  Total Registros · {meta.label}
+                </div>
+                <div className="text-2xl font-bold text-bazzar-text-dark">
+                  {totalRegistros.toLocaleString("es-PY")}
+                </div>
               </div>
-              <div className="text-2xl font-bold text-bazzar-text-dark">
-                {totalRegistros.toLocaleString("es-PY")}
+              <div className="rounded-lg bg-semantic-success/10 px-6 py-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-semantic-success">
+                  Depósitos con stock
+                </div>
+                <div className="text-2xl font-bold text-semantic-success">
+                  {depositos.filter((d) => d.registros > 0).length} / 6
+                </div>
               </div>
             </div>
-            <div className="rounded-lg bg-semantic-success/10 px-6 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-semantic-success">
-                Depósitos Activos
+
+            <CategoriaDepositoToggle categoria={categoria} onChange={handleCategoriaChange} />
+
+            {esTienda ? (
+              <button
+                type="button"
+                onClick={handleSyncAll}
+                disabled={syncingAll}
+                className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all ${
+                  syncingAll
+                    ? "cursor-not-allowed bg-gray-400"
+                    : "bg-gradient-to-r from-bazzar-naranja to-bazzar-naranja-dark hover:from-bazzar-naranja-dark hover:to-bazzar-naranja-dark active:from-bazzar-text-dark active:to-bazzar-text-dark"
+                }`}
+              >
+                {syncingAll ? "Sincronizando todos los depósitos..." : "⚡ Sincronizar TODOS los depósitos (tienda)"}
+              </button>
+            ) : (
+              <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-4 text-center text-sm text-gray-600">
+                Sync Retail solo aplica a depósito <strong>TIENDA</strong> (nivel 1).{" "}
+                <strong>Tablet Bazzar</strong> lee únicamente esas 6 tablas.
               </div>
-              <div className="text-2xl font-bold text-semantic-success">
-                {depositos.filter((d) => d.registros > 0).length} / 6
-              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="mb-6 rounded-xl border-2 border-red-300 bg-red-50 p-4 text-red-800">
+              <strong>Error:</strong> {error}
             </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-6 rounded-xl border-2 border-semantic-success/30 bg-semantic-success/10 p-4 text-semantic-success">
+              <strong>Éxito:</strong> {successMessage}
+            </div>
+          )}
+
+          <div className="grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {DEPOSITOS_UI.map((config) => {
+              const estado = depositos.find((d) => d.cliente_id === config.cliente_id);
+
+              return (
+                <DepositoCard
+                  key={config.cliente_id}
+                  cliente_id={config.cliente_id}
+                  ente={config.ente}
+                  tipo={config.tipo}
+                  categoria={categoria}
+                  tabla={estado?.tabla ?? ""}
+                  registros={estado?.registros || 0}
+                  onSync={handleSyncDeposito}
+                  syncing={syncing}
+                />
+              );
+            })}
           </div>
 
-          {/* Botón Sincronizar TODOS */}
-          <button
-            type="button"
-            onClick={handleSyncAll}
-            disabled={syncingAll}
-            className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all ${
-              syncingAll
-                ? "cursor-not-allowed bg-gray-400"
-                : "bg-gradient-to-r from-bazzar-naranja to-bazzar-naranja-dark hover:from-bazzar-naranja-dark hover:to-bazzar-naranja-dark active:from-bazzar-text-dark active:to-bazzar-text-dark"
-            }`}
-          >
-            {syncingAll ? "Sincronizando todos los depósitos..." : "⚡ Sincronizar TODOS los depósitos"}
-          </button>
-        </div>
-
-        {/* Mensajes */}
-        {error && (
-          <div className="mb-6 rounded-xl border-2 border-red-300 bg-red-50 p-4 text-red-800">
-            <strong>Error:</strong> {error}
+          <div className="mt-8 rounded-xl bg-white p-6 text-center text-sm text-gray-500 shadow">
+            {esTienda ? (
+              <>
+                <p>
+                  <strong>Sincronización diaria desde:</strong> registro_st_vt_rc_reposicion
+                </p>
+                <p className="mt-2">
+                  <strong>Filtro:</strong> cliente_id específico + tipo_movimiento = &apos;stock&apos;
+                </p>
+                <p className="mt-2 font-semibold text-bazzar-naranja">
+                  Conectado a Tablet Bazzar POS
+                </p>
+              </>
+            ) : (
+              <p>
+                Vista <strong>{meta.label}</strong> · tablas nivel {meta.nivel} · consulta admin · sin sync ni Tablet
+              </p>
+            )}
           </div>
-        )}
-
-        {successMessage && (
-          <div className="mb-6 rounded-xl border-2 border-semantic-success/30 bg-semantic-success/10 p-4 text-semantic-success">
-            <strong>Éxito:</strong> {successMessage}
-          </div>
-        )}
-
-        {/* Grid de 6 depósitos */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {DEPOSITOS_CONFIG.map((config) => {
-            const estado = depositos.find((d) => d.cliente_id === config.cliente_id);
-
-            return (
-              <DepositoCard
-                key={config.cliente_id}
-                cliente_id={config.cliente_id}
-                ente={config.ente}
-                tipo={config.tipo}
-                registros={estado?.registros || 0}
-                onSync={handleSyncDeposito}
-                syncing={syncing}
-              />
-            );
-          })}
-        </div>
-
-        {/* Footer info */}
-        {/* Footer info */}
-        <div className="mt-8 rounded-xl bg-white p-6 text-center text-sm text-gray-500 shadow">
-          <p>
-            <strong>Sincronización diaria desde:</strong> registro_st_vt_rc_reposicion
-          </p>
-          <p className="mt-2">
-            <strong>Filtro:</strong> cliente_id específico + tipo_movimiento = &apos;stock&apos;
-          </p>
         </div>
       </div>
-    </div>
     </>
   );
 }

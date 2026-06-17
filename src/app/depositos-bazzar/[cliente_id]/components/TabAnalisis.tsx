@@ -7,11 +7,14 @@ import type {
 } from "@/app/api/depositos/[cliente_id]/analisis/route";
 import { AnalisisExpandible } from "./AnalisisExpandible";
 
+import type { CategoriaDeposito } from "@/lib/depositos/depositos-config";
+
 type Props = {
   cliente_id: string;
+  categoria?: CategoriaDeposito;
 };
 
-export function TabAnalisis({ cliente_id }: Props) {
+export function TabAnalisis({ cliente_id, categoria = "tienda" }: Props) {
   const [data, setData] = useState<AnalisisResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +24,8 @@ export function TabAnalisis({ cliente_id }: Props) {
   useEffect(() => {
     const loadAnalisis = async () => {
       try {
-        const res = await fetch(`/api/depositos/${cliente_id}/analisis`);
+        const catQ = categoria === "tienda" ? "" : `?categoria=${categoria}`;
+        const res = await fetch(`/api/depositos/${cliente_id}/analisis${catQ}`);
         const result: AnalisisResponse = await res.json();
 
         if (!result.configured) {
@@ -44,7 +48,7 @@ export function TabAnalisis({ cliente_id }: Props) {
     };
 
     loadAnalisis();
-  }, [cliente_id]);
+  }, [cliente_id, categoria]);
 
   if (loading) {
     return (

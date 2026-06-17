@@ -1,0 +1,30 @@
+{
+  "id": "MIGRACION-112-DEPOSITOS-RENAME-20260617",
+  "fecha": "2026-06-17",
+  "sql": "control_central/migrations/112_depositos_bazzar_rename_codificado.sql",
+  "estado": "EJECUTADA",
+  "antes": [
+    "deposito_tienda_fernando_adultos",
+    "deposito_tienda_fernando_ninos",
+    "deposito_tienda_palma_adultos",
+    "deposito_tienda_palma_ninos",
+    "deposito_tienda_sanmartin_adultos",
+    "deposito_tienda_sanmartin_ninos"
+  ],
+  "despues": [
+    "deposito_1_palma_adultos_tienda",
+    "deposito_1_palma_ninos_tienda",
+    "deposito_2_fernando_adultos_tienda",
+    "deposito_2_fernando_ninos_tienda",
+    "deposito_3_sanmartin_adultos_tienda",
+    "deposito_3_sanmartin_ninos_tienda"
+  ],
+  "conteos_post": {
+    "2100": 6256,
+    "2900": 2465,
+    "2400": 12798,
+    "2700": 2322,
+    "3100": 4030,
+    "3200": 2423
+  }
+}

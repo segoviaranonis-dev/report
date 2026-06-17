@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import type { CategoriaDeposito } from "@/lib/depositos/depositos-config";
+import { CATEGORIA_DEPOSITO_META } from "@/lib/depositos/depositos-config";
 
 type DepositoCardProps = {
   cliente_id: number;
   ente: string;
   tipo: "Adultos" | "Niños";
+  categoria: CategoriaDeposito;
+  tabla: string;
   registros: number;
   onSync: (cliente_id: number) => Promise<void>;
   syncing: boolean;
@@ -15,11 +19,15 @@ export function DepositoCard({
   cliente_id,
   ente,
   tipo,
+  categoria,
+  tabla,
   registros,
   onSync,
   syncing,
 }: DepositoCardProps) {
   const [loading, setLoading] = useState(false);
+  const meta = CATEGORIA_DEPOSITO_META[categoria];
+  const esTienda = categoria === "tienda";
 
   const handleSync = async () => {
     setLoading(true);
@@ -38,48 +46,52 @@ export function DepositoCard({
     ? "bg-semantic-success/15 text-semantic-success"
     : "bg-bazzar-naranja/15 text-bazzar-text-dark";
 
+  const detailHref =
+    categoria === "tienda"
+      ? `/depositos-bazzar/${cliente_id}`
+      : `/depositos-bazzar/${cliente_id}?categoria=${categoria}`;
+
   return (
     <div
-      className={`rounded-2xl border-2 p-6 shadow-md transition-all hover:shadow-lg ${colorClass}`}
+      className={`min-w-0 rounded-2xl border-2 p-6 shadow-md transition-all hover:shadow-lg ${colorClass}`}
     >
-      {/* Header */}
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between gap-2">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
             Cliente ID
           </div>
           <div className="text-3xl font-bold text-gray-800">{cliente_id}</div>
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}
-        >
-          {tipo}
-        </span>
-      </div>
-
-      {/* Ente */}
-      <div className="mb-4">
-        <div className="text-xl font-semibold text-gray-700">{ente}</div>
-        <div className="text-sm text-gray-500">
-          {ente === "San Martin" ? "San Martín" : ente}
+        <div className="flex flex-col items-end gap-1">
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>
+            {tipo}
+          </span>
+          <span className="rounded-full bg-gray-800 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+            {meta.label}
+          </span>
         </div>
       </div>
 
-      {/* Registros */}
+      <div className="mb-4">
+        <div className="text-xl font-semibold text-gray-700">{ente}</div>
+        {tabla && (
+          <div className="mt-1 break-all font-mono text-[10px] text-gray-400">{tabla}</div>
+        )}
+      </div>
+
       <div className="mb-6 rounded-lg bg-white p-4">
         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
           Stock en depósito
         </div>
         <div className="text-2xl font-bold text-gray-800">
-          {registros.toLocaleString("es-PY")} <span className="text-sm font-normal text-gray-500">registros</span>
+          {registros.toLocaleString("es-PY")}{" "}
+          <span className="text-sm font-normal text-gray-500">registros</span>
         </div>
       </div>
 
-      {/* Botones */}
       <div className="space-y-2">
-        {/* Botón Abrir (SIEMPRE visible) */}
         <a
-          href={`/depositos-bazzar/${cliente_id}`}
+          href={detailHref}
           className={`block w-full rounded-xl py-3 text-center font-semibold text-white transition-all ${
             tipo === "Niños"
               ? "bg-semantic-success hover:bg-semantic-success/90"
@@ -89,27 +101,33 @@ export function DepositoCard({
           📋 Abrir Depósito
         </a>
 
-        {/* Botón Sincronizar */}
-        <button
-          type="button"
-          onClick={handleSync}
-          disabled={loading || syncing}
-          className={`w-full rounded-xl py-3 font-semibold transition-all ${
-            loading || syncing
-              ? "cursor-not-allowed bg-gray-400 text-white"
-              : tipo === "Niños"
-              ? "border-2 border-semantic-success bg-white text-semantic-success hover:bg-semantic-success/10"
-              : "border-2 border-bazzar-naranja bg-white text-bazzar-naranja hover:bg-bazzar-naranja/10"
-          }`}
-        >
-          {loading ? "Sincronizando..." : syncing ? "Esperando..." : "🔄 Sincronizar"}
-        </button>
+        {esTienda && (
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={loading || syncing}
+            className={`w-full rounded-xl py-3 font-semibold transition-all ${
+              loading || syncing
+                ? "cursor-not-allowed bg-gray-400 text-white"
+                : tipo === "Niños"
+                  ? "border-2 border-semantic-success bg-white text-semantic-success hover:bg-semantic-success/10"
+                  : "border-2 border-bazzar-naranja bg-white text-bazzar-naranja hover:bg-bazzar-naranja/10"
+            }`}
+          >
+            {loading ? "Sincronizando..." : syncing ? "Esperando..." : "🔄 Sincronizar"}
+          </button>
+        )}
       </div>
 
-      {/* Última actualización */}
-      {registros > 0 && (
+      {esTienda && registros > 0 && (
+        <div className="mt-3 text-center text-xs font-semibold text-bazzar-naranja">
+          Conectado a Tablet Bazzar
+        </div>
+      )}
+
+      {!esTienda && (
         <div className="mt-3 text-center text-xs text-gray-400">
-          Listo para uso en tablets
+          Solo consulta · ETL pendiente
         </div>
       )}
     </div>

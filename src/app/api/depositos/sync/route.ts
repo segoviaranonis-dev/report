@@ -1,49 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  DEPOSITOS_CONFIG,
+  getDepositosByCategoria,
+  parseCategoriaDeposito,
+  type CategoriaDeposito,
+  type DepositoConfig,
+} from "@/lib/depositos/depositos-config";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
-/**
- * Configuración de los 6 depósitos Bazzar
- */
-const DEPOSITOS_CONFIG = [
-  {
-    cliente_id: 2100,
-    ente: "Fernando",
-    tipo: "Adultos",
-    tabla: "deposito_tienda_fernando_adultos",
-  },
-  {
-    cliente_id: 2900,
-    ente: "Fernando",
-    tipo: "Niños",
-    tabla: "deposito_tienda_fernando_ninos",
-  },
-  {
-    cliente_id: 2400,
-    ente: "San Martin",
-    tipo: "Adultos",
-    tabla: "deposito_tienda_sanmartin_adultos",
-  },
-  {
-    cliente_id: 2700,
-    ente: "San Martin",
-    tipo: "Niños",
-    tabla: "deposito_tienda_sanmartin_ninos",
-  },
-  {
-    cliente_id: 3100,
-    ente: "Palma",
-    tipo: "Adultos",
-    tabla: "deposito_tienda_palma_adultos",
-  },
-  {
-    cliente_id: 3200,
-    ente: "Palma",
-    tipo: "Niños",
-    tabla: "deposito_tienda_palma_ninos",
-  },
-] as const;
-
-export type DepositoConfig = typeof DEPOSITOS_CONFIG[number];
+export type { DepositoConfig };
 
 type SyncResult = {
   cliente_id: number;
@@ -223,10 +188,10 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * GET /api/depositos/sync
+ * GET /api/depositos/sync?categoria=tienda|guardado|averiado
  * Retorna el estado actual de los 6 depósitos (cantidad de registros)
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({
       configured: false,
@@ -234,11 +199,14 @@ export async function GET() {
     });
   }
 
+  const categoria = parseCategoriaDeposito(new URL(req.url).searchParams.get("categoria"));
+  const configs = getDepositosByCategoria(categoria);
+
   try {
     const pool = getRimecPool();
 
     const estados = await Promise.all(
-      DEPOSITOS_CONFIG.map(async (config) => {
+      configs.map(async (config) => {
         try {
           const result = await pool.query(
             `SELECT COUNT(*)::int AS count FROM public.${config.tabla}`,
@@ -249,6 +217,8 @@ export async function GET() {
             cliente_id: config.cliente_id,
             ente: config.ente,
             tipo: config.tipo,
+            categoria: config.categoria,
+            tabla: config.tabla,
             registros: count,
           };
         } catch (error) {
@@ -256,6 +226,8 @@ export async function GET() {
             cliente_id: config.cliente_id,
             ente: config.ente,
             tipo: config.tipo,
+            categoria: config.categoria,
+            tabla: config.tabla,
             registros: 0,
             error: error instanceof Error ? error.message : "Error",
           };
@@ -265,6 +237,7 @@ export async function GET() {
 
     return NextResponse.json({
       configured: true,
+      categoria,
       depositos: estados,
     });
   } catch (error) {
@@ -272,6 +245,7 @@ export async function GET() {
     return NextResponse.json(
       {
         configured: true,
+        categoria,
         depositos: [],
         error: errorMsg,
       },

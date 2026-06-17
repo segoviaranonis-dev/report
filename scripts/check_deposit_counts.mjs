@@ -18,12 +18,12 @@ const pool = new pg.Pool({
 });
 
 const tabs = [
-  [2100, "deposito_tienda_fernando_adultos"],
-  [2900, "deposito_tienda_fernando_ninos"],
-  [2400, "deposito_tienda_sanmartin_adultos"],
-  [2700, "deposito_tienda_sanmartin_ninos"],
-  [3100, "deposito_tienda_palma_adultos"],
-  [3200, "deposito_tienda_palma_ninos"],
+  [2100, "deposito_1_fernando_adultos_tienda"],
+  [2900, "deposito_1_fernando_ninos_tienda"],
+  [2400, "deposito_1_sanmartin_adultos_tienda"],
+  [2700, "deposito_1_sanmartin_ninos_tienda"],
+  [3100, "deposito_1_palma_adultos_tienda"],
+  [3200, "deposito_1_palma_ninos_tienda"],
 ];
 
 for (const [id, t] of tabs) {

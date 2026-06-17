@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getDepositoConfig,
+  parseCategoriaDeposito,
+} from "@/lib/depositos/depositos-config";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
-
-const DEPOSITOS_MAP: Record<number, string> = {
-  2100: "deposito_tienda_fernando_adultos",
-  2900: "deposito_tienda_fernando_ninos",
-  2400: "deposito_tienda_sanmartin_adultos",
-  2700: "deposito_tienda_sanmartin_ninos",
-  3100: "deposito_tienda_palma_adultos",
-  3200: "deposito_tienda_palma_ninos",
-};
 
 export type AnalisisNodo = {
   key: string;
@@ -73,8 +68,9 @@ export async function GET(
 
   const { cliente_id: clienteIdStr } = await params;
   const cliente_id = parseInt(clienteIdStr);
-
-  const tabla = DEPOSITOS_MAP[cliente_id];
+  const categoria = parseCategoriaDeposito(new URL(req.url).searchParams.get("categoria"));
+  const config = getDepositoConfig(cliente_id, categoria);
+  const tabla = config?.tabla;
   if (!tabla) {
     return NextResponse.json(
       {

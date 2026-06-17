@@ -1,0 +1,16 @@
+{
+  "migracion": "113_depositos_bazzar_18_tablas",
+  "fecha": "2026-06-17",
+  "estado": "OK",
+  "tablas_total": 18,
+  "tienda": [
+    { "cliente_id": 2100, "tabla": "deposito_1_fernando_adultos_tienda", "rows": 6256 },
+    { "cliente_id": 2900, "tabla": "deposito_1_fernando_ninos_tienda", "rows": 2465 },
+    { "cliente_id": 2400, "tabla": "deposito_1_sanmartin_adultos_tienda", "rows": 12798 },
+    { "cliente_id": 2700, "tabla": "deposito_1_sanmartin_ninos_tienda", "rows": 2322 },
+    { "cliente_id": 3100, "tabla": "deposito_1_palma_adultos_tienda", "rows": 4030 },
+    { "cliente_id": 3200, "tabla": "deposito_1_palma_ninos_tienda", "rows": 2423 }
+  ],
+  "nomenclatura": "deposito_{nivel}_{ente}_{adultos|ninos}_{tienda|guardado|averiado}",
+  "script": "report/scripts/run_migration_113.mjs"
+}
