@@ -3,6 +3,11 @@ import { publicStorageObjectUrl } from "@/lib/storage-public-url";
 /** Debe coincidir con migrations/033_retail_staging_fk_dims.sql (material/color sentinela). */
 const STAGING_SENTINEL_CODIGO_ABS = 999001;
 
+export type ImageSize = "sm" | "md" | "lg";
+export type ImageVariant = "thumb" | "hero";
+
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+
 function normCodigo(v: string | number | null | undefined): string {
   if (v == null) return "";
   const n = Number(v);
@@ -27,6 +32,63 @@ function joinPillarStem(parts: string[]): string {
   return parts.filter(Boolean).join("-");
 }
 
+/** Quita prefijos productos/ y sm|md|lg|thumbs/ del path en Storage. */
+export function stripProductImageTier(path: string): string {
+  return String(path ?? "")
+    .trim()
+    .replace(/^productos\//i, "")
+    .replace(/^(sm|md|lg|thumbs)\//i, "")
+    .replace(/^\/+/, "");
+}
+
+function normalizeImageFileName(raw: string): string | null {
+  const base = stripProductImageTier(raw);
+  if (!base) return null;
+  return /\.(jpe?g|png|webp)$/i.test(base) ? base : `${base}.jpg`;
+}
+
+function variantToTiers(variant: ImageVariant): ImageSize[] {
+  return variant === "hero" ? ["lg", "md", "sm"] : ["sm", "md"];
+}
+
+function pushUnique(out: string[], value: string) {
+  if (value && !out.includes(value)) out.push(value);
+}
+
+/** URL pública sm/md/lg — Protocolo Imágenes Nexus. */
+export function getProductImageUrl(imageName: string, size: ImageSize = "sm"): string {
+  const base = normalizeImageFileName(imageName);
+  if (!base) return "";
+  return publicStorageObjectUrl("productos", `${size}/${base}`);
+}
+
+/** Candidatos ordenados por tier (sm→md→flat→thumbs legacy) o hero (lg→md→sm→flat). */
+export function tieredStorageCandidates(
+  filePath: string,
+  variant: ImageVariant = "thumb",
+): string[] {
+  const clean = normalizeImageFileName(filePath);
+  if (!clean) return [];
+
+  const urls: string[] = [];
+  for (const tier of variantToTiers(variant)) {
+    pushUnique(urls, publicStorageObjectUrl("productos", `${tier}/${clean}`));
+  }
+  pushUnique(urls, publicStorageObjectUrl("productos", clean));
+  pushUnique(urls, publicStorageObjectUrl("productos", `thumbs/${clean}`));
+  return urls;
+}
+
+function stemCandidates(stem: string, variant: ImageVariant = "thumb"): string[] {
+  const urls: string[] = [];
+  for (const ext of IMAGE_EXTENSIONS) {
+    for (const u of tieredStorageCandidates(`${stem}${ext}`, variant)) {
+      pushUnique(urls, u);
+    }
+  }
+  return urls;
+}
+
 /**
  * Misma convención que rimec-web / bazzar-web:
  * productos/{linea}-{ref}-{material_code}-{color_code}.jpg
@@ -36,6 +98,7 @@ export function productImageCandidates(
   referenciaCodigo: string,
   materialCode: string | number,
   colorCode: string | number,
+  variant: ImageVariant = "thumb",
 ): string[] {
   const L = normPillarSegment(lineaCodigo);
   const R = normPillarSegment(referenciaCodigo);
@@ -43,21 +106,13 @@ export function productImageCandidates(
   const C = normPillarSegment(colorCode);
   if (!L || !R) return [];
 
-  const stem4 = joinPillarStem([L, R, M, C]);
-  const exts = [".jpg", ".jpeg", ".png", ".webp"];
   const urls: string[] = [];
+  const stem4 = joinPillarStem([L, R, M, C]);
   if (stem4) {
-    for (const ext of exts) {
-      const u = publicStorageObjectUrl("productos", `${stem4}${ext}`);
-      if (u) urls.push(u);
-    }
+    for (const u of stemCandidates(stem4, variant)) pushUnique(urls, u);
   }
-  // Fallback L-R (sin mat/color) por si la foto es solo línea+ref
   const stemLr = joinPillarStem([L, R]);
-  for (const ext of exts) {
-    const u = publicStorageObjectUrl("productos", `${stemLr}${ext}`);
-    if (u && !urls.includes(u)) urls.push(u);
-  }
+  for (const u of stemCandidates(stemLr, variant)) pushUnique(urls, u);
   return urls;
 }
 
@@ -66,8 +121,15 @@ export function productImagePrimary(
   referenciaCodigo: string,
   materialCode: string | number,
   colorCode: string | number,
+  variant: ImageVariant = "thumb",
 ): string | undefined {
-  return productImageCandidates(lineaCodigo, referenciaCodigo, materialCode, colorCode)[0];
+  return productImageCandidates(
+    lineaCodigo,
+    referenciaCodigo,
+    materialCode,
+    colorCode,
+    variant,
+  )[0];
 }
 
 /** Nombre de archivo principal intentado (misma convención RIMEC/Bazzar). */
@@ -88,25 +150,24 @@ export function productImagePrimaryFileName(
 }
 
 /** Candidatos desde columna IMAGEN del Excel (nombre en bucket productos). */
-export function imagenNombreToCandidates(imagenNombre: string | null | undefined): string[] {
+export function imagenNombreToCandidates(
+  imagenNombre: string | null | undefined,
+  variant: ImageVariant = "thumb",
+): string[] {
   const raw = String(imagenNombre ?? "").trim();
   if (!raw) return [];
 
-  const base = raw.replace(/^productos\//i, "").replace(/^\/+/, "");
+  const base = stripProductImageTier(raw);
   const urls: string[] = [];
-  const exts = [".jpg", ".jpeg", ".png", ".webp"];
-
-  const push = (path: string) => {
-    const u = publicStorageObjectUrl("productos", path);
-    if (u && !urls.includes(u)) urls.push(u);
-  };
 
   if (/\.(jpe?g|png|webp)$/i.test(base)) {
-    push(base);
+    for (const u of tieredStorageCandidates(base, variant)) pushUnique(urls, u);
     return urls;
   }
 
-  for (const ext of exts) push(`${base}${ext}`);
+  for (const ext of IMAGE_EXTENSIONS) {
+    for (const u of tieredStorageCandidates(`${base}${ext}`, variant)) pushUnique(urls, u);
+  }
   return urls;
 }
 
@@ -116,17 +177,92 @@ export function productImageCandidatesForRow(
   materialCode: string | number,
   colorCode: string | number,
   imagenNombre?: string | null,
+  variant: ImageVariant = "thumb",
 ): string[] {
-  const fromExcel = imagenNombreToCandidates(imagenNombre);
+  const fromExcel = imagenNombreToCandidates(imagenNombre, variant);
   const fromMolecule = productImageCandidates(
     lineaCodigo,
     referenciaCodigo,
     materialCode,
     colorCode,
+    variant,
   );
   const out = [...fromExcel];
   for (const u of fromMolecule) {
     if (!out.includes(u)) out.push(u);
   }
   return out;
+}
+
+/** URL plana legacy (sin tier) — fallback cuando sm/md/lg falta en Storage. */
+export function resolveFlatImageUrl(input: {
+  linea: string;
+  referencia: string;
+  material: string | number;
+  color: string | number;
+  imagenNombre?: string | null;
+}): string | null {
+  const excel = String(input.imagenNombre ?? "").trim();
+  if (excel) {
+    const file = normalizeImageFileName(excel);
+    if (!file) return null;
+    return publicStorageObjectUrl("productos", file);
+  }
+
+  const L = normPillarSegment(input.linea);
+  const R = normPillarSegment(input.referencia);
+  if (!L || !R) return null;
+
+  const M = normPillarSegment(input.material);
+  const C = normPillarSegment(input.color);
+  const stem = joinPillarStem([L, R, M, C]) || joinPillarStem([L, R]);
+  if (!stem) return null;
+
+  return publicStorageObjectUrl("productos", `${stem}.jpg`);
+}
+
+/** Una URL canónica por variant (thumb=sm, hero=lg). */
+export function resolveCanonicalImageUrl(input: {
+  linea: string;
+  referencia: string;
+  material: string | number;
+  color: string | number;
+  imagenNombre?: string | null;
+  variant: ImageVariant;
+}): string | null {
+  const size: ImageSize = input.variant === "hero" ? "lg" : "sm";
+  const excel = String(input.imagenNombre ?? "").trim();
+  if (excel) {
+    const url = getProductImageUrl(excel, size);
+    return url || null;
+  }
+
+  const L = normPillarSegment(input.linea);
+  const R = normPillarSegment(input.referencia);
+  if (!L || !R) return null;
+
+  const M = normPillarSegment(input.material);
+  const C = normPillarSegment(input.color);
+  const stem = joinPillarStem([L, R, M, C]) || joinPillarStem([L, R]);
+  if (!stem) return null;
+
+  return publicStorageObjectUrl("productos", `${size}/${stem}.jpg`) || null;
+}
+
+/** Hero/modal: lg → md → sm → flat. */
+export function productImageHeroCandidates(
+  lineaCodigo: string,
+  referenciaCodigo: string,
+  materialCode: string | number,
+  colorCode: string | number,
+  imagenNombre?: string | null,
+): string[] {
+  return productImageCandidatesForRow(
+    lineaCodigo,
+    referenciaCodigo,
+    materialCode,
+    colorCode,
+    imagenNombre,
+    "hero",
+  );
 }
