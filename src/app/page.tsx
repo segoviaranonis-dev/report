@@ -100,6 +100,13 @@ const MODULES: ModuleCard[] = [
     roles: [1],
   },
   {
+    href: "/pilares",
+    title: "Administrador de Pilares",
+    description: "Catálogo L+R · Editar linea (marca, género) y linea_referencia (estilo, tipo_1). Calzado y confecciones (ref K). Alta perezosa desde import.",
+    icon: "🧱",
+    roles: [1],
+  },
+  {
     href: "/rrhh",
     title: "RRHH",
     description: "Recursos Humanos · Gestión de funcionarios por ente (RIMEC + tiendas). Consulta de departamentos, cargos, antigüedad.",
@@ -201,13 +208,13 @@ export default function HomePage() {
 
   // Agrupar módulos por sección
   const rimecModules = visibleModules.filter(m =>
-    ['/rimec', '/ventas-fotos', '/aprobaciones', '/rrhh'].includes(m.href)
+    ['/rimec', '/ventas-fotos', '/aprobaciones', '/pilares', '/rrhh'].includes(m.href)
   );
   const bazzarModules = visibleModules.filter(m =>
     ['/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
   const otrosModules = visibleModules.filter(m =>
-    !['/rimec', '/ventas-fotos', '/aprobaciones', '/rrhh', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
+    !['/rimec', '/ventas-fotos', '/aprobaciones', '/pilares', '/rrhh', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
   );
 
   const WEB_NAVY = '#1E3A5F';

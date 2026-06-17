@@ -23,7 +23,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar', '/bazzar-web'],
   3: ['/ventas-fotos'],
 }
