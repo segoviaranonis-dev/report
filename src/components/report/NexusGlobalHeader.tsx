@@ -1,8 +1,8 @@
 "use client";
 
-import { NexusHeaderZen } from "./NexusHeaderZen";
+import { NexusHeaderZen, type NexusNavKey } from "./NexusHeaderZen";
 
-export type NexusNavKey = "home" | "rimec" | "retail" | "ventas-fotos" | "aprobaciones" | "depositos-bazzar" | "tablet-bazzar" | "informes" | "rrhh";
+export type { NexusNavKey };
 
 type Props = {
   active?: NexusNavKey;
