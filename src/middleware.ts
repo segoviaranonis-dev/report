@@ -26,7 +26,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar', '/bazzar-web', '/rrhh'],
   3: ['/ventas-fotos'],
 }
@@ -48,6 +48,12 @@ const ROLE_HOME_REDIRECT: Record<number, string> = {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isApiRoute = pathname.startsWith('/api/')
+
+  // Legacy → ruta anidada bajo proceso importación
+  if (pathname === "/motor-precios" || pathname.startsWith("/motor-precios/")) {
+    const dest = pathname.replace(/^\/motor-precios/, "/proceso-importacion/motor-precios");
+    return NextResponse.redirect(new URL(dest, request.url));
+  }
 
   // Rutas públicas
   if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
@@ -189,6 +195,9 @@ export const config = {
     '/bazzar-web/:path*',
     '/rrhh/:path*',
     '/pilares/:path*',
+    '/proceso-importacion/:path*',
+    '/motor-precios/:path*',
+    '/api/motor-precios/:path*',
     '/api/rimec/:path*',
     '/api/pilares/:path*',
     '/api/retail/:path*',

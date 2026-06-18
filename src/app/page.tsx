@@ -5,130 +5,118 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
+import { canAccessAprobaciones } from "@/lib/auth/nivel-dios";
+import {
+  filterHubModules,
+  modulesByGroup,
+  REPORT_HUB_GROUP_META,
+  REPORT_HUB_MODULES,
+  type ReportHubGroup,
+} from "@/lib/report/hub-modules";
 
-type ModuleCard = {
-  href: string;
-  title: string;
-  description: string;
-  icon: string;
-  roles: number[]; // Roles permitidos
-  /** Solo rol 2 ADMIN (Compra / Depósito Web) */
-  bazzarAdminOnly?: boolean;
-  /** Solo rol 1 (Motor precio) */
-  rimecAdminOnly?: boolean;
+const WEB_NAVY = "#1E3A5F";
+
+const GROUP_STYLES: Record<
+  Exclude<ReportHubGroup, "recursos">,
+  { border: string; summaryHover: string; titleClass: string; cardBorder: string; titleHover: string }
+> = {
+  rimec: {
+    border: "border-rimec-azul-dark",
+    summaryHover: "hover:bg-rimec-celeste-bg",
+    titleClass: "text-rimec-azul-dark",
+    cardBorder: "border-rimec-azul/20 hover:border-rimec-azul",
+    titleHover: "group-hover:text-rimec-azul",
+  },
+  bazzar: {
+    border: "border-bazzar-naranja-dark",
+    summaryHover: "hover:bg-bazzar-naranja/10",
+    titleClass: "text-bazzar-naranja-dark",
+    cardBorder: "border-bazzar-naranja/20 hover:border-bazzar-naranja-dark",
+    titleHover: "group-hover:text-bazzar-naranja",
+  },
+  "bazzar-web": {
+    border: "border-[#1E3A5F]",
+    summaryHover: "hover:bg-slate-50",
+    titleClass: "",
+    cardBorder: "",
+    titleHover: "",
+  },
 };
 
-const BAZZAR_WEB_MODULES: ModuleCard[] = [
-  {
-    href: "/bazzar-web/compra",
-    title: "Compra",
-    description: "Recepción web · Confirmar traspasos desde Facturación RIMEC hacia ALM_WEB_01 (migración Streamlit compra_web).",
-    icon: "🛒",
-    roles: [1, 2],
-    bazzarAdminOnly: true,
-  },
-  {
-    href: "/bazzar-web/deposito-web",
-    title: "Depósito Web",
-    description: "Stock ALM_WEB_01 · Resumen y detalle por 5 pilares + talla para catálogo e-commerce (migración Streamlit deposito_web).",
-    icon: "📦",
-    roles: [1, 2],
-    bazzarAdminOnly: true,
-  },
-  {
-    href: "/bazzar-web/motor-precio",
-    title: "Motor de precio",
-    description: "Precios WEB · Reglas markup por caso, lista activa y publicación precio_web para www.bazzar.com.py (nuevo).",
-    icon: "💰",
-    roles: [1],
-    rimecAdminOnly: true,
-  },
-  {
-    href: "/bazzar-web/stock-sano",
-    title: "Stock Sano",
-    description: "Protocolo aduanero ALM_WEB_01 · Precio canonico L+R+Material, 60 pares, historial de ingresos.",
-    icon: "✓",
-    roles: [1],
-    rimecAdminOnly: true,
-  },
-];
+function HubAccordion({
+  group,
+  modules,
+  rolId,
+}: {
+  group: Exclude<ReportHubGroup, "recursos">;
+  modules: typeof REPORT_HUB_MODULES;
+  rolId: number;
+}) {
+  if (modules.length === 0) return null;
+  const meta = REPORT_HUB_GROUP_META[group];
+  const st = GROUP_STYLES[group];
+  const isWeb = group === "bazzar-web";
 
-const OTHER_MODULES: ModuleCard[] = [
-  {
-    href: "/informes",
-    title: "Anexo Documental",
-    description: "Repositorio de reportes · Documentación técnica, guías de uso, mapas de paridad, procedimientos operativos.",
-    icon: "📄",
-    roles: [1],
-  },
-  {
-    href: "/informes/bazzar-web",
-    title: "Índice BAZZAR WEB",
-    description: "Anexo e-commerce · Compra, Depósito Web, Motor de precio — cadena ALM_WEB_01 → precio_web → tienda.",
-    icon: "🌐",
-    roles: [1],
-  },
-];
+  return (
+    <details open className={`group rounded-2xl border-3 ${st.border} bg-card-bg shadow-lg transition-all hover:shadow-xl`}>
+      <summary className={`cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all ${st.summaryHover}`}>
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-3 text-xl">
+            <span>{meta.icon}</span>
+            <span
+              className={`font-bold ${st.titleClass}`}
+              style={isWeb ? { color: WEB_NAVY } : undefined}
+            >
+              {meta.label}
+            </span>
+            <span
+              className="text-sm font-normal opacity-70"
+              style={isWeb ? { color: WEB_NAVY } : undefined}
+            >
+              ({modules.length} módulos)
+            </span>
+          </span>
+          <span className="text-sm opacity-80" style={isWeb ? { color: WEB_NAVY } : undefined}>
+            Roles: {roleLabel(rolId)}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-neutral-500">{meta.moria}</p>
+      </summary>
+      <div
+        className={`grid gap-4 p-6 bg-card-bg rounded-b-2xl ${
+          group === "bazzar" ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"
+        }`}
+      >
+        {modules.map((mod) => (
+          <Link
+            key={mod.href}
+            href={mod.href}
+            className={`group block rounded-xl border-2 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] ${
+              isWeb ? "" : st.cardBorder
+            }`}
+            style={isWeb ? { borderColor: `${WEB_NAVY}33` } : undefined}
+          >
+            <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
+            <h2
+              className={`mb-2 font-serif text-lg font-semibold transition-colors ${st.titleHover}`}
+              style={isWeb ? { color: WEB_NAVY } : undefined}
+            >
+              {mod.title}
+            </h2>
+            <p className="text-sm leading-relaxed text-neutral-700">{mod.description}</p>
+          </Link>
+        ))}
+      </div>
+    </details>
+  );
+}
 
-const MODULES: ModuleCard[] = [
-  {
-    href: "/rimec",
-    title: "RIMEC — Ventas",
-    description: "Sales Report · Análisis multidimensional de ventas (Clientes, Marcas, Vendedores) con drill-down, jerarquías y KPIs ejecutivos.",
-    icon: "📊",
-    roles: [1],
-  },
-  {
-    href: "/retail",
-    title: "Stock / Retail",
-    description: "Dashboard multi-tienda · Seguimiento de stock y ventas por línea, referencia, color. Ranking top productos con imágenes.",
-    icon: "👟",
-    roles: [1, 2],
-  },
-  {
-    href: "/ventas-fotos",
-    title: "Ventas + Fotos",
-    description: "Catálogo con ventas · Productos con imagen, venta por período, filtros por marca/estilo/género, PDF ejecutivo descargable.",
-    icon: "🖼️",
-    roles: [1, 3],
-  },
-  {
-    href: "/aprobaciones",
-    title: "Aprobaciones",
-    description: "Workflow de aprobación · Pedidos pendientes de confirmación, detalle de facturas, validación operativa interna.",
-    icon: "✅",
-    roles: [1],
-  },
-  {
-    href: "/pilares",
-    title: "Administrador de Pilares",
-    description: "Catálogo L+R · Editar linea (marca, género) y linea_referencia (estilo, tipo_1). Calzado y confecciones (ref K). Alta perezosa desde import.",
-    icon: "🧱",
-    roles: [1],
-  },
-  {
-    href: "/rrhh",
-    title: "RRHH",
-    description: "Recursos Humanos · Gestión de funcionarios por ente (RIMEC + tiendas). Consulta de departamentos, cargos, antigüedad.",
-    icon: "👥",
-    roles: [1, 2],
-  },
-  {
-    href: "/depositos-bazzar",
-    title: "Depósitos Bazzar",
-    description: "Administrador de depósitos · Gestión de stock para 6 tiendas (Fernando/San Martin/Palma × Adultos/Niños). Sincronización diaria para POS tablet.",
-    icon: "🏪",
-    roles: [1, 2],
-  },
-  {
-    href: "/tablet-bazzar",
-    title: "Tablet Bazzar",
-    description: "Punto de venta en tienda · Sistema tablet para vendedores. Registro de clientes, generación de tickets, gestión de ventas retail con pilares y agrupaciones.",
-    icon: "📱",
-    roles: [1, 2],
-  },
-  ...OTHER_MODULES,
-];
+function roleLabel(rolId: number): string {
+  if (rolId === 1) return "1 (Admin)";
+  if (rolId === 2) return "2 (Bazzar)";
+  if (rolId === 3) return "3 (Vendedor)";
+  return String(rolId);
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -136,89 +124,32 @@ export default function HomePage() {
   const [categoria, setCategoria] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then(r => r.json())
-      .then(data => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
         if (data.authenticated) {
           const userRolId = data.user.rol_id || 1;
-          const userCategoria = data.user.categoria || 'ADMIN';
           setRolId(userRolId);
-          setCategoria(userCategoria);
-
-          // Redirect según rol
-          if (userRolId === 2) {
-            router.replace('/retail');
-          } else if (userRolId === 3) {
-            router.replace('/ventas-fotos');
-          }
+          setCategoria(data.user.categoria || "ADMIN");
+          if (userRolId === 2) router.replace("/retail");
+          else if (userRolId === 3) router.replace("/ventas-fotos");
         } else {
-          router.replace('/login');
+          router.replace("/login");
         }
       })
-      .catch(() => router.replace('/login'));
+      .catch(() => router.replace("/login"));
   }, [router]);
 
-  // Mientras carga, no mostrar nada (evita flash de contenido)
-  if (rolId === null || categoria === null) {
+  if (rolId === null || categoria === null || rolId === 2 || rolId === 3) {
     return null;
   }
 
-  // Si rol 2 o 3, el redirect ya ocurrió, no mostrar nada
-  if (rolId === 2 || rolId === 3) {
-    return null;
-  }
-
-  // Filtrar módulos por rol + categoría
-  const visibleModules = MODULES.filter(m => {
-    // Aprobaciones: solo Nivel Dios (rol 1 + DIOS)
-    if (m.href === '/aprobaciones') {
-      return rolId === 1 && (categoria || '').toUpperCase().trim() === 'DIOS';
-    }
-
-    // Rol 1: resto de módulos RIMEC/BAZZAR según lista
-    if (rolId === 1) return m.roles.includes(1);
-
-    // Validar permisos específicos por categoría
-    if (m.href === '/tablet-bazzar') {
-      // Tablet: Solo ADMIN y SU (no VENDEDOR)
-      return rolId === 1 || (rolId === 2 && (categoria === 'ADMIN' || categoria === 'SU'));
-    }
-
-    if (m.href === '/depositos-bazzar') {
-      // Depósitos: Solo ADMIN (no SU ni VENDEDOR)
-      return rolId === 1 || (rolId === 2 && categoria === 'ADMIN');
-    }
-
-    if (m.href === '/retail') {
-      // Retail: ADMIN y VENDEDOR (no SU)
-      return rolId === 1 || (rolId === 2 && (categoria === 'ADMIN' || categoria === 'VENDEDOR'));
-    }
-
-    // Otros módulos: filtro estándar por rol
-    return m.roles.includes(rolId);
-  });
-
-  const visibleBazzarWebModules = BAZZAR_WEB_MODULES.filter((m) => {
-    if (m.rimecAdminOnly) return rolId === 1;
-    if (m.bazzarAdminOnly) {
-      return rolId === 1 || (rolId === 2 && categoria === 'ADMIN');
-    }
-    return m.roles.includes(rolId);
-  });
-
-  // Agrupar módulos por sección
-  const rimecModules = visibleModules.filter(m =>
-    ['/rimec', '/ventas-fotos', '/aprobaciones', '/pilares', '/rrhh'].includes(m.href)
-  );
-  const bazzarModules = visibleModules.filter(m =>
-    ['/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
-  );
-  const otrosModules = visibleModules.filter(m =>
-    !['/rimec', '/ventas-fotos', '/aprobaciones', '/pilares', '/rrhh', '/retail', '/depositos-bazzar', '/tablet-bazzar'].includes(m.href)
-  );
-
-  const WEB_NAVY = '#1E3A5F';
-  const WEB_ORANGE = '#F97316';
+  const canDios = canAccessAprobaciones(rolId, categoria);
+  const visible = filterHubModules(REPORT_HUB_MODULES, rolId, categoria, canDios);
+  const rimecModules = modulesByGroup(visible, "rimec");
+  const bazzarModules = modulesByGroup(visible, "bazzar");
+  const bazzarWebModules = modulesByGroup(visible, "bazzar-web");
+  const recursosModules = modulesByGroup(visible, "recursos");
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
@@ -231,133 +162,24 @@ export default function HomePage() {
           </h1>
           <div className="max-h-0 opacity-0 overflow-hidden transition-all duration-500 group-hover:max-h-20 group-hover:opacity-100">
             <p className="text-lg text-neutral-700 max-w-2xl mx-auto py-2">
-              Centro de mando comercial · Analítica, stock, aprobaciones y documentación para dirección y operaciones.
+              Tres entes · RIMEC importadora · BAZZAR tiendas · BAZZAR WEB e-commerce
             </p>
           </div>
         </header>
 
-        {/* Acordeones de módulos */}
         <div className="space-y-6">
-          {/* RIMEC - Azul Marino Profundo */}
-          {rimecModules.length > 0 && (
-            <details open className="group rounded-2xl border-3 border-rimec-azul-dark bg-card-bg shadow-lg transition-all hover:shadow-xl">
-              <summary className="cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all hover:bg-rimec-celeste-bg">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-3 text-xl">
-                    <span>🏢</span>
-                    <span className="font-bold text-rimec-azul-dark">RIMEC</span>
-                    <span className="text-sm font-normal text-rimec-azul/70">
-                      ({rimecModules.length} módulos)
-                    </span>
-                  </span>
-                  <span className="text-sm text-rimec-azul">
-                    Roles: {rolId === 1 ? '1 (Admin)' : rolId === 3 ? '3 (Vendedor)' : rolId}
-                  </span>
-                </div>
-              </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-card-bg rounded-b-2xl">
-                {rimecModules.map((mod) => (
-                  <Link
-                    key={mod.href}
-                    href={mod.href}
-                    className="group block rounded-xl border-2 border-rimec-azul/20 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:border-rimec-azul hover:-translate-y-1 hover:scale-105"
-                  >
-                    <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-rimec-azul-dark transition-colors group-hover:text-rimec-azul">
-                      {mod.title}
-                    </h2>
-                    <p className="text-sm leading-relaxed text-neutral-700">
-                      {mod.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
+          <HubAccordion group="rimec" modules={rimecModules} rolId={rolId} />
+          <HubAccordion group="bazzar" modules={bazzarModules} rolId={rolId} />
+          <HubAccordion group="bazzar-web" modules={bazzarWebModules} rolId={rolId} />
 
-          {/* BAZZAR - Naranja Quemado Premium */}
-          {bazzarModules.length > 0 && (
-            <details open className="group rounded-2xl border-3 border-bazzar-naranja-dark bg-card-bg shadow-lg transition-all hover:shadow-xl">
-              <summary className="cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all hover:bg-bazzar-naranja/10">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-3 text-xl">
-                    <span>🏪</span>
-                    <span className="font-bold text-bazzar-naranja-dark">BAZZAR</span>
-                    <span className="text-sm font-normal text-bazzar-naranja/70">
-                      ({bazzarModules.length} módulos)
-                    </span>
-                  </span>
-                  <span className="text-sm text-bazzar-naranja">
-                    Roles: {rolId === 1 ? '1 (Admin)' : rolId === 2 ? '2 (Retail)' : rolId}
-                  </span>
-                </div>
-              </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2 bg-card-bg rounded-b-2xl">
-                {bazzarModules.map((mod) => (
-                  <Link
-                    key={mod.href}
-                    href={mod.href}
-                    className="group block rounded-xl border-2 border-bazzar-naranja/20 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:border-bazzar-naranja-dark hover:-translate-y-1 hover:scale-105"
-                  >
-                    <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold text-bazzar-naranja-dark transition-colors group-hover:text-bazzar-naranja">
-                      {mod.title}
-                    </h2>
-                    <p className="text-sm leading-relaxed text-neutral-700">
-                      {mod.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
-
-          {/* BAZZAR WEB — E-commerce */}
-          {visibleBazzarWebModules.length > 0 && (
-            <details open className="group rounded-2xl border-3 bg-card-bg shadow-lg transition-all hover:shadow-xl" style={{ borderColor: WEB_NAVY }}>
-              <summary className="cursor-pointer bg-card-bg px-6 py-4 rounded-t-2xl transition-all hover:bg-slate-50">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-3 text-xl">
-                    <span>🌐</span>
-                    <span className="font-bold" style={{ color: WEB_NAVY }}>BAZZAR WEB</span>
-                    <span className="text-sm font-normal opacity-70" style={{ color: WEB_ORANGE }}>
-                      ({visibleBazzarWebModules.length} módulos)
-                    </span>
-                  </span>
-                  <span className="text-sm" style={{ color: WEB_NAVY }}>
-                    Roles: {rolId === 1 ? '1 (Admin)' : '2 (Bazzar Admin)'}
-                  </span>
-                </div>
-              </summary>
-              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3 bg-card-bg rounded-b-2xl">
-                {visibleBazzarWebModules.map((mod) => (
-                  <Link
-                    key={mod.href}
-                    href={mod.href}
-                    className="group block rounded-xl border-2 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-105"
-                    style={{ borderColor: `${WEB_NAVY}33` }}
-                  >
-                    <div className="mb-3 text-3xl transition-transform group-hover:scale-110">{mod.icon}</div>
-                    <h2 className="mb-2 font-serif text-lg font-semibold transition-colors" style={{ color: WEB_NAVY }}>
-                      {mod.title}
-                    </h2>
-                    <p className="text-sm leading-relaxed text-neutral-700">
-                      {mod.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
-
-          {/* Otros módulos (sin acordeón) */}
-          {otrosModules.length > 0 && (
+          {recursosModules.length > 0 && (
             <div className="rounded-2xl border-2 border-neutral-300 bg-white p-6 shadow-lg">
-              <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-neutral-ink-muted">
-                Recursos Adicionales
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-neutral-ink-muted">
+                Recursos adicionales
               </h3>
+              <p className="mb-4 text-xs text-neutral-500">Documentación · no operación diaria</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {otrosModules.map((mod) => (
+                {recursosModules.map((mod) => (
                   <Link
                     key={mod.href}
                     href={mod.href}
@@ -367,9 +189,7 @@ export default function HomePage() {
                     <h2 className="mb-2 font-serif text-lg font-semibold text-neutral-ink group-hover:text-bazzar-naranja transition-colors">
                       {mod.title}
                     </h2>
-                    <p className="text-sm leading-relaxed text-neutral-ink-muted">
-                      {mod.description}
-                    </p>
+                    <p className="text-sm leading-relaxed text-neutral-ink-muted">{mod.description}</p>
                   </Link>
                 ))}
               </div>
