@@ -26,7 +26,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar', '/bazzar-web', '/rrhh'],
   3: ['/ventas-fotos'],
 }
@@ -53,6 +53,27 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/motor-precios" || pathname.startsWith("/motor-precios/")) {
     const dest = pathname.replace(/^\/motor-precios/, "/proceso-importacion/motor-precios");
     return NextResponse.redirect(new URL(dest, request.url));
+  }
+  // Importación precios (legacy hermano) → bajo motor 2.3.1.7.1
+  if (
+    pathname === "/proceso-importacion/importacion-precios" ||
+    pathname.startsWith("/proceso-importacion/importacion-precios/")
+  ) {
+    const dest = pathname.replace(
+      "/proceso-importacion/importacion-precios",
+      "/proceso-importacion/motor-precios/importacion-precios"
+    );
+    return NextResponse.redirect(new URL(dest, request.url));
+  }
+  // Abastecimiento mal anidado → rutas hermanas 2.3.1.8–10
+  if (pathname === "/proceso-importacion/compra-legal" || pathname.startsWith("/proceso-importacion/compra-legal/")) {
+    return NextResponse.redirect(new URL(pathname.replace("/proceso-importacion/compra-legal", "/compra-legal"), request.url));
+  }
+  if (pathname === "/proceso-importacion/facturacion" || pathname.startsWith("/proceso-importacion/facturacion/")) {
+    return NextResponse.redirect(new URL(pathname.replace("/proceso-importacion/facturacion", "/facturacion"), request.url));
+  }
+  if (pathname === "/proceso-importacion/deposito-rimec" || pathname.startsWith("/proceso-importacion/deposito-rimec/")) {
+    return NextResponse.redirect(new URL(pathname.replace("/proceso-importacion/deposito-rimec", "/deposito-rimec"), request.url));
   }
 
   // Rutas públicas
@@ -195,7 +216,12 @@ export const config = {
     '/bazzar-web/:path*',
     '/rrhh/:path*',
     '/pilares/:path*',
-    '/proceso-importacion/:path*',
+    '/compra-legal/:path*',
+    '/facturacion/:path*',
+    '/deposito-rimec/:path*',
+    '/api/compra-legal/:path*',
+    '/api/facturacion/:path*',
+    '/api/deposito-rimec/:path*',
     '/motor-precios/:path*',
     '/api/motor-precios/:path*',
     '/api/rimec/:path*',
