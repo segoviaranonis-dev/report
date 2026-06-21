@@ -76,30 +76,47 @@ Todo lo que el operador ve hoy en Motor → pestañas **Administración de Líne
 | Edición **por lote** estilo / tipo_1 | Checkboxes + aplicar a selección |
 | Edición **fila a fila** | Inline o modal |
 | Confecciones | Misma grilla; filas `(linea, K)` visibles con badge tipo_v2 |
+| *(mejora 2026-06-19)* | Columna **miniatura** entre Ref y Marca — primer calzado L×R en retail staging |
 
-**Mejoras UX (sin perder datos):** búsqueda por código, contador de NULLs, indicador “pendiente enriquecer”, separación visual calzado vs confecciones.
+**Mejoras UX (sin perder datos):** búsqueda por código, contador de NULLs, indicador “pendiente enriquecer”, separación visual calzado vs confecciones, **thumb 48px** vía `ProductThumbFrame`.
+
+### Miniatura L×R (2.3.5.2 · 2026-06-19)
+
+| Aspecto | Detalle |
+|---------|---------|
+| **Objetivo** | Identificar visualmente el par línea+referencia mientras se edita estilo/tipo 1 |
+| **Fuente datos** | `registro_st_vt_rc_reposicion` — primera fila con match exacto L+R (prioriza `imagen_nombre`) |
+| **Resolución URL** | `productImageCandidatesForRow` — Excel → molécula L-R-M-C → stem L-R |
+| **API** | GET `/api/pilares/linea-referencia` enriquece cada fila con `thumb: { imagen_nombre, material_code, color_code } \| null` |
+| **Query SQL** | `loadPrimeraImagenLineaReferencia` en `src/lib/pilares/queries.ts` |
+| **Componente** | `LineaReferenciaAdminClient.tsx` · columna entre Ref y Marca |
+
+CHUSAR: `.claude/2_modulos/2.3_report/pilares/CHUSAR_ADMINISTRADOR_PILARES.md`
 
 ---
 
 ## Arquitectura Report
 
+**Códigos Moria UI:** 2.3.5 hub · 2.3.5.1 líneas · 2.3.5.2 L×R
+
 ```
-/pilares
-├── page.tsx              — shell + auth rol_id=1
-├── PilaresClient.tsx     — selector proveedor + tabs Líneas | L×R
+/pilares                          — 2.3.5
+├── page.tsx                      — shell + auth rol_id=1
+├── lineas/page.tsx               — 2.3.5.1
+├── linea-referencia/page.tsx     — 2.3.5.2
 ├── components/
-│   ├── LineasGrid.tsx
-│   ├── LineaReferenciaGrid.tsx
-│   └── FiltrosProveedor.tsx
-└── lib/
-    ├── types.ts
-    └── queries.ts        — SQL directo vía DATABASE_URL (pool RIMEC)
+│   ├── LineasAdminClient.tsx
+│   ├── LineaReferenciaAdminClient.tsx  — tabla + thumb L×R
+│   └── PilaresLineaReferenciaFiltrosBar.tsx
+└── lib/pilares/
+    ├── types.ts                  — LineaReferenciaThumb
+    └── queries.ts                — loadPrimeraImagenLineaReferencia + SQL L/L×R
 
 /api/pilares/
-├── lineas/route.ts       — GET lista + PATCH rango / fila
-├── linea-referencia/route.ts
-├── maestras/route.ts     — marca_v2, genero, grupo_estilo, tipo_1
-└── sync-listado/route.ts — reaplicar FK (654, opcional fase 3)
+├── lineas/route.ts               — GET lista + PATCH rango / fila
+├── linea-referencia/route.ts     — GET (+ thumb batch) + PATCH
+├── maestras/route.ts             — marca_v2, genero, grupo_estilo, tipo_1
+└── sync-listado/route.ts         — reaplicar FK (654, opcional fase 3)
 ```
 
 **Leyes:** FK canónicas P0 · `codigo_proveedor` bigint · joins `linea_id` / `referencia_id` — ver `RIMEC_NOMENCLATURA_PILARES.md`.
@@ -150,6 +167,7 @@ Operador de pilares **no** necesita entrar al Motor → no ve listados, casos ni
 | **1** | Hub + APIs + UI Líneas/L×R + acordeón datos generales | ✅ |
 | **1b** | Triángulo header doc + paridad Tablet JOIN pilares | ✅ (2026-06-16) |
 | **1c** | Filtros chip · cascada marcas · buscador multi-línea · editor rango | ✅ (2026-06-17) |
+| **1d** | Miniatura L×R en grilla (retail staging + ProductThumbFrame) | ✅ (2026-06-19) |
 | **2** | Deploy commit + matcher middleware prod | ✅ (2026-06-17) |
 | **3** | QA paridad Streamlit + género por rango UI Líneas | ⬜ post-cierre |
 | **4** | Sync listado / ley género (654) vía API | ⬜ |
@@ -174,12 +192,14 @@ Operador de pilares **no** necesita entrar al Motor → no ve listados, casos ni
 | # | Doc |
 |---|-----|
 | 1 | Este archivo |
-| 2 | `.claude/4_etapas/ETAPA_ADMINISTRADOR_PILARES_REPORT.md` |
-| 3 | `.claude/2_modulos/2.3_report/INDICE.md` §6 |
-| 4 | `CONFECCIONES_TIPO_V2_2.md` |
-| 5 | `multi_proveedor.md` |
-| 6 | `MIGRACION_STREAMLIT_REPORT.md` |
-| 7 | `control_central/docs/RIMEC_NOMENCLATURA_PILARES.md` |
+| 2 | `.claude/2_modulos/2.3_report/pilares/CHUSAR_ADMINISTRADOR_PILARES.md` |
+| 3 | `.claude/2_modulos/2.3_report/pilares/INDICE.md` |
+| 4 | `.claude/4_etapas/ETAPA_ADMINISTRADOR_PILARES_REPORT.md` |
+| 5 | `.claude/2_modulos/2.3_report/INDICE.md` § Pilares |
+| 6 | `CONFECCIONES_TIPO_V2_2.md` |
+| 7 | `multi_proveedor.md` |
+| 8 | `MIGRACION_STREAMLIT_REPORT.md` |
+| 9 | `control_central/docs/RIMEC_NOMENCLATURA_PILARES.md` |
 
 ---
 

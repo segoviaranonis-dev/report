@@ -5,6 +5,7 @@ import {
   loadLineaReferencia,
   loadLineaReferenciaCascada,
   loadLineaReferenciaFiltros,
+  loadPrimeraImagenLineaReferencia,
   patchLineaGeneroByLineas,
   patchLineaGeneroByScope,
   patchLineaRangoGenero,
@@ -98,11 +99,25 @@ export async function GET(req: NextRequest) {
       loadLineaReferenciaFiltros(pool, tipoV2Id),
       loadLineaReferenciaCascada(pool, tipoV2Id, filterOpts),
     ]);
+
+    const thumbMap = await loadPrimeraImagenLineaReferencia(
+      pool,
+      rows.map((r) => ({
+        linea_codigo: r.linea_codigo,
+        referencia_codigo: r.referencia_codigo,
+      })),
+      tipoV2Id,
+    );
+    const rowsWithThumb = rows.map((r) => ({
+      ...r,
+      thumb: thumbMap.get(`${r.linea_codigo}\0${r.referencia_codigo}`) ?? null,
+    }));
+
     return NextResponse.json({
       configured: true,
       tipo_v2_id: tipoV2Id,
       proveedor_id: proveedorId,
-      rows,
+      rows: rowsWithThumb,
       total,
       filtros,
       cascada,

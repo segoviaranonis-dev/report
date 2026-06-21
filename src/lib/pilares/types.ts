@@ -10,6 +10,12 @@ export interface LineaRow {
   descp_genero: string;
 }
 
+export interface LineaReferenciaThumb {
+  imagen_nombre: string | null;
+  material_code: string;
+  color_code: string;
+}
+
 export interface LineaReferenciaRow {
   id: number;
   proveedor_id: number;
@@ -22,6 +28,8 @@ export interface LineaReferenciaRow {
   descp_tipo_1: string;
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
+  /** Primera imagen retail con coincidencia exacta L×R (staging). */
+  thumb?: LineaReferenciaThumb | null;
 }
 
 export interface PilaresMaestras {

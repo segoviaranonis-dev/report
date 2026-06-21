@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
 import type { LineaReferenciaCascada, LineaReferenciaRow, PilaresMaestras } from "@/lib/pilares/types";
+import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import { PilaresLineaReferenciaFiltrosBar } from "./PilaresLineaReferenciaFiltrosBar";
 import { LineaReferenciaBuscador } from "./LineaReferenciaBuscador";
 import { LineaReferenciaEditor } from "./LineaReferenciaEditor";
@@ -175,6 +177,7 @@ export function LineaReferenciaAdminClient() {
             <tr>
               <th className="px-3 py-3">Línea</th>
               <th className="px-3 py-3">Ref</th>
+              <th className="px-3 py-3 w-16" aria-label="Imagen" />
               <th className="px-3 py-3">Marca</th>
               <th className="px-3 py-3">Estilo</th>
               <th className="px-3 py-3">Tipo 1</th>
@@ -194,7 +197,7 @@ export function LineaReferenciaAdminClient() {
             ))}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-neutral-500">
+                <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
                   Sin combinaciones para este proveedor / filtros.
                 </td>
               </tr>
@@ -263,6 +266,20 @@ function LrRowEditor({
             K
           </span>
         )}
+      </td>
+      <td className="px-2 py-2">
+        <ProductThumbFrame
+          alt={`${row.linea_codigo}-${row.referencia_codigo}`}
+          candidates={productImageCandidatesForRow(
+            row.linea_codigo,
+            row.referencia_codigo,
+            row.thumb?.material_code ?? "",
+            row.thumb?.color_code ?? "",
+            row.thumb?.imagen_nombre,
+            "thumb",
+          )}
+          size={48}
+        />
       </td>
       <td className="px-3 py-2 text-neutral-600">{row.marca || "—"}</td>
       <td className="px-3 py-2">

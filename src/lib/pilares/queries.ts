@@ -3,6 +3,7 @@ import { proveedorIdFromTipoV2 } from "./constants";
 import type {
   LineaReferenciaFilterOpts,
   LineaReferenciaRow,
+  LineaReferenciaThumb,
   LineaRow,
   LineasResumen,
   LrCascadaItem,
@@ -501,6 +502,78 @@ export async function loadLineaReferencia(
   );
 
   return { rows, total: Number(countRes.rows[0]?.total ?? 0) };
+}
+
+/** Primera fila retail (con imagen priorizada) por par linea_codigo + referencia_codigo. */
+export async function loadPrimeraImagenLineaReferencia(
+  pool: Pool,
+  pairs: { linea_codigo: string; referencia_codigo: string }[],
+  tipoV2Id?: TipoV2Id,
+): Promise<Map<string, LineaReferenciaThumb>> {
+  const out = new Map<string, LineaReferenciaThumb>();
+  if (!pairs.length) return out;
+
+  const lineas = pairs.map((p) => p.linea_codigo);
+  const refs = pairs.map((p) => p.referencia_codigo);
+
+  const { rows } = await pool.query<{
+    linea_codigo: string;
+    referencia_codigo: string;
+    imagen_nombre: string | null;
+    material_code: string;
+    color_code: string;
+  }>(
+    `
+    WITH pairs AS (
+      SELECT u.l AS linea_codigo, u.r AS referencia_codigo
+      FROM unnest($1::text[], $2::text[]) AS u(l, r)
+    )
+    SELECT DISTINCT ON (p.linea_codigo, p.referencia_codigo)
+      p.linea_codigo,
+      p.referencia_codigo,
+      NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
+      COALESCE(
+        NULLIF(btrim(s.excel_material_code::text), ''),
+        CASE
+          WHEN mat.id IS NULL THEN NULL
+          WHEN mat.codigo_proveedor = -999001::bigint THEN NULL
+          ELSE trim(mat.codigo_proveedor::text)
+        END,
+        ''
+      ) AS material_code,
+      COALESCE(
+        NULLIF(btrim(s.excel_color_code::text), ''),
+        CASE
+          WHEN col.id IS NULL THEN NULL
+          WHEN col.codigo_proveedor = -999001::bigint THEN NULL
+          ELSE trim(col.codigo_proveedor::text)
+        END,
+        ''
+      ) AS color_code
+    FROM pairs p
+    INNER JOIN public.registro_st_vt_rc_reposicion s
+      ON btrim(s.linea_codigo_proveedor::text) = p.linea_codigo
+      AND btrim(s.referencia_codigo_proveedor::text) = p.referencia_codigo
+    LEFT JOIN public.material mat ON mat.id = s.material_id
+    LEFT JOIN public.color col ON col.id = s.color_id
+    WHERE ($3::int IS NULL OR s.tipo_v2_id = $3)
+    ORDER BY
+      p.linea_codigo,
+      p.referencia_codigo,
+      (CASE WHEN NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL THEN 0 ELSE 1 END),
+      s.id
+    `,
+    [lineas, refs, tipoV2Id ?? null],
+  );
+
+  for (const r of rows) {
+    out.set(`${r.linea_codigo}\0${r.referencia_codigo}`, {
+      imagen_nombre: r.imagen_nombre,
+      material_code: r.material_code ?? "",
+      color_code: r.color_code ?? "",
+    });
+  }
+  return out;
 }
 
 export async function patchLinea(
