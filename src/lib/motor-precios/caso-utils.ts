@@ -31,6 +31,25 @@ export function calcIndiceGs(dolar: number, factor: number): number {
   return Math.trunc((dolar * factor) / 100);
 }
 
+/** Exclusividad BCL: una línea solo en un caso por biblioteca. */
+export function validarExclusividadCasosLineas(
+  casos: Array<{ nombre_caso: string; lineas: string[] }>,
+): string[] {
+  const owner = new Map<string, string>();
+  const conflictos: string[] = [];
+  for (const c of casos) {
+    for (const cod of c.lineas) {
+      const prev = owner.get(cod);
+      if (prev && prev !== c.nombre_caso) {
+        conflictos.push(`Línea ${cod}: «${prev}» y «${c.nombre_caso}»`);
+      } else {
+        owner.set(cod, c.nombre_caso);
+      }
+    }
+  }
+  return conflictos;
+}
+
 export function normalizarCaso(rec: CasoInput) {
   const lineas = Array.isArray(rec.lineas) ? rec.lineas.map(String) : [];
   const dolar = Number(rec.dolar_politica ?? 8000) || 8000;

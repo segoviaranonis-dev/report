@@ -5,7 +5,7 @@ import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import {
   IMPORTACION_PRECIOS_NUEVO,
-  PROCESO_IMPORTACION,
+  MOTOR_PRECIOS,
 } from "@/lib/report/routes";
 
 const SUBPANTALLAS = [
@@ -32,10 +32,12 @@ export function ImportacionPreciosHubClient() {
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader active="proceso-importacion" />
       <main className="mx-auto max-w-4xl px-6 py-10">
-        <Link href={PROCESO_IMPORTACION} className="text-sm font-semibold text-rimec-azul hover:underline">
-          ← Proceso de importación
+        <Link href={MOTOR_PRECIOS} className="text-sm font-semibold text-rimec-azul hover:underline">
+          ← Motor de precios (2.3.1.7.1)
         </Link>
-        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">2.3.1.7.2 · P.1.2</p>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">
+          2.3.1.7.1 → 2.3.1.7.2 · P.1.2
+        </p>
         <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Importación de precios</h1>
         <p className="mt-3 max-w-2xl text-neutral-700">
           Corazón 2 — <strong>Caso + Excel = evento</strong>. Paridad Streamlit «Nuevo Evento» (Pasos 0–5).

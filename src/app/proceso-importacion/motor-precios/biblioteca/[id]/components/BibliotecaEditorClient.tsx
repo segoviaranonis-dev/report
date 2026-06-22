@@ -8,6 +8,7 @@ import type { BibliotecaEditorPayload } from "@/lib/motor-precios/biblioteca-edi
 import { BIBLIOTECA_CANONICA_LABEL } from "@/lib/motor-precios/constants";
 import { MOTOR_BIBLIOTECA } from "@/lib/report/routes";
 import { CasoPanel, NuevoCasoForm } from "./CasoPanel";
+import { CopiarCasosDesdeBibliotecaEditor } from "./CopiarCasosDesdeBibliotecaEditor";
 import { LineasLibresPanel } from "./LineasLibresPanel";
 
 export function BibliotecaEditorClient({ bibliotecaId }: { bibliotecaId: number }) {
@@ -109,6 +110,13 @@ export function BibliotecaEditorClient({ bibliotecaId }: { bibliotecaId: number 
               <strong>1. Casos comerciales (obligatorio)</strong> — cada caso tiene fórmula de precio + contenedor de
               líneas exclusivo (una línea del pilar solo en un caso por biblioteca).
             </div>
+
+            <CopiarCasosDesdeBibliotecaEditor
+              bibliotecaId={bibliotecaId}
+              proveedorId={data.biblioteca.proveedor_id}
+              vacia={data.casos.length === 0}
+              onCopiado={load}
+            />
 
             <div className="mt-6 space-y-3">
               {data.casos.length === 0 ? (

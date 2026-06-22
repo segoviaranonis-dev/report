@@ -7,6 +7,7 @@ export const MOTOR_BIBLIOTECA_NUEVA = `${MOTOR_BIBLIOTECA}/nueva`;
 /** Corazón 2 — hijo de 2.3.1.7.1 Motor de precios */
 export const IMPORTACION_PRECIOS = `${MOTOR_PRECIOS}/importacion-precios`;
 export const IMPORTACION_PRECIOS_NUEVO = `${IMPORTACION_PRECIOS}/nuevo`;
+export const IMPORTACION_PRECIOS_HISTORIAL = `${IMPORTACION_PRECIOS}/historial`;
 export const INTENCION_COMPRA = `${PROCESO_IMPORTACION}/intencion-compra`;
 export const INTENCION_COMPRA_BANDEJA = `${INTENCION_COMPRA}/bandeja`;
 export const INTENCION_COMPRA_NUEVA = `${INTENCION_COMPRA}/nueva`;

@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { calcIndiceGs, normalizarCaso, type CasoInput } from "./caso-utils";
+import { calcIndiceGs, normalizarCaso, validarExclusividadCasosLineas, type CasoInput } from "./caso-utils";
 import { esBibliotecaCanonica } from "./constants";
 import { sortKeyLinea } from "./lineas-texto";
 
@@ -76,6 +76,45 @@ async function cargarPilarLineas(pool: Pool, proveedorId: number): Promise<Set<s
   return set;
 }
 
+/** Limpia BCL huérfana / desincronizada tras traslados parciales (evita UNIQUE bib+linea). */
+async function repararBclDesincronizado(pool: Pool, proveedorId: number): Promise<void> {
+  await pool.query(
+    `DELETE FROM biblioteca_caso_linea bcl
+     USING caso_precio_biblioteca cpb
+     WHERE bcl.caso_biblioteca_id = cpb.id
+       AND cpb.proveedor_id = $1
+       AND bcl.biblioteca_id <> cpb.biblioteca_id
+       AND EXISTS (
+         SELECT 1 FROM biblioteca_caso_linea bcl2
+         WHERE bcl2.biblioteca_id = cpb.biblioteca_id AND bcl2.linea_id = bcl.linea_id
+       )`,
+    [proveedorId],
+  );
+
+  await pool.query(
+    `UPDATE biblioteca_caso_linea bcl
+     SET biblioteca_id = cpb.biblioteca_id
+     FROM caso_precio_biblioteca cpb
+     WHERE bcl.caso_biblioteca_id = cpb.id
+       AND cpb.proveedor_id = $1
+       AND cpb.biblioteca_id IS NOT NULL
+       AND bcl.biblioteca_id <> cpb.biblioteca_id`,
+    [proveedorId],
+  );
+
+  await pool.query(
+    `DELETE FROM biblioteca_caso_linea bcl
+     WHERE bcl.biblioteca_id IN (
+       SELECT id FROM biblioteca_precio WHERE proveedor_id = $1 AND activo = true
+     )
+     AND NOT EXISTS (
+       SELECT 1 FROM caso_precio_biblioteca cpb
+       WHERE cpb.biblioteca_id = bcl.biblioteca_id AND cpb.activo = true
+     )`,
+    [proveedorId],
+  );
+}
+
 export async function loadBibliotecaEditor(
   pool: Pool,
   bibliotecaId: number,
@@ -87,6 +126,8 @@ export async function loadBibliotecaEditor(
     [bibliotecaId, proveedorId],
   );
   if (!meta.rows[0]) return null;
+
+  await repararBclDesincronizado(pool, proveedorId);
 
   const lineasMap = await lineasPorCasoBiblioteca(pool, bibliotecaId);
   const pilarSet = await cargarPilarLineas(pool, proveedorId);
@@ -314,8 +355,7 @@ export async function crearCasoBiblioteca(
         descuento_1, descuento_2, descuento_3, descuento_4,
         genera_lpc03_lpc04, alcance_tipo, lineas, activo)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'lineas', $11, true)
-     ON CONFLICT (proveedor_id, nombre_caso) DO UPDATE SET
-       biblioteca_id = EXCLUDED.biblioteca_id,
+     ON CONFLICT (biblioteca_id, nombre_caso) DO UPDATE SET
        dolar_politica = EXCLUDED.dolar_politica,
        factor_conversion = EXCLUDED.factor_conversion,
        descuento_1 = EXCLUDED.descuento_1,
@@ -512,5 +552,208 @@ export async function aplicarAsignacionesLineasLibres(
     asignadas,
     omitidas: asignaciones.length - asignadas,
     errores,
+  };
+}
+
+async function vaciarCasosBiblioteca(pool: Pool, bibliotecaId: number): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM biblioteca_caso_linea WHERE biblioteca_id = $1`, [bibliotecaId]);
+    await client.query(`UPDATE caso_precio_biblioteca SET activo = false WHERE biblioteca_id = $1`, [bibliotecaId]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export type CopiarCasosBibliotecaResult = {
+  n_casos: number;
+  n_lineas: number;
+  origen_biblioteca_id: number;
+  dest_biblioteca_id: number;
+  modo: "clonar";
+};
+
+type CasoOrigenRow = {
+  id: string;
+  nombre_caso: string;
+  dolar_politica: string;
+  factor_conversion: string;
+  descuento_1: string | null;
+  descuento_2: string | null;
+  descuento_3: string | null;
+  descuento_4: string | null;
+  genera_lpc03_lpc04: boolean;
+  alcance_tipo: string | null;
+  marcas: string[] | null;
+  lineas: string[] | null;
+};
+
+async function cargarCasosOrigenCompletos(
+  pool: Pool,
+  origenBibliotecaId: number,
+  proveedorId: number,
+): Promise<CasoOrigenRow[]> {
+  const { rows } = await pool.query<CasoOrigenRow>(
+    `SELECT id, nombre_caso, dolar_politica, factor_conversion,
+            descuento_1, descuento_2, descuento_3, descuento_4,
+            genera_lpc03_lpc04, alcance_tipo, marcas, lineas
+     FROM caso_precio_biblioteca
+     WHERE biblioteca_id = $1 AND proveedor_id = $2 AND activo = true
+     ORDER BY nombre_caso`,
+    [origenBibliotecaId, proveedorId],
+  );
+  return rows;
+}
+
+/**
+ * Clona casos + líneas BCL de origen → destino. El origen **no se modifica**.
+ * Requiere MIG-118: UNIQUE (biblioteca_id, nombre_caso).
+ */
+export async function copiarCasosDesdeBiblioteca(
+  pool: Pool,
+  destBibliotecaId: number,
+  origenBibliotecaId: number,
+  proveedorId: number,
+  reemplazar = false,
+): Promise<CopiarCasosBibliotecaResult> {
+  if (destBibliotecaId === origenBibliotecaId) {
+    throw new Error("Origen y destino no pueden ser la misma biblioteca.");
+  }
+
+  const origen = await loadBibliotecaEditor(pool, origenBibliotecaId, proveedorId);
+  if (!origen) throw new Error("Biblioteca origen no encontrada.");
+  const dest = await loadBibliotecaEditor(pool, destBibliotecaId, proveedorId);
+  if (!dest) throw new Error("Biblioteca destino no encontrada.");
+
+  if (origen.casos.length === 0) {
+    throw new Error("La biblioteca origen no tiene casos para copiar.");
+  }
+
+  const conflictos = validarExclusividadCasosLineas(origen.casos);
+  if (conflictos.length) {
+    throw new Error(`Biblioteca origen inconsistente: ${conflictos[0]}`);
+  }
+
+  if (dest.casos.length > 0) {
+    if (!reemplazar) {
+      throw new Error(
+        `Esta biblioteca ya tiene ${dest.casos.length} caso(s). Confirmá reemplazo para copiar desde otra.`,
+      );
+    }
+    await vaciarCasosBiblioteca(pool, destBibliotecaId);
+  }
+
+  const casosOrig = await cargarCasosOrigenCompletos(pool, origenBibliotecaId, proveedorId);
+  let nLineas = 0;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const conflictBcl = await onConflictFragment(pool);
+
+    for (const caso of casosOrig) {
+      const lineasArr = (caso.lineas ?? []).map(String);
+      const ins = await client.query<{ id: string }>(
+        `INSERT INTO caso_precio_biblioteca
+           (proveedor_id, biblioteca_id, nombre_caso,
+            dolar_politica, factor_conversion,
+            descuento_1, descuento_2, descuento_3, descuento_4,
+            genera_lpc03_lpc04, alcance_tipo, marcas, lineas, activo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true)
+         ON CONFLICT (biblioteca_id, nombre_caso) DO UPDATE SET
+           dolar_politica = EXCLUDED.dolar_politica,
+           factor_conversion = EXCLUDED.factor_conversion,
+           descuento_1 = EXCLUDED.descuento_1,
+           descuento_2 = EXCLUDED.descuento_2,
+           descuento_3 = EXCLUDED.descuento_3,
+           descuento_4 = EXCLUDED.descuento_4,
+           genera_lpc03_lpc04 = EXCLUDED.genera_lpc03_lpc04,
+           alcance_tipo = EXCLUDED.alcance_tipo,
+           marcas = EXCLUDED.marcas,
+           lineas = EXCLUDED.lineas,
+           activo = true
+         RETURNING id`,
+        [
+          proveedorId,
+          destBibliotecaId,
+          caso.nombre_caso,
+          caso.dolar_politica,
+          caso.factor_conversion,
+          caso.descuento_1,
+          caso.descuento_2,
+          caso.descuento_3,
+          caso.descuento_4,
+          caso.genera_lpc03_lpc04 !== false,
+          caso.alcance_tipo ?? "lineas",
+          caso.marcas,
+          lineasArr,
+        ],
+      );
+
+      const destCasoId = Number(ins.rows[0]?.id);
+      if (!destCasoId) throw new Error(`No se clonó el caso ${caso.nombre_caso}.`);
+
+      await client.query(
+        `DELETE FROM biblioteca_caso_linea WHERE biblioteca_id = $1 AND caso_biblioteca_id = $2`,
+        [destBibliotecaId, destCasoId],
+      );
+
+      const { rows: lineasBcl } = await client.query<{ linea_id: string }>(
+        `SELECT linea_id FROM biblioteca_caso_linea
+         WHERE biblioteca_id = $1 AND caso_biblioteca_id = $2`,
+        [origenBibliotecaId, Number(caso.id)],
+      );
+
+      if (lineasBcl.length) {
+        const ids = lineasBcl.map((r) => Number(r.linea_id));
+        const insBcl = await client.query(
+          `INSERT INTO biblioteca_caso_linea (biblioteca_id, caso_biblioteca_id, linea_id)
+           SELECT $1, $2, x.lid
+           FROM unnest($3::bigint[]) AS x(lid)
+           ${conflictBcl}`,
+          [destBibliotecaId, destCasoId, ids],
+        );
+        nLineas += insBcl.rowCount ?? ids.length;
+      } else if (lineasArr.length) {
+        const codesInt = lineasArr.map((c) => parseInt(c, 10)).filter((n) => Number.isFinite(n));
+        if (codesInt.length) {
+          const insBcl = await client.query(
+            `INSERT INTO biblioteca_caso_linea (biblioteca_id, caso_biblioteca_id, linea_id)
+             SELECT $1, $2, l.id
+             FROM linea l
+             WHERE l.proveedor_id = $3 AND l.codigo_proveedor = ANY($4::bigint[])
+             ${conflictBcl}`,
+            [destBibliotecaId, destCasoId, proveedorId, codesInt],
+          );
+          nLineas += insBcl.rowCount ?? 0;
+        }
+      }
+    }
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("caso_precio_biblioteca_biblioteca_nombre_uq") || msg.includes("there is no unique")) {
+      throw new Error(
+        "Falta migración 118 en BD (unique por biblioteca). Ejecutá control_central/migrations/118_caso_precio_biblioteca_unique_por_biblioteca.sql",
+      );
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  return {
+    n_casos: casosOrig.length,
+    n_lineas: nLineas,
+    origen_biblioteca_id: origenBibliotecaId,
+    dest_biblioteca_id: destBibliotecaId,
+    modo: "clonar",
   };
 }
