@@ -6,8 +6,10 @@
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
+import { REPORT_SESSION_VERSION } from './constants'
+
 const SESSION_COOKIE = 'report_session'
-export const REPORT_SESSION_VERSION = 2
+export { REPORT_SESSION_VERSION }
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
