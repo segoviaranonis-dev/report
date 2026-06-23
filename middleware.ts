@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const REPORT_SESSION_VERSION = 2
+const REPORT_SESSION_VERSION = 3
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {

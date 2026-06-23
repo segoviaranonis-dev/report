@@ -12,8 +12,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
-
-const REPORT_SESSION_VERSION = 2
+import { REPORT_SESSION_VERSION } from '@/lib/auth/constants'
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
@@ -26,7 +25,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar', '/bazzar-web', '/rrhh'],
   3: ['/ventas-fotos'],
 }
@@ -219,7 +218,9 @@ export const config = {
     '/compra-legal/:path*',
     '/facturacion/:path*',
     '/deposito-rimec/:path*',
-    '/api/compra-legal/:path*',
+    '/holding/:path*',
+    '/proceso-importacion/:path*',
+    '/api/holding/:path*',
     '/api/facturacion/:path*',
     '/api/deposito-rimec/:path*',
     '/motor-precios/:path*',
