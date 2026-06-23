@@ -6,10 +6,14 @@ export type RetailFilterState = {
   grupoEstiloId: string;
   lineaIds: number[];
   tipoIds: number[];
-  tipoV2Ids: number[];  // NUEVO: Filtro Calzados/Confecciones
+  tipoV2Ids: number[];  // 1=Calzados · 2=Confecciones
   colorIds: number[];
   q: string;
 };
+
+/** tipo_v2_id canónico — alineado pilares / import Kyly. */
+export const TIPO_V2_CALZADO = 1;
+export const TIPO_V2_CONFECCIONES = 2;
 
 export const EMPTY_RETAIL_FILTERS: RetailFilterState = {
   generoId: "",
@@ -17,9 +21,15 @@ export const EMPTY_RETAIL_FILTERS: RetailFilterState = {
   grupoEstiloId: "",
   lineaIds: [],
   tipoIds: [],
-  tipoV2Ids: [],  // NUEVO
+  tipoV2Ids: [],
   colorIds: [],
   q: "",
+};
+
+/** Predeterminado Report Retail: solo calzado 654 (excluye confecciones ref K). */
+export const DEFAULT_RETAIL_FILTERS: RetailFilterState = {
+  ...EMPTY_RETAIL_FILTERS,
+  tipoV2Ids: [TIPO_V2_CALZADO],
 };
 
 function parseIdList(raw: string | null): number[] {
@@ -30,17 +40,25 @@ function parseIdList(raw: string | null): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+/** Aplica default calzados si no hay tipo_v2 en URL/estado. */
+export function resolveRetailFilters(f: RetailFilterState): RetailFilterState {
+  if (f.tipoV2Ids.length > 0) return f;
+  return { ...f, tipoV2Ids: [TIPO_V2_CALZADO] };
+}
+
 export function parseRetailFiltersFromSearchParams(sp: URLSearchParams): RetailFilterState {
-  return {
+  const hasTipoV2 = sp.has("tipo_v2_ids");
+  const base: RetailFilterState = {
     generoId: sp.get("genero_id") ?? "",
     marcaId: sp.get("marca_id") ?? "",
     grupoEstiloId: sp.get("grupo_estilo_id") ?? "",
     lineaIds: parseIdList(sp.get("linea_ids")),
     tipoIds: parseIdList(sp.get("tipo_ids")),
-    tipoV2Ids: parseIdList(sp.get("tipo_v2_ids")),  // NUEVO
+    tipoV2Ids: hasTipoV2 ? parseIdList(sp.get("tipo_v2_ids")) : [TIPO_V2_CALZADO],
     colorIds: parseIdList(sp.get("color_ids")),
     q: sp.get("q") ?? "",
   };
+  return base;
 }
 
 export function retailFiltersToQuery(f: RetailFilterState): string {
@@ -90,10 +108,13 @@ export function applyRetailFilters(rows: RetailStagingRow[], f: RetailFilterStat
     out = out.filter((r) => r.tipo_1_id != null && set.has(Number(r.tipo_1_id)));
   }
 
-  // Tipo V2 (Calzados/Confecciones): normalizar a número
+  // Tipo V2 (Calzados/Confecciones)
   if (f.tipoV2Ids.length) {
     const set = new Set(f.tipoV2Ids);
-    out = out.filter((r) => r.tipo_v2_id != null && set.has(Number(r.tipo_v2_id)));
+    out = out.filter((r) => {
+      const tv2 = r.tipo_v2_id != null ? Number(r.tipo_v2_id) : TIPO_V2_CALZADO;
+      return set.has(tv2);
+    });
   }
 
   // Color: normalizar a número

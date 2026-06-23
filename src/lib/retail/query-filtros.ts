@@ -56,8 +56,26 @@ export async function loadRetailFiltrosForBatch(batchId: string): Promise<Retail
       col.nombre AS descp_color
     FROM public.registro_st_vt_rc_reposicion s
     LEFT JOIN public.linea l
-      ON trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
-      AND (l.id = trim(s.linea_codigo_proveedor)::bigint OR l.codigo_proveedor = trim(s.linea_codigo_proveedor)::bigint)
+      ON (
+        (s.linea_id IS NOT NULL AND l.id = s.linea_id)
+        OR (
+          trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
+          AND (
+            l.id = (
+              CASE
+                WHEN trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
+                THEN trim(s.linea_codigo_proveedor)::bigint
+              END
+            )
+            OR l.codigo_proveedor = (
+              CASE
+                WHEN trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
+                THEN trim(s.linea_codigo_proveedor)::bigint
+              END
+            )
+          )
+        )
+      )
     LEFT JOIN public.genero g ON g.id = s.genero_id
     LEFT JOIN public.marca_v2 mv ON mv.id_marca = s.marca_id
     LEFT JOIN public.grupo_estilo_v2 ge ON ge.id_grupo_estilo = s.grupo_estilo_id

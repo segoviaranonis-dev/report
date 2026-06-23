@@ -7,6 +7,7 @@ import {
   type DepositoConfig,
 } from "@/lib/depositos/depositos-config";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { assertSinStagingPendiente } from "@/lib/caja-bazzar/staging-guard";
 
 export type { DepositoConfig };
 
@@ -70,6 +71,7 @@ async function syncDeposito(config: DepositoConfig): Promise<SyncResult> {
         tm.activo = true
       WHERE r.cliente_id = $1
         AND lower(btrim(r.tipo_movimiento)) = 'stock'
+        AND COALESCE(r.tipo_v2_id, 1) = 1
       `,
       [config.cliente_id],
     );
@@ -129,6 +131,21 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const cliente_id = body.cliente_id as number | undefined;
+
+    const bloqueo = await assertSinStagingPendiente(cliente_id);
+    if (bloqueo) {
+      return NextResponse.json(
+        {
+          configured: true,
+          success: false,
+          resultados: [],
+          total_registros: 0,
+          duracion_total_ms: 0,
+          error: bloqueo,
+        } satisfies SyncAllResponse,
+        { status: 409 },
+      );
+    }
 
     const inicio = Date.now();
 
@@ -208,10 +225,10 @@ export async function GET(req: NextRequest) {
     const estados = await Promise.all(
       configs.map(async (config) => {
         try {
-          const result = await pool.query(
-            `SELECT COUNT(*)::int AS count FROM public.${config.tabla}`,
+          const result = await pool.query<{ registros: number; pares: number }>(
+            `SELECT COUNT(*)::int AS registros, COALESCE(SUM(cantidad), 0)::float AS pares FROM public.${config.tabla}`,
           );
-          const count = result.rows[0]?.count || 0;
+          const row = result.rows[0];
 
           return {
             cliente_id: config.cliente_id,
@@ -219,7 +236,8 @@ export async function GET(req: NextRequest) {
             tipo: config.tipo,
             categoria: config.categoria,
             tabla: config.tabla,
-            registros: count,
+            registros: row?.registros ?? 0,
+            pares: row?.pares ?? 0,
           };
         } catch (error) {
           return {
@@ -229,6 +247,7 @@ export async function GET(req: NextRequest) {
             categoria: config.categoria,
             tabla: config.tabla,
             registros: 0,
+            pares: 0,
             error: error instanceof Error ? error.message : "Error",
           };
         }

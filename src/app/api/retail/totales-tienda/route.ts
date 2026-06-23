@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
-import { parseRetailFiltersFromSearchParams } from "@/lib/retail/retail-filters";
+import { parseRetailFiltersFromSearchParams, resolveRetailFilters } from "@/lib/retail/retail-filters";
 import { buildWhereClause } from "@/lib/retail/apply-filters-sql";
 
 export type TotalesTienda = {
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   try {
     // Parsear filtros de URL
     const { searchParams } = new URL(request.url);
-    const filters = parseRetailFiltersFromSearchParams(searchParams);
+    const filters = resolveRetailFilters(parseRetailFiltersFromSearchParams(searchParams));
     const whereClause = buildWhereClause(filters);
 
     const pool = getRimecPool();

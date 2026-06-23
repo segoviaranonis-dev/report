@@ -3,7 +3,7 @@ import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import type { RetailArbolSnapshotResponse } from "@/lib/retail/arbol-snapshot-types";
 import { calcularKpisArbol, construirArbolRetail } from "@/lib/retail/build-arbol-snapshot";
 import { loadRetailArbolLeaves } from "@/lib/retail/load-arbol-leaves";
-import { parseRetailFiltersFromSearchParams } from "@/lib/retail/retail-filters";
+import { parseRetailFiltersFromSearchParams, resolveRetailFilters } from "@/lib/retail/retail-filters";
 import { buildWhereClause } from "@/lib/retail/apply-filters-sql";
 
 const KPI_VACIO = {
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   try {
     // Parsear filtros de URL
     const { searchParams } = new URL(request.url);
-    const filters = parseRetailFiltersFromSearchParams(searchParams);
+    const filters = resolveRetailFilters(parseRetailFiltersFromSearchParams(searchParams));
     const whereClause = buildWhereClause(filters);
 
     const { leaves, meta, totalFilas } = await loadRetailArbolLeaves(whereClause);

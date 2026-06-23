@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  EMPTY_RETAIL_FILTERS,
+  DEFAULT_RETAIL_FILTERS,
   retailFiltersToQuery,
+  resolveRetailFilters,
   type RetailFilterState,
 } from "@/lib/retail/retail-filters";
 import type { RetailFiltrosPayload } from "@/lib/retail/query-filtros";
@@ -30,7 +31,7 @@ type TabType = "catalogo" | "analisis" | "informe";
 export function RetailStockClient({ todayLabel }: Props) {
   const [meta, setMeta] = useState<RetailMetaResponse | null>(null);
   const [batchId, setBatchId] = useState<string>("");
-  const [filtros, setFiltros] = useState<RetailFilterState>(EMPTY_RETAIL_FILTERS);
+  const [filtros, setFiltros] = useState<RetailFilterState>(DEFAULT_RETAIL_FILTERS);
   const [filtrosData, setFiltrosData] = useState<RetailFiltrosPayload | null>(null);
   const [data, setData] = useState<RetailStockBoardResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,7 +76,7 @@ export function RetailStockClient({ todayLabel }: Props) {
       const base = batchId
         ? `?batch_id=${encodeURIComponent(batchId)}&top=${topN}`
         : `?top=${topN}`;
-      const r = await fetch(`/api/retail/stock-board${base}${retailFiltersToQuery(filtros)}`);
+      const r = await fetch(`/api/retail/stock-board${base}${retailFiltersToQuery(resolveRetailFilters(filtros))}`);
       const j = (await r.json()) as RetailStockBoardResponse;
       if (!r.ok) throw new Error(j.error ?? "Error al cargar stock retail");
       setData(j);
@@ -95,7 +96,7 @@ export function RetailStockClient({ todayLabel }: Props) {
 
   useEffect(() => {
     if (!configured) return;
-    const filtrosQuery = retailFiltersToQuery(filtros);
+    const filtrosQuery = retailFiltersToQuery(resolveRetailFilters(filtros));
     fetch(`/api/retail/arbol-snapshot${filtrosQuery ? "?" + filtrosQuery.slice(1) : ""}`)
       .then((r) => r.json())
       .then((j) => setArbolData({ configured: j.configured, arbol: j.arbol || [] }))
@@ -143,7 +144,7 @@ export function RetailStockClient({ todayLabel }: Props) {
               onTopChange={setTopN}
               onBatchChange={(id) => {
                 setBatchId(id);
-                setFiltros(EMPTY_RETAIL_FILTERS);
+                setFiltros(DEFAULT_RETAIL_FILTERS);
               }}
               onRefresh={cargar}
               loading={loading}

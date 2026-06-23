@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RetailFilterState } from "@/lib/retail/retail-filters";
+import { DEFAULT_RETAIL_FILTERS, TIPO_V2_CALZADO } from "@/lib/retail/retail-filters";
 import type { RetailFilterItem } from "@/lib/retail/query-filtros";
 
 type FiltrosData = {
@@ -142,7 +143,7 @@ export function RetailFiltrosHeader({ filtros, onChange, filtrosData, totalModel
     !!filtros.grupoEstiloId ||
     filtros.lineaIds.length > 0 ||
     filtros.tipoIds.length > 0 ||
-    filtros.tipoV2Ids.length > 0 ||  // NUEVO
+    (filtros.tipoV2Ids.length !== 1 || filtros.tipoV2Ids[0] !== TIPO_V2_CALZADO) ||
     filtros.colorIds.length > 0 ||
     !!filtros.q.trim();
 
@@ -166,18 +167,7 @@ export function RetailFiltrosHeader({ filtros, onChange, filtrosData, totalModel
         {hayFiltros ? (
           <button
             type="button"
-            onClick={() =>
-              onChange({
-                generoId: "",
-                marcaId: "",
-                grupoEstiloId: "",
-                lineaIds: [],
-                tipoIds: [],
-                tipoV2Ids: [],  // NUEVO
-                colorIds: [],
-                q: "",
-              })
-            }
+            onClick={() => onChange({ ...DEFAULT_RETAIL_FILTERS })}
             className="text-xs font-semibold text-red-700 underline-offset-2 hover:underline"
           >
             Limpiar filtros

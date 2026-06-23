@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { buildStockBoardFromStaging, computeRetailKpis, summarizePilares } from "@/lib/retail/build-stock-board";
-import { applyRetailFilters, parseRetailFiltersFromSearchParams } from "@/lib/retail/retail-filters";
+import { applyRetailFilters, parseRetailFiltersFromSearchParams, resolveRetailFilters } from "@/lib/retail/retail-filters";
 import { listRetailBatches, loadRetailStagingBatch, resolveRetailBatchId } from "@/lib/retail/query-staging";
 import type { RetailPilaresResumen, RetailStockBoardResponse } from "@/lib/retail/types";
 
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rowsAll = await loadRetailStagingBatch(batchId);
-    const filtros = parseRetailFiltersFromSearchParams(req.nextUrl.searchParams);
+    const filtros = resolveRetailFilters(parseRetailFiltersFromSearchParams(req.nextUrl.searchParams));
     const rows = applyRetailFilters(rowsAll, filtros);
     const columnas = buildStockBoardFromStaging(rows, top);
     const kpis = computeRetailKpis(rows);

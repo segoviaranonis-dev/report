@@ -97,13 +97,27 @@ export const RETAIL_STAGING_SELECT_SQL = `
   FROM public.registro_st_vt_rc_reposicion s
   LEFT JOIN public.linea l
     ON (
-      trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
-      AND l.codigo_proveedor = trim(s.linea_codigo_proveedor)::bigint
+      (s.linea_id IS NOT NULL AND l.id = s.linea_id)
+      OR l.codigo_proveedor = (
+        CASE
+          WHEN trim(both from s.linea_codigo_proveedor) ~ '^[0-9]+$'
+          THEN trim(s.linea_codigo_proveedor)::bigint
+        END
+      )
     )
   LEFT JOIN public.referencia r
-    ON r.linea_id = l.id
-    AND trim(both from s.referencia_codigo_proveedor) ~ '^[0-9]+$'
-    AND r.codigo_proveedor = trim(s.referencia_codigo_proveedor)::bigint
+    ON (
+      (s.referencia_id IS NOT NULL AND r.id = s.referencia_id)
+      OR (
+        r.linea_id = l.id
+        AND r.codigo_proveedor = (
+          CASE
+            WHEN trim(both from s.referencia_codigo_proveedor) ~ '^[0-9]+$'
+            THEN trim(s.referencia_codigo_proveedor)::bigint
+          END
+        )
+      )
+    )
   LEFT JOIN public.material mat ON mat.id = s.material_id
   LEFT JOIN public.color col ON col.id = s.color_id
   LEFT JOIN public.marca_v2 mv ON mv.id_marca = s.marca_id
