@@ -231,6 +231,7 @@ export const config = {
     '/api/ventas-fotos/:path*',
     '/api/aprobaciones/:path*',
     '/api/depositos/:path*',
+    '/api/tablet-bazzar/:path*',
     '/api/bazzar-web/:path*',
     '/api/rrhh/:path*',
   ],

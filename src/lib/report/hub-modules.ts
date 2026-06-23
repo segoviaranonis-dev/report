@@ -188,11 +188,11 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
   },
   {
     href: "/tablet-bazzar",
-    title: "Tablet Bazzar",
-    shortLabel: "Tablet",
+    title: "Caja Bazzar",
+    shortLabel: "Caja",
     description:
-      "Punto de venta en tienda · Cadena, depósito fotos, tickets. Consume deposito_1_{cliente_id}_tienda.",
-    icon: "📱",
+      "Módulo cajero · 6 tiendas · bandeja tickets CSV/FACTURADO. POS vendedor en tablet-bazzar.vercel.app.",
+    icon: "🧾",
     group: "bazzar",
     navKey: "tablet-bazzar",
     roles: [1, 2],

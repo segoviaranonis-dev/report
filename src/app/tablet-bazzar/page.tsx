@@ -73,6 +73,14 @@ export default function CajaBazzarHubPage() {
 
         {loading ? (
           <p className="text-neutral-muted">Consultando pendientes en base de datos…</p>
+        ) : cards.length === 0 ? (
+          <p className="text-neutral-muted">
+            Sin cajas visibles para tu usuario. Revisá permisos o{" "}
+            <button type="button" onClick={loadHub} className="font-semibold text-bazzar-naranja underline">
+              reintentar
+            </button>
+            .
+          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {cards.map((c) => (

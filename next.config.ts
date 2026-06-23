@@ -6,6 +6,18 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
+  async headers() {
+    return [
+      {
+        source: "/tablet-bazzar/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+      {
+        source: "/api/tablet-bazzar/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
