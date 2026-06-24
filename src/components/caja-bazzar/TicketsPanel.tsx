@@ -73,11 +73,19 @@ export function TicketsPanel({ clienteId, modo }: Props) {
   );
 
   const pendientes = useMemo(
-    () => tickets.filter((t) => t.estado.toUpperCase() === "EMITIDO").length,
+    () =>
+      tickets.filter((t) => {
+        const e = t.estado.toUpperCase();
+        return e === "EMITIDO" || e === "PENDIENTE_CAJA" || e === "CSV_DESCARGADO";
+      }).length,
     [tickets],
   );
-  const facturados = useMemo(
-    () => tickets.filter((t) => t.estado.toUpperCase() === "FACTURADO").length,
+  const enBobeda = useMemo(
+    () =>
+      tickets.filter((t) => {
+        const e = t.estado.toUpperCase();
+        return e === "FACTURADO" || e === "PENDIENTE_ENTREGA" || e === "ENTREGADO";
+      }).length,
     [tickets],
   );
 
@@ -113,21 +121,84 @@ export function TicketsPanel({ clienteId, modo }: Props) {
     }
   }
 
-  async function marcarFacturaFacturada(f: FacturaPosHeader) {
+  async function guardarTitularFactura(
+    f: FacturaPosHeader,
+    payload: { cedula: string; nombre: string; apellido: string },
+  ) {
     setBusyKey(f.key);
     setMsg(null);
     try {
-      const r = await fetch("/api/tablet-bazzar/tickets/facturar", {
-        method: "POST",
+      const r = await fetch("/api/tablet-bazzar/tickets/titular", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cliente_id: clienteId, codigos: f.codigos }),
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          staging_id: f.staging_id,
+          codigos: f.codigos,
+          cedula: payload.cedula,
+          nombre: payload.nombre,
+          apellido: payload.apellido || null,
+        }),
       });
       const data = await r.json();
       if (!r.ok || !data.ok) {
-        setMsg(data.error ?? "No se pudo archivar la factura");
+        setMsg(data.error ?? "No se pudo actualizar titular");
         return;
       }
-      setMsg(`Factura ${facturaDisplayId(f)} → FACTURADO (${data.updated} línea${data.updated === 1 ? "" : "s"})`);
+      setMsg(`Titular actualizado · CI ${payload.cedula.replace(/\D/g, "")}`);
+      load();
+    } catch {
+      setMsg("Error de red");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function eliminarLineaFactura(f: FacturaPosHeader, codigoTicket: string) {
+    if (!window.confirm("¿Quitar este par de la factura? El stock vuelve al depósito.")) return;
+    setBusyKey(`${f.key}:${codigoTicket}`);
+    setMsg(null);
+    try {
+      const q = new URLSearchParams({
+        cliente_id: String(clienteId),
+        codigo_ticket: codigoTicket,
+      });
+      const r = await fetch(`/api/tablet-bazzar/tickets/linea?${q}`, { method: "DELETE" });
+      const data = await r.json();
+      if (!r.ok || !data.ok) {
+        setMsg(data.error ?? "No se pudo quitar el par");
+        return;
+      }
+      setMsg("Par eliminado · stock restaurado");
+      load();
+    } catch {
+      setMsg("Error de red");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function enviarFacturaEmpaque(f: FacturaPosHeader) {
+    setBusyKey(f.key);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/tablet-bazzar/tickets/enviar-empaque", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          codigos: f.codigos,
+          staging_id: f.staging_id,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) {
+        setMsg(data.error ?? "No se pudo enviar a Empaque");
+        return;
+      }
+      setMsg(
+        `Factura ${facturaDisplayId(f)} → Empaque (${data.inserted} par${data.inserted === 1 ? "" : "es"} en Bobeda)`,
+      );
       load();
     } catch {
       setMsg("Error de red");
@@ -140,8 +211,8 @@ export function TicketsPanel({ clienteId, modo }: Props) {
     return (
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label="Pares hoy" value={pares} accent />
-        <MetricCard label="Pendientes (EMITIDO)" value={pendientes} />
-        <MetricCard label="Facturados hoy" value={facturados} />
+        <MetricCard label="Pendientes caja" value={pendientes} />
+        <MetricCard label="En Bobeda (vista)" value={enBobeda} />
         <div className="sm:col-span-3 flex justify-end">
           <button
             type="button"
@@ -213,7 +284,7 @@ export function TicketsPanel({ clienteId, modo }: Props) {
         <p className="text-neutral-muted">Consultando bandeja en base de datos…</p>
       ) : modo === "operativa" ? (
         facturas.length === 0 ? (
-          <p className="text-neutral-muted">Bandeja vacía — sin facturas EMITIDO hoy.</p>
+          <p className="text-neutral-muted">Bandeja vacía — sin facturas pendientes en caja.</p>
         ) : (
           <ul className="space-y-4">
             {facturas.map((f) => (
@@ -221,14 +292,17 @@ export function TicketsPanel({ clienteId, modo }: Props) {
                 key={f.key}
                 factura={f}
                 busy={busyKey === f.key}
+                busyLineaPrefix={busyKey?.startsWith(`${f.key}:`) ? busyKey : null}
                 onDescargar={() => void descargarFactura(f)}
-                onFacturar={() => void marcarFacturaFacturada(f)}
+                onFacturar={() => void enviarFacturaEmpaque(f)}
+                onGuardarTitular={(payload) => void guardarTitularFactura(f, payload)}
+                onEliminarLinea={(codigo) => void eliminarLineaFactura(f, codigo)}
               />
             ))}
           </ul>
         )
       ) : tickets.length === 0 ? (
-        <p className="text-neutral-muted">Sin tickets FACTURADO hoy.</p>
+        <p className="text-neutral-muted">Sin pares en Bobeda pendientes de entrega hoy.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -264,21 +338,42 @@ export function TicketsPanel({ clienteId, modo }: Props) {
   );
 }
 
-/** Acordeón bandeja cajero — solo lectura; Bobeda/ORO intacta (P-12). */
+/** Acordeón bandeja cajero — titular editable · quitar pares (sin agregar). */
 function FacturaPosCard({
   factura: f,
   busy,
+  busyLineaPrefix,
   onDescargar,
   onFacturar,
+  onGuardarTitular,
+  onEliminarLinea,
 }: {
   factura: FacturaPosHeader;
   busy: boolean;
+  busyLineaPrefix: string | null;
   onDescargar: () => void;
   onFacturar: () => void;
+  onGuardarTitular: (payload: { cedula: string; nombre: string; apellido: string }) => void;
+  onEliminarLinea: (codigoTicket: string) => void;
 }) {
   const id = facturaDisplayId(f);
   const titular = titularFacturaPos(f);
   const sinNombre = !f.nombre_cliente?.trim() || f.nombre_cliente.startsWith("CI ");
+  const partes = (f.nombre_cliente?.trim() && !f.nombre_cliente.startsWith("CI ")
+    ? f.nombre_cliente
+    : titular.replace(/^Cliente CI \d+$/, "").trim() || titular
+  ).split(/\s+/);
+  const [editTitular, setEditTitular] = useState(false);
+  const [cedulaEdit, setCedulaEdit] = useState(f.cedula_cliente ?? "");
+  const [nombreEdit, setNombreEdit] = useState(partes[0] ?? "");
+  const [apellidoEdit, setApellidoEdit] = useState(partes.slice(1).join(" "));
+
+  useEffect(() => {
+    setCedulaEdit(f.cedula_cliente ?? "");
+    setNombreEdit(partes[0] ?? "");
+    setApellidoEdit(partes.slice(1).join(" "));
+    setEditTitular(false);
+  }, [f.key, f.cedula_cliente, f.nombre_cliente]);
 
   return (
     <li className="overflow-hidden rounded-xl border-2 border-neutral-300 bg-card-bg shadow-md">
@@ -291,6 +386,11 @@ function FacturaPosCard({
                 <span className="font-mono text-xs font-bold text-rimec-azul-dark">{id}</span>
                 <span className="text-xs text-neutral-muted group-open:hidden">· tocá para ver ítems</span>
               </div>
+              <p className="mt-1 text-xs text-neutral-600">
+                Factura legal:{" "}
+                <span className="font-semibold tabular-nums">{f.numero_factura_legal?.trim() || "—"}</span>
+                <span className="text-neutral-muted"> (pendiente destino UI)</span>
+              </p>
 
               <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-rimec-azul">
                 Cliente · facturar a nombre de
@@ -298,8 +398,63 @@ function FacturaPosCard({
               <p className="mt-1 break-words font-serif text-3xl font-bold leading-tight text-rimec-azul-dark sm:text-4xl">
                 {titular}
               </p>
-              {f.cedula_cliente && (
+              {f.cedula_cliente && !editTitular && (
                 <p className="mt-1 text-sm font-semibold tabular-nums text-neutral-600">CI {f.cedula_cliente}</p>
+              )}
+              {editTitular && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <label className="block sm:col-span-3">
+                    <span className="text-[10px] font-bold uppercase text-neutral-muted">Cédula factura</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={cedulaEdit}
+                      onChange={(e) => setCedulaEdit(e.target.value.replace(/\D/g, ""))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase text-neutral-muted">Nombre</span>
+                    <input
+                      type="text"
+                      value={nombreEdit}
+                      onChange={(e) => setNombreEdit(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-[10px] font-bold uppercase text-neutral-muted">Apellido</span>
+                    <input
+                      type="text"
+                      value={apellidoEdit}
+                      onChange={(e) => setApellidoEdit(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2 sm:col-span-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        onGuardarTitular({
+                          cedula: cedulaEdit,
+                          nombre: nombreEdit,
+                          apellido: apellidoEdit,
+                        })
+                      }
+                      className="rounded-lg bg-rimec-azul px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      Guardar titular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditTitular(false)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-neutral-600"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               )}
 
               <p className="mt-2 text-sm font-bold text-bazzar-naranja">
@@ -342,10 +497,24 @@ function FacturaPosCard({
           </div>
 
           <p className="mt-3 max-w-xl rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold leading-snug text-slate-700">
-            1) Descargá CSV e importá en facturador legal · 2) Cobrá · 3) Marcá FACTURADO. Bobeda/ORO queda fija — arrepentimiento de pares solo en tablet (staging ABIERTO).
+            1) Corregí titular/CI si factura a nombre de otra persona · 2) CSV → facturador · 3) Cobrá · 4) Enviar a Empaque.
+            Podés quitar pares (no agregar). Agregar pares solo en tablet.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2 border-t border-neutral-200/80 pt-4">
+            {!editTitular && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setEditTitular(true);
+                }}
+                className="rounded-lg border-2 border-rimec-azul px-4 py-2 text-sm font-bold text-rimec-azul disabled:opacity-50"
+              >
+                Editar titular / CI
+              </button>
+            )}
             <button
               type="button"
               disabled={busy}
@@ -366,17 +535,22 @@ function FacturaPosCard({
               }}
               className="rounded-lg border-2 border-rimec-azul px-4 py-2 text-sm font-bold text-rimec-azul disabled:opacity-40"
             >
-              Marcar FACTURADO
+              Enviar a Empaque
             </button>
           </div>
         </div>
 
         <div className="space-y-2 bg-neutral-50/80 p-4 sm:p-5">
           <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-muted">
-            Ítems · {f.lineas.length} línea{f.lineas.length === 1 ? "" : "s"} · solo consulta
+            Ítems · {f.lineas.length} línea{f.lineas.length === 1 ? "" : "s"} · quitar par permitido
           </p>
           {f.lineas.map((t) => (
-            <PosFiLineaRow key={t.codigo_ticket} linea={t} />
+            <PosFiLineaRow
+              key={t.codigo_ticket}
+              linea={t}
+              eliminando={busyLineaPrefix === `${f.key}:${t.codigo_ticket}`}
+              onEliminar={() => onEliminarLinea(t.codigo_ticket)}
+            />
           ))}
         </div>
       </details>

@@ -811,3 +811,302 @@ export async function patchLineaReferencia(
   );
   return (res.rowCount ?? 0) > 0;
 }
+
+/** Garantiza columna tono_canon (única verdad filtro) — idempotente. */
+export async function ensureTonoCanonColumn(pool: Pool): Promise<void> {
+  await pool.query(`ALTER TABLE public.color ADD COLUMN IF NOT EXISTS tono_canon jsonb`);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_color_tono_etiqueta
+    ON public.color ((lower(btrim(tono_canon->>'etiqueta'))))
+    WHERE tono_canon IS NOT NULL AND btrim(tono_canon->>'etiqueta') <> ''
+  `);
+}
+
+export async function loadColoresResumen(pool: Pool, proveedorId: number): Promise<import("./types").ColoresResumen> {
+  const [totRes, etiqRes] = await Promise.all([
+    pool.query<{ total: string; sin_tono: string; con_tono: string }>(
+      `
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE tono_canon IS NULL)::text AS sin_tono,
+        COUNT(*) FILTER (WHERE tono_canon IS NOT NULL)::text AS con_tono
+      FROM color c
+      WHERE c.proveedor_id = $1 AND c.activo = true
+      `,
+      [proveedorId],
+    ),
+    pool.query<{ etiqueta: string; n: string }>(
+      `
+      SELECT btrim(tono_canon->>'etiqueta') AS etiqueta, COUNT(*)::text AS n
+      FROM color c
+      WHERE c.proveedor_id = $1 AND c.activo = true
+        AND tono_canon IS NOT NULL
+        AND btrim(tono_canon->>'etiqueta') <> ''
+      GROUP BY 1
+      ORDER BY COUNT(*) DESC, 1
+      LIMIT 40
+      `,
+      [proveedorId],
+    ),
+  ]);
+  const t = totRes.rows[0];
+  return {
+    total: Number(t?.total ?? 0),
+    sin_tono: Number(t?.sin_tono ?? 0),
+    con_tono: Number(t?.con_tono ?? 0),
+    por_etiqueta: etiqRes.rows.map((r) => ({ etiqueta: r.etiqueta, count: Number(r.n) })),
+  };
+}
+
+export async function loadColores(
+  pool: Pool,
+  proveedorId: number,
+  opts: { q?: string | null; sinTono?: boolean; limit?: number; offset?: number },
+): Promise<{ rows: import("./types").ColorRow[]; total: number }> {
+  const where: string[] = ["c.proveedor_id = $1", "c.activo = true"];
+  const params: unknown[] = [proveedorId];
+
+  if (opts.sinTono) {
+    where.push("c.tono_canon IS NULL");
+  }
+  if (opts.q?.trim()) {
+    params.push(`%${opts.q.trim()}%`);
+    const i = params.length;
+    where.push(
+      `(c.nombre ILIKE $${i} OR c.tono_canon->>'etiqueta' ILIKE $${i} OR c.codigo_proveedor::text ILIKE $${i})`,
+    );
+  }
+
+  const whereSql = where.join(" AND ");
+  const limit = Math.min(Math.max(opts.limit ?? 200, 1), 500);
+  const offset = Math.max(opts.offset ?? 0, 0);
+
+  const [listRes, countRes] = await Promise.all([
+    pool.query<{
+      id: number;
+      codigo_proveedor: string;
+      nombre: string | null;
+      tono_canon: Record<string, unknown> | null;
+    }>(
+      `
+      SELECT c.id, c.codigo_proveedor::text, c.nombre, c.tono_canon
+      FROM color c
+      WHERE ${whereSql}
+      ORDER BY c.codigo_proveedor
+      LIMIT ${limit} OFFSET ${offset}
+      `,
+      params,
+    ),
+    pool.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM color c WHERE ${whereSql}`, params),
+  ]);
+
+  const { colorPredominante } = await import("./color-canon");
+
+  const rows = listRes.rows.map((r) => ({
+    id: r.id,
+    codigo_proveedor: r.codigo_proveedor,
+    nombre: r.nombre,
+    tono_canon: r.tono_canon,
+    predominante: colorPredominante(r.nombre),
+  }));
+
+  return { rows, total: Number(countRes.rows[0]?.n ?? 0) };
+}
+
+export async function patchColorTono(
+  pool: Pool,
+  id: number,
+  proveedorId: number,
+  tonoCanon: Record<string, unknown> | null,
+): Promise<boolean> {
+  const res = await pool.query(
+    `UPDATE color SET tono_canon = $3::jsonb WHERE id = $1 AND proveedor_id = $2`,
+    [id, proveedorId, tonoCanon ? JSON.stringify(tonoCanon) : null],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/** Rango codigo_proveedor — asigna tono_canon (misma herramienta que líneas por rango). */
+export async function patchColorRango(
+  pool: Pool,
+  proveedorId: number,
+  desde: string,
+  hasta: string,
+  opts: {
+    tonoFijo?: Record<string, unknown> | null;
+    hexDefault?: string;
+    usarPredominante?: boolean;
+    soloSinTono?: boolean;
+    catalog?: import("./colores-estandar").ColorEstandar[];
+  },
+): Promise<number> {
+  const d = desde.trim();
+  const h = hasta.trim();
+  if (!d || !h) return 0;
+
+  const where: string[] = [
+    "c.proveedor_id = $1",
+    "c.activo = true",
+    "c.codigo_proveedor::text >= $2",
+    "c.codigo_proveedor::text <= $3",
+  ];
+  const params: unknown[] = [proveedorId, d, h];
+  if (opts.soloSinTono) where.push("c.tono_canon IS NULL");
+
+  if (opts.tonoFijo) {
+    params.push(JSON.stringify(opts.tonoFijo));
+    const res = await pool.query(
+      `UPDATE color c SET tono_canon = $${params.length}::jsonb WHERE ${where.join(" AND ")}`,
+      params,
+    );
+    return res.rowCount ?? 0;
+  }
+
+  if (!opts.usarPredominante) return 0;
+
+  const { rows } = await pool.query<{ id: number; nombre: string | null }>(
+    `SELECT c.id, c.nombre FROM color c WHERE ${where.join(" AND ")} ORDER BY c.codigo_proveedor`,
+    params,
+  );
+
+  const { sugerirColorEstandarFromCatalog, sugerirColorEstandar } = await import("./colores-estandar");
+  const { tonoSolido } = await import("./color-canon");
+  const sugerir = (nombre: string | null) =>
+    opts.catalog ? sugerirColorEstandarFromCatalog(nombre, opts.catalog) : sugerirColorEstandar(nombre);
+  let updated = 0;
+  for (const row of rows) {
+    const std = sugerir(row.nombre);
+    if (!std) continue;
+    const tono = tonoSolido(std.etiqueta, std.hex);
+    const ok = await patchColorTono(pool, row.id, proveedorId, tono);
+    if (ok) updated += 1;
+  }
+  return updated;
+}
+
+/** Tabla catálogo tonos estándar (paleta admin · orden por dominancia). */
+export async function ensureColorTonoEstandarTable(pool: Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.color_tono_estandar (
+      id serial PRIMARY KEY,
+      proveedor_id bigint NOT NULL,
+      etiqueta text NOT NULL,
+      hex text NOT NULL,
+      aliases jsonb NOT NULL DEFAULT '[]'::jsonb,
+      orden int NOT NULL DEFAULT 999,
+      uso_count int NOT NULL DEFAULT 0,
+      activo boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT color_tono_estandar_proveedor_etiqueta_key UNIQUE (proveedor_id, etiqueta)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_color_tono_estandar_proveedor_orden
+    ON public.color_tono_estandar (proveedor_id, orden)
+    WHERE activo = true
+  `);
+}
+
+export async function seedColorTonoEstandarIfEmpty(pool: Pool, proveedorId: number): Promise<void> {
+  const check = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM color_tono_estandar WHERE proveedor_id = $1`,
+    [proveedorId],
+  );
+  if (Number(check.rows[0]?.n ?? 0) > 0) return;
+
+  const peer = proveedorId === 638 ? 654 : null;
+  if (peer) {
+    await pool.query(
+      `
+      INSERT INTO color_tono_estandar (proveedor_id, etiqueta, hex, aliases, orden, uso_count)
+      SELECT $1, etiqueta, hex, aliases, orden, 0
+      FROM color_tono_estandar WHERE proveedor_id = $2
+      ON CONFLICT (proveedor_id, etiqueta) DO NOTHING
+      `,
+      [proveedorId, peer],
+    );
+    return;
+  }
+
+  const { COLORES_ESTANDAR_DEFAULT } = await import("./colores-estandar");
+  for (let i = 0; i < COLORES_ESTANDAR_DEFAULT.length; i++) {
+    const c = COLORES_ESTANDAR_DEFAULT[i];
+    await pool.query(
+      `
+      INSERT INTO color_tono_estandar (proveedor_id, etiqueta, hex, aliases, orden)
+      VALUES ($1, $2, $3, $4::jsonb, $5)
+      ON CONFLICT (proveedor_id, etiqueta) DO NOTHING
+      `,
+      [proveedorId, c.etiqueta, c.hex, JSON.stringify(c.aliases), (i + 1) * 10],
+    );
+  }
+}
+
+/** Sincroniza hex/aliases canónicos y recalcula orden (dominante primero). */
+export async function loadAndRecalcColoresEstandar(
+  pool: Pool,
+  proveedorId: number,
+): Promise<import("./colores-estandar").ColorEstandar[]> {
+  await ensureColorTonoEstandarTable(pool);
+  await seedColorTonoEstandarIfEmpty(pool, proveedorId);
+
+  const { COLORES_ESTANDAR_DEFAULT, computeUsoPorEstandar, ordenarCatalogoPorUso, rowToColorEstandar } =
+    await import("./colores-estandar");
+
+  for (const c of COLORES_ESTANDAR_DEFAULT) {
+    await pool.query(
+      `
+      UPDATE color_tono_estandar
+      SET hex = $3, aliases = $4::jsonb, updated_at = now()
+      WHERE proveedor_id = $1 AND etiqueta = $2
+      `,
+      [proveedorId, c.etiqueta, c.hex, JSON.stringify(c.aliases)],
+    );
+  }
+
+  const [allColors, catRes] = await Promise.all([
+    pool.query<{ nombre: string | null; tono_canon: Record<string, unknown> | null }>(
+      `SELECT nombre, tono_canon FROM color WHERE proveedor_id = $1 AND activo = true`,
+      [proveedorId],
+    ),
+    pool.query<{
+      etiqueta: string;
+      hex: string;
+      aliases: unknown;
+      orden: number;
+      uso_count: number;
+    }>(
+      `
+      SELECT etiqueta, hex, aliases, orden, uso_count
+      FROM color_tono_estandar
+      WHERE proveedor_id = $1 AND activo = true
+      ORDER BY orden, etiqueta
+      `,
+      [proveedorId],
+    ),
+  ]);
+
+  const catalog = catRes.rows.map(rowToColorEstandar);
+  const uso = computeUsoPorEstandar(allColors.rows, catalog);
+  const sorted = ordenarCatalogoPorUso(catalog, uso);
+
+  await Promise.all(
+    sorted.map((c, i) =>
+      pool.query(
+        `
+        UPDATE color_tono_estandar
+        SET orden = $1, uso_count = $2, updated_at = now()
+        WHERE proveedor_id = $3 AND etiqueta = $4
+        `,
+        [i + 1, uso.get(c.etiqueta) ?? 0, proveedorId, c.etiqueta],
+      ),
+    ),
+  );
+
+  return sorted.map((c, i) => ({
+    ...c,
+    orden: i + 1,
+    uso_count: uso.get(c.etiqueta) ?? 0,
+  }));
+}

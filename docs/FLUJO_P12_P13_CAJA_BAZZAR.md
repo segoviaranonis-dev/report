@@ -1,7 +1,8 @@
 # Flujo P-12 / P-13 — Caja Bazzar · Bobeda · Entregas
 
-**Actualizado:** 2026-06-23 · **Etapa:** Caja Bazzar (`2.3.2.2`)  
-**Memoria secundaria (leer primero):** [MEMORIA_SECUNDARIA_CONEXIONES_INTERNAS.md](../.claude/2_modulos/2.3_report/caja_bazzar/MEMORIA_SECUNDARIA_CONEXIONES_INTERNAS.md) · código **2.3.2.2.10**  
+**Actualizado:** 2026-06-16 · **Etapa:** Caja Bazzar (`2.3.2.2`)  
+**Doc canónico Director (leer primero):** [FLUJO_CANONICO_POS_BAZZAR.md](./FLUJO_CANONICO_POS_BAZZAR.md)  
+**Memoria secundaria:** [MEMORIA_SECUNDARIA_CONEXIONES_INTERNAS.md](../.claude/2_modulos/2.3_report/caja_bazzar/MEMORIA_SECUNDARIA_CONEXIONES_INTERNAS.md) · código **2.3.2.2.10**  
 **Docs canónicos Moria:** [P-12](../.claude/2_modulos/2.3_report/caja_bazzar/P-12_PROTOCOLO_CAJERO_BOBINA.md) · [P-13](../.claude/2_modulos/2.3_report/caja_bazzar/P-13_MODULO_ENTREGAS_BOBINA.md)  
 **Índice Moria:** [caja_bazzar/INDICE.md](../.claude/2_modulos/2.3_report/caja_bazzar/INDICE.md)  
 **App Report:** `:3001/tablet-bazzar` · **App Tablet:** `:3000/cadena`

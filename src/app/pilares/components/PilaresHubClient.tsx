@@ -63,6 +63,28 @@ export function PilaresHubClient() {
             {TIPO_V2_LABELS[tipoV2Id]}
           </p>
         </Link>
+
+        <Link
+          href={`/pilares/color${qs}`}
+          className="group block rounded-2xl border-2 border-orange-400/40 bg-card-bg p-8 shadow-sm transition-all hover:-translate-y-1 hover:border-orange-500 hover:shadow-lg sm:col-span-2"
+        >
+          <div className="mb-4 flex gap-2">
+            <span className="inline-block h-8 w-8 rounded-full bg-neutral-900 shadow-inner" />
+            <span className="inline-block h-8 w-8 rounded-full bg-white shadow-inner ring-1 ring-neutral-200" />
+            <span className="inline-block h-8 w-8 rounded-full bg-sky-500 shadow-inner" />
+            <span className="inline-block h-8 w-8 rounded-full bg-amber-200 shadow-inner" />
+          </div>
+          <h2 className="font-serif text-2xl font-semibold text-rimec-azul-dark group-hover:text-rimec-azul">
+            Administrador de Color · tono_canon
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed text-neutral-700">
+            Pilar <code className="text-xs">color</code> — etiqueta + tono hex/paleta. Única verdad para filtros
+            (círculos catálogo). Predominante desde <code className="text-xs">nombre</code> antes de / o -.
+          </p>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-orange-600">
+            Etapa 2.3.5.3 · 🟢 abierta
+          </p>
+        </Link>
       </div>
     </>
   );

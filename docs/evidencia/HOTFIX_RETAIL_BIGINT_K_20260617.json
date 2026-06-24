@@ -1,0 +1,14 @@
+{
+  "error_id": "4.02.02.001",
+  "fecha": "2026-06-17",
+  "director": "bug solucionado",
+  "sintoma": "invalid input syntax for type bigint: \"K\"",
+  "ruta": "/retail · /api/retail/stock-board",
+  "causa": "Lote CLI-TEST con confecciones ref K + cast ::bigint en JOIN staging",
+  "fix": [
+    "report/src/lib/retail/staging-row.ts — CASE cast + FK linea_id/referencia_id",
+    "report/src/lib/retail/retail-filters.ts — DEFAULT tipoV2Ids [1] Calzados",
+    "report/src/lib/retail/query-filtros.ts — cast seguro línea"
+  ],
+  "chusar": ".claude/5_errores/detalle/4.02.02.001_retail-stock-board-bigint-k.md"
+}

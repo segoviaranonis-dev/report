@@ -1,0 +1,54 @@
+{
+  "id": "PLAN-CAJA-BAZZAR-20260622",
+  "fecha": "2026-06-22",
+  "tipo": "planificacion",
+  "estado": "ACTIVA",
+  "chusar": ".claude/2_modulos/2.3_report/caja_bazzar/CHUSAR_CAJA_BAZZAR_REPORT.md",
+  "plan_maestro": ".claude/4_etapas/PLANIFICACION_CAJA_BAZZAR_HIEDRA.md",
+  "codigos_navegador": {
+    "madre": "2.3.2.2",
+    "hub": "2.3.2.2.0",
+    "cajas": {
+      "2100": "2.3.2.2.1",
+      "2900": "2.3.2.2.2",
+      "2400": "2.3.2.2.3",
+      "2700": "2.3.2.2.4",
+      "3100": "2.3.2.2.5",
+      "3200": "2.3.2.2.6"
+    },
+    "tablet_cobrar": "2.4.2.3"
+  },
+  "documentos_planificacion": [
+    "caja_bazzar/00_HUB_SEIS_CAJAS.md",
+    "caja_bazzar/01_VISION_HIEDRA_PUERTA_CHICA.md",
+    "caja_bazzar/02_ARQUITECTURA_6_CAJAS_1_TABLA.md",
+    "caja_bazzar/03_MODULO_CAJA_OPERATIVA.md",
+    "caja_bazzar/04_MODULO_FACTURABLE_ARCHIVO.md",
+    "caja_bazzar/05_MODULO_METRICAS_GRAFICOS.md",
+    "caja_bazzar/06_ACCESOS_SOLO_TU_DEPOSITO_CAJA.md",
+    "caja_bazzar/07_FLUJO_CSV_CAJERO.md",
+    "caja_bazzar/08_ID_DEPOSITO_OPERACION.md",
+    "caja_bazzar/09_BASE_DATOS_MOLECULAR_TICKETS.md",
+    "caja_bazzar/10_CEDULA_CLIENTE_NUEVO.md",
+    "caja_bazzar/11_ROLES_USUARIOS_CAJA.md"
+  ],
+  "hiedra_actualizada": "fundamentos_estrategicos.md 2026-06-22",
+  "cajas_tienda": [
+    { "cliente_id": 2100, "doc": "CAJAS/2100_FER_ADULTOS.md" },
+    { "cliente_id": 2900, "doc": "CAJAS/2900_FER_NINOS.md" },
+    { "cliente_id": 2400, "doc": "CAJAS/2400_SM_ADULTOS.md" },
+    { "cliente_id": 2700, "doc": "CAJAS/2700_SM_NINOS.md" },
+    { "cliente_id": 3100, "doc": "CAJAS/3100_PAL_ADULTOS.md" },
+    { "cliente_id": 3200, "doc": "CAJAS/3200_PAL_NINOS.md" }
+  ],
+  "decisiones": {
+    "deploy": "Report Vercel compartido",
+    "sales_report_rimec": "no tocar",
+    "informe_ventas_bazzar": "futuro desde ticket_venta_pos",
+    "bd_tickets": "1 tabla",
+    "bd_depositos": "18 tablas",
+    "acceso_usuario": "solo su caja y deposito"
+  },
+  "sub_modulos_por_caja": ["A_caja_operativa", "B_facturable_archivo", "C_metricas_graficos"],
+  "siguiente_ejecucion": ["hub_6_cards", "rutas_cliente_id", "csv_export", "estado_facturado", "auth_tienda"]
+}

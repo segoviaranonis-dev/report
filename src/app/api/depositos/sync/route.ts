@@ -71,7 +71,6 @@ async function syncDeposito(config: DepositoConfig): Promise<SyncResult> {
         tm.activo = true
       WHERE r.cliente_id = $1
         AND lower(btrim(r.tipo_movimiento)) = 'stock'
-        AND COALESCE(r.tipo_v2_id, 1) = 1
       `,
       [config.cliente_id],
     );

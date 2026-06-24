@@ -47,10 +47,16 @@ export async function GET(req: NextRequest) {
 
   const desdeRaw = sp.get("desde");
   const hastaRaw = sp.get("hasta");
-  const desde = desdeRaw ? new Date(desdeRaw) : startOfTodayUtc();
+  const estadoUpper = estado?.trim().toUpperCase() ?? "";
+  const sinFiltroDia =
+    !estado ||
+    estadoUpper === "EMITIDO" ||
+    estadoUpper === "PENDIENTE_CAJA" ||
+    estadoUpper === "CSV_DESCARGADO";
+  const desde = desdeRaw ? new Date(desdeRaw) : sinFiltroDia ? null : startOfTodayUtc();
   const hasta = hastaRaw ? new Date(hastaRaw) : null;
 
-  if (Number.isNaN(desde.getTime()) || (hasta && Number.isNaN(hasta.getTime()))) {
+  if ((desde && Number.isNaN(desde.getTime())) || (hasta && Number.isNaN(hasta.getTime()))) {
     return NextResponse.json({ error: "Fechas inválidas" }, { status: 400 });
   }
 

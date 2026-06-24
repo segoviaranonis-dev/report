@@ -11,6 +11,8 @@ type DepositoCardProps = {
   categoria: CategoriaDeposito;
   tabla: string;
   registros: number;
+  pares: number;
+  tablaError?: string;
   onSync: (cliente_id: number) => Promise<void>;
   syncing: boolean;
 };
@@ -22,6 +24,8 @@ export function DepositoCard({
   categoria,
   tabla,
   registros,
+  pares,
+  tablaError,
   onSync,
   syncing,
 }: DepositoCardProps) {
@@ -83,10 +87,18 @@ export function DepositoCard({
         <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
           Stock en depósito
         </div>
-        <div className="text-2xl font-bold text-gray-800">
-          {registros.toLocaleString("es-PY")}{" "}
-          <span className="text-sm font-normal text-gray-500">registros</span>
+        <div className="text-3xl font-bold text-gray-900">
+          {Math.round(pares).toLocaleString("es-PY")}{" "}
+          <span className="text-lg font-bold text-bazzar-naranja">pares</span>
         </div>
+        <div className="mt-1 text-sm text-gray-500">
+          {registros.toLocaleString("es-PY")} registros
+        </div>
+        {tablaError && (
+          <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-800">
+            Tabla no encontrada o sin acceso: {tablaError}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">

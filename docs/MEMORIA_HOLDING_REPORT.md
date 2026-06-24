@@ -126,4 +126,15 @@ Orden de implementación: datos + grillas primero; PDF en la misma ventana de 24
 
 ---
 
-*Última sincronización: memoria de roles SU/ADMIN, ejemplo IVO, módulos Sales + Retail, estrategia datos/PDF para entrega urgente.*
+## 10. Recursos holding (infra)
+
+| Recurso | Plan / costo | Uso |
+|---------|--------------|-----|
+| **Supabase** (`segoviaranonis-dev`) | **Pro · USD 25/mes** (desde 2026-06) | PostgreSQL holding · Storage `productos` · pooler `DATABASE_URL` Report/Tablet/Nexus |
+| **Vercel** | Hobby/Pro según proyecto | Report · Tablet Bazzar · RIMEC Web · Bazzar Web |
+
+Límites Pro Supabase (referencia): 8 GB disco/proyecto · 100k MAU · backups 7 días · egress 250 GB.
+
+---
+
+*Última sincronización: memoria de roles SU/ADMIN, ejemplo IVO, módulos Sales + Retail, estrategia datos/PDF para entrega urgente · Supabase Pro 2026-06.*

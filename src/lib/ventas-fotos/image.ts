@@ -1,7 +1,8 @@
-import { productImageCandidates, productImagePrimaryFileName } from "@/lib/retail/product-image";
-import { publicStorageObjectUrl } from "@/lib/storage-public-url";
-
-const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+import {
+  imagenNombreToCandidates,
+  productImageCandidates,
+  productImagePrimaryFileName,
+} from "@/lib/retail/product-image";
 
 function cleanImageName(raw: string | null | undefined): string {
   return String(raw ?? "")
@@ -10,27 +11,8 @@ function cleanImageName(raw: string | null | undefined): string {
     .replace(/\\/g, "/");
 }
 
-function hasExtension(name: string): boolean {
-  return /\.[a-z0-9]{2,5}$/i.test(name);
-}
-
-function pushUnique(out: string[], value: string) {
-  if (value && !out.includes(value)) out.push(value);
-}
-
 export function legacyImageCandidates(rawImageName: string | null | undefined): string[] {
-  const name = cleanImageName(rawImageName);
-  if (!name) return [];
-
-  const candidates: string[] = [];
-  if (hasExtension(name)) {
-    pushUnique(candidates, publicStorageObjectUrl("productos", name));
-  } else {
-    for (const ext of IMAGE_EXTENSIONS) {
-      pushUnique(candidates, publicStorageObjectUrl("productos", `${name}${ext}`));
-    }
-  }
-  return candidates;
+  return imagenNombreToCandidates(cleanImageName(rawImageName), "thumb");
 }
 
 export function ventaFotoImageCandidates(row: {

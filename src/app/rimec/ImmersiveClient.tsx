@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMockFullSnapshot } from "@/lib/rimec/build-full-snapshot";
 import type { FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
@@ -18,20 +19,44 @@ import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 
 export type MundoId = "dashboard" | "clientes" | "marcas" | "vendedores";
 
+const MUNDO_IDS: MundoId[] = ["dashboard", "clientes", "marcas", "vendedores"];
+
+function parseMundoParam(raw: string | null): MundoId | null {
+  if (raw && MUNDO_IDS.includes(raw as MundoId)) return raw as MundoId;
+  return null;
+}
+
 type MetaApi = {
   configured: boolean;
   error?: string;
 };
 
 export function ImmersiveClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [meta, setMeta] = useState<MetaApi | null>(null);
   const [filtros, setFiltros] = useState<SalesReportFilters>(() => defaultSalesReportFilters());
   const [snapshot, setSnapshot] = useState<FullSnapshotResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [mundo, setMundo] = useState<MundoId>("dashboard");
+  const [mundo, setMundo] = useState<MundoId>(() => parseMundoParam(searchParams.get("mundo")) ?? "dashboard");
   const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
   const booted = useRef(false);
+
+  useEffect(() => {
+    const fromUrl = parseMundoParam(searchParams.get("mundo"));
+    if (fromUrl) setMundo(fromUrl);
+  }, [searchParams]);
+
+  const selectMundo = useCallback(
+    (id: MundoId) => {
+      setMundo(id);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("mundo", id);
+      router.replace(`/rimec?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   const dataLive = meta?.configured === true;
   const metaReady = meta !== null;
@@ -128,7 +153,7 @@ export function ImmersiveClient() {
   const navItem = (id: MundoId, label: string) => (
     <button
       type="button"
-      onClick={() => setMundo(id)}
+      onClick={() => selectMundo(id)}
       className={`rounded-full border px-5 py-2 font-serif text-xs font-semibold tracking-widest uppercase transition-all duration-300 ${
         mundo === id
           ? "border-rimec-azul bg-rimec-azul text-rimec-text-white shadow-sm"

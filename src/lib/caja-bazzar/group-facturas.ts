@@ -1,9 +1,12 @@
 import type { TicketPosRow } from "./tickets-db";
+import { formatFacturaInternaPos } from "./fi-fa-display";
 
 /** Factura interna POS — encabezado (1 venta tablet → N pares ORO). */
 export type FacturaPosHeader = {
   key: string;
   staging_id: number | null;
+  numero_fi_fa: number | null;
+  numero_factura_legal: string | null;
   cedula_cliente: string | null;
   nombre_cliente: string | null;
   vendedor_nombre: string | null;
@@ -28,6 +31,8 @@ export function groupTicketsByFactura(tickets: TicketPosRow[]): FacturaPosHeader
       h = {
         key,
         staging_id: t.staging_id,
+        numero_fi_fa: t.numero_fi_fa,
+        numero_factura_legal: t.numero_factura_legal,
         cedula_cliente: t.cedula_cliente,
         nombre_cliente: t.nombre_cliente,
         vendedor_nombre: t.vendedor_nombre,
@@ -47,14 +52,22 @@ export function groupTicketsByFactura(tickets: TicketPosRow[]): FacturaPosHeader
     if (cand && !cand.startsWith("CI ") && (!h.nombre_cliente || h.nombre_cliente.startsWith("CI "))) {
       h.nombre_cliente = cand;
     }
+    if (t.numero_fi_fa != null && h.numero_fi_fa == null) h.numero_fi_fa = t.numero_fi_fa;
+    if (t.numero_factura_legal?.trim() && !h.numero_factura_legal) {
+      h.numero_factura_legal = t.numero_factura_legal.trim();
+    }
   }
 
   return [...map.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export function facturaDisplayId(f: FacturaPosHeader): string {
-  if (f.staging_id != null) return `POS-FI-${f.staging_id}`;
-  return `POS-FI-${f.cedula_cliente ?? "SIN-CI"}`;
+  return formatFacturaInternaPos({
+    nombre_cliente: f.nombre_cliente,
+    cedula_cliente: f.cedula_cliente,
+    numero_fi_fa: f.numero_fi_fa,
+    staging_id: f.staging_id,
+  });
 }
 
 /** Nombre del titular para encabezado caja — siempre destacado. */

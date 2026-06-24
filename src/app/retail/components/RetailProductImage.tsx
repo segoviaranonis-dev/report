@@ -74,11 +74,13 @@ export function RetailProductImage({
   }
 
   return (
-    <div className={`group/img relative ${aspectClass} w-full overflow-hidden rounded-t-2xl bg-app-bg`}>
+    <div
+      className={`relative grid ${aspectClass} w-full min-h-0 min-w-0 place-items-center overflow-hidden rounded-t-2xl bg-app-bg`}
+    >
       <img
         src={src}
         alt={alt}
-        className="h-full w-full object-contain p-3 transition-transform duration-500 ease-out group-hover/img:scale-105"
+        className="block h-full w-full object-contain object-center"
         loading="lazy"
         decoding="async"
         onError={onImgError}

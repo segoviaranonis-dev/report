@@ -17,6 +17,7 @@ type DepositoEstado = {
   categoria: CategoriaDeposito;
   tabla: string;
   registros: number;
+  pares: number;
   error?: string;
 };
 
@@ -183,6 +184,7 @@ export default function DepositosBazzarPage() {
   }
 
   const totalRegistros = depositos.reduce((sum, d) => sum + d.registros, 0);
+  const totalPares = depositos.reduce((sum, d) => sum + (d.pares ?? 0), 0);
 
   return (
     <>
@@ -197,12 +199,20 @@ export default function DepositosBazzarPage() {
               {meta.descripcion}
             </p>
 
-            <div className="mb-6 flex items-center gap-6">
-              <div className="rounded-lg bg-bazzar-naranja/10 px-6 py-3">
+            <div className="mb-6 flex flex-wrap items-center gap-6">
+              <div className="rounded-lg bg-bazzar-naranja/15 px-6 py-3">
                 <div className="text-xs font-semibold uppercase tracking-wider text-bazzar-naranja">
-                  Total Registros · {meta.label}
+                  Total pares · {meta.label}
                 </div>
                 <div className="text-2xl font-bold text-bazzar-text-dark">
+                  {Math.round(totalPares).toLocaleString("es-PY")}
+                </div>
+              </div>
+              <div className="rounded-lg bg-gray-100 px-6 py-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Total registros · {meta.label}
+                </div>
+                <div className="text-xl font-bold text-gray-700">
                   {totalRegistros.toLocaleString("es-PY")}
                 </div>
               </div>
@@ -264,6 +274,8 @@ export default function DepositosBazzarPage() {
                   categoria={categoria}
                   tabla={estado?.tabla ?? ""}
                   registros={estado?.registros || 0}
+                  pares={estado?.pares ?? 0}
+                  tablaError={estado?.error}
                   onSync={handleSyncDeposito}
                   syncing={syncing}
                 />

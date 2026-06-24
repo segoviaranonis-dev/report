@@ -5,7 +5,10 @@
  * Ejemplo: 4076-1350-9569-15745.jpg
  */
 
-import { publicStorageObjectUrl } from "@/lib/storage-public-url";
+import {
+  getProductImageUrl,
+  imagenNombreToCandidates,
+} from "@/lib/retail/product-image";
 
 export type ImagenParsed = {
   linea_codigo: number | null;
@@ -40,8 +43,8 @@ export function parseImagenMolecula(imagen: string | null | undefined): ImagenPa
     };
   }
 
-  // Construir URL de Supabase Storage
-  const image_url = publicStorageObjectUrl("productos", filename);
+  // Thumb canónico sm/ — Protocolo Imágenes Nexus
+  const image_url = getProductImageUrl(filename, "sm");
 
   // Remover extensión
   const sinExtension = filename.replace(/\.(jpg|jpeg|png|webp)$/i, "");
@@ -104,13 +107,5 @@ export function parseImagenMolecula(imagen: string | null | undefined): ImagenPa
  * Retorna array con URL principal y fallbacks
  */
 export function getImagenCandidates(imagen: string | null | undefined): string[] {
-  const parsed = parseImagenMolecula(imagen);
-
-  if (!parsed.valid || !parsed.image_url) {
-    return [];
-  }
-
-  // Por ahora solo retornamos la URL principal
-  // Podríamos agregar fallbacks con diferentes extensiones si fuera necesario
-  return [parsed.image_url];
+  return imagenNombreToCandidates(imagen, "thumb");
 }

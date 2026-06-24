@@ -87,3 +87,18 @@ export type LineaReferenciaFilterOpts = {
   tipo1Null?: boolean;
   lineaCodigos?: string[] | null;
 };
+
+export interface ColorRow {
+  id: number;
+  codigo_proveedor: string;
+  nombre: string | null;
+  tono_canon: Record<string, unknown> | null;
+  predominante: string;
+}
+
+export interface ColoresResumen {
+  total: number;
+  sin_tono: number;
+  con_tono: number;
+  por_etiqueta: { etiqueta: string; count: number }[];
+}

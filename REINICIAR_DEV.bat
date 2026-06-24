@@ -10,10 +10,9 @@ echo       NOTA: si Tablet Bazzar usa :3000, volvera a ocuparlo al reiniciar tab
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000" ^| findstr LISTENING') do taskkill /F /PID %%a 2>nul
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001" ^| findstr LISTENING') do taskkill /F /PID %%a 2>nul
 timeout /t 2 /nobreak >nul
-echo [2/4] Borrando .next si existe...
-if exist .next (
-  rmdir /s /q .next
-)
+echo [2/4] Borrando .next y node_modules\.cache...
+if exist .next rmdir /s /q .next
+if exist node_modules\.cache rmdir /s /q node_modules\.cache
 echo [3/4] Regla: NO corras "npm run build" con el dev abierto.
 echo [4/4] Iniciando next dev (3001 si Tablet ocupa 3000)...
 echo.

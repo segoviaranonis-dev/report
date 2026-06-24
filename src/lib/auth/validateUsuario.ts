@@ -58,7 +58,8 @@ export async function validateUsuario(
 
     // Query a usuario_v2 desde PostgreSQL (incluye rol_id)
     const result = await pool.query(
-      `SELECT id_usuario, descp_usuario, categoria, password, password_hash, rol_id
+      `SELECT id_usuario, descp_usuario, categoria, password, password_hash, rol_id,
+              COALESCE(bloqueado, false) AS bloqueado, bloqueado_motivo
        FROM usuario_v2
        WHERE LOWER(TRIM(descp_usuario)) = LOWER(TRIM($1))
        LIMIT 1`,
@@ -71,6 +72,12 @@ export async function validateUsuario(
     }
 
     const data = result.rows[0]
+
+    if (data.bloqueado === true) {
+      console.warn(`[validateUsuario] Usuario '${userClean}' bloqueado: ${data.bloqueado_motivo || ''}`)
+      return null
+    }
+
     const passwordHash = data.password_hash
     const passwordPlain = data.password
 

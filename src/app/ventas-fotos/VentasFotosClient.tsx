@@ -23,6 +23,8 @@ import type {
   VentasFotosResponse,
 } from "@/lib/ventas-fotos/types";
 import { chartColorAt, RIMEC_RECHARTS_TOOLTIP } from "@/app/rimec/chart-theme";
+import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
+import { getImagenCandidates } from "@/lib/ventas-fotos/parse-imagen";
 
 const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 const fmtPct = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
@@ -756,16 +758,22 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, idx) => (
+          {rows.map((row, idx) => {
+            const thumbCandidates = row.imagen_valid
+              ? (() => {
+                  const c = getImagenCandidates(row.imagen);
+                  return c.length > 0 ? c : [row.image_url];
+                })()
+              : [];
+            return (
             <tr key={`${row.imagen}-${row.fecha}-${idx}`}>
               <td>
                 <div className="w-20 print:w-16">
                   {row.imagen_valid ? (
-                    <img
-                      src={row.image_url}
+                    <ProductThumbFrame
                       alt={row.imagen}
-                      className="h-20 w-20 object-contain border border-slate-200 rounded bg-white"
-                      loading="lazy"
+                      candidates={thumbCandidates}
+                      size={80}
                     />
                   ) : (
                     <div className="h-20 w-20 bg-slate-100 border border-slate-200 rounded flex items-center justify-center text-[10px] text-slate-400 text-center p-1">
@@ -779,7 +787,8 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
               <td className="text-xs">{row.descp_categoria || "—"}</td>
               <td className="text-right tabular-nums">{fmtInt.format(row.cantidad)}</td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>

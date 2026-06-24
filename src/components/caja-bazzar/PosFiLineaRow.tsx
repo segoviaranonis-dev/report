@@ -4,10 +4,12 @@ import type { TicketPosRow } from "@/lib/caja-bazzar/tickets-db";
 
 type Props = {
   linea: TicketPosRow;
+  onEliminar?: () => void;
+  eliminando?: boolean;
 };
 
-/** Réplica visual ItemRow (Aprobaciones FI) — miniatura · solo lectura en bandeja cajero. */
-export function PosFiLineaRow({ linea }: Props) {
+/** Línea factura interna POS — bandeja cajero con opción quitar par. */
+export function PosFiLineaRow({ linea, onEliminar, eliminando }: Props) {
   const lc = linea.linea_codigo ?? "?";
   const rc = linea.referencia_codigo ?? "?";
   const alt = `L${lc} R${rc} ${linea.descp_color ?? linea.color_code ?? ""}`.trim();
@@ -55,6 +57,19 @@ export function PosFiLineaRow({ linea }: Props) {
           </div>
         </div>
       </div>
+
+      {onEliminar ? (
+        <div className="flex shrink-0 flex-col items-end justify-center">
+          <button
+            type="button"
+            disabled={eliminando}
+            onClick={onEliminar}
+            className="rounded-lg border-2 border-red-300 bg-white px-3 py-2 text-[10px] font-bold uppercase text-red-800 disabled:opacity-40"
+          >
+            {eliminando ? "…" : "Quitar par"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

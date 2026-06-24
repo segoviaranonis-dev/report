@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { assertClienteIdAccess, resolveCajaAccess } from "@/lib/caja-bazzar/access";
-import { marcarFacturados, tablaTicketsExiste } from "@/lib/caja-bazzar/tickets-db";
+import { marcarFacturados } from "@/lib/caja-bazzar/handoff-bobeda";
+import { tablaTicketsExiste } from "@/lib/caja-bazzar/tickets-db";
 import { isCajaClienteId } from "@/lib/caja-bazzar/tiendas";
 import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 

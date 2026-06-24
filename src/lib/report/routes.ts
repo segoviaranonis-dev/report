@@ -24,8 +24,11 @@ export function digitacionAsignar(icId: number | string): string {
   return `${DIGITACION}/asignar/${icId}`;
 }
 
-export function pedidoProveedorDetalle(ppId: number | string): string {
-  return `${PEDIDO_PROVEEDOR}/${ppId}`;
+export type PpDetalleTab = "ics" | "stock" | "fi";
+
+export function pedidoProveedorDetalle(ppId: number | string, tab?: PpDetalleTab): string {
+  const base = `${PEDIDO_PROVEEDOR}/${ppId}`;
+  return tab ? `${base}?tab=${tab}` : base;
 }
 
 export function compraLegalDetalle(clId: number | string): string {

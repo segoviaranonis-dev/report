@@ -24,7 +24,7 @@ El índice **nunca mezcla** entes en un solo acordeón. Tres categorías operati
 | 2.3.1.7.1 | `/proceso-importacion/motor-precios` | Motor de precios |
 | 2.3.1.7.1.1 | `…/motor-precios/biblioteca` | Histórico biblioteca |
 | 2.3.1.7.1.2 | `…/motor-precios/biblioteca/nueva` | Crear biblioteca |
-| 2.3.1.7.2 | `/proceso-importacion/importacion-precios` | Excel → precio_lista (en desarrollo) |
+| 2.3.1.7.2 | `/proceso-importacion/motor-precios/importacion-precios` | Excel → precio_lista (hijo motor · en desarrollo) |
 
 Rutas canónicas en `src/lib/report/routes.ts`. Legacy `/motor-precios/*` redirige en middleware.
 

@@ -1,5 +1,17 @@
 import { getRimecPool } from "@/lib/rimec/pool";
 import { getCajaTienda } from "./tiendas";
+import {
+  codigoColumn,
+  estadosFiltroBd,
+  fuentePorEstadoApi,
+  TABLA_BANDEJA,
+  TABLA_BOBINA,
+  TABLA_LEGACY,
+  type FuentePos,
+} from "./pos-tables";
+import { tablaBandejaExiste, tablaBobedaExiste } from "./handoff-bobeda";
+
+export { marcarFacturados, marcarCsvDescargado, enviarBandejaAEmpaque, marcarEntregadoBobeda } from "./handoff-bobeda";
 
 export type TicketPosRow = {
   codigo_ticket: string;
@@ -13,6 +25,8 @@ export type TicketPosRow = {
   estado: string;
   created_at: string;
   staging_id: number | null;
+  numero_fi_fa: number | null;
+  numero_factura_legal: string | null;
   linea_codigo: string | null;
   referencia_codigo: string | null;
   material_code: string | null;
@@ -33,7 +47,8 @@ export type TicketsQuery = {
   vendedorId?: number;
   estado?: string | null;
   cedula?: string | null;
-  desde: Date;
+  /** Sin `desde`: sin límite inferior (p. ej. bandeja EMITIDO pendiente). */
+  desde?: Date | null;
   hasta?: Date | null;
   limit: number;
   offset: number;
@@ -46,11 +61,25 @@ export function startOfTodayUtc(): Date {
 }
 
 export async function tablaTicketsExiste(): Promise<boolean> {
+  if (await tablaBandejaExiste()) return true;
   const pool = getRimecPool();
   const r = await pool.query<{ reg: boolean }>(
-    `SELECT to_regclass('public.ticket_venta_pos') IS NOT NULL AS reg`,
+    `SELECT to_regclass('public.${TABLA_LEGACY}') IS NOT NULL AS reg`,
   );
   return Boolean(r.rows[0]?.reg);
+}
+
+async function resolveFuente(estado: string | null | undefined): Promise<FuentePos> {
+  const f = fuentePorEstadoApi(estado);
+  if (f === "bandeja" && (await tablaBandejaExiste())) return "bandeja";
+  if (f === "bobeda" && (await tablaBobedaExiste())) return "bobeda";
+  return "legacy";
+}
+
+function tablaSql(fuente: FuentePos): string {
+  if (fuente === "bandeja") return TABLA_BANDEJA;
+  if (fuente === "bobeda") return TABLA_BOBINA;
+  return TABLA_LEGACY;
 }
 
 function buildWhere(q: TicketsQuery, alias?: string): { whereSql: string; params: unknown[] } {
@@ -72,15 +101,24 @@ function buildWhere(q: TicketsQuery, alias?: string): { whereSql: string; params
     where.push(`${c("vendedor_id")} = $${params.length}`);
   }
   if (q.estado?.trim()) {
-    params.push(q.estado.trim().toUpperCase());
-    where.push(`upper(btrim(${c("estado")})) = $${params.length}`);
+    const fuente = fuentePorEstadoApi(q.estado);
+    const estados = estadosFiltroBd(fuente, q.estado);
+    if (estados?.length === 1) {
+      params.push(estados[0]);
+      where.push(`upper(btrim(${c("estado")})) = $${params.length}`);
+    } else if (estados && estados.length > 1) {
+      params.push(estados);
+      where.push(`upper(btrim(${c("estado")})) = ANY($${params.length}::text[])`);
+    }
   }
   if (q.cedula?.replace(/\D/g, "").trim()) {
     params.push(q.cedula.replace(/\D/g, "").trim());
     where.push(`${c("cedula_cliente")} = $${params.length}`);
   }
-  params.push(q.desde.toISOString());
-  where.push(`${c("created_at")} >= $${params.length}::timestamptz`);
+  if (q.desde) {
+    params.push(q.desde.toISOString());
+    where.push(`${c("created_at")} >= $${params.length}::timestamptz`);
+  }
   if (q.hasta) {
     params.push(q.hasta.toISOString());
     where.push(`${c("created_at")} < $${params.length}::timestamptz`);
@@ -103,6 +141,8 @@ type DbRow = {
   estado: string;
   created_at: Date;
   staging_id: number | null;
+  numero_fi_fa: number | null;
+  numero_factura_legal: string | null;
   linea_id: number | null;
   referencia_id: number | null;
   material_id: number | null;
@@ -143,10 +183,58 @@ export function titularClientePos(row: {
   return row.cedula_cliente?.trim() ? `CI ${row.cedula_cliente}` : "Cliente sin nombre";
 }
 
-function mapRow(row: DbRow): TicketPosRow {
+export async function queryTickets(q: TicketsQuery): Promise<{
+  tickets: TicketPosRow[];
+  total: number;
+  pares: number;
+}> {
+  const pool = getRimecPool();
+  const fuente = await resolveFuente(q.estado);
+  const tabla = tablaSql(fuente);
+  const codCol = codigoColumn(fuente);
+  const { whereSql, params } = buildWhere(q, "t");
+
+  const countR = await pool.query<{ total: string; pares: string }>(
+    `
+      SELECT COUNT(*)::text AS total, COALESCE(SUM(t.cantidad), 0)::text AS pares
+      FROM public.${tabla} t
+      ${whereSql}
+    `,
+    params,
+  );
+
+  const listParams = [...params, q.limit, q.offset];
+  const limitIdx = listParams.length - 1;
+  const offsetIdx = listParams.length;
+
+  const listR = await pool.query<DbRow>(
+    `
+      SELECT
+        t.${codCol} AS codigo_ticket, t.cliente_id, t.marca, t.vendedor_id, t.vendedor_nombre,
+        t.cedula_cliente, t.grada, t.cantidad, t.estado, t.created_at, t.staging_id,
+        t.linea_id, t.referencia_id, t.material_id, t.color_id, t.snapshot_json,
+        t.numero_fi_fa, t.numero_factura_legal,
+        cb.nombre AS cb_nombre, cb.apellido AS cb_apellido, cb.razon_social AS cb_razon_social,
+        t.snapshot_cliente AS st_snapshot_cliente
+      FROM public.${tabla} t
+      LEFT JOIN public.clients_bazaar cb ON cb.cedula = t.cedula_cliente
+      ${whereSql}
+      ORDER BY t.created_at DESC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `,
+    listParams,
+  );
+
+  return {
+    tickets: listR.rows.map((row) => mapRow(row, fuente)),
+    total: Number(countR.rows[0]?.total ?? 0),
+    pares: Number(countR.rows[0]?.pares ?? 0),
+  };
+}
+
+function mapRow(row: DbRow, fuente: FuentePos): TicketPosRow {
   const snap = row.snapshot_json ?? {};
-  const lineSnap = row.sl_snapshot_json ?? {};
-  const mergedSnap = { ...lineSnap, ...snap };
+  const mergedSnap = { ...snap };
   const nombre = titularClientePos({
     nombre_cliente:
       [snap.nombre_cliente, snap.apellido_cliente].filter((x) => typeof x === "string" && x).join(" ") ||
@@ -157,6 +245,12 @@ function mapRow(row: DbRow): TicketPosRow {
     st_snapshot_cliente: row.st_snapshot_cliente,
     cedula_cliente: row.cedula_cliente,
   });
+  const estadoUi =
+    fuente === "bandeja" && row.estado.toUpperCase() === "PENDIENTE_CAJA"
+      ? "PENDIENTE_CAJA"
+      : fuente === "bobeda" && row.estado.toUpperCase() === "PENDIENTE_ENTREGA"
+        ? "PENDIENTE_ENTREGA"
+        : row.estado;
   return {
     codigo_ticket: row.codigo_ticket,
     cliente_id: row.cliente_id,
@@ -166,9 +260,11 @@ function mapRow(row: DbRow): TicketPosRow {
     vendedor_nombre: row.vendedor_nombre,
     cedula_cliente: row.cedula_cliente,
     grada: row.grada,
-    estado: row.estado,
+    estado: estadoUi,
     created_at: row.created_at.toISOString(),
     staging_id: row.staging_id,
+    numero_fi_fa: row.numero_fi_fa != null ? Number(row.numero_fi_fa) : null,
+    numero_factura_legal: row.numero_factura_legal?.trim() || null,
     linea_codigo: typeof mergedSnap.linea_codigo === "string" ? mergedSnap.linea_codigo : null,
     referencia_codigo: typeof mergedSnap.referencia_codigo === "string" ? mergedSnap.referencia_codigo : null,
     material_code: typeof mergedSnap.material_code === "string" ? mergedSnap.material_code : null,
@@ -185,60 +281,6 @@ function mapRow(row: DbRow): TicketPosRow {
   };
 }
 
-export async function queryTickets(q: TicketsQuery): Promise<{
-  tickets: TicketPosRow[];
-  total: number;
-  pares: number;
-}> {
-  const pool = getRimecPool();
-  const { whereSql, params } = buildWhere(q, "t");
-
-  const countR = await pool.query<{ total: string; pares: string }>(
-    `
-      SELECT COUNT(*)::text AS total, COALESCE(SUM(t.cantidad), 0)::text AS pares
-      FROM public.ticket_venta_pos t
-      ${whereSql}
-    `,
-    params,
-  );
-
-  const listParams = [...params, q.limit, q.offset];
-  const limitIdx = listParams.length - 1;
-  const offsetIdx = listParams.length;
-
-  const listR = await pool.query<DbRow>(
-    `
-      SELECT
-        t.codigo_ticket, t.cliente_id, t.marca, t.vendedor_id, t.vendedor_nombre,
-        t.cedula_cliente, t.grada, t.cantidad, t.estado, t.created_at, t.staging_id,
-        t.linea_id, t.referencia_id, t.material_id, t.color_id, t.snapshot_json,
-        cb.nombre AS cb_nombre, cb.apellido AS cb_apellido, cb.razon_social AS cb_razon_social,
-        st.snapshot_cliente AS st_snapshot_cliente,
-        sl.snapshot_json AS sl_snapshot_json
-      FROM public.ticket_venta_pos t
-      LEFT JOIN public.clients_bazaar cb ON cb.cedula = t.cedula_cliente
-      LEFT JOIN public.ticket_pos_staging st ON st.id = t.staging_id
-      LEFT JOIN public.ticket_pos_staging_linea sl ON sl.staging_id = t.staging_id
-        AND sl.linea_id = t.linea_id
-        AND sl.referencia_id = t.referencia_id
-        AND sl.material_id = t.material_id
-        AND sl.color_id = t.color_id
-        AND sl.grada::text = t.grada::text
-        AND sl.activo = true
-      ${whereSql}
-      ORDER BY t.created_at DESC
-      LIMIT $${limitIdx} OFFSET $${offsetIdx}
-    `,
-    listParams,
-  );
-
-  return {
-    tickets: listR.rows.map(mapRow),
-    total: Number(countR.rows[0]?.total ?? 0),
-    pares: Number(countR.rows[0]?.pares ?? 0),
-  };
-}
-
 export async function queryHubStats(clienteIds: number[]): Promise<
   Record<number, { pares_hoy: number; emitidos: number; facturados: number; pendientes: number }>
 > {
@@ -251,55 +293,102 @@ export async function queryHubStats(clienteIds: number[]): Promise<
 
   if (!clienteIds.length || !(await tablaTicketsExiste())) return out;
 
-  const r = await pool.query<{
-    cliente_id: number;
-    pares: string;
-    emitidos: string;
-    facturados: string;
-    pendientes: string;
-  }>(
-    `
-      SELECT
-        cliente_id,
-        COALESCE(SUM(cantidad), 0)::text AS pares,
-        COUNT(*)::text AS emitidos,
-        COUNT(*) FILTER (WHERE upper(btrim(estado)) = 'FACTURADO')::text AS facturados,
-        COUNT(*) FILTER (WHERE upper(btrim(estado)) = 'EMITIDO')::text AS pendientes
-      FROM public.ticket_venta_pos
-      WHERE cliente_id = ANY($1::int[])
-        AND created_at >= $2::timestamptz
-      GROUP BY cliente_id
-    `,
-    [clienteIds, desde.toISOString()],
-  );
+  const bandejaOk = await tablaBandejaExiste();
+  const bobedaOk = await tablaBobedaExiste();
 
-  for (const row of r.rows) {
-    out[row.cliente_id] = {
-      pares_hoy: Number(row.pares),
-      emitidos: Number(row.emitidos),
-      facturados: Number(row.facturados),
-      pendientes: Number(row.pendientes),
-    };
+  if (bandejaOk) {
+    const pend = await pool.query<{ cliente_id: number; n: string }>(
+      `
+        SELECT cliente_id, COUNT(*)::text AS n
+        FROM public.${TABLA_BANDEJA}
+        WHERE cliente_id = ANY($1::int[])
+          AND upper(btrim(estado)) IN ('PENDIENTE_CAJA', 'CSV_DESCARGADO')
+        GROUP BY cliente_id
+      `,
+      [clienteIds],
+    );
+    for (const row of pend.rows) {
+      out[row.cliente_id].pendientes = Number(row.n);
+    }
   }
-  return out;
-}
 
-export async function marcarFacturados(
-  codigos: string[],
-  clienteId: number,
-): Promise<{ updated: number }> {
-  const pool = getRimecPool();
-  const r = await pool.query(
-    `
-      UPDATE public.ticket_venta_pos
-      SET estado = 'FACTURADO'
-      WHERE codigo_ticket = ANY($1::text[])
-        AND cliente_id = $2
-        AND upper(btrim(estado)) = 'EMITIDO'
-    `,
-    [codigos, clienteId],
-  );
-  return { updated: r.rowCount ?? 0 };
+  if (bobedaOk) {
+    const bob = await pool.query<{
+      cliente_id: number;
+      pares: string;
+      facturados: string;
+    }>(
+      `
+        SELECT
+          cliente_id,
+          COALESCE(SUM(cantidad) FILTER (WHERE fecha_venta >= $2::date), 0)::text AS pares,
+          COUNT(*) FILTER (WHERE upper(btrim(estado)) = 'PENDIENTE_ENTREGA')::text AS facturados
+        FROM public.${TABLA_BOBINA}
+        WHERE cliente_id = ANY($1::int[])
+        GROUP BY cliente_id
+      `,
+      [clienteIds, desde.toISOString().slice(0, 10)],
+    );
+    for (const row of bob.rows) {
+      out[row.cliente_id].pares_hoy = Number(row.pares);
+      out[row.cliente_id].facturados = Number(row.facturados);
+      out[row.cliente_id].emitidos = Number(row.pares);
+    }
+  } else if (bandejaOk) {
+    const r = await pool.query<{
+      cliente_id: number;
+      pares: string;
+      emitidos: string;
+    }>(
+      `
+        SELECT
+          cliente_id,
+          COALESCE(SUM(cantidad) FILTER (WHERE created_at >= $2::timestamptz), 0)::text AS pares,
+          COUNT(*) FILTER (WHERE created_at >= $2::timestamptz)::text AS emitidos
+        FROM public.${TABLA_BANDEJA}
+        WHERE cliente_id = ANY($1::int[])
+        GROUP BY cliente_id
+      `,
+      [clienteIds, desde.toISOString()],
+    );
+    for (const row of r.rows) {
+      out[row.cliente_id].pares_hoy = Number(row.pares);
+      out[row.cliente_id].emitidos = Number(row.emitidos);
+    }
+  } else {
+    const r = await pool.query<{
+      cliente_id: number;
+      pares: string;
+      emitidos: string;
+      facturados: string;
+      pendientes: string;
+    }>(
+      `
+        SELECT
+          cliente_id,
+          COALESCE(SUM(cantidad) FILTER (WHERE created_at >= $2::timestamptz), 0)::text AS pares,
+          COUNT(*) FILTER (WHERE created_at >= $2::timestamptz)::text AS emitidos,
+          COUNT(*) FILTER (
+            WHERE created_at >= $2::timestamptz AND upper(btrim(estado)) = 'FACTURADO'
+          )::text AS facturados,
+          COUNT(*) FILTER (WHERE upper(btrim(estado)) = 'EMITIDO')::text AS pendientes
+        FROM public.${TABLA_LEGACY}
+        WHERE cliente_id = ANY($1::int[])
+        GROUP BY cliente_id
+      `,
+      [clienteIds, desde.toISOString()],
+    );
+    for (const row of r.rows) {
+      out[row.cliente_id] = {
+        pares_hoy: Number(row.pares),
+        emitidos: Number(row.emitidos),
+        facturados: Number(row.facturados),
+        pendientes: Number(row.pendientes),
+      };
+    }
+  }
+
+  return out;
 }
 
 export function ticketToCsvRow(t: TicketPosRow): string[] {
@@ -324,6 +413,8 @@ export function ticketToCsvRow(t: TicketPosRow): string[] {
     "1",
     t.marca,
     t.vendedor_nombre ?? "",
+    t.numero_fi_fa != null ? String(t.numero_fi_fa) : "",
+    t.numero_factura_legal ?? "",
     t.created_at,
     t.estado,
   ];
@@ -349,6 +440,8 @@ export const CSV_HEADERS = [
   "cantidad",
   "marca",
   "vendedor_nombre",
+  "numero_fi_fa",
+  "numero_factura_legal",
   "created_at",
   "estado",
 ];

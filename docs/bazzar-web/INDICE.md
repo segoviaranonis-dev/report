@@ -16,6 +16,8 @@
 | 3 | [Motor de precio](/bazzar-web/motor-precio) | Nuevo (basado en `web_precio_caso` + lista WEB) | [03_MOTOR_PRECIO.md](./03_MOTOR_PRECIO.md) |
 | 4 | [Stock Sano](/bazzar-web/stock-sano) | Nuevo (protocolo aduanero depósito) | [04_STOCK_SANO.md](./04_STOCK_SANO.md) · [Cierre ETAPA-004](./ETAPA_STOCK_SANO_004_CIERRE.md) |
 
+**Sub-etapa tienda (DNS):** [MAX DOMINIO](./SUBETAPA_MAX_DOMINIO.md) — EN CURSO
+
 ---
 
 ## Cadena operativa

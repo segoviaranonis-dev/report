@@ -10,12 +10,23 @@ import {
   ticketToCsvRow,
   type TicketPosRow,
 } from "@/lib/caja-bazzar/tickets-db";
+import { marcarCsvDescargado } from "@/lib/caja-bazzar/handoff-bobeda";
+import { fiFaSlug } from "@/lib/caja-bazzar/fi-fa-display";
+import { groupTicketsByFactura } from "@/lib/caja-bazzar/group-facturas";
 import { isCajaClienteId } from "@/lib/caja-bazzar/tiendas";
 import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 function csvFacturaFilename(rows: TicketPosRow[], clienteId: number): string {
-  const stagingId = rows[0]?.staging_id;
-  const base = stagingId != null ? `POS-FI-${stagingId}` : `caja-${clienteId}`;
+  const f = groupTicketsByFactura(rows)[0];
+  const base = f
+    ? fiFaSlug({
+        nombre_cliente: f.nombre_cliente,
+        cedula_cliente: f.cedula_cliente,
+        numero_fi_fa: f.numero_fi_fa,
+        staging_id: f.staging_id,
+        cliente_id: clienteId,
+      })
+    : `caja-${clienteId}`;
   return `${base}-${new Date().toISOString().slice(0, 10)}.csv`;
 }
 
@@ -46,14 +57,14 @@ export async function GET(req: NextRequest) {
 
   try {
     if (!(await tablaTicketsExiste())) {
-      return NextResponse.json({ error: "Tabla ticket_venta_pos no existe" }, { status: 503 });
+      return NextResponse.json({ error: "Tablas POS no existen — aplicar migración 005" }, { status: 503 });
     }
 
     const { tickets } = await queryTickets({
       clienteId,
       estado,
       cedula,
-      desde: startOfTodayUtc(),
+      desde: estado.trim().toUpperCase() === "EMITIDO" ? null : startOfTodayUtc(),
       limit: 500,
       offset: 0,
       allowedClienteIds: [clienteId],
@@ -62,6 +73,13 @@ export async function GET(req: NextRequest) {
     const rows = codigos?.length
       ? tickets.filter((t) => codigos.includes(t.codigo_ticket))
       : tickets;
+
+    if (rows.length && (estado.toUpperCase() === "EMITIDO" || estado.toUpperCase() === "PENDIENTE_CAJA")) {
+      await marcarCsvDescargado(
+        rows.map((t) => t.codigo_ticket),
+        clienteId,
+      );
+    }
 
     const lines = [
       CSV_HEADERS.join(","),
