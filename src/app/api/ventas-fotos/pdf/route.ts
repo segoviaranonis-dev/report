@@ -1,9 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/pdf/rateLimit'
+import { getRimecPool, isRimecDatabaseConfigured } from '@/lib/rimec/pool'
+import { fetchVentasFotos } from '@/lib/ventas-fotos/queries'
 import { generarPDFVentasFotos, type PDFVentasFotosData } from '@/lib/ventas-fotos/pdfGenerator'
+import type { VentasFotosFilters } from '@/lib/ventas-fotos/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Vercel Pro: 60 segundos timeout
+export const runtime = 'nodejs'
+
+type PdfRequestBody =
+  | PDFVentasFotosData
+  | { source: 'filters'; filters: VentasFotosFilters }
+
+function isFiltersRequest(body: unknown): body is { source: 'filters'; filters: VentasFotosFilters } {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { source?: string }).source === 'filters' &&
+    typeof (body as { filters?: unknown }).filters === 'object' &&
+    (body as { filters?: unknown }).filters !== null
+  )
+}
+
+async function resolvePdfData(body: PdfRequestBody): Promise<PDFVentasFotosData | { error: string; status: number }> {
+  if (isFiltersRequest(body)) {
+    if (!isRimecDatabaseConfigured()) {
+      return { error: 'DATABASE_URL no configurada', status: 503 }
+    }
+    const f = body.filters
+    if (!f.clienteCodigo || !f.fechaInicio || !f.fechaFin || !f.marcaId) {
+      return { error: 'Filtros incompletos para generar PDF', status: 400 }
+    }
+    const data = await fetchVentasFotos(getRimecPool(), f)
+    if (!data.rows.length) {
+      return { error: 'Sin filas para el PDF con esos filtros', status: 400 }
+    }
+    if (!data.cliente || !data.marca) {
+      return { error: 'No se pudo resolver cliente o marca', status: 400 }
+    }
+    return {
+      cliente: data.cliente,
+      marca: data.marca,
+      filtros: { fechaInicio: f.fechaInicio, fechaFin: f.fechaFin },
+      kpis: data.kpis,
+      pillarStats: data.pillarStats,
+      rows: data.rows,
+    }
+  }
+  return body as PDFVentasFotosData
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,9 +79,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Parsear body
-    let body: PDFVentasFotosData
+    let rawBody: PdfRequestBody
     try {
-      body = await req.json()
+      rawBody = await req.json()
     } catch (parseError) {
       console.error('[API Ventas-Fotos PDF] Error parseando JSON:', parseError)
       return NextResponse.json(
@@ -46,6 +92,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    const resolved = await resolvePdfData(rawBody)
+    if ('error' in resolved) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.status })
+    }
+    const body = resolved
 
     // 3. Validaciones
     console.log('[API Ventas-Fotos PDF] Request recibido')

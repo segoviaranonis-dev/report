@@ -692,10 +692,11 @@ function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
 export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
   const startTime = performance.now()
 
-  // Detectar tipo de dispositivo para adaptar timeouts y concurrencia
-  const deviceType = detectDeviceType()
-  const isIOS = isIOSDevice()
-  const recommendedLimit = getRecommendedImageLimit(deviceType)
+  // En Vercel/serverless: menos filas e imágenes para evitar timeout 504.
+  const isServerless = typeof window === 'undefined' && Boolean(process.env.VERCEL)
+  const deviceType = isServerless ? 'desktop' : detectDeviceType()
+  const isIOS = isServerless ? false : isIOSDevice()
+  const recommendedLimit = isServerless ? 25 : getRecommendedImageLimit(deviceType)
 
   console.log('[PDF Ventas-Fotos] ═══════════════════════════════════════════════════')
   console.log('[PDF Ventas-Fotos] Iniciando generación...')

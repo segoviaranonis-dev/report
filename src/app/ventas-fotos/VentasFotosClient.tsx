@@ -80,6 +80,34 @@ function defaultDates() {
   };
 }
 
+async function readJsonResponse<T>(res: Response): Promise<T> {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    const snippet = (await res.text()).slice(0, 100).replace(/\s+/g, " ");
+    if (res.status === 504 || res.status === 503) {
+      throw new Error("El servidor tardó demasiado (timeout). Probá de nuevo en unos segundos.");
+    }
+    throw new Error(`Error ${res.status} del servidor: ${snippet || "respuesta no JSON"}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function readPdfResponse(res: Response): Promise<Blob> {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (res.ok && contentType.includes("application/pdf")) {
+    return res.blob();
+  }
+  if (contentType.includes("application/json")) {
+    const json = (await res.json()) as { error?: string; message?: string };
+    throw new Error(json.error ?? json.message ?? "Error al generar PDF");
+  }
+  const snippet = (await res.text()).slice(0, 100).replace(/\s+/g, " ");
+  if (res.status === 504 || res.status === 503) {
+    throw new Error("El PDF tardó demasiado en Vercel (timeout). Los datos del informe siguen válidos.");
+  }
+  throw new Error(`PDF no disponible (${res.status}): ${snippet || "respuesta inválida"}`);
+}
+
 function emptyKpis(rows: VentaFotoRow[]) {
   return {
     total_cantidad: rows.reduce((s, r) => s + Math.abs(r.cantidad), 0),
@@ -125,6 +153,7 @@ export function VentasFotosClient() {
   const [loading, setLoading] = useState(false);
   const [loadingPDF, setLoadingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   // Estados para PDF en background
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "ready" | "error">("idle");
@@ -194,6 +223,7 @@ export function VentasFotosClient() {
   async function cargar() {
     setLoading(true);
     setError(null);
+    setPdfError(null);
     // Invalidar PDF anterior
     setPdfState("idle");
     if (pdfBlobUrl) {
@@ -206,7 +236,7 @@ export function VentasFotosClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filters),
       });
-      const json = (await res.json()) as VentasFotosResponse;
+      const json = await readJsonResponse<VentasFotosResponse>(res);
       if (!res.ok) throw new Error(json.error ?? "Error al cargar ventas con fotos");
       setData(json);
       if (json.error) setError(json.error);
@@ -222,56 +252,30 @@ export function VentasFotosClient() {
     }
   }
 
-  async function generarPDFBackground(dataSnapshot: VentasFotosResponse) {
+  async function generarPDFBackground(_dataSnapshot: VentasFotosResponse) {
     const currentRequestId = ++pdfRequestIdRef.current;
     setPdfState("generating");
-
-    const clienteData = dataSnapshot.cliente;
-    const marcaData = dataSnapshot.marca;
-
-    if (!clienteData || !marcaData) {
-      setPdfState("error");
-      return;
-    }
+    setPdfError(null);
 
     try {
-      const payload = {
-        cliente: clienteData,
-        marca: marcaData,
-        filtros: {
-          fechaInicio: filters.fechaInicio,
-          fechaFin: filters.fechaFin,
-        },
-        kpis: dataSnapshot.kpis,
-        pillarStats: dataSnapshot.pillarStats,
-        rows: dataSnapshot.rows,
-      };
-
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ source: "filters", filters }),
       });
 
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error ?? json.message ?? "Error al generar PDF");
-      }
-
-      // Verificar si esta request sigue siendo la más reciente
       if (currentRequestId !== pdfRequestIdRef.current) {
-        // Request obsoleta, ignorar
         return;
       }
 
-      const blob = await res.blob();
+      const blob = await readPdfResponse(res);
       const url = window.URL.createObjectURL(blob);
       setPdfBlobUrl(url);
       setPdfState("ready");
     } catch (e) {
-      // Solo setear error si esta request sigue siendo la más reciente
       if (currentRequestId === pdfRequestIdRef.current) {
         setPdfState("error");
+        setPdfError(e instanceof Error ? e.message : "Error al generar PDF");
         console.error("Error generando PDF en background:", e);
       }
     }
@@ -301,34 +305,16 @@ export function VentasFotosClient() {
 
     // Si está idle o error, generar manualmente
     setLoadingPDF(true);
-    setError(null);
+    setPdfError(null);
 
     try {
-      const payload = {
-        cliente,
-        marca,
-        filtros: {
-          fechaInicio: filters.fechaInicio,
-          fechaFin: filters.fechaFin,
-        },
-        kpis,
-        pillarStats,
-        rows,
-      };
-
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ source: "filters", filters }),
       });
 
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error ?? json.message ?? "Error al generar PDF");
-      }
-
-      // Descargar PDF
-      const blob = await res.blob();
+      const blob = await readPdfResponse(res);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -338,7 +324,8 @@ export function VentasFotosClient() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al generar PDF");
+      setPdfError(e instanceof Error ? e.message : "Error al generar PDF");
+      setPdfState("error");
     } finally {
       setLoadingPDF(false);
     }
@@ -399,6 +386,9 @@ export function VentasFotosClient() {
                 )}
               </div>
             )}
+            {pdfError ? (
+              <p className="max-w-xs text-right text-[10px] text-red-700">{pdfError}</p>
+            ) : null}
           </div>
         </div>
 
