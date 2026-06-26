@@ -4,6 +4,8 @@
  * Doc: docs/HUB_INDEX_GRUPOS.md
  */
 
+import { hubGroupsForEnte } from "@/lib/auth/ente-acceso";
+
 export type ReportHubGroup = "rimec" | "bazzar" | "bazzar-web" | "recursos";
 
 export type ReportHubModule = {
@@ -100,7 +102,7 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     icon: "👥",
     group: "rimec",
     navKey: "rrhh",
-    roles: [1, 2],
+    roles: [1],
   },
   {
     href: "/proceso-importacion",
@@ -208,8 +210,8 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     icon: "🛒",
     group: "bazzar-web",
     navKey: "bazzar-web-compra",
-    roles: [1, 2],
-    bazzarAdminOnly: true,
+    roles: [1],
+    rimecAdminOnly: true,
   },
   {
     href: "/bazzar-web/deposito-web",
@@ -219,8 +221,8 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     icon: "📦",
     group: "bazzar-web",
     navKey: "bazzar-web-deposito",
-    roles: [1, 2],
-    bazzarAdminOnly: true,
+    roles: [1],
+    rimecAdminOnly: true,
   },
   {
     href: "/bazzar-web/motor-precio",
@@ -271,8 +273,28 @@ export function filterHubModules(
   rolId: number,
   categoria: string | null,
   canDios: boolean,
+  enteCodigo?: number | null,
 ): ReportHubModule[] {
+  const allowedGroups = new Set(hubGroupsForEnte(enteCodigo, rolId));
+
   return modules.filter((m) => {
+    if (!allowedGroups.has(m.group)) return false;
+
+    // Matriz: rol 2 = solo columna BAZZAR tienda (retail · depósitos · caja)
+    if (rolId === 2) {
+      if (m.group !== "bazzar") return false;
+      if (m.href === "/tablet-bazzar") {
+        return categoria === "ADMIN" || categoria === "SU";
+      }
+      if (m.href === "/depositos-bazzar") {
+        return categoria === "ADMIN";
+      }
+      if (m.href === "/retail") {
+        return categoria === "ADMIN" || categoria === "VENDEDOR";
+      }
+      return false;
+    }
+
     if (m.nivelDios && !canDios) return false;
     if (m.rimecAdminOnly && rolId !== 1) return false;
     if (m.bazzarAdminOnly && !(rolId === 1 || (rolId === 2 && categoria === "ADMIN"))) {

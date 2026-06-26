@@ -13,6 +13,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 import { REPORT_SESSION_VERSION } from '@/lib/auth/constants'
+import { apiAllowedForEnte, pathnameAllowedForEnte } from '@/lib/auth/ente-acceso'
+import { aplicarAccesoCanonicoBzz } from '@/lib/auth/bzz-acceso'
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
@@ -26,14 +28,14 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
   1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding'],
-  2: ['/retail', '/depositos-bazzar', '/tablet-bazzar', '/bazzar-web', '/rrhh'],
+  2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
   3: ['/ventas-fotos'],
 }
 
 // APIs permitidas por rol
 const ROLE_API_ROUTES: Record<number, RegExp[]> = {
   1: [/.*/], // Todo
-  2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/bazzar-web\//, /^\/api\/rrhh\//, /^\/api\/auth\//],
+  2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/auth\//],
   3: [/^\/api\/ventas-fotos\//, /^\/api\/auth\//],
 }
 
@@ -105,8 +107,16 @@ export async function middleware(request: NextRequest) {
       return response
     }
 
-    const rol_id = Number(payload.rol_id) || 0
+    const rol_id_raw = Number(payload.rol_id) || 0
     const categoria = String(payload.role ?? '').toUpperCase().trim()
+    const sessionName = String(payload.name ?? '')
+    const bzz = aplicarAccesoCanonicoBzz(
+      sessionName,
+      rol_id_raw,
+      payload.ente_codigo != null ? Number(payload.ente_codigo) : null,
+    )
+    const rol_id = bzz.rol_id
+    const ente_codigo = bzz.ente_codigo
 
     // Motor precio BAZZAR WEB: solo rol_id=1
     if (
@@ -180,10 +190,22 @@ export async function middleware(request: NextRequest) {
       if (isApiRoute) {
         return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
       }
-      // Acceso denegado → redirigir a ruta permitida
       const fallbackRoute = ROLE_HOME_REDIRECT[rol_id] || '/login'
       const redirectUrl = new URL(fallbackRoute, request.url)
       return NextResponse.redirect(redirectUrl)
+    }
+
+    if (rol_id !== 1) {
+      const enteOk = isApiRoute
+        ? apiAllowedForEnte(pathname, ente_codigo, rol_id)
+        : pathnameAllowedForEnte(pathname, ente_codigo, rol_id)
+      if (!enteOk) {
+        if (isApiRoute) {
+          return NextResponse.json({ error: 'Acceso denegado para su ente' }, { status: 403 })
+        }
+        const fallbackRoute = ROLE_HOME_REDIRECT[rol_id] || '/login'
+        return NextResponse.redirect(new URL(fallbackRoute, request.url))
+      }
     }
 
     // Token válido + permisos OK → permitir acceso
