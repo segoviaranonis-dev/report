@@ -25,6 +25,8 @@ export async function POST(request: Request) {
       name: user.descp_usuario,
       role: user.categoria,
       rol_id: user.rol_id,
+      ente_id: user.ente_id,
+      ente_codigo: user.ente_codigo,
     })
 
     return NextResponse.json({

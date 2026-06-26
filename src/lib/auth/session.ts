@@ -23,6 +23,8 @@ export interface SessionData {
   name: string
   role: string
   rol_id: number
+  ente_id?: number | null
+  ente_codigo?: number | null
   session_version?: number
 }
 
@@ -67,6 +69,8 @@ export async function getSession(): Promise<SessionData | null> {
       name: payload.name as string,
       role: payload.role as string,
       rol_id: (payload.rol_id as number) || 0,
+      ente_id: payload.ente_id != null ? Number(payload.ente_id) : null,
+      ente_codigo: payload.ente_codigo != null ? Number(payload.ente_codigo) : null,
       session_version: payload.session_version as number,
     }
   } catch {
