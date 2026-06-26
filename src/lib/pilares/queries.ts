@@ -824,12 +824,14 @@ export async function ensureTonoCanonColumn(pool: Pool): Promise<void> {
 
 export async function loadColoresResumen(pool: Pool, proveedorId: number): Promise<import("./types").ColoresResumen> {
   const [totRes, etiqRes] = await Promise.all([
-    pool.query<{ total: string; sin_tono: string; con_tono: string }>(
+    pool.query<{ total: string; sin_tono: string; con_tono: string; sin_nombre: string; con_nombre: string }>(
       `
       SELECT
         COUNT(*)::text AS total,
-        COUNT(*) FILTER (WHERE tono_canon IS NULL)::text AS sin_tono,
-        COUNT(*) FILTER (WHERE tono_canon IS NOT NULL)::text AS con_tono
+        COUNT(*) FILTER (WHERE tono_canon IS NULL OR btrim(tono_canon->>'etiqueta') = '')::text AS sin_tono,
+        COUNT(*) FILTER (WHERE tono_canon IS NOT NULL AND btrim(tono_canon->>'etiqueta') <> '')::text AS con_tono,
+        COUNT(*) FILTER (WHERE nombre IS NULL OR btrim(nombre) = '')::text AS sin_nombre,
+        COUNT(*) FILTER (WHERE nombre IS NOT NULL AND btrim(nombre) <> '')::text AS con_nombre
       FROM color c
       WHERE c.proveedor_id = $1 AND c.activo = true
       `,
@@ -854,6 +856,8 @@ export async function loadColoresResumen(pool: Pool, proveedorId: number): Promi
     total: Number(t?.total ?? 0),
     sin_tono: Number(t?.sin_tono ?? 0),
     con_tono: Number(t?.con_tono ?? 0),
+    sin_nombre: Number(t?.sin_nombre ?? 0),
+    con_nombre: Number(t?.con_nombre ?? 0),
     por_etiqueta: etiqRes.rows.map((r) => ({ etiqueta: r.etiqueta, count: Number(r.n) })),
   };
 }
@@ -861,13 +865,38 @@ export async function loadColoresResumen(pool: Pool, proveedorId: number): Promi
 export async function loadColores(
   pool: Pool,
   proveedorId: number,
-  opts: { q?: string | null; sinTono?: boolean; limit?: number; offset?: number },
+  opts: {
+    q?: string | null;
+    sinTono?: boolean;
+    conTono?: boolean;
+    sinNombre?: boolean;
+    conNombre?: boolean;
+    etiquetas?: string[];
+    limit?: number;
+    offset?: number;
+  },
 ): Promise<{ rows: import("./types").ColorRow[]; total: number }> {
+  const { SQL_COLOR_CON_TONO, SQL_COLOR_SIN_TONO } = await import("./color-canon");
   const where: string[] = ["c.proveedor_id = $1", "c.activo = true"];
   const params: unknown[] = [proveedorId];
 
-  if (opts.sinTono) {
-    where.push("c.tono_canon IS NULL");
+  const etiquetas = (opts.etiquetas ?? []).map((e) => e.trim()).filter(Boolean);
+  if (etiquetas.length > 0) {
+    params.push(etiquetas.map((e) => e.toLowerCase()));
+    where.push(
+      `lower(btrim(c.tono_canon->>'etiqueta')) = ANY($${params.length}::text[])`,
+    );
+  } else if (opts.sinTono) {
+    where.push(SQL_COLOR_SIN_TONO);
+  } else if (opts.conTono) {
+    where.push(SQL_COLOR_CON_TONO);
+  }
+
+  if (opts.sinNombre) {
+    where.push("(c.nombre IS NULL OR btrim(c.nombre) = '')");
+  }
+  if (opts.conNombre) {
+    where.push("(c.nombre IS NOT NULL AND btrim(c.nombre) <> '')");
   }
   if (opts.q?.trim()) {
     params.push(`%${opts.q.trim()}%`);
@@ -926,6 +955,34 @@ export async function patchColorTono(
   return (res.rowCount ?? 0) > 0;
 }
 
+/** Mismo predominante (1er token nombre) → tono_canon idéntico en lote. */
+export async function patchColorByPredominante(
+  pool: Pool,
+  proveedorId: number,
+  predominante: string,
+  tonoCanon: Record<string, unknown> | null,
+): Promise<number> {
+  const { colorPredominante } = await import("./color-canon");
+  const target = predominante.trim().toLowerCase();
+  if (!target) return 0;
+
+  const { rows } = await pool.query<{ id: number; nombre: string | null }>(
+    `SELECT id, nombre FROM color WHERE proveedor_id = $1 AND activo = true`,
+    [proveedorId],
+  );
+
+  const ids = rows
+    .filter((r) => colorPredominante(r.nombre).trim().toLowerCase() === target)
+    .map((r) => r.id);
+  if (!ids.length) return 0;
+
+  const res = await pool.query(
+    `UPDATE color SET tono_canon = $1::jsonb WHERE proveedor_id = $2 AND id = ANY($3::int[])`,
+    [tonoCanon ? JSON.stringify(tonoCanon) : null, proveedorId, ids],
+  );
+  return res.rowCount ?? 0;
+}
+
 /** Rango codigo_proveedor — asigna tono_canon (misma herramienta que líneas por rango). */
 export async function patchColorRango(
   pool: Pool,
@@ -951,7 +1008,10 @@ export async function patchColorRango(
     "c.codigo_proveedor::text <= $3",
   ];
   const params: unknown[] = [proveedorId, d, h];
-  if (opts.soloSinTono) where.push("c.tono_canon IS NULL");
+  if (opts.soloSinTono) {
+    const { SQL_COLOR_SIN_TONO } = await import("./color-canon");
+    where.push(SQL_COLOR_SIN_TONO);
+  }
 
   if (opts.tonoFijo) {
     params.push(JSON.stringify(opts.tonoFijo));
@@ -969,16 +1029,46 @@ export async function patchColorRango(
     params,
   );
 
-  const { sugerirColorEstandarFromCatalog, sugerirColorEstandar } = await import("./colores-estandar");
-  const { tonoSolido } = await import("./color-canon");
+  const { estandarToTono, isAutoSuggestable, sugerirColorEstandarFromCatalog, sugerirColorEstandar } =
+    await import("./colores-estandar");
   const sugerir = (nombre: string | null) =>
     opts.catalog ? sugerirColorEstandarFromCatalog(nombre, opts.catalog) : sugerirColorEstandar(nombre);
   let updated = 0;
   for (const row of rows) {
     const std = sugerir(row.nombre);
-    if (!std) continue;
-    const tono = tonoSolido(std.etiqueta, std.hex);
+    if (!std || !isAutoSuggestable(std)) continue;
+    const tono = estandarToTono(std);
     const ok = await patchColorTono(pool, row.id, proveedorId, tono);
+    if (ok) updated += 1;
+  }
+  return updated;
+}
+
+/** Sugiere tono_canon masivo desde color.nombre (multilingüe → etiqueta ES). */
+export async function suggestTonoCanonBulk(
+  pool: Pool,
+  proveedorId: number,
+  catalog: import("./colores-estandar").ColorEstandar[],
+): Promise<number> {
+  const { SQL_COLOR_SIN_TONO } = await import("./color-canon");
+  const { rows } = await pool.query<{ id: number; nombre: string | null }>(
+    `
+    SELECT c.id, c.nombre
+    FROM color c
+    WHERE c.proveedor_id = $1 AND c.activo = true
+      AND ${SQL_COLOR_SIN_TONO}
+      AND c.nombre IS NOT NULL AND btrim(c.nombre) <> ''
+    ORDER BY c.codigo_proveedor
+    `,
+    [proveedorId],
+  );
+
+  const { estandarToTono, isAutoSuggestable, sugerirColorEstandarFromCatalog } = await import("./colores-estandar");
+  let updated = 0;
+  for (const row of rows) {
+    const std = sugerirColorEstandarFromCatalog(row.nombre, catalog);
+    if (!std || !isAutoSuggestable(std)) continue;
+    const ok = await patchColorTono(pool, row.id, proveedorId, estandarToTono(std));
     if (ok) updated += 1;
   }
   return updated;
@@ -1054,14 +1144,18 @@ export async function loadAndRecalcColoresEstandar(
   const { COLORES_ESTANDAR_DEFAULT, computeUsoPorEstandar, ordenarCatalogoPorUso, rowToColorEstandar } =
     await import("./colores-estandar");
 
-  for (const c of COLORES_ESTANDAR_DEFAULT) {
+  for (let i = 0; i < COLORES_ESTANDAR_DEFAULT.length; i++) {
+    const c = COLORES_ESTANDAR_DEFAULT[i];
     await pool.query(
       `
-      UPDATE color_tono_estandar
-      SET hex = $3, aliases = $4::jsonb, updated_at = now()
-      WHERE proveedor_id = $1 AND etiqueta = $2
+      INSERT INTO color_tono_estandar (proveedor_id, etiqueta, hex, aliases, orden)
+      VALUES ($1, $2, $3, $4::jsonb, $5)
+      ON CONFLICT (proveedor_id, etiqueta) DO UPDATE SET
+        hex = EXCLUDED.hex,
+        aliases = EXCLUDED.aliases,
+        updated_at = now()
       `,
-      [proveedorId, c.etiqueta, c.hex, JSON.stringify(c.aliases)],
+      [proveedorId, c.etiqueta, c.hex, JSON.stringify(c.aliases), (i + 1) * 10],
     );
   }
 
@@ -1104,9 +1198,14 @@ export async function loadAndRecalcColoresEstandar(
     ),
   );
 
-  return sorted.map((c, i) => ({
-    ...c,
-    orden: i + 1,
-    uso_count: uso.get(c.etiqueta) ?? 0,
-  }));
+  return sorted.map((c, i) => {
+    const def = COLORES_ESTANDAR_DEFAULT.find((d) => d.etiqueta === c.etiqueta);
+    return {
+      ...c,
+      multicolor: def?.multicolor,
+      swatches: def?.swatches,
+      orden: i + 1,
+      uso_count: uso.get(c.etiqueta) ?? 0,
+    };
+  });
 }

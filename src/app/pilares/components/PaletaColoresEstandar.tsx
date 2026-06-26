@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { COLORES_ESTANDAR_DEFAULT, findColorEstandarInCatalog, type ColorEstandar } from "@/lib/pilares/colores-estandar";
+import { useEffect, useRef, type CSSProperties } from "react";
+import { tonoCircleStyle, tonoPaleta } from "@/lib/pilares/color-canon";
+import {
+  COLORES_ESTANDAR_DEFAULT,
+  findColorEstandarInCatalog,
+  OTROS_MULTICOLOR_SWATCHES,
+  type ColorEstandar,
+} from "@/lib/pilares/colores-estandar";
 
 interface Props {
   open: boolean;
@@ -53,11 +59,18 @@ export function PaletaColoresEstandar({ open, catalog, selectedEtiqueta, anchorR
       <div className="flex flex-wrap gap-1.5">
         {items.map((c) => {
           const active = selected === c.etiqueta;
+          const swatchStyle = c.multicolor
+            ? tonoCircleStyle(
+                tonoPaleta(c.etiqueta, c.swatches?.length ? c.swatches : OTROS_MULTICOLOR_SWATCHES),
+              )
+            : { backgroundColor: c.hex };
           return (
             <button
               key={c.etiqueta}
               type="button"
-              title={`${c.etiqueta}${c.uso_count != null ? ` · ${c.uso_count} usos` : ""}`}
+              title={`${c.etiqueta}${c.multicolor ? " · multicolor" : ""}${
+                c.uso_count != null ? ` · ${c.uso_count} usos` : ""
+              }`}
               onClick={() => {
                 onSelect(c);
                 onClose();
@@ -65,7 +78,7 @@ export function PaletaColoresEstandar({ open, catalog, selectedEtiqueta, anchorR
               className={`h-7 w-7 rounded-sm ring-offset-2 ring-offset-neutral-800 transition hover:scale-110 ${
                 active ? "ring-2 ring-amber-400" : "ring-1 ring-neutral-600"
               }`}
-              style={{ backgroundColor: c.hex }}
+              style={swatchStyle}
             />
           );
         })}
@@ -82,10 +95,18 @@ interface SwatchButtonProps {
   etiqueta?: string;
   empty?: boolean;
   size?: "sm" | "md";
+  swatchStyle?: CSSProperties;
   onOpenPalette: (rect: DOMRect) => void;
 }
 
-export function ColorSwatchButton({ hex, etiqueta, empty = false, size = "md", onOpenPalette }: SwatchButtonProps) {
+export function ColorSwatchButton({
+  hex,
+  etiqueta,
+  empty = false,
+  size = "md",
+  swatchStyle,
+  onOpenPalette,
+}: SwatchButtonProps) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const dim = size === "sm" ? "h-7 w-7" : "h-8 w-8";
 
@@ -103,7 +124,7 @@ export function ColorSwatchButton({ hex, etiqueta, empty = false, size = "md", o
           ? "border-2 border-dashed border-neutral-300 bg-neutral-100"
           : "ring-1 ring-neutral-300"
       }`}
-      style={empty ? undefined : { backgroundColor: hex }}
+      style={empty ? undefined : swatchStyle ?? (hex ? { backgroundColor: hex } : undefined)}
     />
   );
 }

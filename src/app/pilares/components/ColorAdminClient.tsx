@@ -1,20 +1,98 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColorRow, ColoresResumen } from "@/lib/pilares/types";
 import {
   COLORES_ESTANDAR_DEFAULT,
+  estandarToTono,
   findColorEstandarInCatalog,
   sugerirColorEstandarFromCatalog,
+  OTROS_MULTICOLOR_SWATCHES,
   SIN_TONO_ETIQUETA,
   type ColorEstandar,
 } from "@/lib/pilares/colores-estandar";
-import { parseTonoCanon, tonoSolido } from "@/lib/pilares/color-canon";
+import { parseTonoCanon, tonoCircleStyle, tonoPaleta } from "@/lib/pilares/color-canon";
+import { readJsonResponse } from "@/lib/fetch-json";
 import { ColorEditor } from "./ColorEditor";
-import { DatosGeneralesColor } from "./DatosGeneralesColor";
+import { ColorImportPanel } from "./ColorImportPanel";
+import { DatosGeneralesColor, type ColorAdminFilterKey } from "./DatosGeneralesColor";
 import { ColorSwatchButton, PaletaColoresEstandar } from "./PaletaColoresEstandar";
 import { TipoV2Selector, useTipoV2FromUrl } from "./TipoV2Selector";
+
+export type ColorAdminFilters = {
+  sinNombre: boolean;
+  conNombre: boolean;
+  sinTono: boolean;
+  conTono: boolean;
+  /** Multiselect OR — tono_canon.etiqueta */
+  etiquetas: string[];
+};
+
+const EMPTY_FILTERS: ColorAdminFilters = {
+  sinNombre: false,
+  conNombre: false,
+  sinTono: false,
+  conTono: false,
+  etiquetas: [],
+};
+
+function applyFiltersToParams(p: URLSearchParams, f: ColorAdminFilters): void {
+  if (f.sinNombre) p.set("sin_nombre", "1");
+  if (f.conNombre) p.set("con_nombre", "1");
+  if (f.sinTono) p.set("sin_tono", "1");
+  if (f.conTono) p.set("con_tono", "1");
+  if (f.etiquetas.length) p.set("etiquetas", f.etiquetas.join(","));
+}
+
+function toggleFilterKey(prev: ColorAdminFilters, key: ColorAdminFilterKey): ColorAdminFilters {
+  const next = { ...prev, etiquetas: [...prev.etiquetas] };
+  switch (key) {
+    case "sinNombre":
+      next.sinNombre = !prev.sinNombre;
+      if (next.sinNombre) next.conNombre = false;
+      break;
+    case "conNombre":
+      next.conNombre = !prev.conNombre;
+      if (next.conNombre) next.sinNombre = false;
+      break;
+    case "sinTono":
+      next.sinTono = !prev.sinTono;
+      if (next.sinTono) {
+        next.conTono = false;
+        next.etiquetas = [];
+      }
+      break;
+    case "conTono":
+      next.conTono = !prev.conTono;
+      if (next.conTono) {
+        next.sinTono = false;
+        next.etiquetas = [];
+      }
+      break;
+  }
+  return next;
+}
+
+function toggleEtiquetaKey(prev: ColorAdminFilters, etiqueta: string): ColorAdminFilters {
+  const norm = etiqueta.trim();
+  if (!norm) return prev;
+  const has = prev.etiquetas.some((e) => e.toLowerCase() === norm.toLowerCase());
+  const etiquetas = has
+    ? prev.etiquetas.filter((e) => e.toLowerCase() !== norm.toLowerCase())
+    : [...prev.etiquetas, norm];
+  return { ...prev, etiquetas, sinTono: false, conTono: false };
+}
+
+function filterSummary(f: ColorAdminFilters): string {
+  const parts: string[] = [];
+  if (f.sinNombre) parts.push("sin descripción");
+  if (f.conNombre) parts.push("con descripción");
+  if (f.sinTono) parts.push("sin tono_canon");
+  if (f.conTono) parts.push("con tono_canon");
+  if (f.etiquetas.length) parts.push(`etiquetas: ${f.etiquetas.join(" + ")}`);
+  return parts.length ? parts.join(" · ") : "ninguno";
+}
 
 export function ColorAdminClient() {
   const tipoV2Id = useTipoV2FromUrl();
@@ -25,10 +103,20 @@ export function ColorAdminClient() {
   const [total, setTotal] = useState(0);
   const [resumen, setResumen] = useState<ColoresResumen | null>(null);
   const [q, setQ] = useState("");
-  const [sinTono, setSinTono] = useState(false);
-  const [savingId, setSavingId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<Record<number, { etiqueta: string; hex: string }>>({});
+  const [filters, setFilters] = useState<ColorAdminFilters>(EMPTY_FILTERS);
+  const [savingPredominante, setSavingPredominante] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<ColorEstandar[]>(COLORES_ESTANDAR_DEFAULT);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      filters.sinNombre ||
+      filters.conNombre ||
+      filters.sinTono ||
+      filters.conTono ||
+      filters.etiquetas.length > 0 ||
+      Boolean(q.trim()),
+    [filters, q],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,14 +124,22 @@ export function ColorAdminClient() {
     try {
       const p = new URLSearchParams({ tipo_v2_id: String(tipoV2Id), limit: "500" });
       if (q.trim()) p.set("q", q.trim());
-      if (sinTono) p.set("sin_tono", "1");
+      applyFiltersToParams(p, filters);
 
       const r = await fetch(`/api/pilares/color?${p}`);
-      const data = await r.json();
+      const data = await readJsonResponse<{
+        configured?: boolean;
+        error?: string;
+        rows?: ColorRow[];
+        total?: number;
+        resumen?: ColoresResumen | null;
+        estandar?: ColorEstandar[];
+      }>(r);
       if (!r.ok) throw new Error(data.error || "Error al cargar color");
       if (data.configured === false) {
         setConfigured(false);
         setRows([]);
+        setTotal(0);
         return;
       }
       setConfigured(true);
@@ -54,10 +150,11 @@ export function ColorAdminClient() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
       setRows([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [tipoV2Id, q, sinTono]);
+  }, [tipoV2Id, q, filters]);
 
   useEffect(() => {
     load();
@@ -65,75 +162,56 @@ export function ColorAdminClient() {
 
   useEffect(() => {
     setQ("");
-    setSinTono(false);
-    setDraft({});
+    setFilters(EMPTY_FILTERS);
   }, [tipoV2Id]);
 
-  const saveRow = async (row: ColorRow) => {
-    const tono = parseTonoCanon(row.tono_canon);
-    const d = draft[row.id];
-    if (d?.etiqueta === "") {
-      if (tono) await clearTono(row);
-      setDraft((prev) => {
-        const next = { ...prev };
-        delete next[row.id];
-        return next;
-      });
+  const applyByPredominante = async (row: ColorRow, std: ColorEstandar | null) => {
+    const pred = row.predominante?.trim();
+    if (!pred) {
+      setError("Sin predominante — no se puede sincronizar el lote.");
       return;
     }
 
-    const sugerido = sugerirColorEstandarFromCatalog(row.nombre ?? row.predominante, catalog);
-    const etiqueta =
-      d?.etiqueta?.trim() ||
-      (!tono && !d && sugerido ? sugerido.etiqueta : "");
-    if (!etiqueta) return;
-
-    setSavingId(row.id);
+    setSavingPredominante(pred.toLowerCase());
     setError(null);
     try {
-      const std = findColorEstandarInCatalog(etiqueta, catalog);
-      if (!std) throw new Error("Elegí un color estándar de la lista");
+      const body: Record<string, unknown> = {
+        tipo_v2_id: tipoV2Id,
+        sync_predominante: true,
+        predominante: pred,
+      };
+      if (std) {
+        body.tono_canon = estandarToTono(std);
+      } else {
+        body.clear_tono = true;
+      }
+
       const res = await fetch("/api/pilares/color", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo_v2_id: tipoV2Id,
-          id: row.id,
-          tono_canon: tonoSolido(std.etiqueta, std.hex),
-        }),
+        body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await readJsonResponse<{ ok?: boolean; error?: string; updated?: number }>(res);
       if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo guardar");
-      setDraft((prev) => {
-        const next = { ...prev };
-        delete next[row.id];
-        return next;
-      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
-      setSavingId(null);
+      setSavingPredominante(null);
     }
   };
 
-  const clearTono = async (row: ColorRow) => {
-    setSavingId(row.id);
-    setError(null);
-    try {
-      const res = await fetch("/api/pilares/color", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo_v2_id: tipoV2Id, id: row.id, clear_tono: true }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo limpiar");
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al limpiar");
-    } finally {
-      setSavingId(null);
-    }
+  const toggleFilter = (key: ColorAdminFilterKey) => {
+    setFilters((prev) => toggleFilterKey(prev, key));
+  };
+
+  const toggleEtiqueta = (etiqueta: string) => {
+    setFilters((prev) => toggleEtiquetaKey(prev, etiqueta));
+  };
+
+  const clearFilters = () => {
+    setFilters(EMPTY_FILTERS);
+    setQ("");
   };
 
   if (!configured) {
@@ -152,14 +230,28 @@ export function ColorAdminClient() {
         </Link>
         <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Administrador de Color</h1>
         <p className="mt-1 text-sm text-neutral-600">
-          Con predominante identificado (ORO, BLANCO…) se pre-asigna el estándar. Sin match (BRONCE, GRAFITO…) queda
-          vacío para que elijas en la paleta.
+          Descripción proveedor (<code className="text-xs">nombre</code>) puede venir en español, portugués o inglés —
+          se guarda tal cual. Filtros operativos usan <strong>tono_canon</strong> en español (Negro, Beige, Gris…).
+          Al elegir etiqueta en una fila, <strong>todos los códigos con el mismo predominante</strong> se guardan solos.
+          <strong> Otros</strong> (multicolor) solo manual — nunca auto-asignado.
         </p>
       </div>
 
       <TipoV2Selector syncUrl className="mb-6" />
 
+      <ColorImportPanel tipoV2Id={tipoV2Id} onDone={load} />
+
       <ColorEditor tipoV2Id={tipoV2Id} catalog={catalog} onApplied={load} />
+
+      <DatosGeneralesColor
+        resumen={resumen}
+        totalFiltrado={total}
+        filasMostradas={rows.length}
+        filters={filters}
+        loading={loading}
+        onToggleFilter={toggleFilter}
+        onToggleEtiqueta={toggleEtiqueta}
+      />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="block">
@@ -171,38 +263,32 @@ export function ColorAdminClient() {
             className="mt-1 block w-72 rounded-lg border border-neutral-200 px-3 py-2 text-sm"
           />
         </label>
-        <label className="flex items-center gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={sinTono} onChange={(e) => setSinTono(e.target.checked)} />
-          Solo sin tono_canon
-        </label>
-        <button
-          type="button"
-          onClick={() => load()}
-          disabled={loading}
-          className="rounded-lg bg-rimec-azul px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          Actualizar
-        </button>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-600 hover:border-red-300 hover:text-red-600"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
-      <DatosGeneralesColor
-        resumen={resumen}
-        totalFiltrado={total}
-        filasMostradas={rows.length}
-        sinTonoFiltro={sinTono}
-        loading={loading}
-        onFilterSinTono={() => setSinTono(true)}
-        onFilterEtiqueta={(etiqueta) => setQ(etiqueta)}
-      />
+      {!loading && hasActiveFilters && (
+        <p className="mb-3 text-xs font-medium text-rimec-azul">
+          Filtros activos: {filterSummary(filters)}
+          {q.trim() ? ` · búsqueda «${q.trim()}»` : ""}
+        </p>
+      )}
 
       {error && <p className="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
 
       {!loading && (
         <p className="mb-3 text-sm text-neutral-600">
-          Grilla: {rows.length} filas mostradas · <strong>{total.toLocaleString("es-PY")}</strong> coinciden con el
-          filtro
+          Grilla: {rows.length} filas mostradas
+          {total > rows.length ? ` (de ${total.toLocaleString("es-PY")} filtradas)` : ""}
           {resumen && total !== resumen.total && (
-            <> (de {resumen.total.toLocaleString("es-PY")} totales en BD)</>
+            <> · universo {resumen.total.toLocaleString("es-PY")}</>
           )}
         </p>
       )}
@@ -219,7 +305,7 @@ export function ColorAdminClient() {
                 <th className="px-3 py-3">Predominante</th>
                 <th className="px-3 py-3">Etiqueta filtro</th>
                 <th className="px-3 py-3">Tono</th>
-                <th className="px-3 py-3 w-32" />
+                <th className="px-3 py-3 w-16" />
               </tr>
             </thead>
             <tbody>
@@ -228,20 +314,11 @@ export function ColorAdminClient() {
                   key={row.id}
                   row={row}
                   catalog={catalog}
-                  draft={draft[row.id]}
-                  saving={savingId === row.id}
-                  onDraftChange={(d) =>
-                    setDraft((prev) => {
-                      if (d === null) {
-                        const next = { ...prev };
-                        delete next[row.id];
-                        return next;
-                      }
-                      return { ...prev, [row.id]: d };
-                    })
+                  saving={
+                    savingPredominante != null &&
+                    row.predominante.trim().toLowerCase() === savingPredominante
                   }
-                  onSave={() => saveRow(row)}
-                  onClear={() => clearTono(row)}
+                  onApply={(std) => applyByPredominante(row, std)}
                 />
               ))}
               {rows.length === 0 && (
@@ -262,54 +339,49 @@ export function ColorAdminClient() {
 function ColorRowEditor({
   row,
   catalog,
-  draft,
   saving,
-  onDraftChange,
-  onSave,
-  onClear,
+  onApply,
 }: {
   row: ColorRow;
   catalog: ColorEstandar[];
-  draft?: { etiqueta: string; hex: string };
   saving: boolean;
-  onDraftChange: (d: { etiqueta: string; hex: string } | null) => void;
-  onSave: () => void;
-  onClear: () => void;
+  onApply: (std: ColorEstandar | null) => void;
 }) {
   const tono = parseTonoCanon(row.tono_canon);
   const stdFromTono = tono ? findColorEstandarInCatalog(tono.etiqueta, catalog) : null;
   const sugerido = sugerirColorEstandarFromCatalog(row.nombre ?? row.predominante, catalog);
-  const userCleared = draft?.etiqueta === "";
-  const etiqueta =
-    draft != null && !userCleared
-      ? draft.etiqueta
-      : userCleared
-        ? SIN_TONO_ETIQUETA
-        : stdFromTono?.etiqueta ?? sugerido?.etiqueta ?? SIN_TONO_ETIQUETA;
+  const etiqueta = tono?.etiqueta?.trim() ?? SIN_TONO_ETIQUETA;
   const hex =
-    draft != null && !userCleared
-      ? draft.hex
-      : userCleared
-        ? ""
-        : stdFromTono?.hex ?? sugerido?.hex ?? "";
-  const sinAsignar = !etiqueta;
-  const dirty =
-    draft != null
-      ? userCleared
-        ? Boolean(tono)
-        : draft.etiqueta !== (stdFromTono?.etiqueta ?? "")
-      : !tono && Boolean(sugerido);
+    tono?.tipo === "solido"
+      ? tono.hex
+      : stdFromTono?.hex ?? findColorEstandarInCatalog(etiqueta, catalog)?.hex ?? "";
+  const sinAsignar = !tono;
   const [paletteRect, setPaletteRect] = useState<DOMRect | null>(null);
 
-  const applyEstandar = (c: ColorEstandar) => onDraftChange({ etiqueta: c.etiqueta, hex: c.hex });
+  const stdSelected = etiqueta ? findColorEstandarInCatalog(etiqueta, catalog) : undefined;
+  const swatchStyle =
+    tono?.tipo === "paleta"
+      ? tonoCircleStyle(tono)
+      : stdSelected?.multicolor
+        ? tonoCircleStyle(
+            tonoPaleta(stdSelected.etiqueta, stdSelected.swatches ?? OTROS_MULTICOLOR_SWATCHES),
+          )
+        : hex
+          ? { backgroundColor: hex }
+          : undefined;
 
   const onEtiquetaSelect = (value: string) => {
     if (!value) {
-      onDraftChange({ etiqueta: "", hex: "" });
+      onApply(null);
       return;
     }
     const std = findColorEstandarInCatalog(value, catalog);
-    if (std) onDraftChange({ etiqueta: std.etiqueta, hex: std.hex });
+    if (std) onApply(std);
+  };
+
+  const applyEstandar = (c: ColorEstandar) => {
+    onApply(c);
+    setPaletteRect(null);
   };
 
   return (
@@ -335,7 +407,8 @@ function ColorRowEditor({
         <select
           value={etiqueta}
           onChange={(e) => onEtiquetaSelect(e.target.value)}
-          className="w-36 rounded border border-neutral-200 px-2 py-1 text-sm"
+          disabled={saving}
+          className="w-36 rounded border border-neutral-200 px-2 py-1 text-sm disabled:opacity-50"
         >
           <option value="">— sin tono —</option>
           {catalog.map((c) => (
@@ -352,6 +425,7 @@ function ColorRowEditor({
             hex={hex}
             etiqueta={etiqueta}
             empty={sinAsignar}
+            swatchStyle={swatchStyle}
             onOpenPalette={setPaletteRect}
           />
           <span className="font-mono text-[10px] text-neutral-400">{hex || "—"}</span>
@@ -366,27 +440,18 @@ function ColorRowEditor({
         />
       </td>
       <td className="px-3 py-2">
-        <div className="flex gap-1">
+        {saving ? (
+          <span className="text-xs text-neutral-500">Guardando…</span>
+        ) : tono ? (
           <button
             type="button"
-            disabled={!dirty || saving}
-            onClick={onSave}
-            className="rounded bg-rimec-azul px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
+            onClick={() => onApply(null)}
+            className="rounded border border-neutral-300 px-2 py-1 text-xs text-neutral-600 hover:border-red-300 hover:text-red-600"
+            title={`Quitar tono de todos «${row.predominante}»`}
           >
-            {saving ? "…" : "Guardar"}
+            ✕
           </button>
-          {tono && (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={onClear}
-              className="rounded border border-neutral-300 px-2 py-1 text-xs text-neutral-600 disabled:opacity-40"
-              title="Quitar tono_canon"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        ) : null}
       </td>
     </tr>
   );

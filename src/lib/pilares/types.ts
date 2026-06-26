@@ -100,5 +100,7 @@ export interface ColoresResumen {
   total: number;
   sin_tono: number;
   con_tono: number;
+  sin_nombre: number;
+  con_nombre: number;
   por_etiqueta: { etiqueta: string; count: number }[];
 }

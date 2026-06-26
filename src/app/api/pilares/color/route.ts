@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePilaresAdmin } from "@/lib/pilares/auth-api";
 import { parseTipoV2Id, proveedorIdFromTipoV2 } from "@/lib/pilares/constants";
-import { findColorEstandarInCatalog, type ColorEstandar } from "@/lib/pilares/colores-estandar";
+import { estandarToTono, findColorEstandarInCatalog, type ColorEstandar } from "@/lib/pilares/colores-estandar";
 import { parseTonoCanon, tonoPaleta, tonoSolido } from "@/lib/pilares/color-canon";
 import {
   ensureTonoCanonColumn,
   loadAndRecalcColoresEstandar,
   loadColores,
   loadColoresResumen,
+  patchColorByPredominante,
   patchColorRango,
   patchColorTono,
 } from "@/lib/pilares/queries";
@@ -36,6 +37,13 @@ export async function GET(req: NextRequest) {
       loadColores(pool, proveedorId, {
         q: sp.get("q"),
         sinTono: sp.get("sin_tono") === "1",
+        conTono: sp.get("con_tono") === "1",
+        sinNombre: sp.get("sin_nombre") === "1",
+        conNombre: sp.get("con_nombre") === "1",
+        etiquetas: (sp.get("etiquetas") ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
         limit: Number(sp.get("limit") ?? 500),
         offset: Number(sp.get("offset") ?? 0),
       }),
@@ -70,7 +78,7 @@ function buildTonoFromBody(body: Record<string, unknown>, catalog?: ColorEstanda
   }
   if (etiqueta && hex) {
     const std = catalog ? findColorEstandarInCatalog(etiqueta, catalog) : undefined;
-    if (std) return tonoSolido(std.etiqueta, std.hex);
+    if (std) return estandarToTono(std);
     return tonoSolido(etiqueta, hex);
   }
   return null;
@@ -122,6 +130,29 @@ export async function PATCH(req: NextRequest) {
         catalog,
       });
       return NextResponse.json({ ok: true, updated });
+    }
+
+    if (body.sync_predominante) {
+      const predominante = String(body.predominante ?? "").trim();
+      if (!predominante) {
+        return NextResponse.json({ ok: false, error: "predominante requerido" }, { status: 400 });
+      }
+
+      let tono: Record<string, unknown> | null = null;
+      if (body.clear_tono) {
+        tono = null;
+      } else if (body.tono_canon != null) {
+        tono = parseTonoCanon(body.tono_canon) as Record<string, unknown> | null;
+        if (!tono) tono = buildTonoFromBody(body, catalog);
+      } else {
+        tono = buildTonoFromBody(body, catalog);
+      }
+      if (!body.clear_tono && !tono) {
+        return NextResponse.json({ ok: false, error: "tono_canon inválido" }, { status: 400 });
+      }
+
+      const updated = await patchColorByPredominante(pool, proveedorId, predominante, tono);
+      return NextResponse.json({ ok: true, updated, predominante });
     }
 
     const id = Number(body.id);

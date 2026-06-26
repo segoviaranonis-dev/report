@@ -30,6 +30,12 @@ export function normalizarEtiqueta(s: string): string {
   return t.length > 1 ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : t.toUpperCase();
 }
 
+/** SQL — sin tono_canon operativo (NULL o etiqueta vacía). */
+export const SQL_COLOR_SIN_TONO = `(c.tono_canon IS NULL OR btrim(c.tono_canon->>'etiqueta') = '')`;
+
+/** SQL — con tono_canon operativo. */
+export const SQL_COLOR_CON_TONO = `(c.tono_canon IS NOT NULL AND btrim(c.tono_canon->>'etiqueta') <> '')`;
+
 function normHex(h: string): string {
   const x = h.trim();
   if (!x) return "#94a3b8";

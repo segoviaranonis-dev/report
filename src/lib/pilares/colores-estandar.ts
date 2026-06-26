@@ -1,6 +1,6 @@
 /** Colores estándar — catálogo BD + helpers (tono_canon.etiqueta). */
 
-import { colorPredominante, parseTonoCanon } from "./color-canon";
+import { colorPredominante, parseTonoCanon, tonoPaleta, tonoSolido, type TonoCanon } from "./color-canon";
 
 export type ColorEstandar = {
   etiqueta: string;
@@ -8,7 +8,20 @@ export type ColorEstandar = {
   aliases: string[];
   orden?: number;
   uso_count?: number;
+  /** tono_canon tipo paleta (multicolor). */
+  multicolor?: boolean;
+  swatches?: string[];
 };
+
+/** Swatches canónicos para etiqueta Otros (filtro multicolor). */
+export const OTROS_MULTICOLOR_SWATCHES = [
+  "#c62828",
+  "#1565c0",
+  "#2e7d32",
+  "#ffd54f",
+  "#1a1a1a",
+  "#f48fb1",
+];
 
 /** Fallback si BD no responde (dev offline). */
 export const COLORES_ESTANDAR_DEFAULT: ColorEstandar[] = [
@@ -28,8 +41,10 @@ export const COLORES_ESTANDAR_DEFAULT: ColorEstandar[] = [
     etiqueta: "Beige",
     hex: "#e8d5b0",
     aliases: [
-      "beige", "bege", "avela", "avellana", "nude", "natural", "crema", "cream", "camel", "capuchino", "caramelo",
+      "beige", "bege", "avela", "avellana", "areia", "arena", "argila", "arcilla",
+      "nude", "natural", "crema", "cream", "camel", "capuchino", "caramelo",
       "tan", "taupe", "piñon", "pinon", "moka", "mocha", "couro", "cuero", "leather",
+      "whisky", "sand",
     ],
   },
   {
@@ -43,9 +58,20 @@ export const COLORES_ESTANDAR_DEFAULT: ColorEstandar[] = [
   { etiqueta: "Verde", hex: "#2e7d32", aliases: ["verde", "green", "oliva", "olive"] },
   { etiqueta: "Celeste", hex: "#4fc3f7", aliases: ["celeste", "aqua"] },
   { etiqueta: "Azul", hex: "#1565c0", aliases: ["azul", "blue"] },
-  { etiqueta: "Marino", hex: "#1e3a5f", aliases: ["marino", "marinha", "navy"] },
+  {
+    etiqueta: "Marino",
+    hex: "#1e3a5f",
+    aliases: ["marino", "marina", "marihq", "mariho", "marinha", "navy"],
+  },
   { etiqueta: "Rosado", hex: "#f48fb1", aliases: ["rosado", "rosa", "pink"] },
   { etiqueta: "Bronce", hex: "#b87333", aliases: ["bronce", "bronze"] },
+  {
+    etiqueta: "Otros",
+    hex: "#64748b",
+    multicolor: true,
+    swatches: OTROS_MULTICOLOR_SWATCHES,
+    aliases: ["multicolor", "multi", "varios", "mix", "estampado", "print", "combinado"],
+  },
 ];
 
 /** @deprecated usar catálogo desde API/BD */
@@ -91,6 +117,20 @@ export function findColorEstandar(etiqueta: string): ColorEstandar | undefined {
   return findColorEstandarInCatalog(etiqueta, COLORES_ESTANDAR_DEFAULT);
 }
 
+export function estandarToTono(c: ColorEstandar): TonoCanon {
+  if (c.multicolor) {
+    return tonoPaleta(c.etiqueta, c.swatches?.length ? c.swatches : OTROS_MULTICOLOR_SWATCHES);
+  }
+  return tonoSolido(c.etiqueta, c.hex);
+}
+
+/** Otros/multicolor: solo asignación manual del operador — nunca sugerencia automática. */
+export function isAutoSuggestable(c: ColorEstandar | null | undefined): c is ColorEstandar {
+  if (!c) return false;
+  if (c.multicolor) return false;
+  return normalizeToken(c.etiqueta) !== "otros";
+}
+
 export function sugerirColorEstandarFromCatalog(
   texto: string | null | undefined,
   catalog: ColorEstandar[],
@@ -99,19 +139,21 @@ export function sugerirColorEstandarFromCatalog(
   if (!raw) return null;
 
   const direct = findColorEstandarInCatalog(raw, catalog);
-  if (direct) return direct;
+  if (direct && isAutoSuggestable(direct)) return direct;
 
   const tokens = raw.split(/[/,\-–|\s]+/).map((t) => t.trim()).filter(Boolean);
   for (const token of tokens) {
     const hit = findColorEstandarInCatalog(token, catalog);
-    if (hit) return hit;
+    if (hit && isAutoSuggestable(hit)) return hit;
   }
 
   for (const c of catalog) {
+    if (!isAutoSuggestable(c)) continue;
     for (const alias of c.aliases) {
       if (raw.toLowerCase().includes(alias)) return c;
     }
   }
+
   return null;
 }
 
