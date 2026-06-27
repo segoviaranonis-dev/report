@@ -3,6 +3,7 @@ import {
   getDepositoConfig,
   parseCategoriaDeposito,
 } from "@/lib/depositos/depositos-config";
+import { normalizeDepositoRow } from "@/lib/depositos/operativa-filters";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 export type DepositoRow = {
@@ -28,6 +29,8 @@ export type DepositoRow = {
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
   tipo_v2_id: number | null;
+  tono_etiqueta: string | null;
+  tipo_1: string | null;
 };
 
 /**
@@ -127,6 +130,11 @@ export async function GET(
             NULLIF(btrim(tv.descp_tipo::text), ''),
             '(sin tipo)'
           ) AS tipo_v2,
+          NULLIF(btrim(col.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
+          COALESCE(
+            NULLIF(btrim(t1.descp_tipo_1::text), ''),
+            '(sin tipo 1)'
+          ) AS tipo_1,
           NULLIF(btrim(mat.descripcion::text), '') AS descp_material,
           NULLIF(btrim(col.nombre::text), '') AS descp_color,
           NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
@@ -138,6 +146,8 @@ export async function GET(
         LEFT JOIN public.genero g ON g.id = s.genero_id
         LEFT JOIN public.grupo_estilo_v2 ge ON ge.id_grupo_estilo = s.grupo_estilo_id
         LEFT JOIN public.tipo_v2 tv ON tv.id_tipo = s.tipo_v2_id
+        LEFT JOIN public.tipo_1 t1 ON t1.id_tipo_1 = s.tipo_1_id
+        WHERE s.cantidad > 0
       )
       SELECT
         linea_codigo_proveedor,
@@ -159,6 +169,8 @@ export async function GET(
         genero,
         estilo,
         tipo_v2,
+        tono_etiqueta,
+        tipo_1,
         descp_material,
         descp_color,
         imagen_nombre
@@ -167,13 +179,15 @@ export async function GET(
       ORDER BY marca, cantidad DESC
     `);
 
+    const productos = rows.map((r) => normalizeDepositoRow(r));
+
     return NextResponse.json({
       configured: true,
       cliente_id,
       ente: info.ente,
       tipo: info.tipo,
-      productos: rows,
-      total: rows.length,
+      productos,
+      total: productos.length,
     });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Error desconocido";

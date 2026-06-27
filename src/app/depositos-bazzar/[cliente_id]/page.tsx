@@ -6,6 +6,9 @@ import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { DepositoFiltrosHeader } from "./components/DepositoFiltrosHeader";
 import { DepositoTabs } from "./components/DepositoTabs";
 import { TabAnalisis } from "./components/TabAnalisis";
+import { TabOperativa } from "./components/TabOperativa";
+import { TabFiltrosIndice } from "./components/TabFiltrosIndice";
+import { VitalesStockDeposito } from "./components/VitalesStockDeposito";
 import { ProductHeroFrame } from "@/components/product/ProductHeroFrame";
 import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
 import {
@@ -38,7 +41,9 @@ export default function DepositoDetailPage() {
   const router = useRouter();
   const cliente_id = params.cliente_id as string;
 
-  const [activeTab, setActiveTab] = useState<"analisis" | "articulos">("analisis");
+  const [activeTab, setActiveTab] = useState<
+    "analisis" | "operativa" | "filtros-indice" | "articulos"
+  >("operativa");
   const [imagenExpandida, setImagenExpandida] = useState<{
     nombre: string;
     linea: string;
@@ -66,6 +71,10 @@ export default function DepositoDetailPage() {
   } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [categoria, setCategoria] = useState<CategoriaDeposito>("tienda");
+  const [operativaStats, setOperativaStats] = useState<{ productos: number; pares: number } | null>(
+    null,
+  );
+  const [indiceStats, setIndiceStats] = useState<{ productos: number; pares: number } | null>(null);
 
   const meta = CATEGORIA_DEPOSITO_META[categoria];
   const esTienda = categoria === "tienda";
@@ -73,8 +82,26 @@ export default function DepositoDetailPage() {
   const backHref = categoria === "tienda" ? "/depositos-bazzar" : `/depositos-bazzar?categoria=${categoria}`;
 
   useEffect(() => {
-    setCategoria(parseCategoriaDeposito(new URLSearchParams(window.location.search).get("categoria")));
+    const sp = new URLSearchParams(window.location.search);
+    setCategoria(parseCategoriaDeposito(sp.get("categoria")));
+    const tab = sp.get("tab");
+    if (
+      tab === "analisis" ||
+      tab === "operativa" ||
+      tab === "filtros-indice" ||
+      tab === "articulos"
+    ) {
+      setActiveTab(tab);
+    }
   }, []);
+
+  const handleTabChange = (id: string) => {
+    const tab = id as "analisis" | "operativa" | "filtros-indice" | "articulos";
+    setActiveTab(tab);
+    const sp = new URLSearchParams(window.location.search);
+    sp.set("tab", tab);
+    router.replace(`?${sp.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     const loadProductos = async () => {
@@ -349,6 +376,24 @@ export default function DepositoDetailPage() {
                 Depósito {ente} · {tipo} · {meta.label}
               </h1>
               <p className="text-sm text-gray-600">Cliente ID: {cliente_id}</p>
+              {activeTab === "operativa" && operativaStats && (
+                <div className="mt-3 max-w-xl">
+                  <VitalesStockDeposito
+                    productos={operativaStats.productos}
+                    pares={operativaStats.pares}
+                    variant="hero"
+                  />
+                </div>
+              )}
+              {activeTab === "filtros-indice" && indiceStats && (
+                <div className="mt-3 max-w-xl">
+                  <VitalesStockDeposito
+                    productos={indiceStats.productos}
+                    pares={indiceStats.pares}
+                    variant="hero"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -358,15 +403,51 @@ export default function DepositoDetailPage() {
       <DepositoTabs
         tabs={[
           { id: "analisis", label: "Análisis", icon: "📊" },
+          { id: "operativa", label: "Operativa", icon: "👟" },
+          { id: "filtros-indice", label: "Filtros por índice", icon: "📑" },
           { id: "articulos", label: "Artículos", icon: "📋" },
         ]}
         activeTab={activeTab}
-        onChange={(id) => setActiveTab(id as "analisis" | "articulos")}
+        onChange={handleTabChange}
       >
-        {/* Tab Análisis */}
         {activeTab === "analisis" && <TabAnalisis cliente_id={cliente_id} categoria={categoria} />}
 
-        {/* Tab Artículos */}
+        {activeTab === "operativa" && (
+          <TabOperativa
+            cliente_id={cliente_id}
+            categoria={categoria}
+            onStatsChange={setOperativaStats}
+            onExpandImage={(p) =>
+              p.imagen_nombre &&
+              setImagenExpandida({
+                nombre: p.imagen_nombre,
+                linea: p.linea_codigo_proveedor,
+                ref: p.referencia_codigo_proveedor,
+                material: p.material_code,
+                color: p.color_code,
+              })
+            }
+          />
+        )}
+
+        {activeTab === "filtros-indice" && (
+          <TabFiltrosIndice
+            cliente_id={cliente_id}
+            categoria={categoria}
+            onStatsChange={setIndiceStats}
+            onExpandImage={(p) =>
+              p.imagen_nombre &&
+              setImagenExpandida({
+                nombre: p.imagen_nombre,
+                linea: p.linea_codigo_proveedor,
+                ref: p.referencia_codigo_proveedor,
+                material: p.material_code,
+                color: p.color_code,
+              })
+            }
+          />
+        )}
+
         {activeTab === "articulos" && (
           <>
             {/* Filtros */}
