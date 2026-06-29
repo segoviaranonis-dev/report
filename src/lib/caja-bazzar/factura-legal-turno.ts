@@ -28,7 +28,7 @@ export function incrementarSerialAlfanumerico(serial: string): string {
   const m = s.match(/^(.*?)(\d+)$/);
   if (m) {
     const width = m[2].length;
-    const next = (BigInt(m[2]) + 1n).toString();
+    const next = (BigInt(m[2]) + BigInt(1)).toString();
     const padded = next.padStart(width, "0");
     return `${m[1]}${padded}`.slice(0, SERIAL_MAX_LEN);
   }
