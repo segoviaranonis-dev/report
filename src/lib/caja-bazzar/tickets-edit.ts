@@ -40,6 +40,9 @@ export type ActualizarTitularInput = {
   cedula: string;
   nombre: string;
   apellido?: string | null;
+  ruc?: string | null;
+  telefono?: string | null;
+  email?: string | null;
 };
 
 export async function actualizarTitularFacturaEmitida(
@@ -52,6 +55,15 @@ export async function actualizarTitularFacturaEmitida(
   if (!nombre) return { ok: false, error: "Nombre requerido" };
 
   const apellido = input.apellido?.trim() || null;
+  const ruc = input.ruc?.replace(/\D/g, "").trim() || null;
+  const telefono = input.telefono?.trim() || null;
+  const email = input.email?.trim().toLowerCase() || null;
+  if (telefono && (telefono.length < 6 || telefono.length > 20 || !/^[0-9+\-\s()]+$/.test(telefono))) {
+    return { ok: false, error: "Celular inválido (6–20 caracteres)" };
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(email)) {
+    return { ok: false, error: "Correo electrónico inválido" };
+  }
   const codigos = input.codigos.filter(Boolean);
   if (!codigos.length && input.stagingId == null) {
     return { ok: false, error: "Factura sin identificador" };
@@ -62,12 +74,17 @@ export async function actualizarTitularFacturaEmitida(
     nombre_cliente: nombre,
     apellido_cliente: apellido,
     cedula_cliente: cedula,
+    ruc_cliente: ruc,
+    telefono_cliente: telefono,
+    email_cliente: email,
   });
   const stagingSnap = JSON.stringify({
     nombre,
     apellido,
-    telefono: null,
+    telefono,
+    email,
     cedula,
+    ruc,
   });
 
   const client = await pool.connect();
@@ -115,6 +132,21 @@ export async function actualizarTitularFacturaEmitida(
             AND upper(btrim(estado)) IN ('PENDIENTE_CAJA', 'CSV_DESCARGADO')
         `,
         [stagingSnap, input.stagingId, input.clienteId],
+      );
+    }
+
+    if (ruc || telefono || email) {
+      await client.query(
+        `
+          UPDATE public.clients_bazaar
+          SET
+            ruc = CASE WHEN $1::text IS NOT NULL AND $1 <> '' THEN $1 ELSE ruc END,
+            telefono = CASE WHEN $2::text IS NOT NULL AND $2 <> '' THEN $2 ELSE telefono END,
+            email = CASE WHEN $3::text IS NOT NULL AND $3 <> '' THEN $3 ELSE email END,
+            updated_at = NOW()
+          WHERE cedula = $4
+        `,
+        [ruc, telefono, email, cedula],
       );
     }
 

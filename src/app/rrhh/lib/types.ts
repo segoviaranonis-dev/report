@@ -15,6 +15,8 @@ export interface Ente {
 export interface Funcionario {
   id_funcionario: number;
   ente_id: number;
+  id_cliente: number | null;
+  cliente_descp: string | null;
 
   // Personales
   nombres: string;

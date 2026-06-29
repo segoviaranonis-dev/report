@@ -36,7 +36,7 @@ python scripts/sincronizar_password_bzz_deposito.py
 | App | Archivos clave |
 |-----|----------------|
 | **Report** | `src/lib/auth/bzz-acceso.ts` · `validateUsuario.ts` · `middleware.ts` · `hub-modules.ts` · `ente-acceso.ts` · `/api/auth/me` |
-| **Tablet** | `lib/auth/bzz-acceso.ts` · `app/api/auth/login/route.ts` |
+| **Tablet** | `lib/auth/bzz-acceso.ts` · `app/api/auth/login/route.ts` · `lib/acceso-catalogo.ts` · `lib/usuario-deposito.ts` |
 | **RIMEC Web** | `rimec-web/lib/auth/roles.ts` → `puedeAccederRimecWeb()` |
 
 ---

@@ -25,6 +25,9 @@ export async function PATCH(req: NextRequest) {
     cedula?: string;
     nombre?: string;
     apellido?: string | null;
+    ruc?: string | null;
+    telefono?: string | null;
+    email?: string | null;
   };
   try {
     body = await req.json();
@@ -50,6 +53,9 @@ export async function PATCH(req: NextRequest) {
     cedula: body.cedula ?? "",
     nombre: body.nombre ?? "",
     apellido: body.apellido,
+    ruc: body.ruc,
+    telefono: body.telefono,
+    email: body.email,
   });
 
   if (!result.ok) return NextResponse.json(result, { status: 400 });

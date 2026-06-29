@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 const MODS = [
   { id: "operativa", label: "Caja operativa", sub: "Pendientes · CSV" },
   { id: "facturable", label: "Facturado", sub: "Archivo caja" },
+  { id: "empaque", label: "Empaque", sub: "Bobeda · control QC" },
   { id: "metricas", label: "Métricas", sub: "KPIs · movimientos" },
 ] as const;
 
@@ -23,7 +24,7 @@ export function CajaSubNav({ clienteId, label }: { clienteId: number; label: str
       </Link>
       <h1 className="mt-2 font-serif text-3xl font-light text-neutral-ink">Caja · {label}</h1>
       <p className="text-sm text-neutral-muted">Tienda {clienteId} · módulo cajero Bazzar</p>
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {MODS.map((m) => {
           const active = mod === m.id;
           const href = `${pathname}?mod=${m.id}`;

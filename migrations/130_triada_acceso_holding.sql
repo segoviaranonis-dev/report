@@ -1,0 +1,2 @@
+-- Espejo de control_central/migrations/130_triada_acceso_holding.sql
+-- Aplicar: python scripts/aplicar_migracion_130.py

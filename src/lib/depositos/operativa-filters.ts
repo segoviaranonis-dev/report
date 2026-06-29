@@ -1,6 +1,12 @@
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import type { DepositoFilterItem } from "@/app/api/depositos/[cliente_id]/filtros/route";
+import {
+  matchesGradaSelection,
+  normalizeGradaLabel,
+  sortGradaLabels,
+} from "@/lib/depositos/grada-operativa";
 import { colorPredominante } from "@/lib/pilares/color-canon";
+import { normalizePrecioUnitario } from "@/lib/depositos/precio-venta";
 
 export type CantidadOp = "gt" | "lt" | null;
 
@@ -58,6 +64,7 @@ export function normalizeDepositoRow(r: DepositoRow): DepositoRow {
     material_id: normFk(r.material_id) ?? r.material_id,
     color_id: normFk(r.color_id) ?? r.color_id,
     tono_etiqueta: r.tono_etiqueta?.trim() || null,
+    precio_unitario: normalizePrecioUnitario(r.precio_unitario),
   };
 }
 
@@ -104,18 +111,7 @@ function moleculeKeyOperativa(p: DepositoRow): string {
   return `${p.linea_codigo_proveedor}-${p.referencia_codigo_proveedor}-${p.material_code}-${p.color_code}`;
 }
 
-function parseGradaOperativa(grada: string): string {
-  return grada.trim();
-}
-
-function sortGradaLabels(a: string, b: string): number {
-  const na = Number(a);
-  const nb = Number(b);
-  if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-  return a.localeCompare(b, "es");
-}
-
-/** Filtra moléculas por pares totales o por suma en gradas elegidas. */
+/** Filtra moléculas por pares totales o por gradas elegidas (filas + card). */
 function applyCantidadGradaFilter(rows: DepositoRow[], f: OperativaFilterState): DepositoRow[] {
   const hasCantidad = f.cantidadOp != null && f.cantidadValor != null;
   const hasGradas = f.gradas.length > 0;
@@ -131,18 +127,13 @@ function applyCantidadGradaFilter(rows: DepositoRow[], f: OperativaFilterState):
 
   const kept = new Set<string>();
   for (const [key, items] of groups) {
-    const stockByGrada = new Map<string, number>();
-    for (const item of items) {
-      const g = parseGradaOperativa(item.grada);
-      stockByGrada.set(g, (stockByGrada.get(g) ?? 0) + item.cantidad);
-    }
+    const itemsGrada = hasGradas
+      ? items.filter((item) => matchesGradaSelection(f.gradas, item.grada))
+      : items;
 
-    if (hasGradas) {
-      const tieneStock = f.gradas.some((g) => (stockByGrada.get(g) ?? 0) > 0);
-      if (!tieneStock) continue;
-    }
+    if (hasGradas && itemsGrada.length === 0) continue;
 
-    const paresTotal = items.reduce((s, i) => s + i.cantidad, 0);
+    const paresTotal = (hasGradas ? itemsGrada : items).reduce((s, i) => s + i.cantidad, 0);
 
     if (hasCantidad && f.cantidadValor != null && f.cantidadOp) {
       if (f.cantidadOp === "gt" && !(paresTotal > f.cantidadValor)) continue;
@@ -152,13 +143,18 @@ function applyCantidadGradaFilter(rows: DepositoRow[], f: OperativaFilterState):
     kept.add(key);
   }
 
-  return rows.filter((r) => kept.has(moleculeKeyOperativa(r)));
+  return rows.filter((r) => {
+    const key = moleculeKeyOperativa(r);
+    if (!kept.has(key)) return false;
+    if (hasGradas) return matchesGradaSelection(f.gradas, r.grada);
+    return true;
+  });
 }
 
 export function listGradasOperativa(rows: DepositoRow[]): string[] {
   const set = new Set<string>();
   for (const r of rows) {
-    const g = parseGradaOperativa(r.grada);
+    const g = normalizeGradaLabel(r.grada);
     if (g) set.add(g);
   }
   return Array.from(set).sort(sortGradaLabels);

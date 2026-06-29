@@ -85,6 +85,25 @@ export function PilaresHubClient() {
             Etapa 2.3.5.3 · 🟢 abierta
           </p>
         </Link>
+
+        {process.env.NODE_ENV === "development" && (
+          <Link
+            href="/pilares/usuarios"
+            className="group block rounded-2xl border-2 border-amber-400/50 bg-card-bg p-8 shadow-sm transition-all hover:-translate-y-1 hover:border-amber-500 hover:shadow-lg sm:col-span-2"
+          >
+            <div className="mb-4 text-4xl">👤</div>
+            <h2 className="font-serif text-2xl font-semibold text-rimec-azul-dark group-hover:text-rimec-azul">
+              Administrador de Usuarios
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-neutral-700">
+              <strong>Solo local</strong> — roles (<code className="text-xs">maestro_rol_acceso</code>) y categorías (
+              <code className="text-xs">usuario_categoria</code>). <strong>No se sube a producción.</strong>
+            </p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-amber-700">
+              Etapa 2.3.5.4 · LOCAL · NEW
+            </p>
+          </Link>
+        )}
       </div>
     </>
   );

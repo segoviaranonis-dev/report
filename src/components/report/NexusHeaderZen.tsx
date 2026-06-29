@@ -78,8 +78,10 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   const router = useRouter();
   const [rolId, setRolId] = useState<number | null>(null);
   const [categoria, setCategoria] = useState<string | null>(null);
+  const [enteCodigo, setEnteCodigo] = useState<number | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [visible, setVisible] = useState(true);
+  /** Oculto por defecto — no bajar en cada cambio de módulo; solo hover arriba. */
+  const [visible, setVisible] = useState(false);
   const hoverRef = useRef(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,8 +92,12 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
         if (data?.authenticated) {
           setRolId(Number(data.user?.rol_id) || 0);
           setCategoria(data.user?.categoria ?? data.user?.role ?? null);
+          setEnteCodigo(
+            data.user?.ente_codigo != null ? Number(data.user.ente_codigo) : null,
+          );
         } else {
           setRolId(null);
+          setEnteCodigo(null);
         }
       })
       .catch(() => setRolId(null));
@@ -114,7 +120,6 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
         scheduleHide();
       }
     };
-    scheduleHide();
     window.addEventListener("mousemove", onMouseMove);
     return () => {
       clearHideTimer();
@@ -135,7 +140,9 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
 
   const canDios = rolId != null && canAccessAprobaciones(rolId, categoria);
   const visibleModules =
-    rolId == null ? [] : filterHubModules(REPORT_HUB_MODULES, rolId, categoria, canDios);
+    rolId == null
+      ? []
+      : filterHubModules(REPORT_HUB_MODULES, rolId, categoria, canDios, enteCodigo);
 
   const headerGroups = HEADER_GROUP_ORDER.map((group) => ({
     group,
@@ -160,8 +167,8 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
           hoverRef.current = false;
           setVisible(false);
         }}
-        className={`fixed top-0 z-50 w-full border-b-4 border-rimec-azul bg-white shadow-lg transition-transform duration-300 ease-out ${
-          visible ? "translate-y-0" : "-translate-y-[calc(100%-6px)]"
+        className={`fixed top-0 z-50 w-full border-b-4 border-rimec-azul bg-white shadow-lg transition-transform duration-200 ease-out ${
+          visible ? "translate-y-0" : "-translate-y-full"
         }`}
       >
         <div className={`mx-auto ${maxWidthClass}`}>

@@ -103,9 +103,36 @@ export function parseImagenMolecula(imagen: string | null | undefined): ImagenPa
 }
 
 /**
- * Genera candidatos de URLs para imagen
- * Retorna array con URL principal y fallbacks
+ * Genera candidatos de URLs para imagen (sm → md → flat → thumbs).
  */
 export function getImagenCandidates(imagen: string | null | undefined): string[] {
   return imagenNombreToCandidates(imagen, "thumb");
+}
+
+/** Mismo set que getImagenCandidates pero flat/legacy primero — clave para PDF y grillas. */
+export function getImagenCandidatesFlatFirst(imagen: string | null | undefined): string[] {
+  return prioritizeFlatStorageUrls(getImagenCandidates(imagen));
+}
+
+export function mergeImageCandidatesFlatFirst(...groups: string[][]): string[] {
+  const out: string[] = [];
+  for (const group of groups) {
+    for (const u of group) {
+      if (u && !out.includes(u)) out.push(u);
+    }
+  }
+  return prioritizeFlatStorageUrls(out);
+}
+
+function prioritizeFlatStorageUrls(urls: string[]): string[] {
+  const isFlat = (u: string) => {
+    try {
+      return /\/productos\/[^/]+\.(jpe?g|png|webp)$/i.test(new URL(u).pathname);
+    } catch {
+      return false;
+    }
+  };
+  const flat = urls.filter(isFlat);
+  const tiered = urls.filter((u) => !flat.includes(u));
+  return [...flat, ...tiered];
 }

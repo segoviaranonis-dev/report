@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TicketPosRow } from "@/lib/caja-bazzar/tickets-db";
 import {
+  calcTotalesFacturaPos,
   facturaDisplayId,
   groupTicketsByFactura,
   titularFacturaPos,
   type FacturaPosHeader,
 } from "@/lib/caja-bazzar/group-facturas";
+import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 import { PosFiLineaRow } from "@/components/caja-bazzar/PosFiLineaRow";
 
 function fmtHora(iso: string) {
@@ -23,6 +25,13 @@ type Props = {
   modo: "operativa" | "facturable" | "metricas";
 };
 
+type MetricasState = {
+  pares_hoy: number;
+  pendientes_caja: number;
+  en_bobeda: number;
+  movimientos: TicketPosRow[];
+};
+
 export function TicketsPanel({ clienteId, modo }: Props) {
   const estado = modo === "facturable" ? "FACTURADO" : modo === "operativa" ? "EMITIDO" : null;
   const [tickets, setTickets] = useState<TicketPosRow[]>([]);
@@ -32,10 +41,33 @@ export function TicketsPanel({ clienteId, modo }: Props) {
   const [cedula, setCedula] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [metricas, setMetricas] = useState<MetricasState | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
+
+    if (modo === "metricas") {
+      fetch(`/api/tablet-bazzar/metricas?cliente_id=${clienteId}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.ok) {
+            setError(data.error ?? "Error métricas");
+            setMetricas(null);
+            return;
+          }
+          setMetricas({
+            pares_hoy: data.pares_hoy ?? 0,
+            pendientes_caja: data.pendientes_caja ?? 0,
+            en_bobeda: data.en_bobeda ?? 0,
+            movimientos: data.movimientos ?? [],
+          });
+        })
+        .catch(() => setError("Error de red"))
+        .finally(() => setLoading(false));
+      return;
+    }
+
     const q = new URLSearchParams({
       cliente_id: String(clienteId),
       limit: "100",
@@ -59,7 +91,7 @@ export function TicketsPanel({ clienteId, modo }: Props) {
       .finally(() => {
         setLoading(false);
       });
-  }, [clienteId, estado, cedula]);
+  }, [clienteId, estado, cedula, modo]);
 
   /** Al entrar a la caja: consulta BD pendientes. Actualizar = otro cliente desde tablet. */
   useEffect(() => {
@@ -123,7 +155,14 @@ export function TicketsPanel({ clienteId, modo }: Props) {
 
   async function guardarTitularFactura(
     f: FacturaPosHeader,
-    payload: { cedula: string; nombre: string; apellido: string },
+    payload: {
+      cedula: string;
+      nombre: string;
+      apellido: string;
+      ruc: string;
+      telefono: string;
+      email: string;
+    },
   ) {
     setBusyKey(f.key);
     setMsg(null);
@@ -138,6 +177,9 @@ export function TicketsPanel({ clienteId, modo }: Props) {
           cedula: payload.cedula,
           nombre: payload.nombre,
           apellido: payload.apellido || null,
+          ruc: payload.ruc || null,
+          telefono: payload.telefono || null,
+          email: payload.email || null,
         }),
       });
       const data = await r.json();
@@ -179,6 +221,12 @@ export function TicketsPanel({ clienteId, modo }: Props) {
   }
 
   async function enviarFacturaEmpaque(f: FacturaPosHeader) {
+    const tot = calcTotalesFacturaPos(f);
+    const montoTxt = formatPrecioGs(tot.monto);
+    const ok = window.confirm(
+      `¿Enviar a Bóveda ORO?\n\n${tot.articulos} par${tot.articulos === 1 ? "" : "es"} · ${montoTxt}\n\nCada artículo pasa a bobeda_venta_pos con pilares, snapshot y precio — base para análisis de ventas y Empaque.`,
+    );
+    if (!ok) return;
     setBusyKey(f.key);
     setMsg(null);
     try {
@@ -197,7 +245,7 @@ export function TicketsPanel({ clienteId, modo }: Props) {
         return;
       }
       setMsg(
-        `Factura ${facturaDisplayId(f)} → Empaque (${data.inserted} par${data.inserted === 1 ? "" : "es"} en Bobeda)`,
+        `Factura ${facturaDisplayId(f)} → Bóveda ORO (${data.inserted} par${data.inserted === 1 ? "" : "es"} · análisis ventas)`,
       );
       load();
     } catch {
@@ -208,11 +256,12 @@ export function TicketsPanel({ clienteId, modo }: Props) {
   }
 
   if (modo === "metricas") {
+    const m = metricas ?? { pares_hoy: 0, pendientes_caja: 0, en_bobeda: 0, movimientos: [] };
     return (
       <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard label="Pares hoy" value={pares} accent />
-        <MetricCard label="Pendientes caja" value={pendientes} />
-        <MetricCard label="En Bobeda (vista)" value={enBobeda} />
+        <MetricCard label="Pares hoy" value={m.pares_hoy} accent />
+        <MetricCard label="Pendientes caja" value={m.pendientes_caja} />
+        <MetricCard label="En Bobeda (vista)" value={m.en_bobeda} />
         <div className="sm:col-span-3 flex justify-end">
           <button
             type="button"
@@ -223,13 +272,16 @@ export function TicketsPanel({ clienteId, modo }: Props) {
             {loading ? "…" : "Actualizar"}
           </button>
         </div>
+        {error && <p className="sm:col-span-3 text-sm text-red-700">{error}</p>}
         <div className="sm:col-span-3 rounded-2xl border border-slate-200 bg-white p-6">
           <h3 className="mb-3 font-semibold text-neutral-ink">Últimos movimientos</h3>
           {loading ? (
             <p className="text-neutral-muted">Cargando…</p>
+          ) : m.movimientos.length === 0 ? (
+            <p className="text-neutral-muted">Sin movimientos hoy en Bobeda.</p>
           ) : (
             <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
-              {tickets.slice(0, 15).map((t) => (
+              {m.movimientos.map((t) => (
                 <li key={t.codigo_ticket} className="flex justify-between gap-2 border-b border-slate-100 py-2">
                   <span>
                     {fmtHora(t.created_at)} · {t.linea_codigo}.{t.referencia_codigo} G.{t.grada}
@@ -353,11 +405,20 @@ function FacturaPosCard({
   busyLineaPrefix: string | null;
   onDescargar: () => void;
   onFacturar: () => void;
-  onGuardarTitular: (payload: { cedula: string; nombre: string; apellido: string }) => void;
+  onGuardarTitular: (payload: {
+    cedula: string;
+    nombre: string;
+    apellido: string;
+    ruc: string;
+    telefono: string;
+    email: string;
+  }) => void;
   onEliminarLinea: (codigoTicket: string) => void;
 }) {
   const id = facturaDisplayId(f);
   const titular = titularFacturaPos(f);
+  const totales = calcTotalesFacturaPos(f);
+  const montoParcial = totales.monto != null && totales.lineasConPrecio < totales.articulos;
   const sinNombre = !f.nombre_cliente?.trim() || f.nombre_cliente.startsWith("CI ");
   const partes = (f.nombre_cliente?.trim() && !f.nombre_cliente.startsWith("CI ")
     ? f.nombre_cliente
@@ -365,15 +426,21 @@ function FacturaPosCard({
   ).split(/\s+/);
   const [editTitular, setEditTitular] = useState(false);
   const [cedulaEdit, setCedulaEdit] = useState(f.cedula_cliente ?? "");
+  const [rucEdit, setRucEdit] = useState(f.ruc_cliente ?? "");
+  const [telefonoEdit, setTelefonoEdit] = useState(f.telefono_cliente ?? "");
+  const [emailEdit, setEmailEdit] = useState(f.email_cliente ?? "");
   const [nombreEdit, setNombreEdit] = useState(partes[0] ?? "");
   const [apellidoEdit, setApellidoEdit] = useState(partes.slice(1).join(" "));
 
   useEffect(() => {
     setCedulaEdit(f.cedula_cliente ?? "");
+    setRucEdit(f.ruc_cliente ?? "");
+    setTelefonoEdit(f.telefono_cliente ?? "");
+    setEmailEdit(f.email_cliente ?? "");
     setNombreEdit(partes[0] ?? "");
     setApellidoEdit(partes.slice(1).join(" "));
     setEditTitular(false);
-  }, [f.key, f.cedula_cliente, f.nombre_cliente]);
+  }, [f.key, f.cedula_cliente, f.ruc_cliente, f.telefono_cliente, f.email_cliente, f.nombre_cliente]);
 
   return (
     <li className="overflow-hidden rounded-xl border-2 border-neutral-300 bg-card-bg shadow-md">
@@ -399,17 +466,54 @@ function FacturaPosCard({
                 {titular}
               </p>
               {f.cedula_cliente && !editTitular && (
-                <p className="mt-1 text-sm font-semibold tabular-nums text-neutral-600">CI {f.cedula_cliente}</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-neutral-600">
+                  CI {f.cedula_cliente}
+                  {f.ruc_cliente ? (
+                    <span className="ml-3 text-neutral-500">· RUC {f.ruc_cliente}</span>
+                  ) : null}
+                </p>
+              )}
+              {!editTitular && (
+                <div className="mt-3 rounded-xl border-[3px] border-sky-400 bg-sky-50 px-3 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-900">
+                    Contacto · confirmá con el cliente
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-sky-800">Celular</p>
+                      <p className="text-xl font-black tabular-nums text-sky-950">
+                        {f.telefono_cliente?.trim() || "— sin celular —"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase text-sky-800">Correo</p>
+                      <p className="break-all text-base font-bold text-sky-950">
+                        {f.email_cliente?.trim() || "— sin correo —"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
               {editTitular && (
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <label className="block sm:col-span-3">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="block">
                     <span className="text-[10px] font-bold uppercase text-neutral-muted">Cédula factura</span>
                     <input
                       type="text"
                       inputMode="numeric"
                       value={cedulaEdit}
                       onChange={(e) => setCedulaEdit(e.target.value.replace(/\D/g, ""))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase text-neutral-muted">RUC</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={rucEdit}
+                      onChange={(e) => setRucEdit(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Opcional"
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     />
                   </label>
@@ -422,7 +526,7 @@ function FacturaPosCard({
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     />
                   </label>
-                  <label className="block sm:col-span-2">
+                  <label className="block">
                     <span className="text-[10px] font-bold uppercase text-neutral-muted">Apellido</span>
                     <input
                       type="text"
@@ -431,7 +535,28 @@ function FacturaPosCard({
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     />
                   </label>
-                  <div className="flex flex-wrap gap-2 sm:col-span-3">
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase text-sky-800">Celular</span>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={telefonoEdit}
+                      onChange={(e) => setTelefonoEdit(e.target.value)}
+                      className="mt-1 w-full rounded-lg border-2 border-sky-300 px-3 py-2 text-lg font-bold tabular-nums"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase text-sky-800">Correo</span>
+                    <input
+                      type="email"
+                      inputMode="email"
+                      value={emailEdit}
+                      onChange={(e) => setEmailEdit(e.target.value)}
+                      placeholder="Opcional"
+                      className="mt-1 w-full rounded-lg border-2 border-sky-300 px-3 py-2 text-base font-semibold"
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2 sm:col-span-2">
                     <button
                       type="button"
                       disabled={busy}
@@ -440,6 +565,9 @@ function FacturaPosCard({
                           cedula: cedulaEdit,
                           nombre: nombreEdit,
                           apellido: apellidoEdit,
+                          ruc: rucEdit,
+                          telefono: telefonoEdit,
+                          email: emailEdit,
                         })
                       }
                       className="rounded-lg bg-rimec-azul px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
@@ -457,17 +585,47 @@ function FacturaPosCard({
                 </div>
               )}
 
-              <p className="mt-2 text-sm font-bold text-bazzar-naranja">
-                {f.pares} par{f.pares === 1 ? "" : "es"} · {f.marca} · {fmtHora(f.created_at)}
+              <p className="mt-2 text-sm text-neutral-muted">
+                {f.marca} · {fmtHora(f.created_at)}
               </p>
             </div>
 
-            <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase text-amber-900">
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:w-[220px]">
+              <span className="self-start rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase text-amber-900 sm:self-end">
                 Pendiente caja
               </span>
+
+              <div
+                className="rounded-2xl border-[3px] border-bazzar-naranja bg-gradient-to-br from-orange-50 via-white to-orange-100/80 px-4 py-4 text-center shadow-lg ring-2 ring-bazzar-naranja/15"
+                role="status"
+                aria-label={`Total ${formatPrecioGs(totales.monto)}, ${totales.articulos} artículos`}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-bazzar-naranja-dark">
+                  Total factura
+                </p>
+                <p className="mt-1 text-4xl font-black tabular-nums leading-none text-bazzar-naranja-dark sm:text-[2.75rem]">
+                  {formatPrecioGs(totales.monto)}
+                </p>
+                {montoParcial && (
+                  <p className="mt-1 text-[10px] font-semibold text-amber-800">
+                    Parcial · {totales.lineasConPrecio}/{totales.articulos} con precio
+                  </p>
+                )}
+                <div className="mt-3 border-t-2 border-bazzar-naranja/25 pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-rimec-azul">
+                    Artículos
+                  </p>
+                  <p className="mt-0.5 text-3xl font-black tabular-nums leading-none text-rimec-azul">
+                    {totales.articulos}
+                    <span className="ml-1 text-sm font-bold uppercase text-rimec-azul/70">
+                      par{totales.articulos === 1 ? "" : "es"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
               <span
-                className="inline-block text-lg leading-none text-neutral-400 transition group-open:rotate-180"
+                className="hidden self-end text-lg leading-none text-neutral-400 transition group-open:rotate-180 sm:inline-block"
                 aria-hidden
               >
                 ▾
@@ -497,11 +655,34 @@ function FacturaPosCard({
           </div>
 
           <p className="mt-3 max-w-xl rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold leading-snug text-slate-700">
-            1) Corregí titular/CI si factura a nombre de otra persona · 2) CSV → facturador · 3) Cobrá · 4) Enviar a Empaque.
-            Podés quitar pares (no agregar). Agregar pares solo en tablet.
+            1) Corregí titular/CI · 2) CSV → facturador · 3) Cobrá · 4){" "}
+            <strong className="text-rimec-azul">Enviar a Empaque</strong> → Bóveda ORO (permanente).
+            Podés quitar pares antes del paso 4. Agregar pares solo en tablet.
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-neutral-200/80 pt-4">
+          <div className="mt-4 space-y-3 border-t border-neutral-200/80 pt-4">
+            <div className="rounded-xl border-2 border-emerald-600/40 bg-gradient-to-r from-emerald-50 to-white p-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-800">
+                Paso clave · Bóveda ORO
+              </p>
+              <p className="mt-1 text-sm text-emerald-950">
+                Registro permanente en <span className="font-mono text-xs">bobeda_venta_pos</span> — cada par con
+                L·R·material·color·grada, foto, precio y titular congelados para análisis de ventas.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onFacturar();
+                }}
+                className="mt-3 w-full rounded-xl bg-emerald-700 px-5 py-3.5 text-base font-black uppercase tracking-wide text-white shadow-md hover:bg-emerald-800 disabled:opacity-50 sm:w-auto"
+              >
+                {busy ? "Enviando…" : "Enviar a Empaque → Bóveda ORO"}
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
             {!editTitular && (
               <button
                 type="button"
@@ -526,17 +707,7 @@ function FacturaPosCard({
             >
               Descargar factura (CSV)
             </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={(e) => {
-                e.preventDefault();
-                onFacturar();
-              }}
-              className="rounded-lg border-2 border-rimec-azul px-4 py-2 text-sm font-bold text-rimec-azul disabled:opacity-40"
-            >
-              Enviar a Empaque
-            </button>
+            </div>
           </div>
         </div>
 

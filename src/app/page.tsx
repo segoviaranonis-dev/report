@@ -122,6 +122,7 @@ export default function HomePage() {
   const router = useRouter();
   const [rolId, setRolId] = useState<number | null>(null);
   const [categoria, setCategoria] = useState<string | null>(null);
+  const [enteCodigo, setEnteCodigo] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -131,6 +132,9 @@ export default function HomePage() {
           const userRolId = data.user.rol_id || 1;
           setRolId(userRolId);
           setCategoria(data.user.categoria || "ADMIN");
+          setEnteCodigo(
+            data.user.ente_codigo != null ? Number(data.user.ente_codigo) : null,
+          );
           if (userRolId === 2) router.replace("/retail");
           else if (userRolId === 3) router.replace("/ventas-fotos");
         } else {
@@ -145,7 +149,7 @@ export default function HomePage() {
   }
 
   const canDios = canAccessAprobaciones(rolId, categoria);
-  const visible = filterHubModules(REPORT_HUB_MODULES, rolId, categoria, canDios);
+  const visible = filterHubModules(REPORT_HUB_MODULES, rolId, categoria, canDios, enteCodigo);
   const rimecModules = modulesByGroup(visible, "rimec");
   const bazzarModules = modulesByGroup(visible, "bazzar");
   const bazzarWebModules = modulesByGroup(visible, "bazzar-web");

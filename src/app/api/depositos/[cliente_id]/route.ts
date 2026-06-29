@@ -4,6 +4,7 @@ import {
   parseCategoriaDeposito,
 } from "@/lib/depositos/depositos-config";
 import { normalizeDepositoRow } from "@/lib/depositos/operativa-filters";
+import { requireDepositoClienteAccess } from "@/lib/depositos/depositos-session";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 export type DepositoRow = {
@@ -31,6 +32,8 @@ export type DepositoRow = {
   tipo_v2_id: number | null;
   tono_etiqueta: string | null;
   tipo_1: string | null;
+  /** Precio venta tienda (LPN CSV → precio_unitario). */
+  precio_unitario: number | null;
 };
 
 /**
@@ -54,6 +57,15 @@ export async function GET(
 
   const { cliente_id: clienteIdStr } = await params;
   const cliente_id = parseInt(clienteIdStr);
+
+  const gate = await requireDepositoClienteAccess(cliente_id);
+  if (!gate.ok) {
+    return NextResponse.json(
+      { configured: true, productos: [], error: gate.error },
+      { status: gate.status },
+    );
+  }
+
   const categoria = parseCategoriaDeposito(new URL(req.url).searchParams.get("categoria"));
   const config = getDepositoConfig(cliente_id, categoria);
 
@@ -138,6 +150,7 @@ export async function GET(
           NULLIF(btrim(mat.descripcion::text), '') AS descp_material,
           NULLIF(btrim(col.nombre::text), '') AS descp_color,
           NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
+          NULLIF(s.precio_unitario, 0)::float8 AS precio_unitario,
           ROW_NUMBER() OVER (PARTITION BY s.marca_id ORDER BY s.cantidad DESC) AS rank_por_marca
         FROM public.${tabla} s
         LEFT JOIN public.material mat ON mat.id = s.material_id
@@ -173,7 +186,8 @@ export async function GET(
         tipo_1,
         descp_material,
         descp_color,
-        imagen_nombre
+        imagen_nombre,
+        precio_unitario
       FROM ranked_products
       ${whereClause}
       ORDER BY marca, cantidad DESC

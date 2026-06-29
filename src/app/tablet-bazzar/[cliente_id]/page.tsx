@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { CajaSubNav, type CajaMod } from "@/components/caja-bazzar/CajaSubNav";
 import { TicketsPanel } from "@/components/caja-bazzar/TicketsPanel";
+import { EmpaquePanel } from "@/components/caja-bazzar/EmpaquePanel";
 import { getCajaTienda, isCajaClienteId } from "@/lib/caja-bazzar/tiendas";
 
 function CajaTiendaInner({ clienteId, mod }: { clienteId: number; mod: CajaMod }) {
@@ -18,14 +19,18 @@ function CajaTiendaInner({ clienteId, mod }: { clienteId: number; mod: CajaMod }
         <Suspense fallback={<div className="h-32 animate-pulse rounded-2xl bg-slate-200" />}>
           <CajaSubNav clienteId={clienteId} label={tienda.label} />
         </Suspense>
-        <TicketsPanel clienteId={clienteId} modo={mod} />
+        {mod === "empaque" ? (
+          <EmpaquePanel clienteId={clienteId} modoCronometro />
+        ) : (
+          <TicketsPanel clienteId={clienteId} modo={mod} />
+        )}
       </main>
     </div>
   );
 }
 
 function parseMod(raw: string | null): CajaMod {
-  if (raw === "facturable" || raw === "metricas") return raw;
+  if (raw === "facturable" || raw === "metricas" || raw === "empaque") return raw;
   return "operativa";
 }
 

@@ -1,5 +1,5 @@
 /** Bump invalida todas las sesiones Report (protocolo governance). */
-export const REPORT_SESSION_VERSION = 3
+export const REPORT_SESSION_VERSION = 4
 
 /** Reversiones holding — debe coincidir con NEXUS_HOLDING_REVERSAL en servidor. */
 export function holdingReversalEnabled(): boolean {

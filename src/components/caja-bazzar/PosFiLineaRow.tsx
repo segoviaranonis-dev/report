@@ -1,6 +1,7 @@
 "use client";
 
 import type { TicketPosRow } from "@/lib/caja-bazzar/tickets-db";
+import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 
 type Props = {
   linea: TicketPosRow;
@@ -50,10 +51,18 @@ export function PosFiLineaRow({ linea, onEliminar, eliminando }: Props) {
             ? ` · ${linea.descp_material || linea.material_code}`
             : ""}
         </div>
-        <div className="mt-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">Grada</span>
-          <div className="mt-0.5 inline-block rounded-md border border-rimec-azul/30 bg-rimec-azul/5 px-2.5 py-1 font-mono text-sm font-bold text-rimec-azul-dark">
-            G.{linea.grada}
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">Grada</span>
+            <div className="mt-0.5 inline-block rounded-md border border-rimec-azul/30 bg-rimec-azul/5 px-2.5 py-1 font-mono text-sm font-bold text-rimec-azul-dark">
+              G.{linea.grada}
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-bazzar-naranja-dark">Precio</span>
+            <div className="mt-0.5 font-black tabular-nums text-bazzar-naranja-dark">
+              {formatPrecioGs(linea.precio_unitario)}
+            </div>
           </div>
         </div>
       </div>

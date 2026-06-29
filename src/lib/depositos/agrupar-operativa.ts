@@ -1,4 +1,7 @@
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
+import { lookupCasoLinea } from "@/lib/depositos/caso-biblioteca";
+import { normalizeGradaLabel, sortGradaLabels } from "@/lib/depositos/grada-operativa";
+import { resolvePrecioGrupoLRM } from "@/lib/depositos/precio-venta";
 
 export type ProductoOperativaCard = {
   key: string;
@@ -7,6 +10,10 @@ export type ProductoOperativaCard = {
   stock: number[];
   totalPares: number;
   estilo: string;
+  /** Precio venta por par (LPN CSV · mismo en L+R+material). */
+  precioVenta: number | null;
+  /** Caso comercial motor (BCL · por línea). */
+  casoComercial: string | null;
 };
 
 function moleculeKey(p: DepositoRow): string {
@@ -17,7 +24,10 @@ function parseTalla(grada: string): string {
   return grada.trim();
 }
 
-export function agruparProductosOperativa(rows: DepositoRow[]): ProductoOperativaCard[] {
+export function agruparProductosOperativa(
+  rows: DepositoRow[],
+  casoPorLinea?: Map<string, string> | null,
+): ProductoOperativaCard[] {
   const map = new Map<string, DepositoRow[]>();
 
   for (const row of rows) {
@@ -34,12 +44,7 @@ export function agruparProductosOperativa(rows: DepositoRow[]): ProductoOperativ
       stockMap.set(talla, (stockMap.get(talla) ?? 0) + item.cantidad);
     }
 
-    const tallas = Array.from(stockMap.keys()).sort((a, b) => {
-      const na = Number(a);
-      const nb = Number(b);
-      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-      return a.localeCompare(b, "es");
-    });
+    const tallas = Array.from(stockMap.keys()).sort(sortGradaLabels);
 
     const stock = tallas.map((t) => stockMap.get(t) ?? 0);
 
@@ -50,6 +55,8 @@ export function agruparProductosOperativa(rows: DepositoRow[]): ProductoOperativ
       stock,
       totalPares: stock.reduce((s, n) => s + n, 0),
       estilo: items[0].estilo,
+      precioVenta: resolvePrecioGrupoLRM(items),
+      casoComercial: lookupCasoLinea(casoPorLinea, items[0].linea_codigo_proveedor),
     };
   }).sort((a, b) => {
     const dp = b.totalPares - a.totalPares;

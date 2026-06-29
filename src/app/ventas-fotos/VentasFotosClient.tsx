@@ -24,7 +24,7 @@ import type {
 } from "@/lib/ventas-fotos/types";
 import { chartColorAt, RIMEC_RECHARTS_TOOLTIP } from "@/app/rimec/chart-theme";
 import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
-import { getImagenCandidates } from "@/lib/ventas-fotos/parse-imagen";
+import { getImagenCandidatesFlatFirst } from "@/lib/ventas-fotos/parse-imagen";
 
 const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 const fmtPct = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
@@ -97,11 +97,20 @@ async function readPdfResponse(res: Response): Promise<Blob> {
   if (res.ok && contentType.includes("application/pdf")) {
     return res.blob();
   }
+  const bodyText = await res.text();
   if (contentType.includes("application/json")) {
-    const json = (await res.json()) as { error?: string; message?: string };
-    throw new Error(json.error ?? json.message ?? "Error al generar PDF");
+    try {
+      const json = JSON.parse(bodyText) as { error?: string; message?: string };
+      throw new Error(json.error ?? json.message ?? "Error al generar PDF");
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        // Vercel a veces responde text/plain con Content-Type json
+      } else if (e instanceof Error) {
+        throw e;
+      }
+    }
   }
-  const snippet = (await res.text()).slice(0, 100).replace(/\s+/g, " ");
+  const snippet = bodyText.slice(0, 100).replace(/\s+/g, " ");
   if (res.status === 504 || res.status === 503) {
     throw new Error("El PDF tardó demasiado en Vercel (timeout). Los datos del informe siguen válidos.");
   }
@@ -164,17 +173,11 @@ export function VentasFotosClient() {
   useEffect(() => {
     fetch("/api/ventas-fotos/meta", { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => {
-        const contentType = r.headers.get("content-type") ?? "";
-        if (!contentType.includes("application/json")) {
-          throw new Error(`La API de marcas respondió ${r.status} sin JSON`);
-        }
-        const json = (await r.json()) as VentasFotosMetaResponse;
-        if (!r.ok) {
-          throw new Error(json.message ?? `Error HTTP ${r.status} leyendo marcas`);
-        }
-        return json;
+        const j = await readJsonResponse<VentasFotosMetaResponse>(r);
+        if (!r.ok) throw new Error(j.message ?? `Error HTTP ${r.status} leyendo marcas`);
+        return j;
       })
-      .then((j: VentasFotosMetaResponse) => {
+      .then((j) => {
         setMeta(j);
         const firstMarca = j.marcas[0]?.id_marca ?? 0;
         if (firstMarca) setFilters((f) => ({ ...f, marcaId: firstMarca }));
@@ -751,7 +754,7 @@ function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
           {rows.map((row, idx) => {
             const thumbCandidates = row.imagen_valid
               ? (() => {
-                  const c = getImagenCandidates(row.imagen);
+                  const c = getImagenCandidatesFlatFirst(row.imagen);
                   return c.length > 0 ? c : [row.image_url];
                 })()
               : [];

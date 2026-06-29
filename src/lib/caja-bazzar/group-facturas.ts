@@ -8,6 +8,9 @@ export type FacturaPosHeader = {
   numero_fi_fa: number | null;
   numero_factura_legal: string | null;
   cedula_cliente: string | null;
+  ruc_cliente: string | null;
+  telefono_cliente: string | null;
+  email_cliente: string | null;
   nombre_cliente: string | null;
   vendedor_nombre: string | null;
   marca: string;
@@ -34,6 +37,9 @@ export function groupTicketsByFactura(tickets: TicketPosRow[]): FacturaPosHeader
         numero_fi_fa: t.numero_fi_fa,
         numero_factura_legal: t.numero_factura_legal,
         cedula_cliente: t.cedula_cliente,
+        ruc_cliente: t.ruc_cliente,
+        telefono_cliente: t.telefono_cliente,
+        email_cliente: t.email_cliente,
         nombre_cliente: t.nombre_cliente,
         vendedor_nombre: t.vendedor_nombre,
         marca: t.marca,
@@ -56,6 +62,15 @@ export function groupTicketsByFactura(tickets: TicketPosRow[]): FacturaPosHeader
     if (t.numero_factura_legal?.trim() && !h.numero_factura_legal) {
       h.numero_factura_legal = t.numero_factura_legal.trim();
     }
+    if (t.ruc_cliente?.trim() && !h.ruc_cliente) {
+      h.ruc_cliente = t.ruc_cliente.trim();
+    }
+    if (t.telefono_cliente?.trim() && !h.telefono_cliente) {
+      h.telefono_cliente = t.telefono_cliente.trim();
+    }
+    if (t.email_cliente?.trim() && !h.email_cliente) {
+      h.email_cliente = t.email_cliente.trim();
+    }
   }
 
   return [...map.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -75,4 +90,26 @@ export function titularFacturaPos(f: FacturaPosHeader): string {
   const n = f.nombre_cliente?.trim();
   if (n && !n.startsWith("CI ")) return n;
   return f.cedula_cliente ? `Cliente CI ${f.cedula_cliente}` : "Cliente sin nombre";
+}
+
+/** Totales factura POS — 1 línea bandeja = 1 par · precio_unitario por ítem. */
+export function calcTotalesFacturaPos(f: FacturaPosHeader): {
+  articulos: number;
+  monto: number | null;
+  lineasConPrecio: number;
+} {
+  let monto = 0;
+  let lineasConPrecio = 0;
+  for (const l of f.lineas) {
+    const p = l.precio_unitario;
+    if (p != null && Number.isFinite(p) && p > 0) {
+      monto += p;
+      lineasConPrecio += 1;
+    }
+  }
+  return {
+    articulos: f.lineas.length,
+    monto: lineasConPrecio > 0 ? monto : null,
+    lineasConPrecio,
+  };
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SessionData } from "@/lib/auth/session";
 import { CAJA_CLIENTE_IDS, type CajaClienteId, getCajaTienda, isCajaClienteId } from "./tiendas";
+import { resolveClienteIdFromSession } from "./usuario-tienda";
 
 export type CajaAccess = {
   ok: true;
@@ -65,7 +66,14 @@ export function resolveCajaAccess(session: SessionData | null): CajaAccess | Caj
   }
 
   const map = parseTiendaMap();
-  const assigned = map[session.id_usuario];
+  const fromMap = map[session.id_usuario];
+  const fromProfile = resolveClienteIdFromSession({
+    name: session.name,
+    id_usuario: session.id_usuario,
+    rol_id: session.rol_id,
+    role: session.role,
+  });
+  const assigned = fromMap ?? fromProfile;
   if (assigned && isCajaClienteId(assigned)) {
     return {
       ok: true,

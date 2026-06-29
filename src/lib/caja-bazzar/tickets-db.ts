@@ -21,6 +21,7 @@ export type TicketPosRow = {
   vendedor_id: number | null;
   vendedor_nombre: string | null;
   cedula_cliente: string | null;
+  ruc_cliente: string | null;
   grada: string;
   estado: string;
   created_at: string;
@@ -37,9 +38,11 @@ export type TicketPosRow = {
   color_id: number | null;
   nombre_cliente: string | null;
   telefono_cliente: string | null;
+  email_cliente: string | null;
   imagen_url: string | null;
   descp_material: string | null;
   descp_color: string | null;
+  precio_unitario: number | null;
 };
 
 export type TicketsQuery = {
@@ -148,9 +151,13 @@ type DbRow = {
   material_id: number | null;
   color_id: number | null;
   snapshot_json: Record<string, unknown> | null;
+  precio_unitario: number | null;
   cb_nombre: string | null;
   cb_apellido: string | null;
   cb_razon_social: string | null;
+  cb_ruc: string | null;
+  cb_telefono: string | null;
+  cb_email: string | null;
   st_snapshot_cliente: Record<string, unknown> | null;
   sl_snapshot_json: Record<string, unknown> | null;
 };
@@ -183,6 +190,54 @@ export function titularClientePos(row: {
   return row.cedula_cliente?.trim() ? `CI ${row.cedula_cliente}` : "Cliente sin nombre";
 }
 
+function resolveRucCliente(row: {
+  cb_ruc?: string | null;
+  st_snapshot_cliente?: Record<string, unknown> | null;
+  snapshot_json?: Record<string, unknown> | null;
+}): string | null {
+  const st = row.st_snapshot_cliente ?? {};
+  const stRuc = typeof st.ruc === "string" ? st.ruc.replace(/\D/g, "").trim() : "";
+  if (stRuc) return stRuc;
+  const cbRuc = row.cb_ruc?.replace(/\D/g, "").trim();
+  if (cbRuc) return cbRuc;
+  const snap = row.snapshot_json ?? {};
+  const snapRuc =
+    typeof snap.ruc_cliente === "string" ? snap.ruc_cliente.replace(/\D/g, "").trim() : "";
+  return snapRuc || null;
+}
+
+function resolveTelefonoCliente(row: {
+  cb_telefono?: string | null;
+  st_snapshot_cliente?: Record<string, unknown> | null;
+  snapshot_json?: Record<string, unknown> | null;
+}): string | null {
+  const st = row.st_snapshot_cliente ?? {};
+  const stTel = typeof st.telefono === "string" ? st.telefono.trim() : "";
+  if (stTel) return stTel;
+  const cbTel = row.cb_telefono?.trim();
+  if (cbTel) return cbTel;
+  const snap = row.snapshot_json ?? {};
+  const snapTel =
+    typeof snap.telefono_cliente === "string" ? snap.telefono_cliente.trim() : "";
+  return snapTel || null;
+}
+
+function resolveEmailCliente(row: {
+  cb_email?: string | null;
+  st_snapshot_cliente?: Record<string, unknown> | null;
+  snapshot_json?: Record<string, unknown> | null;
+}): string | null {
+  const st = row.st_snapshot_cliente ?? {};
+  const stMail = typeof st.email === "string" ? st.email.trim().toLowerCase() : "";
+  if (stMail) return stMail;
+  const cbMail = row.cb_email?.trim().toLowerCase();
+  if (cbMail) return cbMail;
+  const snap = row.snapshot_json ?? {};
+  const snapMail =
+    typeof snap.email_cliente === "string" ? snap.email_cliente.trim().toLowerCase() : "";
+  return snapMail || null;
+}
+
 export async function queryTickets(q: TicketsQuery): Promise<{
   tickets: TicketPosRow[];
   total: number;
@@ -213,8 +268,9 @@ export async function queryTickets(q: TicketsQuery): Promise<{
         t.${codCol} AS codigo_ticket, t.cliente_id, t.marca, t.vendedor_id, t.vendedor_nombre,
         t.cedula_cliente, t.grada, t.cantidad, t.estado, t.created_at, t.staging_id,
         t.linea_id, t.referencia_id, t.material_id, t.color_id, t.snapshot_json,
-        t.numero_fi_fa, t.numero_factura_legal,
+        t.numero_fi_fa, t.numero_factura_legal, t.precio_unitario,
         cb.nombre AS cb_nombre, cb.apellido AS cb_apellido, cb.razon_social AS cb_razon_social,
+        cb.ruc AS cb_ruc, cb.telefono AS cb_telefono, cb.email AS cb_email,
         t.snapshot_cliente AS st_snapshot_cliente
       FROM public.${tabla} t
       LEFT JOIN public.clients_bazaar cb ON cb.cedula = t.cedula_cliente
@@ -259,6 +315,11 @@ function mapRow(row: DbRow, fuente: FuentePos): TicketPosRow {
     vendedor_id: row.vendedor_id,
     vendedor_nombre: row.vendedor_nombre,
     cedula_cliente: row.cedula_cliente,
+    ruc_cliente: resolveRucCliente({
+      cb_ruc: row.cb_ruc,
+      st_snapshot_cliente: row.st_snapshot_cliente,
+      snapshot_json: mergedSnap,
+    }),
     grada: row.grada,
     estado: estadoUi,
     created_at: row.created_at.toISOString(),
@@ -274,10 +335,25 @@ function mapRow(row: DbRow, fuente: FuentePos): TicketPosRow {
     material_id: row.material_id,
     color_id: row.color_id,
     nombre_cliente: nombre || null,
-    telefono_cliente: typeof mergedSnap.telefono_cliente === "string" ? mergedSnap.telefono_cliente : null,
+    telefono_cliente: resolveTelefonoCliente({
+      cb_telefono: row.cb_telefono,
+      st_snapshot_cliente: row.st_snapshot_cliente,
+      snapshot_json: mergedSnap,
+    }),
+    email_cliente: resolveEmailCliente({
+      cb_email: row.cb_email,
+      st_snapshot_cliente: row.st_snapshot_cliente,
+      snapshot_json: mergedSnap,
+    }),
     imagen_url: typeof mergedSnap.imagen_url === "string" ? mergedSnap.imagen_url : null,
     descp_material: typeof mergedSnap.descp_material === "string" ? mergedSnap.descp_material : null,
     descp_color: typeof mergedSnap.descp_color === "string" ? mergedSnap.descp_color : null,
+    precio_unitario:
+      row.precio_unitario != null && Number.isFinite(Number(row.precio_unitario))
+        ? Number(row.precio_unitario)
+        : typeof mergedSnap.precio_unitario === "number"
+          ? mergedSnap.precio_unitario
+          : null,
   };
 }
 
@@ -401,6 +477,7 @@ export function ticketToCsvRow(t: TicketPosRow): string[] {
     esNuevo,
     t.nombre_cliente ?? "",
     t.telefono_cliente ?? "",
+    t.email_cliente ?? "",
     t.linea_codigo ?? "",
     t.referencia_codigo ?? "",
     t.material_code ?? "",
@@ -415,6 +492,7 @@ export function ticketToCsvRow(t: TicketPosRow): string[] {
     t.vendedor_nombre ?? "",
     t.numero_fi_fa != null ? String(t.numero_fi_fa) : "",
     t.numero_factura_legal ?? "",
+    t.precio_unitario != null ? String(Math.round(t.precio_unitario)) : "",
     t.created_at,
     t.estado,
   ];
@@ -428,6 +506,7 @@ export const CSV_HEADERS = [
   "es_cliente_nuevo",
   "nombre_cliente",
   "telefono_cliente",
+  "email_cliente",
   "linea_codigo",
   "referencia_codigo",
   "material_code",
@@ -442,6 +521,7 @@ export const CSV_HEADERS = [
   "vendedor_nombre",
   "numero_fi_fa",
   "numero_factura_legal",
+  "precio_unitario",
   "created_at",
   "estado",
 ];

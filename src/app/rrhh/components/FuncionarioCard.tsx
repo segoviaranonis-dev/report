@@ -59,6 +59,21 @@ export function FuncionarioCard({ funcionario, onClick }: FuncionarioCardProps) 
           </span>
         </div>
 
+        {/* Punto cliente (tablet / salón) */}
+        {funcionario.id_cliente != null && (
+          <div>
+            <div className="text-xs uppercase tracking-wider text-neutral-600">Punto cliente</div>
+            <div className="mt-1 text-sm font-medium text-neutral-ink">
+              {funcionario.id_cliente}
+              {funcionario.cliente_descp && (
+                <span className="block text-xs font-normal text-neutral-600 truncate" title={funcionario.cliente_descp}>
+                  {funcionario.cliente_descp}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Cargo */}
         <div>
           <div className="text-xs uppercase tracking-wider text-neutral-600">Cargo</div>

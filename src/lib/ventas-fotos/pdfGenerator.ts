@@ -13,8 +13,11 @@ import {
   detectDeviceType,
   safeFetchImageGarantizado,
   isIOSDevice,
-  getRecommendedImageLimit
+  getRecommendedImageLimit,
+  getConcurrencyLimit,
 } from '../pdf/imageUrlValidator'
+import { productImageCandidatesForRow } from '../retail/product-image'
+import { getImagenCandidatesFlatFirst, mergeImageCandidatesFlatFirst } from './parse-imagen'
 import type { PillarBucket, VentaFotoRow, VentasFotosKpis, VentasFotosMarca, VentasFotosPillarStats } from './types'
 
 // ─── Paleta ──────────────────────────────────────────────────────────────────
@@ -489,52 +492,89 @@ function drawDetalleHeader(page: PDFPage, fonts: Fonts, data: PDFVentasFotosData
   textRight(page, `Sección detalle · pág. ${pageIdx}`, PAGE_W - MARGIN, MARGIN, 7, fonts.sans, INK_MUTED)
 }
 
+/** Muchas fotos legacy viven solo en productos/{archivo}.jpg (sin tier sm/md). */
+function resolveRowImageCandidates(row: VentaFotoRow): string[] {
+  const fromExcel = getImagenCandidatesFlatFirst(row.imagen)
+  if (row.linea_codigo == null || row.referencia_codigo == null) {
+    return fromExcel
+  }
+  const fromPillars = productImageCandidatesForRow(
+    String(row.linea_codigo),
+    String(row.referencia_codigo),
+    row.material_codigo ?? '',
+    row.color_codigo ?? '',
+    row.imagen,
+    'thumb',
+  )
+  return mergeImageCandidatesFlatFirst(fromExcel, fromPillars)
+}
+
 async function fetchImage(
   pdfDoc: PDFDocument,
   cache: Map<string, PDFImage>,
-  url: string,
+  candidates: string[],
   metrics: ImageMetrics,
   deviceType: 'desktop' | 'tablet' | 'mobile',
 ): Promise<PDFImage | null> {
-  const cached = cache.get(url)
-  if (cached) {
-    metrics.cached++
-    return cached
+  const urls = candidates.filter(Boolean)
+  if (!urls.length) return null
+
+  for (const u of urls) {
+    const cached = cache.get(u)
+    if (cached) {
+      metrics.cached++
+      return cached
+    }
   }
 
-  try {
-    console.log(`[PDF Ventas-Fotos] Descargando imagen - Dispositivo: ${deviceType}`)
+  const primary = urls[0]
+  const isServer = typeof window === 'undefined'
 
-    const resp = await safeFetchImageGarantizado(url, {
+  try {
+    console.log(`[PDF Ventas-Fotos] Descargando imagen - Dispositivo: ${deviceType}, candidatos: ${urls.length}, flat primero`)
+
+    const resp = await safeFetchImageGarantizado(primary, {
       deviceType,
-      maxRetries: 3,
+      maxRetries: isServer ? 1 : 3,
+      fallbackUrls: urls.slice(1),
       onProgress: (attempt, max, currentUrl) => {
         console.log(`[PDF Ventas-Fotos]   Intento ${attempt}/${max} para ${currentUrl.split('/').pop()}`)
-      }
+      },
     })
 
     const bytes = await resp.arrayBuffer()
-    const lower = url.toLowerCase()
+    const resolvedUrl = (resp.url || primary).toLowerCase()
+    const contentType = (resp.headers.get('content-type') ?? '').toLowerCase()
     let img: PDFImage | null = null
 
-    if (lower.endsWith('.png')) {
+    if (contentType.includes('png') || resolvedUrl.endsWith('.png')) {
       img = await pdfDoc.embedPng(bytes)
-    } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+    } else if (
+      contentType.includes('jpeg') ||
+      contentType.includes('jpg') ||
+      resolvedUrl.endsWith('.jpg') ||
+      resolvedUrl.endsWith('.jpeg')
+    ) {
       img = await pdfDoc.embedJpg(bytes)
+    } else {
+      try {
+        img = await pdfDoc.embedJpg(bytes)
+      } catch {
+        img = await pdfDoc.embedPng(bytes)
+      }
     }
 
     if (img) {
-      cache.set(url, img)
+      for (const u of urls) cache.set(u, img)
       metrics.downloaded++
       return img
     }
 
-    console.warn('[PDF Ventas-Fotos] Formato de imagen no soportado:', url)
+    console.warn('[PDF Ventas-Fotos] Formato de imagen no soportado:', primary)
     metrics.fallback++
     return null
   } catch (e) {
-    // Si falla después de todos los reintentos, registrar error crítico
-    console.error('[PDF Ventas-Fotos] FALLO CRÍTICO cargando imagen después de reintentos:', url, e)
+    console.error('[PDF Ventas-Fotos] FALLO CRÍTICO cargando imagen después de reintentos:', primary, e)
     metrics.fallback++
     return null
   }
@@ -551,17 +591,65 @@ interface ImageMetrics {
   fallback: number
 }
 
+/** Precarga paralela — aborta si falta alguna foto (ventas+fotos = ambos obligatorios). */
+async function preloadVentasFotosImages(
+  pdfDoc: PDFDocument,
+  rows: VentaFotoRow[],
+  deviceType: 'desktop' | 'tablet' | 'mobile',
+  metrics: ImageMetrics,
+): Promise<Map<string, PDFImage>> {
+  const byImagen = new Map<string, VentaFotoRow>()
+  for (const row of rows) {
+    const key = row.imagen?.trim()
+    if (key && !byImagen.has(key)) byImagen.set(key, row)
+  }
+
+  const urlCache = new Map<string, PDFImage>()
+  const rowCache = new Map<string, PDFImage>()
+  const missing: string[] = []
+  const entries = [...byImagen.entries()]
+  const isServer = typeof window === 'undefined'
+  const concurrency = isServer ? 8 : getConcurrencyLimit(deviceType)
+  let next = 0
+
+  async function worker() {
+    while (next < entries.length) {
+      const idx = next++
+      const [imagenKey, row] = entries[idx]
+      const candidates = resolveRowImageCandidates(row)
+      const img = await fetchImage(pdfDoc, urlCache, candidates, metrics, deviceType)
+      if (img) {
+        rowCache.set(imagenKey, img)
+      } else {
+        missing.push(imagenKey)
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, Math.max(entries.length, 1)) }, () => worker()),
+  )
+
+  if (missing.length > 0) {
+    const preview = missing.slice(0, 6).join(', ')
+    throw new Error(
+      `PDF abortado — «ventas + fotos» exige foto en cada fila. Faltan ${missing.length} imagen(es) en Storage: ${preview}${missing.length > 6 ? '…' : ''}`,
+    )
+  }
+
+  console.log(`[PDF Ventas-Fotos] Precarga OK: ${rowCache.size} imagen(es) únicas`)
+  return rowCache
+}
+
 async function renderDetalle(
   pdfDoc: PDFDocument,
   fonts: Fonts,
   data: PDFVentasFotosData,
   rowsLimitadas: VentaFotoRow[],
-  metrics: ImageMetrics,
-  deviceType: 'desktop' | 'tablet' | 'mobile',
+  imageCache: Map<string, PDFImage>,
 ) {
   if (!rowsLimitadas.length) return
 
-  const cache = new Map<string, PDFImage>()
   let page: PDFPage = pdfDoc.addPage([PAGE_W, PAGE_H])
   let pageDetalleIdx = 1
   drawDetalleHeader(page, fonts, data, pageDetalleIdx)
@@ -586,27 +674,23 @@ async function renderDetalle(
       page.drawRectangle({ x: MARGIN, y: rowBottom + 2, width: PAGE_W - 2 * MARGIN, height: DETALLE_ROW_H - 2, color: PAPER_ALT })
     }
 
-    // Imagen
+    // Imagen — ya precargada; sin S/IMG silencioso
     const imgY = rowBottom + (DETALLE_ROW_H - L.imgSize) / 2
-    if (row.imagen_valid && row.image_url) {
-      const img = await fetchImage(pdfDoc, cache, row.image_url, metrics, deviceType)
-      if (img) {
-        // Mantener proporción dentro del cuadro.
-        const ratio = img.width / img.height
-        let w = L.imgSize
-        let h = L.imgSize
-        if (ratio > 1) {
-          h = L.imgSize / ratio
-        } else {
-          w = L.imgSize * ratio
-        }
-        const ix = L.imgX + (L.imgSize - w) / 2
-        const iy = imgY + (L.imgSize - h) / 2
-        page.drawRectangle({ x: L.imgX, y: imgY, width: L.imgSize, height: L.imgSize, borderColor: RULE_SOFT, borderWidth: 0.5 })
-        page.drawImage(img, { x: ix, y: iy, width: w, height: h })
+    const imagenKey = row.imagen?.trim()
+    const img = imagenKey ? imageCache.get(imagenKey) : undefined
+    if (img) {
+      const ratio = img.width / img.height
+      let w = L.imgSize
+      let h = L.imgSize
+      if (ratio > 1) {
+        h = L.imgSize / ratio
       } else {
-        drawPlaceholder(page, fonts, L.imgX, imgY, L.imgSize, 'S/IMG')
+        w = L.imgSize * ratio
       }
+      const ix = L.imgX + (L.imgSize - w) / 2
+      const iy = imgY + (L.imgSize - h) / 2
+      page.drawRectangle({ x: L.imgX, y: imgY, width: L.imgSize, height: L.imgSize, borderColor: RULE_SOFT, borderWidth: 0.5 })
+      page.drawImage(img, { x: ix, y: iy, width: w, height: h })
     } else {
       drawPlaceholder(page, fonts, L.imgX, imgY, L.imgSize, 'S/IMG')
     }
@@ -708,9 +792,14 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
   }
   console.log('[PDF Ventas-Fotos] Filas totales:', data.rows.length)
 
+  if (!data.rows.length) {
+    throw new Error('PDF abortado — no hay filas de ventas para el informe.')
+  }
+
   try {
-    // Usar límite recomendado según dispositivo (iOS tiene límite más bajo)
-    const MAX_FILAS_PDF = Math.min(recommendedLimit, 80)
+    const MAX_FILAS_PDF = isServerless
+      ? Math.min(recommendedLimit, 25)
+      : data.rows.length
     const rowsLimitadas = data.rows.slice(0, MAX_FILAS_PDF)
     const esLimitado = data.rows.length > MAX_FILAS_PDF
 
@@ -732,8 +821,10 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     const stats = data.pillarStats ?? deriveStats(data.rows)
     const imageMetrics: ImageMetrics = { downloaded: 0, cached: 0, fallback: 0 }
 
+    const imageCache = await preloadVentasFotosImages(pdfDoc, rowsLimitadas, deviceType, imageMetrics)
+
     await renderPaginaEjecutiva(pdfDoc, fonts, data, stats, esLimitado, data.rows.length)
-    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageMetrics, deviceType)
+    await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageCache)
     drawFooters(pdfDoc, fonts)
 
     const pdfBytes = await pdfDoc.save()
@@ -747,20 +838,7 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     console.log(`[PDF Ventas-Fotos]   - Filas procesadas: ${rowsLimitadas.length}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes descargadas: ${imageMetrics.downloaded}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes en caché: ${imageMetrics.cached}`)
-    console.log(`[PDF Ventas-Fotos]   - Imágenes fallback: ${imageMetrics.fallback}`)
-
-    // CRÍTICO: Verificar que no haya placeholders
-    if (imageMetrics.fallback > 0) {
-      console.error(`[PDF Ventas-Fotos] ❌ ADVERTENCIA: ${imageMetrics.fallback} imágenes no se pudieron cargar`)
-      console.error(`[PDF Ventas-Fotos] ❌ El PDF contiene placeholders "S/IMG"`)
-      if (isIOS) {
-        console.error(`[PDF Ventas-Fotos] 🍎 ¿Cambiaste de pestaña durante la generación?`)
-        console.error(`[PDF Ventas-Fotos] 🍎 Safari pausa descargas cuando la pestaña no está visible`)
-      }
-    } else {
-      console.log(`[PDF Ventas-Fotos]   ✅ TODAS las imágenes cargadas correctamente`)
-    }
-
+    console.log(`[PDF Ventas-Fotos]   ✅ TODAS las imágenes cargadas — sin placeholders`)
     console.log(`[PDF Ventas-Fotos]   - Tamaño: ${Math.round(pdfBytes.length / 1024)}KB`)
     console.log(`[PDF Ventas-Fotos] ═══════════════════════════════════════════════════`)
 

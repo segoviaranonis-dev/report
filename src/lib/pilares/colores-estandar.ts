@@ -54,6 +54,7 @@ export const COLORES_ESTANDAR_DEFAULT: ColorEstandar[] = [
   },
   { etiqueta: "Rojo", hex: "#c62828", aliases: ["rojo", "vermelho", "red"] },
   { etiqueta: "Vino", hex: "#880e4f", aliases: ["vino", "wine", "bordô", "bordo", "burdeo", "guinda"] },
+  { etiqueta: "Fucsia", hex: "#c026d3", aliases: ["fucsia", "fuchsia", "magenta", "magenta fuerte"] },
   { etiqueta: "Naranja", hex: "#c2410c", aliases: ["naranja", "laranja", "orange", "coral"] },
   { etiqueta: "Verde", hex: "#2e7d32", aliases: ["verde", "green", "oliva", "olive"] },
   { etiqueta: "Celeste", hex: "#4fc3f7", aliases: ["celeste", "aqua"] },

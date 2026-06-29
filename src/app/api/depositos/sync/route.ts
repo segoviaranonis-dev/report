@@ -8,6 +8,12 @@ import {
 } from "@/lib/depositos/depositos-config";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { assertSinStagingPendiente } from "@/lib/caja-bazzar/staging-guard";
+import {
+  assertAccesoClienteId,
+  clienteIdsPermitidos,
+  puedeSyncGlobal,
+} from "@/lib/depositos/depositos-acceso";
+import { getDepositoAccesoFromSession } from "@/lib/depositos/depositos-session";
 
 export type { DepositoConfig };
 
@@ -128,8 +134,37 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const acceso = await getDepositoAccesoFromSession();
+    if (!acceso) {
+      return NextResponse.json(
+        {
+          configured: true,
+          success: false,
+          resultados: [],
+          total_registros: 0,
+          duracion_total_ms: 0,
+          error: "No autenticado",
+        } satisfies SyncAllResponse,
+        { status: 401 },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const cliente_id = body.cliente_id as number | undefined;
+
+    if (!cliente_id && !puedeSyncGlobal(acceso)) {
+      return NextResponse.json(
+        {
+          configured: true,
+          success: false,
+          resultados: [],
+          total_registros: 0,
+          duracion_total_ms: 0,
+          error: "Sync global solo holding. Indicá tu cliente_id.",
+        } satisfies SyncAllResponse,
+        { status: 403 },
+      );
+    }
 
     const bloqueo = await assertSinStagingPendiente(cliente_id);
     if (bloqueo) {
@@ -149,8 +184,24 @@ export async function POST(req: NextRequest) {
     const inicio = Date.now();
 
     // Si se especifica cliente_id, sincronizar solo ese depósito
-    let depositosASincronizar: DepositoConfig[] = [...DEPOSITOS_CONFIG];
+    let depositosASincronizar: DepositoConfig[] = DEPOSITOS_CONFIG.filter((d) =>
+      clienteIdsPermitidos(acceso).includes(d.cliente_id),
+    );
     if (cliente_id) {
+      const check = assertAccesoClienteId(acceso, cliente_id);
+      if (!check.ok) {
+        return NextResponse.json(
+          {
+            configured: true,
+            success: false,
+            resultados: [],
+            total_registros: 0,
+            duracion_total_ms: 0,
+            error: check.error,
+          } satisfies SyncAllResponse,
+          { status: check.status },
+        );
+      }
       const deposito = DEPOSITOS_CONFIG.find((d) => d.cliente_id === cliente_id);
       if (!deposito) {
         return NextResponse.json(
@@ -216,7 +267,13 @@ export async function GET(req: NextRequest) {
   }
 
   const categoria = parseCategoriaDeposito(new URL(req.url).searchParams.get("categoria"));
-  const configs = getDepositosByCategoria(categoria);
+  const acceso = await getDepositoAccesoFromSession();
+  if (!acceso) {
+    return NextResponse.json({ configured: true, depositos: [], error: "No autenticado" }, { status: 401 });
+  }
+
+  const permitidos = new Set(clienteIdsPermitidos(acceso));
+  const configs = getDepositosByCategoria(categoria).filter((c) => permitidos.has(c.cliente_id));
 
   try {
     const pool = getRimecPool();

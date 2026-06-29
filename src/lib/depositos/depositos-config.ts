@@ -11,16 +11,116 @@ export type DepositoTiendaBase = {
   tipo: "Adultos" | "Niños";
   enteSlug: "fernando" | "sanmartin" | "palma";
   tipoSlug: "adultos" | "ninos";
+  /** Caja tablet + sync + hub operativo */
+  operativo: boolean;
+  /** Marcas 10–15 · tipo_v2=2 */
+  aceptaConfeccion: boolean;
+  /** Palma: 1 local · adultos+niños+confección en 3100 */
+  palmaUnica?: boolean;
 };
 
+/** Palma operativo — sin 3200 legacy */
+export const PALMA_CLIENTE_ID = 3100;
+export const CLIENTES_CONFECCION = [2900, 2700, PALMA_CLIENTE_ID] as const;
+
 const TIENDAS: readonly DepositoTiendaBase[] = [
-  { cliente_id: 2100, ente: "Fernando", tipo: "Adultos", enteSlug: "fernando", tipoSlug: "adultos" },
-  { cliente_id: 2900, ente: "Fernando", tipo: "Niños", enteSlug: "fernando", tipoSlug: "ninos" },
-  { cliente_id: 2400, ente: "San Martin", tipo: "Adultos", enteSlug: "sanmartin", tipoSlug: "adultos" },
-  { cliente_id: 2700, ente: "San Martin", tipo: "Niños", enteSlug: "sanmartin", tipoSlug: "ninos" },
-  { cliente_id: 3100, ente: "Palma", tipo: "Adultos", enteSlug: "palma", tipoSlug: "adultos" },
-  { cliente_id: 3200, ente: "Palma", tipo: "Niños", enteSlug: "palma", tipoSlug: "ninos" },
+  {
+    cliente_id: 2100,
+    ente: "Fernando",
+    tipo: "Adultos",
+    enteSlug: "fernando",
+    tipoSlug: "adultos",
+    operativo: true,
+    aceptaConfeccion: false,
+  },
+  {
+    cliente_id: 2900,
+    ente: "Fernando",
+    tipo: "Niños",
+    enteSlug: "fernando",
+    tipoSlug: "ninos",
+    operativo: true,
+    aceptaConfeccion: true,
+  },
+  {
+    cliente_id: 2400,
+    ente: "San Martin",
+    tipo: "Adultos",
+    enteSlug: "sanmartin",
+    tipoSlug: "adultos",
+    operativo: true,
+    aceptaConfeccion: false,
+  },
+  {
+    cliente_id: 2700,
+    ente: "San Martin",
+    tipo: "Niños",
+    enteSlug: "sanmartin",
+    tipoSlug: "ninos",
+    operativo: true,
+    aceptaConfeccion: true,
+  },
+  {
+    cliente_id: 3100,
+    ente: "Palma",
+    tipo: "Adultos",
+    enteSlug: "palma",
+    tipoSlug: "adultos",
+    operativo: true,
+    aceptaConfeccion: true,
+    palmaUnica: true,
+  },
+  {
+    cliente_id: 3200,
+    ente: "Palma",
+    tipo: "Niños",
+    enteSlug: "palma",
+    tipoSlug: "ninos",
+    operativo: false,
+    aceptaConfeccion: false,
+  },
 ] as const;
+
+export type EnteBazzarHub = "Fernando" | "San Martin" | "Palma";
+
+export type HubTiendaCard = DepositoTiendaBase & {
+  labelHub: string;
+};
+
+export const HUB_ENTES: { ente: EnteBazzarHub; slug: string; tiendas: HubTiendaCard[] }[] = [
+  {
+    ente: "Fernando",
+    slug: "fernando",
+    tiendas: TIENDAS.filter((t) => t.ente === "Fernando" && t.operativo).map((t) => ({
+      ...t,
+      labelHub: t.tipo,
+    })),
+  },
+  {
+    ente: "San Martin",
+    slug: "sanmartin",
+    tiendas: TIENDAS.filter((t) => t.ente === "San Martin" && t.operativo).map((t) => ({
+      ...t,
+      labelHub: t.tipo,
+    })),
+  },
+  {
+    ente: "Palma",
+    slug: "palma",
+    tiendas: TIENDAS.filter((t) => t.palmaUnica).map((t) => ({
+      ...t,
+      labelHub: "Tienda única",
+    })),
+  },
+];
+
+export function aceptaConfeccionCliente(clienteId: number): boolean {
+  return TIENDAS.some((t) => t.cliente_id === clienteId && t.aceptaConfeccion);
+}
+
+export function getTiendaBase(clienteId: number): DepositoTiendaBase | undefined {
+  return TIENDAS.find((t) => t.cliente_id === clienteId);
+}
 
 const CATEGORIAS: readonly { nivel: 1 | 2 | 3; categoria: CategoriaDeposito }[] = [
   { nivel: 1, categoria: "tienda" },
@@ -51,8 +151,10 @@ export const DEPOSITOS_MATRIZ: DepositoConfig[] = TIENDAS.flatMap((t) =>
   })),
 );
 
-/** Sync administrador Report — solo piso tienda */
-export const DEPOSITOS_CONFIG = DEPOSITOS_MATRIZ.filter((d) => d.categoria === "tienda");
+/** Sync administrador Report — solo piso tienda operativa (excluye 3200 legacy) */
+export const DEPOSITOS_CONFIG = DEPOSITOS_MATRIZ.filter(
+  (d) => d.categoria === "tienda" && d.operativo,
+);
 
 export const CATEGORIA_DEPOSITO_META: Record<
   CategoriaDeposito,

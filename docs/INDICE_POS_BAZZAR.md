@@ -69,3 +69,14 @@ node scripts/smoke_primera_factura_bandeja.mjs
 node scripts/reset_pos_bazzar_ventas.mjs
 node scripts/run_migration_009.mjs
 ```
+
+---
+
+## Módulos Moria (`.claude/`)
+
+| Doc | Contenido |
+|-----|-----------|
+| [MODULO_POS v2 tablet](../../.claude/2_modulos/2.4_tablet_bazzar/MODULO_POS_BANDEJA_UNICA_V2.md) | 2.4.2.3 |
+| [MODULO_POS v2 caja](../../.claude/2_modulos/2.3_report/caja_bazzar/MODULO_POS_BANDEJA_UNICA_V2.md) | 2.3.2.2 |
+| [ETAPA cierre doc](../../.claude/4_etapas/ETAPA_POS_BAZZAR_DOCUMENTACION_CERRADA.md) | Formal 2026-06-24 |
+| [ACTUAL.md](../../.claude/4_etapas/ACTUAL.md) | Etapa activa holding |

@@ -1,0 +1,17 @@
+{
+  "tipo": "cierre_etapa",
+  "code": "2.3.5.3",
+  "label": "Pilar Color · tono_canon",
+  "fecha": "2026-06-28",
+  "moria": ".claude/4_etapas/ETAPA_PILAR_COLOR_TONO_CANON_CERRADA.md",
+  "commits": {
+    "report_admin": "c6be01f",
+    "tablet_cadena_tono": "9569eb2"
+  },
+  "urls_prod": {
+    "report_pilares_color": "https://rimec-report.vercel.app/pilares/color",
+    "tablet_cadena": "https://tablet-bazzar.vercel.app/cadena"
+  },
+  "sub_etapa_abierta": "2.3.5.3.1",
+  "chusar_editor_tono": ".claude/2_modulos/2.3_report/pilares/CHUSAR_EDITOR_TONO.md"
+}

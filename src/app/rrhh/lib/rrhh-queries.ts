@@ -38,6 +38,7 @@ export async function fetchEntes(): Promise<Ente[]> {
       created_at
     FROM entes
     WHERE activo = true
+      AND cliente_id IS NULL
     ORDER BY codigo ASC
   `);
 
@@ -118,6 +119,8 @@ export async function fetchFuncionarios(
       f.activo,
       f.created_at,
       f.updated_at,
+      f.id_cliente,
+      cv.descp_cliente AS cliente_descp,
       e.id_ente AS ente_id_ente,
       e.codigo AS ente_codigo,
       e.nombre AS ente_nombre,
@@ -137,6 +140,7 @@ export async function fetchFuncionarios(
       v.activo AS vac_activo
     FROM funcionarios f
     INNER JOIN entes e ON e.id_ente = f.ente_id
+    LEFT JOIN cliente_v2 cv ON cv.id_cliente = f.id_cliente
     LEFT JOIN vacaciones v ON v.funcionario_id = f.id_funcionario AND v.anio = ${anioActual} AND v.activo = true
     WHERE ${whereClause}
     ORDER BY f.apellidos ASC, f.nombres ASC
@@ -148,6 +152,8 @@ export async function fetchFuncionarios(
   return res.rows.map((r): FuncionarioConEnte => ({
     id_funcionario: num(r.id_funcionario),
     ente_id: num(r.ente_id),
+    id_cliente: r.id_cliente != null ? num(r.id_cliente) : null,
+    cliente_descp: r.cliente_descp ? str(r.cliente_descp) : null,
     nombres: str(r.nombres),
     apellidos: str(r.apellidos),
     nombre_completo: str(r.nombre_completo),
@@ -239,6 +245,7 @@ export async function fetchEstadisticas(): Promise<EstadisticasRRHH> {
     FROM entes e
     LEFT JOIN funcionarios f ON f.ente_id = e.id_ente AND f.activo = true
     WHERE e.activo = true
+      AND e.cliente_id IS NULL
     GROUP BY e.nombre, e.codigo
     ORDER BY e.codigo ASC
   `);

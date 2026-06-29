@@ -151,13 +151,15 @@ export async function POST(req: NextRequest) {
       console.log('[API Ventas-Fotos PDF] PDF generado exitosamente')
     } catch (pdfError) {
       console.error('[API Ventas-Fotos PDF] Error en generarPDFVentasFotos:', pdfError)
+      const message = pdfError instanceof Error ? pdfError.message : String(pdfError)
+      const status = message.startsWith('PDF abortado') ? 422 : 500
       return NextResponse.json(
         {
-          error: 'Error al generar el PDF',
-          message: pdfError instanceof Error ? pdfError.message : String(pdfError),
+          error: message,
+          message,
           stack: pdfError instanceof Error ? pdfError.stack : undefined
         },
-        { status: 500 }
+        { status }
       )
     }
 
