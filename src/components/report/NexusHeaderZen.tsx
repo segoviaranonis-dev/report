@@ -9,7 +9,7 @@ import {
   REPORT_HUB_MODULES,
   type ReportHubGroup,
 } from "@/lib/report/hub-modules";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type NexusNavKey =
@@ -80,10 +80,7 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   const [categoria, setCategoria] = useState<string | null>(null);
   const [enteCodigo, setEnteCodigo] = useState<number | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  /** Oculto por defecto — no bajar en cada cambio de módulo; solo hover arriba. */
-  const [visible, setVisible] = useState(false);
-  const hoverRef = useRef(false);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
@@ -104,28 +101,13 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
   }, []);
 
   useEffect(() => {
-    const clearHideTimer = () => {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = null;
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
     };
-    const scheduleHide = () => {
-      clearHideTimer();
-      hideTimerRef.current = setTimeout(() => {
-        if (!hoverRef.current) setVisible(false);
-      }, 1400);
-    };
-    const onMouseMove = (event: MouseEvent) => {
-      if (event.clientY <= 28) {
-        setVisible(true);
-        scheduleHide();
-      }
-    };
-    window.addEventListener("mousemove", onMouseMove);
-    return () => {
-      clearHideTimer();
-      window.removeEventListener("mousemove", onMouseMove);
-    };
-  }, []);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -153,38 +135,59 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
 
   return (
     <>
-      <div
-        className="fixed left-0 top-0 z-[60] h-4 w-full"
-        onMouseEnter={() => setVisible(true)}
-        aria-hidden="true"
-      />
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="nexus-nav-menu"
+        className="fixed bottom-4 left-4 z-[70] flex items-center gap-2 rounded-xl border-2 border-rimec-azul/30 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-rimec-azul-dark shadow-lg transition hover:border-rimec-azul hover:bg-rimec-celeste-bg sm:bottom-5 sm:left-5"
+      >
+        <svg
+          className="h-5 w-5 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden
+        >
+          {open ? (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          )}
+        </svg>
+        {open ? "Ocultar menú" : "Módulos"}
+      </button>
+
+      {open && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-40 bg-black/20"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
       <header
-        onMouseEnter={() => {
-          hoverRef.current = true;
-          setVisible(true);
-        }}
-        onMouseLeave={() => {
-          hoverRef.current = false;
-          setVisible(false);
-        }}
+        id="nexus-nav-menu"
         className={`fixed top-0 z-50 w-full border-b-4 border-rimec-azul bg-white shadow-lg transition-transform duration-200 ease-out ${
-          visible ? "translate-y-0" : "-translate-y-full"
+          open ? "translate-y-0" : "-translate-y-full pointer-events-none"
         }`}
       >
         <div className={`mx-auto ${maxWidthClass}`}>
-          <div className="flex items-center justify-between px-6 py-4 border-b-2 border-neutral-200 bg-gradient-to-r from-white to-rimec-celeste-bg">
-            <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-lg bg-rimec-azul flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center justify-between border-b-2 border-neutral-200 bg-gradient-to-r from-white to-rimec-celeste-bg px-6 py-4">
+            <Link href="/" className="group flex items-center gap-3" onClick={() => setOpen(false)}>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rimec-azul shadow-md transition-transform duration-300 group-hover:scale-110">
+                <svg className="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
                 </svg>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-serif text-xl tracking-wide text-rimec-azul-dark group-hover:text-rimec-azul transition-colors font-bold">
+                <span className="font-serif text-xl font-bold tracking-wide text-rimec-azul-dark transition-colors group-hover:text-rimec-azul">
                   Report
                 </span>
-                <span className="text-neutral-300 font-bold">·</span>
-                <span className="font-sans text-sm font-light text-neutral-500 tracking-wide uppercase group-hover:text-neutral-700 transition-colors">
+                <span className="font-bold text-neutral-300">·</span>
+                <span className="font-sans text-sm font-light uppercase tracking-wide text-neutral-500 transition-colors group-hover:text-neutral-700">
                   Holding
                 </span>
               </div>
@@ -195,7 +198,7 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-neutral-600 hover:bg-semantic-error/10 hover:text-semantic-error border-2 border-transparent hover:border-semantic-error-light transition-all disabled:opacity-50"
+                className="rounded-lg border-2 border-transparent px-4 py-2 text-xs font-semibold text-neutral-600 transition-all hover:border-semantic-error-light hover:bg-semantic-error/10 hover:text-semantic-error disabled:opacity-50"
               >
                 {loggingOut ? "Saliendo..." : "× Cerrar Sesión"}
               </button>
@@ -214,9 +217,9 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
             {headerGroups.map(({ group, meta, modules, styles }) => (
               <div
                 key={group}
-                className={`${styles.bg} px-4 py-4 md:px-6 md:py-5 border-l-4 ${styles.border} shadow-md`}
+                className={`${styles.bg} border-l-4 px-4 py-4 shadow-md md:px-6 md:py-5 ${styles.border}`}
               >
-                <div className="flex items-center gap-2 mb-3">
+                <div className="mb-3 flex items-center gap-2">
                   <span className="text-lg">{meta.icon}</span>
                   <span
                     className={`text-xs font-bold uppercase tracking-wider ${styles.label}`}
@@ -239,7 +242,8 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded-full transition-all duration-300 ${pillClass}`}
+                        onClick={() => setOpen(false)}
+                        className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-all duration-300 ${pillClass}`}
                         style={
                           group === "bazzar-web"
                             ? isActive
