@@ -11,6 +11,7 @@ import {
   MOTOR_PRECIOS,
   motorBibliotecaEditor,
 } from "@/lib/report/routes";
+import { fetchJson } from "@/lib/motor-precios/fetch-json";
 
 export function BibliotecaHistoricoClient() {
   const [loading, setLoading] = useState(true);
@@ -23,8 +24,12 @@ export function BibliotecaHistoricoClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/motor-precios/biblioteca?proveedor_id=${MOTOR_PROVEEDOR_DEFAULT}`);
-      const data = await res.json();
+      const { res, data } = await fetchJson<{
+        configured?: boolean;
+        error?: string;
+        bibliotecas?: BibliotecaRow[];
+        canonica?: BibliotecaRow | null;
+      }>(`/api/motor-precios/biblioteca?proveedor_id=${MOTOR_PROVEEDOR_DEFAULT}`);
       if (!res.ok) throw new Error(data.error || "Error al cargar");
       if (data.configured === false) {
         setConfigured(false);

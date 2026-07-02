@@ -7,6 +7,7 @@ import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { BIBLIOTECA_CANONICA_LABEL, MOTOR_PROVEEDOR_DEFAULT } from "@/lib/motor-precios/constants";
 import { MOTOR_BIBLIOTECA, MOTOR_PRECIOS } from "@/lib/report/routes";
+import { fetchJson } from "@/lib/motor-precios/fetch-json";
 
 export function BibliotecaNuevaClient() {
   const router = useRouter();
@@ -22,17 +23,19 @@ export function BibliotecaNuevaClient() {
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch("/api/motor-precios/biblioteca", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre,
-          descripcion,
-          proveedor_id: MOTOR_PROVEEDOR_DEFAULT,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo crear");
+      const { res, data } = await fetchJson<{ ok?: boolean; error?: string; id?: number; nombre?: string }>(
+        "/api/motor-precios/biblioteca",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre,
+            descripcion,
+            proveedor_id: MOTOR_PROVEEDOR_DEFAULT,
+          }),
+        },
+      );
+      if (!res.ok || !data.ok || data.id == null) throw new Error(data.error || "No se pudo crear");
       setSuccess(`Biblioteca #${data.id} · ${data.nombre} creada.`);
       setTimeout(() => router.push(MOTOR_BIBLIOTECA), 1200);
     } catch (err) {

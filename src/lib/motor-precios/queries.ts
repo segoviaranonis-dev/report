@@ -56,3 +56,39 @@ export async function listBibliotecasPorProveedor(pool: Pool, proveedorId: numbe
 export function findBibliotecaCanonica(bibliotecas: BibliotecaRow[]): BibliotecaRow | null {
   return bibliotecas.find((b) => b.canonica && b.casos_count > 0) ?? bibliotecas.find((b) => b.canonica) ?? null;
 }
+
+export async function crearBibliotecaPrecio(
+  pool: Pool,
+  input: { nombre: string; proveedor_id: number; descripcion?: string | null },
+): Promise<{ id: number; nombre: string; proveedor_id: number; descripcion: string | null }> {
+  const nombre = input.nombre.trim();
+  if (!nombre) throw new Error("Nombre obligatorio");
+
+  try {
+    const { rows } = await pool.query<{
+      id: string;
+      nombre: string;
+      proveedor_id: string;
+      descripcion: string | null;
+    }>(
+      `INSERT INTO biblioteca_precio (nombre, proveedor_id, descripcion, activo)
+       VALUES ($1, $2, $3, true)
+       RETURNING id, nombre, proveedor_id, descripcion`,
+      [nombre, input.proveedor_id, input.descripcion?.trim() || null],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("No se obtuvo id al crear biblioteca");
+    return {
+      id: Number(row.id),
+      nombre: row.nombre,
+      proveedor_id: Number(row.proveedor_id),
+      descripcion: row.descripcion,
+    };
+  } catch (e) {
+    const err = e as { code?: string; constraint?: string };
+    if (err.code === "23505" || err.constraint?.includes("biblioteca_precio")) {
+      throw new Error(`Ya existe una biblioteca «${nombre}» para el proveedor ${input.proveedor_id}`);
+    }
+    throw e;
+  }
+}
