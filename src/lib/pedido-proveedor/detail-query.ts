@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { IcDePp } from "@/lib/digitacion/bandeja-query";
+import { formatCategoriaPp, ppCabeceraEditable } from "./cabecera-actions";
 
 export type PpDetalleHeader = {
   id: number;
@@ -15,9 +16,20 @@ export type PpDetalleHeader = {
   proveedor: string;
   marcas: string;
   quincena: string | null;
-  cliente: string;
-  vendedor: string;
+  quincena_arribo_id: number | null;
+  /** Estrategia comercial: COMPRA PREVIA | PROGRAMADO (no nombre de cliente). */
+  categoria: string;
+  categoria_id: number | null;
+  /** Usuario Report que asignó la IC al PP (asignado_por), no vendedor comercial. */
+  creador: string;
   notas: string | null;
+  nro_pedido_externo: string | null;
+  fecha_arribo_estimada: string | null;
+  descuento_1: number;
+  descuento_2: number;
+  descuento_3: number;
+  descuento_4: number;
+  cabecera_editable: boolean;
   listado_editable: boolean;
   listado_precio: { evento_id: number; nombre: string } | null;
   n_facturas_internas: number;
@@ -51,6 +63,12 @@ export type PpFacturaInternaRow = {
 export type PpIcVinculada = IcDePp & {
   evento_id: number | null;
   evento_nombre: string | null;
+  id_marca: number;
+  id_vendedor: number;
+  id_proveedor: number;
+  categoria_id: number | null;
+  categoria: string;
+  vendedor: string;
 };
 
 export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleHeader | null> {
@@ -65,9 +83,17 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     proveedor: string;
     marcas: string;
     quincena: string | null;
-    cliente: string;
-    vendedor: string;
+    quincena_arribo_id: string | null;
+    categoria_id: string | null;
+    categoria_descp: string | null;
+    creador: string;
     notas: string | null;
+    nro_pedido_externo: string | null;
+    fecha_arribo_estimada: string | null;
+    descuento_1: string | null;
+    descuento_2: string | null;
+    descuento_3: string | null;
+    descuento_4: string | null;
     total_articulos: string;
     total_vendido: string;
     evento_id: string | null;
@@ -86,7 +112,14 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
       COALESCE(pp.pares_comprometidos, 0)::text AS pares_comprometidos,
       COALESCE(pi.nombre, '—') AS proveedor,
       qa.descripcion AS quincena,
+      pp.quincena_arribo_id::text AS quincena_arribo_id,
       pp.notas,
+      pp.nro_pedido_externo,
+      pp.fecha_arribo_estimada::text AS fecha_arribo_estimada,
+      COALESCE(pp.descuento_1, 0)::text AS descuento_1,
+      COALESCE(pp.descuento_2, 0)::text AS descuento_2,
+      COALESCE(pp.descuento_3, 0)::text AS descuento_3,
+      COALESCE(pp.descuento_4, 0)::text AS descuento_4,
       COALESCE(
         (SELECT STRING_AGG(DISTINCT mv2.descp_marca, ' / ' ORDER BY mv2.descp_marca)
          FROM pedido_proveedor_detalle ppd2
@@ -100,25 +133,40 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
         '—'
       ) AS marcas,
       COALESCE(
-        c.descp_cliente,
-        (SELECT c2.descp_cliente
+        pp.categoria_id,
+        (SELECT ic3.categoria_id
          FROM intencion_compra_pedido icp3
          JOIN intencion_compra ic3 ON ic3.id = icp3.intencion_compra_id
-         JOIN cliente_v2 c2 ON c2.id_cliente = ic3.id_cliente
          WHERE icp3.pedido_proveedor_id = pp.id
-         LIMIT 1),
-        '—'
-      ) AS cliente,
+         ORDER BY icp3.id
+         LIMIT 1)
+      )::text AS categoria_id,
       COALESCE(
-        v.descp_usuario,
-        (SELECT v2.descp_usuario
+        cv.descp_categoria,
+        (SELECT cv2.descp_categoria
+         FROM intencion_compra_pedido icp3b
+         JOIN intencion_compra ic3b ON ic3b.id = icp3b.intencion_compra_id
+         JOIN categoria_v2 cv2 ON cv2.id_categoria = ic3b.categoria_id
+         WHERE icp3b.pedido_proveedor_id = pp.id
+         ORDER BY icp3b.id
+         LIMIT 1)
+      ) AS categoria_descp,
+      COALESCE(
+        (SELECT u.descp_usuario
          FROM intencion_compra_pedido icp4
-         JOIN intencion_compra ic4 ON ic4.id = icp4.intencion_compra_id
-         JOIN usuario_v2 v2 ON v2.id_usuario = ic4.id_vendedor
-         WHERE icp4.pedido_proveedor_id = pp.id
+         JOIN usuario_v2 u ON u.id_usuario = icp4.asignado_por
+         WHERE icp4.pedido_proveedor_id = pp.id AND icp4.asignado_por IS NOT NULL
+         ORDER BY icp4.id
+         LIMIT 1),
+        (SELECT vd.descp_vendedor
+         FROM intencion_compra_pedido icp4b
+         JOIN intencion_compra ic4b ON ic4b.id = icp4b.intencion_compra_id
+         JOIN vendedor_v2 vd ON vd.id_vendedor = ic4b.id_vendedor
+         WHERE icp4b.pedido_proveedor_id = pp.id
+         ORDER BY icp4b.id
          LIMIT 1),
         '—'
-      ) AS vendedor,
+      ) AS creador,
       (SELECT COUNT(*)::text
        FROM pedido_proveedor_detalle ppd5
        WHERE ppd5.pedido_proveedor_id = pp.id AND ppd5.linea IS NOT NULL) AS total_articulos,
@@ -157,9 +205,7 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     FROM pedido_proveedor pp
     LEFT JOIN proveedor_importacion pi ON pi.id = pp.proveedor_importacion_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
-    LEFT JOIN intencion_compra ic ON ic.id = pp.id_intencion_compra
-    LEFT JOIN cliente_v2 c ON c.id_cliente = ic.id_cliente
-    LEFT JOIN usuario_v2 v ON v.id_usuario = ic.id_vendedor
+    LEFT JOIN categoria_v2 cv ON cv.id_categoria = pp.categoria_id
     WHERE pp.id = $1
     `,
     [ppId],
@@ -170,6 +216,7 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
 
   const pares = Number(r.pares_comprometidos ?? 0);
   const vendido = Number(r.total_vendido ?? 0);
+  const categoriaId = r.categoria_id != null ? Number(r.categoria_id) : null;
 
   return {
     id: Number(r.id),
@@ -185,9 +232,18 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     proveedor: r.proveedor,
     marcas: r.marcas,
     quincena: r.quincena,
-    cliente: r.cliente,
-    vendedor: r.vendedor,
+    quincena_arribo_id: r.quincena_arribo_id != null ? Number(r.quincena_arribo_id) : null,
+    categoria: formatCategoriaPp(categoriaId, r.categoria_descp),
+    categoria_id: categoriaId,
+    creador: r.creador,
     notas: r.notas,
+    nro_pedido_externo: r.nro_pedido_externo,
+    fecha_arribo_estimada: r.fecha_arribo_estimada?.slice(0, 10) ?? null,
+    descuento_1: Number(r.descuento_1 ?? 0),
+    descuento_2: Number(r.descuento_2 ?? 0),
+    descuento_3: Number(r.descuento_3 ?? 0),
+    descuento_4: Number(r.descuento_4 ?? 0),
+    cabecera_editable: ppCabeceraEditable(r.estado),
     listado_editable: r.estado !== "ENVIADO",
     listado_precio:
       r.evento_id != null
@@ -305,12 +361,24 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     nro_pedido_fabrica: string | null;
     evento_id: string | null;
     evento_nombre: string | null;
+    id_marca: string;
+    id_vendedor: string;
+    id_proveedor: string;
+    categoria_id: string | null;
+    categoria: string | null;
+    vendedor: string | null;
   }>(
     `
     SELECT ic.id AS ic_id, ic.numero_registro AS nro_ic,
            mv.descp_marca AS marca,
            COALESCE(pi.nombre, '—') AS proveedor,
            ic.cantidad_total_pares AS pares,
+           ic.id_marca::text AS id_marca,
+           ic.id_vendedor::text AS id_vendedor,
+           ic.id_proveedor::text AS id_proveedor,
+           ic.categoria_id::text AS categoria_id,
+           COALESCE(cat.descp_categoria, '—') AS categoria,
+           COALESCE(vd.descp_vendedor, '—') AS vendedor,
            icp.nro_pedido_fabrica,
            icp.precio_evento_id::text AS evento_id,
            pe.nombre_evento AS evento_nombre
@@ -318,6 +386,8 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
     JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     LEFT JOIN proveedor_importacion pi ON pi.id = ic.id_proveedor
+    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
+    LEFT JOIN categoria_v2 cat ON cat.id_categoria = ic.categoria_id
     LEFT JOIN precio_evento pe ON pe.id = icp.precio_evento_id
     WHERE icp.pedido_proveedor_id = $1
     ORDER BY ic.numero_registro
@@ -334,5 +404,11 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     nro_pedido_fabrica: r.nro_pedido_fabrica,
     evento_id: r.evento_id ? Number(r.evento_id) : null,
     evento_nombre: r.evento_nombre,
+    id_marca: Number(r.id_marca),
+    id_vendedor: Number(r.id_vendedor),
+    id_proveedor: Number(r.id_proveedor),
+    categoria_id: r.categoria_id != null ? Number(r.categoria_id) : null,
+    categoria: r.categoria ?? "—",
+    vendedor: r.vendedor ?? "—",
   }));
 }

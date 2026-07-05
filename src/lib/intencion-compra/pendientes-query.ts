@@ -28,7 +28,7 @@ const IC_SELECT = `
          ic.id_marca, mv.descp_marca AS marca,
          pi2.nombre AS proveedor,
          cv.descp_cliente AS cliente,
-         vv.descp_usuario AS vendedor,
+         vv.descp_vendedor AS vendedor,
          ic.quincena_arribo_id,
          qa.descripcion AS fecha_embarque,
          ic.cantidad_total_pares AS pares,
@@ -39,7 +39,7 @@ const IC_SELECT = `
   FROM intencion_compra ic
   JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
   JOIN cliente_v2 cv ON cv.id_cliente = ic.id_cliente
-  JOIN usuario_v2 vv ON vv.id_usuario = ic.id_vendedor
+  JOIN vendedor_v2 vv ON vv.id_vendedor = ic.id_vendedor
   JOIN proveedor_importacion pi2 ON pi2.id = ic.id_proveedor
   LEFT JOIN tipo_v2 tv ON tv.id_tipo = ic.tipo_id
   LEFT JOIN categoria_v2 cv2 ON cv2.id_categoria = ic.categoria_id
@@ -127,7 +127,7 @@ export async function listIcHistorial(pool: Pool): Promise<IcHistorialRow[]> {
            COALESCE(cv2.descp_categoria, '—') AS categoria,
            mv.descp_marca AS marca,
            cv.descp_cliente AS cliente,
-           vv.descp_usuario AS vendedor,
+           vv.descp_vendedor AS vendedor,
            qa.descripcion AS fecha_embarque,
            ic.cantidad_total_pares AS pares,
            ic.monto_neto,
@@ -136,7 +136,7 @@ export async function listIcHistorial(pool: Pool): Promise<IcHistorialRow[]> {
     FROM intencion_compra ic
     JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     JOIN cliente_v2 cv ON cv.id_cliente = ic.id_cliente
-    JOIN usuario_v2 vv ON vv.id_usuario = ic.id_vendedor
+    JOIN vendedor_v2 vv ON vv.id_vendedor = ic.id_vendedor
     LEFT JOIN tipo_v2 tv ON tv.id_tipo = ic.tipo_id
     LEFT JOIN categoria_v2 cv2 ON cv2.id_categoria = ic.categoria_id
     LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id

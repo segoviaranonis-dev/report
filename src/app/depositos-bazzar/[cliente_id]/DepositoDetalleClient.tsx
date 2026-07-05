@@ -12,6 +12,9 @@ import {
 import { CategoriaDepositoToggle } from "../components/CategoriaDepositoToggle";
 import { ImportCsvDepositoButton } from "../components/ImportCsvDepositoButton";
 import { RamoOperativaToggle, type RamoOperativa } from "../components/RamoOperativaToggle";
+import { DepositoCalzadoProvider } from "../context/DepositoCalzadoContext";
+import { DepositoCalzadoStatus } from "../components/DepositoCalzadoStatus";
+import { TabArticulosEstadisticas } from "../components/TabArticulosEstadisticas";
 import { TabOperativaCalzado } from "../components/TabOperativaCalzado";
 import { TabOperativaConfecciones } from "../components/TabOperativaConfecciones";
 
@@ -151,25 +154,44 @@ export function DepositoDetalleClient({ clienteId }: Props) {
         ))}
       </div>
 
-      {tab === "operativa" && (
-        <div className="space-y-4">
+      {ramo === "calzado" ? (
+        <DepositoCalzadoProvider
+          key={refreshKey}
+          clienteId={clienteId}
+          categoria={categoria}
+          refreshKey={refreshKey}
+        >
           <RamoOperativaToggle
             value={ramo}
             onChange={(r) => patchParams({ ramo: r, tab: "operativa" })}
             showConfecciones={showConfecciones}
           />
-          {ramo === "calzado" ? (
-            <TabOperativaCalzado key={refreshKey} clienteId={clienteId} categoria={categoria} />
-          ) : (
-            <TabOperativaConfecciones key={refreshKey} clienteId={clienteId} categoria={categoria} />
+          <DepositoCalzadoStatus />
+          <div className={tab !== "operativa" ? "hidden" : undefined} aria-hidden={tab !== "operativa"}>
+            <TabOperativaCalzado clienteId={clienteId} categoria={categoria} />
+          </div>
+          <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
+            <TabArticulosEstadisticas />
+          </div>
+        </DepositoCalzadoProvider>
+      ) : (
+        <>
+          {tab === "operativa" && (
+            <div className="space-y-4">
+              <RamoOperativaToggle
+                value={ramo}
+                onChange={(r) => patchParams({ ramo: r, tab: "operativa" })}
+                showConfecciones={showConfecciones}
+              />
+              <TabOperativaConfecciones key={refreshKey} clienteId={clienteId} categoria={categoria} />
+            </div>
           )}
-        </div>
-      )}
-
-      {tab === "articulos" && (
-        <p className="py-8 text-center text-report-muted">
-          Vista artículos — usar Operativa con filtros por ahora
-        </p>
+          {tab === "articulos" && (
+            <p className="py-8 text-center text-report-muted">
+              Estadísticas artículos disponibles en ramo Calzado.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

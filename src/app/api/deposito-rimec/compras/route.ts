@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
-import { requireRimecAdmin } from "@/lib/rimec-admin/auth-api";
-import { getComprasDistribuidas } from "@/lib/deposito-rimec/queries";
-import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { listComprasDistribuidas } from "@/lib/deposito-rimec/queries-proceso";
+import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 export async function GET() {
-  const { error } = await requireRimecAdmin();
-  if (error) return error;
-
+  const gate = await requireMotorPreciosAdmin();
+  if (gate.error) return gate.error;
   if (!isRimecDatabaseConfigured()) {
-    return NextResponse.json({ configured: false, compras: [] }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
   }
 
   try {
-    const compras = await getComprasDistribuidas();
-    return NextResponse.json({ configured: true, compras });
-  } catch (err) {
-    console.error("[api/deposito-rimec/compras]", err);
-    return NextResponse.json({ error: "Error al listar compras distribuidas" }, { status: 500 });
+    const pool = getRimecPool();
+    const compras = await listComprasDistribuidas(pool);
+    return NextResponse.json({ ok: true, compras });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: e instanceof Error ? e.message : "Error listando CL" },
+      { status: 500 },
+    );
   }
 }

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "dev:3001": "next dev -p 3001",
-    "dev:clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\" && next dev -p 3000",
+    "dev": "next dev -p 3001",
+    "dev:3000": "next dev -p 3000",
+    "dev:clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\" && next dev -p 3001",
     "dev:clean:3001": "node -e \"const fs=require('fs');for(const p of ['.next','node_modules/.cache']){try{fs.rmSync(p,{recursive:true,force:true})}catch(e){}}\" && next dev -p 3001",
     "build": "next build",
     "start": "next start",

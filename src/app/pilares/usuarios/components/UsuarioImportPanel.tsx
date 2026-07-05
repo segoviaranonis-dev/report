@@ -52,6 +52,14 @@ const EXCEL_COLS = [
   "CATEGORIA",
 ] as const;
 
+/** Perfil operativo RIMEC ventas — misma tríada que ATI (rol EJECUTOR n3 + cat VENDEDOR + ente RIMEC). */
+function presetVendedorRimec(roles: RolAccesoRow[], categorias: UsuarioCategoriaRow[], entes: EnteRow[]) {
+  const ente_id = entes.find((e) => e.es_principal && e.codigo === 1)?.id_ente ?? null;
+  const rol_id = roles.find((r) => r.nivel === 3)?.id ?? 3;
+  const categoria_id = categorias.find((c) => c.codigo === "VENDEDOR")?.id_categoria ?? null;
+  return { ente_id, rol_id, categoria_id };
+}
+
 function parseExcelFile(file: File): Promise<FuncionarioExcelRow[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -96,15 +104,27 @@ export function UsuarioImportPanel({ roles, entes, categorias, onDone }: Props) 
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [passwordMode, setPasswordMode] = useState<"ci" | "random">("ci");
 
+  const vendedorRimec = presetVendedorRimec(roles, categorias, entes);
   const [newUser, setNewUser] = useState({
     descp_usuario: "",
     password: "",
-    autoPassword: true,
-    rol_id: roles[0]?.id ?? 3,
-    categoria_id: null as number | null,
-    ente_id: entes.find((e) => e.es_principal && e.codigo === 1)?.id_ente ?? null,
+    autoPassword: false,
+    rol_id: vendedorRimec.rol_id,
+    categoria_id: vendedorRimec.categoria_id,
+    ente_id: vendedorRimec.ente_id,
     es_externo: false,
   });
+
+  const applyVendedorRimecPreset = useCallback(() => {
+    const preset = presetVendedorRimec(roles, categorias, entes);
+    setNewUser((prev) => ({
+      ...prev,
+      rol_id: preset.rol_id,
+      categoria_id: preset.categoria_id,
+      ente_id: preset.ente_id,
+      es_externo: false,
+    }));
+  }, [roles, categorias, entes]);
 
   const entesPrincipales = entes.filter((e) => e.es_principal);
   const rol = roles.find((r) => r.id === newUser.rol_id);
@@ -221,7 +241,20 @@ export function UsuarioImportPanel({ roles, entes, categorias, onDone }: Props) 
           </p>
 
           <div className="rounded-lg border border-slate-200 p-3 space-y-3">
-            <h3 className="text-sm font-bold text-slate-800">Alta manual</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-slate-800">Alta manual</h3>
+              <button
+                type="button"
+                onClick={applyVendedorRimecPreset}
+                className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900"
+              >
+                Perfil vendedor RIMEC (como ATI)
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              Tríada canónica ventas RIMEC: ente 1 · rol n3 EJECUTOR · cat VENDEDOR → Report{" "}
+              <code>/ventas-fotos</code> + RIMEC Web catálogo.
+            </p>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <label className="text-xs">
                 <span className="font-semibold text-slate-600">Usuario (descp_usuario)</span>

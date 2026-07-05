@@ -6,6 +6,8 @@ import Link from "next/link";
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { canAccessAprobaciones } from "@/lib/auth/nivel-dios";
+import { prefetchSalesReportSnapshot } from "@/lib/rimec/sales-report-prefetch";
+import { SalesReportHubStatus } from "@/components/report/SalesReportHubStatus";
 import {
   filterHubModules,
   modulesByGroup,
@@ -52,6 +54,7 @@ function HubAccordion({
   modules: typeof REPORT_HUB_MODULES;
   rolId: number;
 }) {
+  const router = useRouter();
   if (modules.length === 0) return null;
   const meta = REPORT_HUB_GROUP_META[group];
   const st = GROUP_STYLES[group];
@@ -91,6 +94,14 @@ function HubAccordion({
           <Link
             key={mod.href}
             href={mod.href}
+            onMouseEnter={() => {
+              if (mod.href === "/rimec") void prefetchSalesReportSnapshot();
+              if (mod.href === "/ventas-fotos") router.prefetch("/ventas-fotos");
+            }}
+            onFocus={() => {
+              if (mod.href === "/rimec") void prefetchSalesReportSnapshot();
+              if (mod.href === "/ventas-fotos") router.prefetch("/ventas-fotos");
+            }}
             className={`group block rounded-xl border-2 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] ${
               isWeb ? "" : st.cardBorder
             }`}
@@ -104,6 +115,7 @@ function HubAccordion({
               {mod.title}
             </h2>
             <p className="text-sm leading-relaxed text-neutral-700">{mod.description}</p>
+            {mod.href === "/rimec" ? <SalesReportHubStatus /> : null}
           </Link>
         ))}
       </div>
@@ -137,12 +149,26 @@ export default function HomePage() {
           );
           if (userRolId === 2) router.replace("/retail");
           else if (userRolId === 3) router.replace("/ventas-fotos");
+          else if (userRolId === 1) {
+            void prefetchSalesReportSnapshot();
+            router.prefetch("/rimec");
+          }
         } else {
           router.replace("/login");
         }
       })
       .catch(() => router.replace("/login"));
   }, [router]);
+
+  useEffect(() => {
+    if (rolId === null || categoria === null) return;
+    const canDios = canAccessAprobaciones(rolId, categoria);
+    const visible = filterHubModules(REPORT_HUB_MODULES, rolId, categoria, canDios, enteCodigo);
+    if (visible.some((m) => m.href === "/rimec")) {
+      void prefetchSalesReportSnapshot();
+      router.prefetch("/rimec");
+    }
+  }, [rolId, categoria, enteCodigo, router]);
 
   if (rolId === null || categoria === null || rolId === 2 || rolId === 3) {
     return null;

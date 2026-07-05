@@ -1,47 +1,98 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMockFullSnapshot } from "@/lib/rimec/build-full-snapshot";
 import type { FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
 import { defaultSalesReportFilters, type SalesReportFilters } from "@/modules/sales-report/types";
-import { MESES_LISTA, SALES_REPORT_WEB_VERSION } from "@/modules/sales-report/constants";
+import {
+  defaultCalzadosCategoriaIds,
+  MESES_LISTA,
+  SALES_REPORT_WEB_VERSION,
+} from "@/modules/sales-report/constants";
 import { filtrosToFullSnapshotBody, isFullSnapshotApiPayload } from "@/lib/rimec/snapshot-to-pkg";
+import {
+  markDashboardPaint,
+  markRouteEnter,
+  markSnapshotApplied,
+  parseServerTiming,
+  recordPrefetchSnapshotMs,
+} from "@/lib/rimec/sales-report-perf";
+import { recordReportPerf } from "@/lib/report/report-perf";
+import {
+  getSalesReportPrefetchState,
+  prefetchSalesReportSnapshot,
+  subscribeSalesReportPrefetch,
+  type SalesReportMeta,
+} from "@/lib/rimec/sales-report-prefetch";
 
 import { MundoDashboard } from "./components/MundoDashboard";
-import { MundoClientes } from "./components/MundoClientes";
-import { MundoMarcas } from "./components/MundoMarcas";
-import { MundoVendedores } from "./components/MundoVendedores";
 import { ImmersiveFiltersPanel } from "./components/ImmersiveFiltersPanel";
+import { RimecEntryShell } from "./components/RimecEntryShell";
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
+
+const MundoClientes = dynamic(
+  () => import("./components/MundoClientes").then((m) => ({ default: m.MundoClientes })),
+  { loading: () => null },
+);
+const MundoMarcas = dynamic(
+  () => import("./components/MundoMarcas").then((m) => ({ default: m.MundoMarcas })),
+  { loading: () => null },
+);
+const MundoVendedores = dynamic(
+  () => import("./components/MundoVendedores").then((m) => ({ default: m.MundoVendedores })),
+  { loading: () => null },
+);
 
 export type MundoId = "dashboard" | "clientes" | "marcas" | "vendedores";
 
 const MUNDO_IDS: MundoId[] = ["dashboard", "clientes", "marcas", "vendedores"];
+
+const MUNDO_TRANSITION = { duration: 0.12, ease: "easeOut" as const };
+
+/** Flash loader RIMEC — máximo 1 s al entrar o sincronizar (velocidad rayo). */
+const RIMEC_ENTRY_SHELL_MAX_MS = 1000;
 
 function parseMundoParam(raw: string | null): MundoId | null {
   if (raw && MUNDO_IDS.includes(raw as MundoId)) return raw as MundoId;
   return null;
 }
 
-type MetaApi = {
-  configured: boolean;
-  error?: string;
-};
+type MetaApi = SalesReportMeta;
+
+function normalizeSnapshot(j: Record<string, unknown>): FullSnapshotResponse {
+  const snap = j as FullSnapshotResponse;
+  return {
+    ...snap,
+    jerarquia_clientes: Array.isArray(snap.jerarquia_clientes) ? snap.jerarquia_clientes : [],
+  };
+}
 
 export function ImmersiveClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [meta, setMeta] = useState<MetaApi | null>(null);
+  const initialPrefetch = getSalesReportPrefetchState();
+  const [meta, setMeta] = useState<MetaApi | null>(() => initialPrefetch.meta);
   const [filtros, setFiltros] = useState<SalesReportFilters>(() => defaultSalesReportFilters());
-  const [snapshot, setSnapshot] = useState<FullSnapshotResponse | null>(null);
+  const [snapshot, setSnapshot] = useState<FullSnapshotResponse | null>(() => initialPrefetch.snapshot);
+  const [bootLoading, setBootLoading] = useState(() => {
+    if (initialPrefetch.snapshot) return false;
+    return initialPrefetch.status === "idle" || initialPrefetch.status === "loading";
+  });
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(() => initialPrefetch.error);
   const [mundo, setMundo] = useState<MundoId>(() => parseMundoParam(searchParams.get("mundo")) ?? "dashboard");
-  const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
-  const booted = useRef(false);
+  const [hasSyncedOnce, setHasSyncedOnce] = useState(() => initialPrefetch.snapshot !== null);
+  const [entryShell, setEntryShell] = useState(true);
+  const [syncShell, setSyncShell] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setEntryShell(false), RIMEC_ENTRY_SHELL_MAX_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const fromUrl = parseMundoParam(searchParams.get("mundo"));
@@ -60,59 +111,99 @@ export function ImmersiveClient() {
 
   const dataLive = meta?.configured === true;
   const metaReady = meta !== null;
+  const showEntryShell = entryShell || syncShell;
 
   useEffect(() => {
-    fetch("/api/rimec/meta")
-      .then((r) => r.json())
-      .then((j) => setMeta(j as MetaApi))
-      .catch(() => setMeta(null));
+    markRouteEnter();
+  }, []);
+
+  useEffect(() => {
+    if (!snapshot || showEntryShell) return;
+    markSnapshotApplied();
+    const id = requestAnimationFrame(() => markDashboardPaint());
+    return () => cancelAnimationFrame(id);
+  }, [snapshot, showEntryShell]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const applyPrefetch = () => {
+      if (cancelled) return;
+      const state = getSalesReportPrefetchState();
+      if (state.meta) setMeta(state.meta);
+      if (state.snapshot) {
+        setSnapshot(state.snapshot);
+        setHasSyncedOnce(true);
+        markSnapshotApplied();
+      }
+      if (state.error) setErr(state.error);
+      if (state.status === "ready" || state.status === "error") {
+        setBootLoading(false);
+      } else if (state.status === "loading") {
+        setBootLoading(true);
+      }
+    };
+
+    applyPrefetch();
+    const unsubscribe = subscribeSalesReportPrefetch(applyPrefetch);
+    void prefetchSalesReportSnapshot().then(applyPrefetch);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const consultar = useCallback(async () => {
-    if (!dataLive) return;
+    if (!dataLive || loading) return;
+    setSyncShell(true);
     setLoading(true);
     setErr(null);
+    const shellCap = window.setTimeout(() => setSyncShell(false), RIMEC_ENTRY_SHELL_MAX_MS);
+    const snapStarted = performance.now();
     try {
       const r = await fetch("/api/rimec/full-snapshot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filtrosToFullSnapshotBody(filtros)),
       });
-      const j = await r.json();
+      const j = (await r.json()) as Record<string, unknown>;
+      recordPrefetchSnapshotMs(performance.now() - snapStarted, parseServerTiming(j));
+      const st = parseServerTiming(j);
+      if (st) {
+        recordReportPerf(
+          `full-snapshot: red ${((performance.now() - snapStarted) / 1000).toFixed(2)}s · BD ${(st.totalMs / 1000).toFixed(2)}s`,
+          performance.now() - snapStarted,
+          "api",
+        );
+      }
       if (j.configured === false) {
         setSnapshot(null);
         return;
       }
-      if (!r.ok) throw new Error(j.error ?? "Consulta error");
-      if (!isFullSnapshotApiPayload(j as Record<string, unknown>)) throw new Error("Respuesta inválida");
-      const snap = j as FullSnapshotResponse;
-      setSnapshot({
-        ...snap,
-        jerarquia_clientes: Array.isArray(snap.jerarquia_clientes) ? snap.jerarquia_clientes : [],
-      });
+      if (!r.ok) throw new Error(String(j.error ?? "Consulta error"));
+      if (!isFullSnapshotApiPayload(j)) throw new Error("Respuesta inválida");
+      setSnapshot(normalizeSnapshot(j));
       setHasSyncedOnce(true);
     } catch (e) {
       setSnapshot(null);
       setErr(e instanceof Error ? e.message : "Error");
     } finally {
+      window.clearTimeout(shellCap);
+      setSyncShell(false);
       setLoading(false);
     }
-  }, [filtros, dataLive]);
-
-  useEffect(() => {
-    if (!dataLive || booted.current) return;
-    booted.current = true;
-    void consultar();
-  }, [dataLive, consultar]);
+  }, [filtros, dataLive, loading]);
 
   const handleDemo = useCallback(() => {
+    setBootLoading(false);
     setLoading(true);
     setTimeout(() => {
       setSnapshot(getMockFullSnapshot(filtros));
       setHasSyncedOnce(true);
       setLoading(false);
       setErr(null);
-    }, 500);
+    }, 400);
   }, [filtros]);
 
   /** Tras cada snapshot: encajar selección al dominio devuelto (cascada tipo Streamlit). */
@@ -126,12 +217,15 @@ export function ImmersiveClient() {
 
       const catSet = new Set(c.categorias.map((x) => x.id_categoria));
       const catFiltered = f.categoria_ids.filter((id) => catSet.has(id));
+      const calzadosDefault = defaultCalzadosCategoriaIds(c.categorias);
       const categoria_ids =
         c.categorias.length === 0
-          ? f.categoria_ids
-          : catFiltered.length > 0
+          ? f.categoria_ids.length
+            ? f.categoria_ids
+            : calzadosDefault
+          : catFiltered.length >= 2
             ? catFiltered
-            : [c.categorias[0].id_categoria];
+            : calzadosDefault;
 
       const monthPool = c.meses_nombres.length > 0 ? c.meses_nombres : MESES_LISTA;
       const mesFiltered = f.meses.filter((m) => monthPool.includes(m));
@@ -150,11 +244,24 @@ export function ImmersiveClient() {
     });
   }, [snapshot]);
 
+  const renderMundo = () => {
+    switch (mundo) {
+      case "dashboard":
+        return <MundoDashboard data={snapshot!} />;
+      case "clientes":
+        return <MundoClientes data={snapshot!} />;
+      case "marcas":
+        return <MundoMarcas data={snapshot!} />;
+      case "vendedores":
+        return <MundoVendedores data={snapshot!} />;
+    }
+  };
+
   const navItem = (id: MundoId, label: string) => (
     <button
       type="button"
       onClick={() => selectMundo(id)}
-      className={`rounded-full border px-5 py-2 font-serif text-xs font-semibold tracking-widest uppercase transition-all duration-300 ${
+      className={`rounded-full border px-5 py-2 font-serif text-xs font-semibold tracking-widest uppercase transition-all duration-150 ${
         mundo === id
           ? "border-rimec-azul bg-rimec-azul text-rimec-text-white shadow-sm"
           : "border-rimec-azul/20 bg-white text-rimec-azul hover:border-rimec-azul hover:bg-rimec-azul/5"
@@ -179,17 +286,17 @@ export function ImmersiveClient() {
             </span>
           </div>
           <nav className="flex flex-wrap gap-2">
-          {navItem("dashboard", "Dashboard")}
-          {navItem("clientes", "Clientes")}
-          {navItem("marcas", "Marcas")}
-          {navItem("vendedores", "Vendedores")}
-          <Link
-            href="/ventas-fotos"
-            className="rounded-full border border-rimec-azul/20 bg-white px-5 py-2 font-serif text-xs font-semibold uppercase tracking-widest text-rimec-azul transition-all hover:border-rimec-azul hover:bg-rimec-azul/5"
-          >
-            Ventas + Fotos
-          </Link>
-        </nav>
+            {navItem("dashboard", "Dashboard")}
+            {navItem("clientes", "Clientes")}
+            {navItem("marcas", "Marcas")}
+            {navItem("vendedores", "Vendedores")}
+            <Link
+              href="/ventas-fotos"
+              className="rounded-full border border-rimec-azul/20 bg-white px-5 py-2 font-serif text-xs font-semibold uppercase tracking-widest text-rimec-azul transition-all duration-150 hover:border-rimec-azul hover:bg-rimec-azul/5"
+            >
+              Ventas + Fotos
+            </Link>
+          </nav>
         </div>
       </section>
 
@@ -228,12 +335,12 @@ export function ImmersiveClient() {
             <button
               type="button"
               onClick={() => void consultar()}
-              disabled={loading || !dataLive}
+              disabled={loading || bootLoading || !dataLive}
               className="w-full rounded-xl border border-rimec-azul bg-rimec-azul py-3 text-xs uppercase tracking-widest text-rimec-text-white transition-all hover:bg-rimec-azul-light disabled:opacity-50"
             >
-              {loading ? "Calculando..." : "Sincronizar"}
+              {loading || bootLoading ? "Calculando..." : "Sincronizar"}
             </button>
-            {!dataLive && metaReady && (
+            {!dataLive && metaReady && !bootLoading && (
               <button
                 type="button"
                 onClick={handleDemo}
@@ -247,71 +354,58 @@ export function ImmersiveClient() {
         </aside>
 
         <main className="custom-scrollbar relative h-full flex-1 overflow-y-auto rounded-2xl bg-white shadow-sm">
-          {!snapshot ? (
-            <div className="flex h-full flex-col items-center justify-center px-8 text-center font-serif text-neutral-ink-muted">
-              {loading ? (
-                <>
-                  <div className="animate-spin-slow mb-6 h-24 w-24 rounded-full border-2 border-dashed border-rimec-azul/20" />
-                  <p className="text-lg tracking-widest text-rimec-azul/70">Calculando informe…</p>
-                </>
-              ) : (
-                <>
-                  <p className="max-w-md text-sm leading-relaxed text-neutral-ink-muted">
-                    {!dataLive
-                      ? "Sin base configurada en servidor: usá «Modo demo» en el panel para ver el informe completo con datos sintéticos."
-                      : "Pulsá «Sincronizar» en el panel para cargar el snapshot desde la base."}
-                  </p>
-                </>
-              )}
-            </div>
-          ) : (
-            <AnimatePresence mode="wait">
-              {mundo === "dashboard" && (
-                <motion.div
-                  key="dashboard"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                >
-                  <MundoDashboard data={snapshot} />
-                </motion.div>
-              )}
-              {mundo === "clientes" && (
-                <motion.div
-                  key="clientes"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                >
-                  <MundoClientes data={snapshot} />
-                </motion.div>
-              )}
-              {mundo === "marcas" && (
-                <motion.div
-                  key="marcas"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                >
-                  <MundoMarcas data={snapshot} />
-                </motion.div>
-              )}
-              {mundo === "vendedores" && (
-                <motion.div
-                  key="vendedores"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                >
-                  <MundoVendedores data={snapshot} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            {showEntryShell ? (
+              <motion.div
+                key="entry-shell"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <RimecEntryShell
+                  variant="main"
+                  message={
+                    syncShell
+                      ? "Sincronizando informe ejecutivo…"
+                      : "Preparando Sales Report…"
+                  }
+                />
+              </motion.div>
+            ) : !snapshot ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex h-full flex-col items-center justify-center px-8 text-center font-serif text-neutral-ink-muted"
+              >
+                <p className="max-w-md text-sm leading-relaxed text-neutral-ink-muted">
+                  {!dataLive
+                    ? "Sin base configurada en servidor: usá «Modo demo» en el panel para ver el informe completo con datos sintéticos."
+                    : "Pulsá «Sincronizar» en el panel para cargar el snapshot desde la base."}
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <AnimatePresence mode="sync" initial={false}>
+                  <motion.div
+                    key={mundo}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={MUNDO_TRANSITION}
+                  >
+                    {renderMundo()}
+                  </motion.div>
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
       </div>
 

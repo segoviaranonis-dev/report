@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { Skeleton } from "@/components/ui/LoadingState";
-import type { IcCatalogos } from "@/lib/intencion-compra/catalogos-query";
+import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
 import { DIGITACION, PEDIDO_PROVEEDOR, pedidoProveedorDetalle } from "@/lib/report/routes";
 

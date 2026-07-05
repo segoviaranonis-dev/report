@@ -6,6 +6,7 @@ import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { CajaSubNav, type CajaMod } from "@/components/caja-bazzar/CajaSubNav";
 import { TicketsPanel } from "@/components/caja-bazzar/TicketsPanel";
 import { EmpaquePanel } from "@/components/caja-bazzar/EmpaquePanel";
+import { FacturaLegalBar } from "@/components/caja-bazzar/FacturaLegalBar";
 import { getCajaTienda, isCajaClienteId } from "@/lib/caja-bazzar/tiendas";
 
 function CajaTiendaInner({ clienteId, mod }: { clienteId: number; mod: CajaMod }) {
@@ -19,6 +20,7 @@ function CajaTiendaInner({ clienteId, mod }: { clienteId: number; mod: CajaMod }
         <Suspense fallback={<div className="h-32 animate-pulse rounded-2xl bg-slate-200" />}>
           <CajaSubNav clienteId={clienteId} label={tienda.label} />
         </Suspense>
+        <FacturaLegalBar clienteId={clienteId} />
         {mod === "empaque" ? (
           <EmpaquePanel clienteId={clienteId} modoCronometro />
         ) : (

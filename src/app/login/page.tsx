@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, FormField, TextInput } from "@/components/ui";
+import { prefetchSalesReportSnapshot } from "@/lib/rimec/sales-report-prefetch";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,6 +27,8 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (data.success) {
+        void prefetchSalesReportSnapshot();
+        router.prefetch("/rimec");
         router.push("/");
         router.refresh();
       } else {

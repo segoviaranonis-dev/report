@@ -1,20 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import type {
-  PillarBucket,
   VentaFotoRow,
   VentasFotosFilters,
   VentasFotosMarca,
@@ -22,12 +10,19 @@ import type {
   VentasFotosPillarStats,
   VentasFotosResponse,
 } from "@/lib/ventas-fotos/types";
-import { chartColorAt, RIMEC_RECHARTS_TOOLTIP } from "@/app/rimec/chart-theme";
-import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
-import { getImagenCandidatesFlatFirst } from "@/lib/ventas-fotos/parse-imagen";
+import { recordReportPerf } from "@/lib/report/report-perf";
 
-const fmtInt = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
-const fmtPct = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const VentasFotosResults = dynamic(
+  () => import("./VentasFotosResults").then((m) => ({ default: m.VentasFotosResults })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="mt-6 rounded-xl border border-report-rule bg-white p-8 text-center text-sm text-report-muted">
+        Preparando panel de resultados…
+      </div>
+    ),
+  },
+);
 
 const DEMO_MARCAS: VentasFotosMarca[] = [{ id_marca: 1, descp_marca: "Marca demo" }];
 
@@ -104,7 +99,7 @@ async function readPdfResponse(res: Response): Promise<Blob> {
       throw new Error(json.error ?? json.message ?? "Error al generar PDF");
     } catch (e) {
       if (e instanceof SyntaxError) {
-        // Vercel a veces responde text/plain con Content-Type json
+        // respuesta mal formada
       } else if (e instanceof Error) {
         throw e;
       }
@@ -117,21 +112,12 @@ async function readPdfResponse(res: Response): Promise<Blob> {
   throw new Error(`PDF no disponible (${res.status}): ${snippet || "respuesta inválida"}`);
 }
 
-function emptyKpis(rows: VentaFotoRow[]) {
-  return {
-    total_cantidad: rows.reduce((s, r) => s + Math.abs(r.cantidad), 0),
-    total_monto: rows.reduce((s, r) => s + Math.abs(r.monto), 0),
-    total_ventas: rows.filter((r) => r.tipo_venta === "VENTA").reduce((s, r) => s + Math.abs(r.cantidad), 0),
-    total_transito: rows.filter((r) => r.tipo_venta === "TRANSITO").reduce((s, r) => s + Math.abs(r.cantidad), 0),
-    articulos_unicos: new Set(rows.map((r) => r.imagen).filter(Boolean)).size,
-  };
-}
 
 function demoPillarStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
   const totalPares = rows.reduce((s, r) => s + Math.abs(r.cantidad), 0);
   const totalMonto = rows.reduce((s, r) => s + Math.abs(r.monto), 0);
   const articulosUnicos = new Set(rows.map((r) => r.imagen).filter(Boolean)).size;
-  const mk = (label: string, pares: number, monto: number): PillarBucket => ({
+  const mk = (label: string, pares: number, monto: number) => ({
     label,
     pares,
     monto,
@@ -151,6 +137,7 @@ function demoPillarStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
 export function VentasFotosClient() {
   const dates = useMemo(defaultDates, []);
   const [meta, setMeta] = useState<VentasFotosMetaResponse | null>(null);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [filters, setFilters] = useState<VentasFotosFilters>({
     clienteCodigo: "",
     fechaInicio: dates.fechaInicio,
@@ -163,58 +150,72 @@ export function VentasFotosClient() {
   const [loadingPDF, setLoadingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
-
-  // Estados para PDF en background
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "ready" | "error">("idle");
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const pdfRequestIdRef = useRef(0);
   const [pdfElapsedSeconds, setPdfElapsedSeconds] = useState(0);
 
   useEffect(() => {
-    fetch("/api/ventas-fotos/meta", { credentials: "same-origin", cache: "no-store" })
-      .then(async (r) => {
-        const j = await readJsonResponse<VentasFotosMetaResponse>(r);
-        if (!r.ok) throw new Error(j.message ?? `Error HTTP ${r.status} leyendo marcas`);
-        return j;
-      })
-      .then((j) => {
-        setMeta(j);
-        const firstMarca = j.marcas[0]?.id_marca ?? 0;
-        if (firstMarca) setFilters((f) => ({ ...f, marcaId: firstMarca }));
-      })
-      .catch((error) =>
-        setMeta({
-          configured: false,
-          marcas: DEMO_MARCAS,
-          message: error instanceof Error ? `${error.message}; usando demostración.` : "No se pudo leer la metadata; usando demostración.",
-        }),
-      );
+    let cancelled = false;
+    const loadMeta = () => {
+      fetch("/api/ventas-fotos/meta", { credentials: "same-origin", cache: "no-store" })
+        .then(async (r) => {
+          const j = await readJsonResponse<VentasFotosMetaResponse>(r);
+          if (!r.ok) throw new Error(j.message ?? `Error HTTP ${r.status} leyendo marcas`);
+          return j;
+        })
+        .then((j) => {
+          if (cancelled) return;
+          setMeta(j);
+          const firstMarca = j.marcas[0]?.id_marca ?? 0;
+          if (firstMarca) setFilters((f) => ({ ...f, marcaId: firstMarca }));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setMeta({
+            configured: false,
+            marcas: DEMO_MARCAS,
+            message:
+              err instanceof Error
+                ? `${err.message}; usando demostración.`
+                : "No se pudo leer la metadata; usando demostración.",
+          });
+        })
+        .finally(() => {
+          if (!cancelled) setMetaLoading(false);
+        });
+    };
+
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(loadMeta, { timeout: 800 });
+      return () => {
+        cancelled = true;
+        cancelIdleCallback(id);
+      };
+    }
+    const t = window.setTimeout(loadMeta, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, []);
 
-  // Cleanup blob URL cuando cambia o se desmonta
   useEffect(() => {
     return () => {
-      if (pdfBlobUrl) {
-        URL.revokeObjectURL(pdfBlobUrl);
-      }
+      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
     };
   }, [pdfBlobUrl]);
 
-  // Trackear tiempo de generación de PDF
   useEffect(() => {
-    if (pdfState === "generating") {
-      setPdfElapsedSeconds(0);
-      const interval = setInterval(() => {
-        setPdfElapsedSeconds((prev) => prev + 1);
-      }, 1000);
-      return () => clearInterval(interval);
-    }
+    if (pdfState !== "generating") return;
+    setPdfElapsedSeconds(0);
+    const interval = setInterval(() => setPdfElapsedSeconds((prev) => prev + 1), 1000);
+    return () => clearInterval(interval);
   }, [pdfState]);
 
   const configured = meta?.configured === true;
   const marcas = meta?.marcas.length ? meta.marcas : DEMO_MARCAS;
   const rows = useMemo(() => data?.rows ?? (!configured ? DEMO_ROWS : []), [configured, data]);
-  const kpis = data?.kpis ?? emptyKpis(rows);
   const pillarStats = data?.pillarStats ?? (!configured ? demoPillarStats(rows) : EMPTY_PILLAR_STATS);
   const cliente = data?.cliente ?? (rows[0] ? { id: rows[0].id_cliente, nombre: rows[0].descp_cliente } : null);
   const marca = data?.marca ?? marcas.find((m) => m.id_marca === filters.marcaId) ?? null;
@@ -222,30 +223,31 @@ export function VentasFotosClient() {
     () => [...new Set(rows.map((r) => r.imagen).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [rows],
   );
+  const userRequestedData = data !== null;
 
   async function cargar() {
     setLoading(true);
     setError(null);
     setPdfError(null);
-    // Invalidar PDF anterior
     setPdfState("idle");
     if (pdfBlobUrl) {
       URL.revokeObjectURL(pdfBlobUrl);
       setPdfBlobUrl(null);
     }
     try {
+      const started = performance.now();
       const res = await fetch("/api/ventas-fotos/ventas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filters),
       });
       const json = await readJsonResponse<VentasFotosResponse>(res);
+      recordReportPerf(`ventas-fotos consulta`, performance.now() - started, "user");
       if (!res.ok) throw new Error(json.error ?? "Error al cargar ventas con fotos");
       setData(json);
       if (json.error) setError(json.error);
-      // Si carga exitosa con datos, generar PDF en background
       if (json.rows && json.rows.length > 0) {
-        generarPDFBackground(json);
+        generarPDFBackground();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar ventas con fotos");
@@ -255,31 +257,24 @@ export function VentasFotosClient() {
     }
   }
 
-  async function generarPDFBackground(_dataSnapshot: VentasFotosResponse) {
+  async function generarPDFBackground() {
     const currentRequestId = ++pdfRequestIdRef.current;
     setPdfState("generating");
     setPdfError(null);
-
     try {
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "filters", filters }),
       });
-
-      if (currentRequestId !== pdfRequestIdRef.current) {
-        return;
-      }
-
+      if (currentRequestId !== pdfRequestIdRef.current) return;
       const blob = await readPdfResponse(res);
-      const url = window.URL.createObjectURL(blob);
-      setPdfBlobUrl(url);
+      setPdfBlobUrl(window.URL.createObjectURL(blob));
       setPdfState("ready");
     } catch (e) {
       if (currentRequestId === pdfRequestIdRef.current) {
         setPdfState("error");
         setPdfError(e instanceof Error ? e.message : "Error al generar PDF");
-        console.error("Error generando PDF en background:", e);
       }
     }
   }
@@ -289,8 +284,6 @@ export function VentasFotosClient() {
       setError("No hay datos para generar PDF");
       return;
     }
-
-    // Si el PDF ya está listo, descargarlo inmediatamente
     if (pdfState === "ready" && pdfBlobUrl) {
       const a = document.createElement("a");
       a.href = pdfBlobUrl;
@@ -300,23 +293,15 @@ export function VentasFotosClient() {
       document.body.removeChild(a);
       return;
     }
-
-    // Si está generando, no hacer nada (botón debe estar deshabilitado)
-    if (pdfState === "generating") {
-      return;
-    }
-
-    // Si está idle o error, generar manualmente
+    if (pdfState === "generating") return;
     setLoadingPDF(true);
     setPdfError(null);
-
     try {
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "filters", filters }),
       });
-
       const blob = await readPdfResponse(res);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -346,15 +331,15 @@ export function VentasFotosClient() {
               Informe de compras y tránsito con fotos
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-report-muted">
-              Reemplaza la app PyQt/MySQL legacy: mismo filtro por cliente, fecha, marca y referencia; datos servidos por
-              Report y fotos desde Storage.
+              Filtros listos al instante. La consulta a la base corre solo cuando pulsás{" "}
+              <strong className="text-report-navy">Aplicar filtros</strong>.
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
             <button
               type="button"
               onClick={generarPDF}
-              disabled={loadingPDF || !rows.length || pdfState === "generating"}
+              disabled={loadingPDF || !rows.length || pdfState === "generating" || !userRequestedData}
               className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 disabled:opacity-40 disabled:cursor-not-allowed print:hidden"
             >
               {loadingPDF
@@ -367,7 +352,7 @@ export function VentasFotosClient() {
                       ? "PDF no disponible, reintentar"
                       : "Generar PDF"}
             </button>
-            {pdfState === "generating" && (
+            {pdfState === "generating" ? (
               <div className="w-64">
                 <div className="mb-1 flex items-center justify-between text-[10px] text-report-muted">
                   <span>Preparando PDF...</span>
@@ -378,29 +363,23 @@ export function VentasFotosClient() {
                     className="h-full bg-report-navy transition-all duration-500"
                     style={{
                       width: pdfElapsedSeconds < 10 ? `${(pdfElapsedSeconds / 10) * 100}%` : "100%",
-                      animation: pdfElapsedSeconds >= 10 ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none",
                     }}
                   />
                 </div>
-                {pdfElapsedSeconds > 10 && (
-                  <p className="mt-2 text-[10px] text-report-muted">
-                    PDF sigue preparándose; podés seguir usando el informe.
-                  </p>
-                )}
               </div>
-            )}
-            {pdfError ? (
-              <p className="max-w-xs text-right text-[10px] text-red-700">{pdfError}</p>
             ) : null}
+            {pdfError ? <p className="max-w-xs text-right text-[10px] text-red-700">{pdfError}</p> : null}
           </div>
         </div>
 
-        {!configured ? (
+        {!configured && !metaLoading ? (
           <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 print:hidden">
             {meta?.message ?? "DATABASE_URL no configurada. Mostrando una maqueta funcional del módulo."}
           </p>
         ) : null}
-        {error ? <p className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
+        {error ? (
+          <p className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>
+        ) : null}
 
         <div className="mt-5 grid gap-3 rounded-xl border border-report-rule bg-white p-4 shadow-sm md:grid-cols-5 print:hidden">
           <Field label="Cliente">
@@ -431,9 +410,10 @@ export function VentasFotosClient() {
             <select
               className="w-full rounded border border-report-rule px-2 py-1.5 text-sm"
               value={filters.marcaId || ""}
+              disabled={metaLoading}
               onChange={(e) => setFilters((f) => ({ ...f, marcaId: Number(e.target.value) }))}
             >
-              <option value="">Seleccionar</option>
+              <option value="">{metaLoading ? "Cargando marcas…" : "Seleccionar"}</option>
               {marcas.map((m) => (
                 <option key={m.id_marca} value={m.id_marca}>
                   {m.descp_marca}
@@ -458,21 +438,33 @@ export function VentasFotosClient() {
           <div className="md:col-span-5 flex flex-wrap items-center gap-3">
             <button
               type="button"
-              disabled={loading || !filters.clienteCodigo || !filters.marcaId}
-              onClick={cargar}
+              disabled={loading || metaLoading || !filters.clienteCodigo || !filters.marcaId}
+              onClick={() => void cargar()}
               className="rounded bg-report-navy px-4 py-2 text-xs font-semibold text-white hover:bg-report-navy2 disabled:opacity-40"
             >
-              {loading ? "Cargando…" : "Aplicar filtros"}
+              {loading ? "Consultando…" : "Aplicar filtros"}
             </button>
             <span className="text-xs text-report-muted">
-              Se devuelven hasta 1.200 filas para mantener estable el despliegue serverless.
+              Sin clic en Aplicar no se consulta la base · hasta 1.200 filas por informe.
             </span>
           </div>
         </div>
 
-        <HeaderSummary cliente={cliente} marca={marca} fechaInicio={filters.fechaInicio} fechaFin={filters.fechaFin} />
-        <PillarStatsBlock stats={pillarStats} hasRows={rows.length > 0} />
-        <VentasFotosTable rows={rows} />
+        {userRequestedData || (!configured && rows.length > 0) ? (
+          <VentasFotosResults
+            rows={rows}
+            pillarStats={pillarStats}
+            cliente={cliente}
+            marca={marca}
+            fechaInicio={filters.fechaInicio}
+            fechaFin={filters.fechaFin}
+          />
+        ) : (
+          <div className="mt-8 rounded-xl border border-dashed border-report-rule bg-white p-10 text-center text-sm text-report-muted">
+            Completá cliente y marca, luego <strong className="text-report-navy">Aplicar filtros</strong> para cargar
+            ventas, fotos y gráficos.
+          </div>
+        )}
       </div>
     </section>
   );
@@ -484,306 +476,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {label}
       <span className="mt-1 block normal-case tracking-normal text-report-ink">{children}</span>
     </label>
-  );
-}
-
-function HeaderSummary({
-  cliente,
-  marca,
-  fechaInicio,
-  fechaFin,
-}: {
-  cliente: { id: string; nombre: string } | null;
-  marca: VentasFotosMarca | null;
-  fechaInicio: string;
-  fechaFin: string;
-}) {
-  return (
-    <div className="mt-6 grid gap-3 border border-report-rule bg-report-paper2 p-4 text-sm md:grid-cols-4">
-      <p>
-        <span className="font-semibold text-report-navy">Cliente:</span> {cliente ? `${cliente.id} · ${cliente.nombre}` : "—"}
-      </p>
-      <p>
-        <span className="font-semibold text-report-navy">Marca:</span> {marca?.descp_marca ?? "—"}
-      </p>
-      <p>
-        <span className="font-semibold text-report-navy">Desde:</span> {fechaInicio || "—"}
-      </p>
-      <p>
-        <span className="font-semibold text-report-navy">Hasta:</span> {fechaFin || "—"}
-      </p>
-    </div>
-  );
-}
-
-function PillarStatsBlock({ stats, hasRows }: { stats: VentasFotosPillarStats; hasRows: boolean }) {
-  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
-
-  if (!hasRows) {
-    return (
-      <div className="mt-6 rounded-xl border border-report-rule bg-white p-8 text-center text-sm text-report-muted shadow-sm">
-        Aplicá filtros para ver las estadísticas por pilares.
-      </div>
-    );
-  }
-
-  return (
-    <section className="mt-6 rounded-xl border border-report-rule bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-report-rule pb-3">
-        <h2 className="font-serif text-xl font-bold text-report-navy">Estadísticas por pilares</h2>
-        <ResumenCompacto stats={stats.resumen} />
-      </div>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <ChartTablePane title="Género" buckets={stats.porGenero} chart="pie" />
-        <ChartTablePane title="Categoría" buckets={stats.porCategoria} chart="bar" />
-        <ChartTablePane title="Estilo" buckets={stats.porEstilo} chart="bar" />
-        <ChartTablePane title="Tipo" buckets={stats.porTipo1} chart="bar" />
-        <ChartTablePane title="Color" buckets={stats.porColor} chart="bar" topN={10} />
-      </div>
-
-      {stats.resumen.sinClasificar > 0 ? (
-        <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-          {stats.resumen.sinClasificar} fila{stats.resumen.sinClasificar === 1 ? "" : "s"} sin metadata de pilares — se
-          agruparon como “Sin clasificar”. La imagen no matcheó contra <code>linea / referencia / linea_referencia</code>.
-        </p>
-      ) : null}
-
-      <p className="mt-3 text-[10px] uppercase tracking-wide text-report-muted">
-        Total monto: <span className="font-semibold text-report-navy">{fmtMoney.format(stats.resumen.totalMonto)}</span>
-      </p>
-    </section>
-  );
-}
-
-function ResumenCompacto({ stats }: { stats: VentasFotosPillarStats["resumen"] }) {
-  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
-  return (
-    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
-      <SummaryChip label="Pares" value={fmtInt.format(stats.totalPares)} />
-      <SummaryChip label="Monto" value={fmtMoney.format(stats.totalMonto)} />
-      <SummaryChip label="Artículos únicos" value={fmtInt.format(stats.articulosUnicos)} />
-    </div>
-  );
-}
-
-function SummaryChip({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-report-muted">{label}</span>
-      <span className="font-semibold tabular-nums text-report-navy">{value}</span>
-    </span>
-  );
-}
-
-function ChartTablePane({
-  title,
-  buckets,
-  chart,
-  topN,
-}: {
-  title: string;
-  buckets: PillarBucket[];
-  chart: "pie" | "bar";
-  topN?: number;
-}) {
-  const data = topN ? buckets.slice(0, topN) : buckets;
-
-  if (!data.length) {
-    return (
-      <div className="rounded-lg border border-report-rule bg-report-paper2 p-4 text-xs text-report-muted">
-        Sin datos para {title.toLowerCase()}.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-report-rule bg-report-paper2 p-4">
-      <div className="flex items-baseline justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-report-navy">{title}</h3>
-        <span className="text-[10px] text-report-muted">{buckets.length} segmento{buckets.length === 1 ? "" : "s"}</span>
-      </div>
-
-      <div className="mt-3 h-44 w-full">
-        {chart === "pie" ? <PillarPie data={data} /> : <PillarBars data={data} />}
-      </div>
-
-      <PillarTable rows={data} />
-      {topN && buckets.length > topN ? (
-        <p className="mt-2 text-[10px] text-report-muted">Mostrando top {topN} de {buckets.length}.</p>
-      ) : null}
-    </div>
-  );
-}
-
-function PillarPie({ data }: { data: PillarBucket[] }) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie
-          data={data}
-          dataKey="pares"
-          nameKey="label"
-          cx="40%"
-          cy="50%"
-          outerRadius={64}
-          innerRadius={28}
-          paddingAngle={1}
-          stroke="#ffffff"
-        >
-          {data.map((_, i) => (
-            <Cell key={i} fill={chartColorAt(i)} />
-          ))}
-        </Pie>
-        <Tooltip
-          {...RIMEC_RECHARTS_TOOLTIP}
-          formatter={(value, _name, ctx) => {
-            const n = Number(value ?? 0);
-            const bucket = ctx?.payload as PillarBucket | undefined;
-            return [
-              `${fmtInt.format(n)} pares · ${fmtPct.format(bucket?.pctPares ?? 0)} %`,
-              bucket?.label ?? "",
-            ];
-          }}
-        />
-        <Legend
-          layout="vertical"
-          align="right"
-          verticalAlign="middle"
-          iconSize={8}
-          wrapperStyle={{ fontSize: 11 }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
-
-function PillarBars({ data }: { data: PillarBucket[] }) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
-        <XAxis type="number" tick={{ fontSize: 10, fill: "#4a3f35" }} tickFormatter={(v) => fmtInt.format(v)} />
-        <YAxis
-          type="category"
-          dataKey="label"
-          tick={{ fontSize: 10, fill: "#002B4E" }}
-          width={90}
-          interval={0}
-        />
-        <Tooltip
-          cursor={{ fill: "rgba(0,43,78,0.05)" }}
-          {...RIMEC_RECHARTS_TOOLTIP}
-          formatter={(value, _name, ctx) => {
-            const n = Number(value ?? 0);
-            const bucket = ctx?.payload as PillarBucket | undefined;
-            return [
-              `${fmtInt.format(n)} pares · ${fmtPct.format(bucket?.pctPares ?? 0)} %`,
-              bucket?.label ?? "",
-            ];
-          }}
-        />
-        <Bar dataKey="pares" radius={[0, 3, 3, 0]}>
-          {data.map((_, i) => (
-            <Cell key={i} fill={chartColorAt(i)} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function PillarTable({ rows }: { rows: PillarBucket[] }) {
-  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
-  return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="w-full text-[11px]">
-        <thead>
-          <tr className="border-b border-report-rule text-left text-[10px] uppercase tracking-wide text-report-muted">
-            <th className="py-1.5 font-semibold">Segmento</th>
-            <th className="py-1.5 text-right font-semibold">Pares</th>
-            <th className="py-1.5 text-right font-semibold">Monto</th>
-            <th className="py-1.5 text-right font-semibold">% Pares</th>
-            <th className="py-1.5 text-right font-semibold">% Monto</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.label} className="border-b border-report-rule/40 last:border-0">
-              <td className="py-1.5">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: chartColorAt(i) }} />
-                  {r.label}
-                </span>
-              </td>
-              <td className="py-1.5 text-right tabular-nums">{fmtInt.format(r.pares)}</td>
-              <td className="py-1.5 text-right tabular-nums">{fmtMoney.format(r.monto)}</td>
-              <td className="py-1.5 text-right tabular-nums">{fmtPct.format(r.pctPares)}%</td>
-              <td className="py-1.5 text-right tabular-nums">{fmtPct.format(r.pctMonto)}%</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function VentasFotosTable({ rows }: { rows: VentaFotoRow[] }) {
-  if (!rows.length) {
-    return (
-      <div className="mt-6 rounded border border-report-rule bg-white p-8 text-center text-sm text-report-muted">
-        Sin filas para los filtros seleccionados.
-      </div>
-    );
-  }
-
-  const fmtMoney = new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0 });
-
-  return (
-    <div className="mt-6 overflow-x-auto border border-report-rule bg-white shadow-sm">
-      <table className="report-table min-w-[960px]">
-        <thead>
-          <tr>
-            <th className="w-28">Imagen</th>
-            <th>Fecha</th>
-            <th>Referencia</th>
-            <th>Categoría</th>
-            <th className="text-right">Cantidad</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
-            const thumbCandidates = row.imagen_valid
-              ? (() => {
-                  const c = getImagenCandidatesFlatFirst(row.imagen);
-                  return c.length > 0 ? c : [row.image_url];
-                })()
-              : [];
-            return (
-            <tr key={`${row.imagen}-${row.fecha}-${idx}`}>
-              <td>
-                <div className="w-20 print:w-16">
-                  {row.imagen_valid ? (
-                    <ProductThumbFrame
-                      alt={row.imagen}
-                      candidates={thumbCandidates}
-                      size={80}
-                    />
-                  ) : (
-                    <div className="h-20 w-20 bg-slate-100 border border-slate-200 rounded flex items-center justify-center text-[10px] text-slate-400 text-center p-1">
-                      {row.imagen_error || "Sin imagen"}
-                    </div>
-                  )}
-                </div>
-              </td>
-              <td className="tabular-nums">{row.fecha}</td>
-              <td className="font-mono text-xs">{row.imagen || "—"}</td>
-              <td className="text-xs">{row.descp_categoria || "—"}</td>
-              <td className="text-right tabular-nums">{fmtInt.format(row.cantidad)}</td>
-            </tr>
-          );
-          })}
-        </tbody>
-      </table>
-    </div>
   );
 }

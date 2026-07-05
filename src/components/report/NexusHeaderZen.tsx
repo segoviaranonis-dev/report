@@ -21,6 +21,7 @@ export type NexusNavKey =
   | "pilares"
   | "depositos-bazzar"
   | "tablet-bazzar"
+  | "bobeda-oro"
   | "proceso-importacion"
   | "compra-legal"
   | "facturacion"

@@ -1,5 +1,12 @@
+import type { PoolClient } from "pg";
 import { getRimecPool } from "@/lib/rimec/pool";
+import { asegurarSerialLegalEnBandeja } from "./factura-legal-turno";
 import { TABLA_BANDEJA, TABLA_BOBINA } from "./pos-tables";
+import {
+  mergeTrazabilidadEnSnapshot,
+  resolverTrazabilidadDeposito,
+  trazabilidadDesdeSnapshot,
+} from "@/lib/bobeda-oro/trazabilidad-import";
 
 export async function tablaBandejaExiste(): Promise<boolean> {
   const pool = getRimecPool();
@@ -82,8 +89,8 @@ function codigoOroDesdeBandeja(codigoBandeja: string): string {
   return `ORO-${codigoBandeja}`;
 }
 
-/** Snapshot ORO inmutable — molécula + artículo + titular al momento del handoff. */
-function buildSnapshotOro(row: BandejaRow): Record<string, unknown> {
+/** Snapshot ORO inmutable — molécula + artículo + titular + trazabilidad import al handoff. */
+async function buildSnapshotOro(conn: PoolClient, row: BandejaRow): Promise<Record<string, unknown>> {
   const snap: Record<string, unknown> =
     row.snapshot_json && typeof row.snapshot_json === "object" ? { ...row.snapshot_json } : {};
 
@@ -106,6 +113,18 @@ function buildSnapshotOro(row: BandejaRow): Record<string, unknown> {
     snap.snapshot_cliente = row.snapshot_cliente;
   }
 
+  const prev = trazabilidadDesdeSnapshot(snap);
+  if (!prev.deposito_tabla || !prev.import_batch_label) {
+    const tr = await resolverTrazabilidadDeposito(conn, Number(row.cliente_id), {
+      linea_id: row.linea_id,
+      referencia_id: row.referencia_id,
+      material_id: row.material_id,
+      color_id: row.color_id,
+      grada: row.grada,
+    });
+    if (tr) return mergeTrazabilidadEnSnapshot(snap, tr);
+  }
+
   return snap;
 }
 
@@ -115,6 +134,18 @@ export async function enviarBandejaAEmpaque(
 ): Promise<{ ok: true; inserted: number } | { ok: false; error: string }> {
   if (!(await tablaBandejaExiste()) || !(await tablaBobedaExiste())) {
     return { ok: false, error: "Tablas bandeja/bobeda no existen — aplicar migración 005" };
+  }
+
+  const stamp = await asegurarSerialLegalEnBandeja({
+    clienteId: input.clienteId,
+    stagingId: input.stagingId,
+    codigos: input.codigos,
+  });
+  if (!stamp.serial) {
+    return {
+      ok: false,
+      error: "Sin serial factura legal ACTIVA — usar barra superior (Activa / Siguiente) antes del handoff bóveda",
+    };
   }
 
   const pool = getRimecPool();
@@ -162,7 +193,7 @@ export async function enviarBandejaAEmpaque(
     for (const row of rows.rows) {
       const codigoOro = codigoOroDesdeBandeja(row.codigo_bandeja);
       const precio = precioDesdeBandeja(row);
-      const snap = buildSnapshotOro(row);
+      const snap = await buildSnapshotOro(client, row);
       const ins = await client.query<{ codigo_oro: string }>(
         `
           INSERT INTO public.${TABLA_BOBINA} (

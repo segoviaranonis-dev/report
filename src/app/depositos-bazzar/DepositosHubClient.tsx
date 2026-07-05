@@ -11,6 +11,17 @@ function fmt(n: number) {
   return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
 }
 
+function fmtImport(iso: string | null | undefined) {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("es-PY", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
 function RamoLink({
   href,
   emoji,
@@ -58,6 +69,23 @@ function TiendaCard({
                 </span>
               )}
             </p>
+          )}
+          {!tienda.error && tienda.fecha_importacion && (
+            <>
+              <p className="text-xs text-report-muted">
+                📅 Import {fmtImport(tienda.fecha_importacion)}
+                {tienda.batch_label ? ` · ${tienda.batch_label}` : ""}
+              </p>
+              <p className="text-xs font-semibold tabular-nums text-emerald-800">
+                🛒 {fmt(tienda.uds_vendidas ?? 0)} vendido
+                {(tienda.uds_importadas ?? 0) > 0 && (
+                  <span className="font-normal text-report-muted">
+                    {" "}
+                    · de {fmt(tienda.uds_importadas ?? 0)} importadas
+                  </span>
+                )}
+              </p>
+            </>
           )}
         </div>
         <Link
@@ -145,13 +173,20 @@ export function DepositosHubClient() {
       0,
     ) ?? 0;
 
+  const totalVendido =
+    data?.entes.reduce(
+      (s, e) => s + e.tiendas.reduce((t, ti) => t + (ti.error ? 0 : (ti.uds_vendidas ?? 0)), 0),
+      0,
+    ) ?? 0;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <header className="space-y-3">
         <h1 className="font-serif text-2xl font-bold text-report-ink">Depósitos Bazzar</h1>
         <p className="text-sm text-report-muted">
           {data?.acceso_label ?? "Depósitos Bazzar"} · 👟 {fmt(totalCalzado)} uds calzado ·{" "}
-          {fmt(totalPares)} uds total · import CSV POS
+          {fmt(totalPares)} uds total
+          {totalVendido > 0 && <> · 🛒 {fmt(totalVendido)} vendido</>} · import CSV POS
         </p>
         <div className="flex flex-wrap items-center gap-4">
           <CategoriaDepositoToggle value={categoria} onChange={setCategoria} />

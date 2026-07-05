@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { IcCatalogos } from "@/lib/intencion-compra/catalogos-query";
+import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { IcPendienteRow } from "@/lib/intencion-compra/pendientes-query";
 import {
   FECHA_DE_EMBARQUE_CAMPO,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/intencion-compra/quincena-arribo";
 import { FechaEmbarqueSlider } from "./FechaEmbarqueSlider";
 import { useMarcasPorTipo } from "./useMarcasPorTipo";
+import { resolveMarcasIcOptions } from "@/lib/intencion-compra/marcas-ic-options";
 
 type Props = {
   ic: IcPendienteRow;
@@ -61,6 +62,7 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { marcas: marcasFiltradas } = useMarcasPorTipo(ic.tipo_id);
+  const marcasOpciones = resolveMarcasIcOptions(catalogos, ic.tipo_id, marcasFiltradas);
 
   const save = useCallback(
     async (campo: string, valor: unknown) => {
@@ -113,7 +115,7 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
           <SelectField
             label="Marca"
             value={ic.id_marca}
-            options={marcasFiltradas.length ? marcasFiltradas : catalogos.marcas}
+            options={marcasOpciones}
             onChange={(id) => save("id_marca", id)}
           />
           <FechaEmbarqueSlider

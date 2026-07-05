@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Merriweather, Source_Sans_3 } from "next/font/google";
+import { ReportPerfRoot } from "@/components/report/ReportPerfRoot";
 import "./globals.css";
 
 const reportSerif = Merriweather({
@@ -30,6 +31,7 @@ export default function RootLayout({
         className={`${reportSerif.variable} ${reportSans.variable} min-h-screen bg-report-paper font-sans text-report-ink antialiased`}
       >
         {children}
+        <ReportPerfRoot />
       </body>
     </html>
   );

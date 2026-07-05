@@ -15,8 +15,10 @@ type BibliotecaRow = {
 };
 
 type Props = {
-  clienteId: number;
-  categoria: CategoriaDeposito;
+  clienteId?: number;
+  categoria?: CategoriaDeposito;
+  /** PE RIMEC: `/api/stock-pronta-entrega/filtros-indice` */
+  indiceApiPath?: string;
   bibliotecaId: number | null;
   casoActivo: string | null;
   onBibliotecaChange: (id: number | null) => void;
@@ -26,7 +28,8 @@ type Props = {
 
 export function BibliotecaCasoBar({
   clienteId,
-  categoria,
+  categoria = "tienda",
+  indiceApiPath,
   bibliotecaId,
   casoActivo,
   onBibliotecaChange,
@@ -40,12 +43,17 @@ export function BibliotecaCasoBar({
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const catParam = categoria === "tienda" ? "" : `&categoria=${categoria}`;
+  const catParam =
+    indiceApiPath || categoria === "tienda" ? "" : `&categoria=${categoria}`;
+  const indiceBase =
+    indiceApiPath ??
+    (clienteId != null ? `/api/depositos/${clienteId}/filtros-indice` : null);
 
   const cargarCasos = useCallback(
     async (bibId: number) => {
+      if (!indiceBase) throw new Error("API filtros-indice no configurada");
       const r = await fetch(
-        `/api/depositos/${clienteId}/filtros-indice?proveedor_id=${PROVEEDOR_CALZADO}&biblioteca_id=${bibId}${catParam}`,
+        `${indiceBase}?proveedor_id=${PROVEEDOR_CALZADO}&biblioteca_id=${bibId}${catParam}`,
         { cache: "no-store" },
       );
       const j = await r.json();
@@ -57,18 +65,20 @@ export function BibliotecaCasoBar({
       setCasos(lista);
       onCasosLoaded(lista);
     },
-    [clienteId, catParam, onCasosLoaded],
+    [catParam, indiceBase, onCasosLoaded],
   );
 
   useEffect(() => {
+    if (!indiceBase) {
+      setErr("Depósito sin API biblioteca");
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setErr(null);
 
-    fetch(
-      `/api/depositos/${clienteId}/filtros-indice?proveedor_id=${PROVEEDOR_CALZADO}${catParam}`,
-      { cache: "no-store" },
-    )
+    fetch(`${indiceBase}?proveedor_id=${PROVEEDOR_CALZADO}${catParam}`, { cache: "no-store" })
       .then((r) => r.json())
       .then(async (j) => {
         if (cancelled) return;
@@ -98,8 +108,8 @@ export function BibliotecaCasoBar({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- init por cliente/categoría
-  }, [clienteId, categoria]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- init por API base
+  }, [indiceBase, categoria]);
 
   async function onSelectBiblioteca(id: number) {
     onBibliotecaChange(id);

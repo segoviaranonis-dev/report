@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { FullSnapshotCascada } from "@/lib/rimec/full-snapshot-types";
 import type { SalesReportFilters } from "@/modules/sales-report/types";
 import { MESES_LISTA } from "@/modules/sales-report/constants";
-import { mesesSemestre } from "../rimec-view-utils";
+import { mesesSemestre, periodoRapidoActivo } from "../rimec-view-utils";
 
 function summarizeList(items: string[], max = 2): string {
   if (!items.length) return "Ninguno";
@@ -67,6 +67,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
 
   const mesesPool = cascada?.meses_nombres?.length ? cascada.meses_nombres : MESES_LISTA;
   const canPick = Boolean(cascada && hasSyncedOnce);
+  const periodoActivo = periodoRapidoActivo(filtros.meses, mesesPool);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -141,20 +142,27 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         <div className="flex gap-2">
           {(
             [
-              ["s1", "1er Sem"],
+              ["s1", "Semestral"],
               ["s2", "2do Sem"],
               ["year", "Año"],
             ] as const
-          ).map(([k, lab]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setSem(k)}
-              className="flex-1 rounded-full border border-rimec-azul/15 bg-white py-1.5 text-[10px] uppercase text-neutral-ink-medium transition hover:border-rimec-azul/40 hover:text-rimec-azul"
-            >
-              {lab}
-            </button>
-          ))}
+          ).map(([k, lab]) => {
+            const selected = periodoActivo === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setSem(k)}
+                className={`flex-1 rounded-full border py-1.5 text-[10px] uppercase transition hover:border-rimec-azul/40 hover:text-rimec-azul ${
+                  selected
+                    ? "animate-rimec-attention-pulse border-rimec-azul/50 bg-rimec-azul/10 font-semibold text-rimec-azul ring-2 ring-rimec-azul/30"
+                    : "border-rimec-azul/15 bg-white text-neutral-ink-medium"
+                }`}
+              >
+                {lab}
+              </button>
+            );
+          })}
         </div>
       </div>
 

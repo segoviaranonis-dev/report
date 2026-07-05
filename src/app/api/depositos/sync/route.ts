@@ -59,7 +59,7 @@ async function syncDeposito(config: DepositoConfig): Promise<SyncResult> {
         id, batch_id, batch_label, fecha_mov, origen_holding, tipo_movimiento,
         codigo_barras, linea_codigo_proveedor, referencia_codigo_proveedor,
         excel_material_code, excel_color_code, linea_id, referencia_id,
-        material_id, color_id, grada, cantidad, precio_unitario, monto,
+        material_id, color_id, grada, cantidad, cantidad_importada, precio_unitario, monto,
         imagen_nombre, archivo_origen, excel_sheet, created_at, created_by,
         marca_id, genero_id, grupo_estilo_id, tipo_1_id, tipo_v2_id, cliente_id
       )
@@ -67,7 +67,7 @@ async function syncDeposito(config: DepositoConfig): Promise<SyncResult> {
         r.id, r.batch_id, r.batch_label, r.fecha_mov, r.origen_holding, r.tipo_movimiento,
         r.codigo_barras, r.linea_codigo_proveedor, r.referencia_codigo_proveedor,
         r.excel_material_code, r.excel_color_code, r.linea_id, r.referencia_id,
-        r.material_id, r.color_id, r.grada, r.cantidad, r.precio_unitario, r.monto,
+        r.material_id, r.color_id, r.grada, r.cantidad, r.cantidad, r.precio_unitario, r.monto,
         r.imagen_nombre, r.archivo_origen, r.excel_sheet, r.created_at, r.created_by,
         r.marca_id, r.genero_id, r.grupo_estilo_id, r.tipo_1_id, r.tipo_v2_id, r.cliente_id
       FROM public.registro_st_vt_rc_reposicion r

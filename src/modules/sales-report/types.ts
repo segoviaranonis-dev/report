@@ -1,3 +1,5 @@
+import { CATEGORIA_VENTA_CALZADOS_IDS } from "./constants";
+
 /**
  * Estado de filtros equivalente a FilterManager (draft/commit) en Streamlit.
  */
@@ -16,7 +18,7 @@ export type SalesReportFilters = {
 export const defaultSalesReportFilters = (): SalesReportFilters => ({
   objetivo_pct: 20,
   departamento: "CALZADOS",
-  categoria_ids: [3],
+  categoria_ids: [...CATEGORIA_VENTA_CALZADOS_IDS],
   meses: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"],
   cadenas: [],
   clientes: [],

@@ -240,7 +240,7 @@ INSERT INTO public.${tabla} (
   codigo_barras, linea_codigo_proveedor, referencia_codigo_proveedor,
   excel_material_code, excel_color_code,
   linea_id, referencia_id, material_id, color_id,
-  grada, cantidad, precio_unitario, monto,
+  grada, cantidad, cantidad_importada, precio_unitario, monto,
   marca_id, genero_id, grupo_estilo_id, tipo_1_id, tipo_v2_id,
   cliente_id, tipo_movimiento, origen_holding, batch_label,
   fecha_mov, created_at, created_by, archivo_origen
@@ -248,7 +248,7 @@ INSERT INTO public.${tabla} (
 SELECT
   s.codigo_barras, s.linea_cod, s.ref_cod, s.excel_mat, s.excel_col,
   l.id, r.id, mat.id, col.id,
-  s.grada, s.cantidad, s.precio,
+  s.grada, s.cantidad, s.cantidad, s.precio,
   CASE WHEN s.precio IS NOT NULL THEN s.cantidad * s.precio ELSE NULL END,
   l.marca_id, l.genero_id, lr.grupo_estilo_id, lr.tipo_1_id,
   1,
@@ -273,7 +273,7 @@ INSERT INTO public.${tabla} (
   codigo_barras, linea_codigo_proveedor, referencia_codigo_proveedor,
   excel_material_code, excel_color_code,
   linea_id, referencia_id, material_id, color_id,
-  grada, cantidad, precio_unitario, monto,
+  grada, cantidad, cantidad_importada, precio_unitario, monto,
   marca_id, genero_id, grupo_estilo_id, tipo_1_id, tipo_v2_id,
   cliente_id, tipo_movimiento, origen_holding, batch_label,
   fecha_mov, created_at, created_by, archivo_origen
@@ -281,7 +281,7 @@ INSERT INTO public.${tabla} (
 SELECT
   s.codigo_barras, s.linea_cod, s.ref_cod, s.excel_mat, s.excel_col,
   l.id, r.id, mat.id, col.id,
-  s.grada, s.cantidad, s.precio,
+  s.grada, s.cantidad, s.cantidad, s.precio,
   CASE WHEN s.precio IS NOT NULL THEN s.cantidad * s.precio ELSE NULL END,
   l.marca_id, l.genero_id, lr.grupo_estilo_id, lr.tipo_1_id,
   2,

@@ -44,6 +44,11 @@ export async function saveIntencion(
     return { ok: false, error: `El código de cliente ${data.id_cliente} no existe.` };
   }
 
+  const vendedor = await pool.query("SELECT 1 FROM vendedor_v2 WHERE id_vendedor = $1", [data.id_vendedor]);
+  if (!vendedor.rowCount) {
+    return { ok: false, error: `El vendedor ${data.id_vendedor} no existe en vendedor_v2.` };
+  }
+
   const bruto = Number(data.monto_bruto ?? 0);
   const d1 = Number(data.descuento_1 ?? 0);
   const d2 = Number(data.descuento_2 ?? 0);

@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRimecAdmin } from "@/lib/rimec-admin/auth-api";
-import { getStockDeposito, summarizeDeposito } from "@/lib/deposito-rimec/queries";
-import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { getSaldoProceso } from "@/lib/deposito-rimec/queries-proceso";
+import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireRimecAdmin();
-  if (error) return error;
-
+  const gate = await requireMotorPreciosAdmin();
+  if (gate.error) return gate.error;
   if (!isRimecDatabaseConfigured()) {
-    return NextResponse.json({ configured: false, saldo: [], kpis: summarizeDeposito([]) }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
   }
 
-  const clParam = req.nextUrl.searchParams.get("compra_legal_id");
-  const idCl = clParam ? parseInt(clParam, 10) : null;
+  const clRaw = req.nextUrl.searchParams.get("compra_legal_id");
+  const compraLegalId = clRaw ? Number(clRaw) : undefined;
 
   try {
-    const saldo = await getStockDeposito(Number.isFinite(idCl!) ? idCl : null);
-    return NextResponse.json({
-      configured: true,
-      saldo,
-      kpis: summarizeDeposito(saldo),
-    });
-  } catch (err) {
-    console.error("[api/deposito-rimec/saldo]", err);
-    return NextResponse.json({ error: "Error al cargar saldo depósito" }, { status: 500 });
+    const pool = getRimecPool();
+    const body = await getSaldoProceso(
+      pool,
+      compraLegalId != null && Number.isFinite(compraLegalId) ? compraLegalId : undefined,
+    );
+    return NextResponse.json({ ok: true, origen_stock: "PROCESO_PP", ...body });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: e instanceof Error ? e.message : "Error saldo proceso" },
+      { status: 500 },
+    );
   }
 }

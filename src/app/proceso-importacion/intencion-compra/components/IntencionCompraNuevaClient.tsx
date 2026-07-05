@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
+import { resolveMarcasIcOptions } from "@/lib/intencion-compra/marcas-ic-options";
 import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
-import type { IcCatalogos, LineaConCaso } from "@/lib/intencion-compra/catalogos-query";
+import type { IcCatalogos, LineaConCaso } from "@/lib/intencion-compra/ic-catalogos-types";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
 import { INTENCION_COMPRA, INTENCION_COMPRA_BANDEJA, PROCESO_IMPORTACION } from "@/lib/report/routes";
 import { FechaEmbarqueSlider } from "./FechaEmbarqueSlider";
 import { IntencionCompraSubNav } from "./IntencionCompraSubNav";
-import { useMarcasPorTipo } from "./useMarcasPorTipo";
 
 const ID_COMPRA_PREVIA = 2;
 const ID_PROGRAMADO = 3;
@@ -29,12 +29,16 @@ const CAT_INFO: Record<string, { title: string; desc: string }> = {
 
 type Paso = "paso_a" | "form";
 
-export function IntencionCompraNuevaClient() {
+type Props = {
+  initialCatalogos?: IcCatalogos | null;
+};
+
+export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
   const router = useRouter();
   const [paso, setPaso] = useState<Paso>("paso_a");
-  const [catalogos, setCatalogos] = useState<IcCatalogos | null>(null);
+  const [catalogos, setCatalogos] = useState<IcCatalogos | null>(initialCatalogos);
   const [quincenaLookup, setQuincenaLookup] = useState<Record<number, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCatalogos);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -67,13 +71,16 @@ export function IntencionCompraNuevaClient() {
   const [listadosNeg, setListadosNeg] = useState<{ id: number; nombre: string }[]>([]);
 
   const neto = useMemo(() => calcularNeto(bruto, d1, d2, d3, d4), [bruto, d1, d2, d3, d4]);
-  const { marcas: marcasFiltradas } = useMarcasPorTipo(tipoId, idProveedor);
+  const marcasOpciones = useMemo(
+    () => (catalogos && tipoId ? resolveMarcasIcOptions(catalogos, tipoId) : []),
+    [catalogos, tipoId],
+  );
 
   useEffect(() => {
-    if (idMarca && marcasFiltradas.length && !marcasFiltradas.some((m) => m.id === idMarca)) {
+    if (idMarca && marcasOpciones.length && !marcasOpciones.some((m) => m.id === idMarca)) {
       setIdMarca("");
     }
-  }, [marcasFiltradas, idMarca]);
+  }, [marcasOpciones, idMarca]);
 
   const tipoLabel = catalogos?.tipos.find((t) => t.id === tipoId)?.label ?? "—";
   const catLabel = catalogos?.categorias.find((c) => c.id === categoriaId)?.label ?? "—";
@@ -82,6 +89,7 @@ export function IntencionCompraNuevaClient() {
 
   const loadCatalogos = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [catRes, qRes] = await Promise.all([
         fetch("/api/proceso-importacion/intencion-compra/catalogos", { credentials: "same-origin" }),
@@ -90,7 +98,10 @@ export function IntencionCompraNuevaClient() {
       const catData = await catRes.json();
       const qData = await qRes.json();
       if (!catRes.ok) throw new Error(catData.error);
-      setCatalogos(catData.catalogos);
+      setCatalogos({
+        ...catData.catalogos,
+        marcasPorTipo: catData.catalogos?.marcasPorTipo ?? {},
+      });
       setQuincenaLookup(qData.quincena_lookup ?? {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar catálogos");
@@ -99,9 +110,25 @@ export function IntencionCompraNuevaClient() {
     }
   }, []);
 
+  const loadQuincenaLookup = useCallback(async () => {
+    try {
+      const qRes = await fetch("/api/proceso-importacion/intencion-compra/pendientes", {
+        credentials: "same-origin",
+      });
+      const qData = await qRes.json();
+      if (qRes.ok) setQuincenaLookup(qData.quincena_lookup ?? {});
+    } catch {
+      /* slider sin lookup sigue usable */
+    }
+  }, []);
+
   useEffect(() => {
-    loadCatalogos();
-  }, [loadCatalogos]);
+    if (!initialCatalogos) {
+      void loadCatalogos();
+      return;
+    }
+    void loadQuincenaLookup();
+  }, [initialCatalogos, loadCatalogos, loadQuincenaLookup]);
 
   useEffect(() => {
     if (!codCliente || codCliente < 1) {
@@ -329,29 +356,34 @@ export function IntencionCompraNuevaClient() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Proveedor">
                 <select
-                  value={idProveedor}
-                  onChange={(e) => setIdProveedor(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  value={idProveedor === "" ? "" : String(idProveedor)}
+                  onChange={(e) => setIdProveedor(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value="">— Elegir —</option>
                   {catalogos.proveedores.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id} value={String(p.id)}>
                       {p.label}
                     </option>
                   ))}
                 </select>
               </Field>
               <Field label="Marca">
-                <select value={idMarca} onChange={(e) => setIdMarca(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <select
+                  value={idMarca === "" ? "" : String(idMarca)}
+                  onChange={(e) => setIdMarca(e.target.value ? Number(e.target.value) : "")}
+                  disabled={!tipoId}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
                   <option value="">— Elegir —</option>
-                  {marcasFiltradas.map((m) => (
-                    <option key={m.id} value={m.id}>
+                  {marcasOpciones.map((m) => (
+                    <option key={m.id} value={String(m.id)}>
                       {m.label}
                     </option>
                   ))}
                 </select>
-                {tipoId && marcasFiltradas.length === 0 && (
-                  <p className="mt-1 text-xs text-amber-700">Sin marcas para {tipoLabel} en marca_tipo_v2</p>
+                {tipoId && marcasOpciones.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-700">Sin marcas para {tipoLabel} — revisá marca_tipo_v2</p>
                 )}
               </Field>
             </div>
@@ -369,14 +401,21 @@ export function IntencionCompraNuevaClient() {
                 {clienteErr && <p className="mt-1 text-xs text-red-700">✗ Código no encontrado</p>}
               </Field>
               <Field label="Vendedor responsable">
-                <select value={idVendedor} onChange={(e) => setIdVendedor(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <select
+                  value={idVendedor === "" ? "" : String(idVendedor)}
+                  onChange={(e) => setIdVendedor(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
                   <option value="">— Elegir —</option>
                   {catalogos.vendedores.map((v) => (
-                    <option key={v.id} value={v.id}>
+                    <option key={v.id} value={String(v.id)}>
                       {v.label}
                     </option>
                   ))}
                 </select>
+                {catalogos.vendedores.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-700">Sin vendedores en vendedor_v2</p>
+                )}
               </Field>
             </div>
 
@@ -433,7 +472,7 @@ export function IntencionCompraNuevaClient() {
                 <p className="text-xs uppercase text-slate-400">Monto neto calculado</p>
                 <p className="font-serif text-2xl font-bold text-amber-300">Gs. {neto.toLocaleString("es-PY")}</p>
               </div>
-            </div>
+        </div>
 
             <Field label="Observaciones">
               <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />

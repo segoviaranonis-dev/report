@@ -33,6 +33,11 @@ export type HubTiendaStats = {
   /** Palma única: calzado adultos vs niños por marca */
   calzado_adultos?: HubRamoStats;
   calzado_ninos?: HubRamoStats;
+  /** Último import CSV / sync — Hiedra Venenosa */
+  fecha_importacion?: string | null;
+  batch_label?: string | null;
+  uds_importadas?: number;
+  uds_vendidas?: number;
   error?: string;
 };
 
@@ -144,6 +149,68 @@ async function statsTienda(
   };
 }
 
+async function metaImportacion(
+  tabla: string,
+): Promise<{
+  fecha_importacion: string | null;
+  batch_label: string | null;
+  uds_importadas: number;
+  uds_vendidas: number;
+}> {
+  const pool = getRimecPool();
+  try {
+    const { rows } = await pool.query<{
+      fecha_importacion: Date | null;
+      batch_label: string | null;
+      uds_importadas: string;
+      uds_vendidas: string;
+    }>(
+      `
+      SELECT
+        MAX(s.created_at) AS fecha_importacion,
+        (
+          SELECT u.batch_label
+          FROM public.${tabla} u
+          WHERE u.created_at = (SELECT MAX(created_at) FROM public.${tabla})
+          LIMIT 1
+        ) AS batch_label,
+        COALESCE(SUM(COALESCE(s.cantidad_importada, s.cantidad)), 0)::float AS uds_importadas,
+        COALESCE(SUM(GREATEST(COALESCE(s.cantidad_importada, s.cantidad) - s.cantidad, 0)), 0)::float AS uds_vendidas
+      FROM public.${tabla} s
+      `,
+    );
+    const r = rows[0];
+    if (!r) {
+      return { fecha_importacion: null, batch_label: null, uds_importadas: 0, uds_vendidas: 0 };
+    }
+    return {
+      fecha_importacion: r.fecha_importacion?.toISOString() ?? null,
+      batch_label: r.batch_label?.trim() || null,
+      uds_importadas: Number(r.uds_importadas) || 0,
+      uds_vendidas: Number(r.uds_vendidas) || 0,
+    };
+  } catch {
+    const { rows } = await pool.query<{
+      fecha_importacion: Date | null;
+      batch_label: string | null;
+    }>(
+      `
+      SELECT created_at AS fecha_importacion, batch_label
+      FROM public.${tabla}
+      ORDER BY created_at DESC NULLS LAST
+      LIMIT 1
+      `,
+    );
+    const r = rows[0];
+    return {
+      fecha_importacion: r?.fecha_importacion?.toISOString() ?? null,
+      batch_label: r?.batch_label?.trim() || null,
+      uds_importadas: 0,
+      uds_vendidas: 0,
+    };
+  }
+}
+
 export async function GET(req: NextRequest) {
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({
@@ -172,13 +239,17 @@ export async function GET(req: NextRequest) {
       const tiendas: HubTiendaStats[] = [];
       for (const t of hub.tiendas) {
         try {
+          const config = getDepositoConfig(t.cliente_id, categoria);
           const stats = await statsTienda(t.cliente_id, categoria, !!t.palmaUnica);
+          const importMeta =
+            config && !stats.error ? await metaImportacion(config.tabla) : {};
           tiendas.push({
             cliente_id: t.cliente_id,
             label: t.labelHub,
             aceptaConfeccion: t.aceptaConfeccion,
             palmaUnica: !!t.palmaUnica,
             ...stats,
+            ...importMeta,
           });
         } catch (error) {
           tiendas.push({

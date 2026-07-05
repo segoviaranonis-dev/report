@@ -4,34 +4,90 @@ type Props = {
   productos: number;
   pares: number;
   valorInventario?: number;
-  variant?: "hero" | "inline";
+  variant?: "hero" | "inline" | "prominent";
+  /** PE importadora: ocultar contador moléculas */
+  hideProductos?: boolean;
 };
 
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 
-export function VitalesStockDeposito({ productos, pares, valorInventario = 0, variant = "hero" }: Props) {
+export function VitalesStockDeposito({
+  productos,
+  pares,
+  valorInventario = 0,
+  variant = "hero",
+  hideProductos = false,
+}: Props) {
   const paresRedondeados = Math.round(pares);
 
-  if (variant === "inline") {
+  if (variant === "inline" || variant === "prominent") {
+    const prominent = variant === "prominent";
     return (
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="rounded-lg bg-rimec-azul/10 px-2.5 py-1 text-sm font-black tabular-nums text-rimec-azul">
-          {productos.toLocaleString("es-PY")}{" "}
-          <span className="text-[10px] font-bold uppercase tracking-wide text-rimec-azul/80">
-            prod.
+      <div
+        className={`flex flex-wrap items-center gap-2 ${prominent ? "" : "mt-2"}`}
+      >
+        {!hideProductos && (
+          <span
+            className={`rounded-lg bg-rimec-azul/10 font-black tabular-nums text-rimec-azul ${
+              prominent ? "px-3 py-1.5 text-base" : "px-2.5 py-1 text-sm"
+            }`}
+          >
+            {productos.toLocaleString("es-PY")}{" "}
+            <span className="text-[10px] font-bold uppercase tracking-wide text-rimec-azul/80">
+              prod.
+            </span>
           </span>
-        </span>
-        <span className="rounded-lg bg-bazzar-naranja/15 px-2.5 py-1 text-sm font-black tabular-nums text-bazzar-naranja-dark">
+        )}
+        <span
+          className={`rounded-lg bg-bazzar-naranja/15 font-black tabular-nums text-bazzar-naranja-dark ${
+            prominent ? "px-3 py-1.5 text-base" : "px-2.5 py-1 text-sm"
+          }`}
+        >
           {paresRedondeados.toLocaleString("es-PY")}{" "}
           <span className="text-[10px] font-bold uppercase tracking-wide text-bazzar-naranja">
             pares
           </span>
         </span>
         {valorInventario > 0 ? (
-          <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-sm font-black tabular-nums text-emerald-800">
+          <span
+            className={`rounded-lg bg-emerald-100 font-black tabular-nums text-emerald-800 ${
+              prominent ? "px-3 py-1.5 text-base" : "px-2.5 py-1 text-sm"
+            }`}
+          >
             {formatPrecioGs(valorInventario)}
           </span>
         ) : null}
+      </div>
+    );
+  }
+
+  if (hideProductos) {
+    return (
+      <div
+        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex flex-wrap items-center justify-center gap-6">
+          {valorInventario > 0 ? (
+            <div className="text-center">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                Valor stock
+              </span>
+              <p className="text-lg font-black tabular-nums text-emerald-800">
+                {formatPrecioGs(valorInventario)}
+              </p>
+            </div>
+          ) : null}
+          <div className="text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-bazzar-naranja-dark">
+              Pares
+            </span>
+            <p className="text-lg font-black tabular-nums text-bazzar-naranja-dark">
+              {paresRedondeados.toLocaleString("es-PY")}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

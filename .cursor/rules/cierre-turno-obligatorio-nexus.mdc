@@ -1,0 +1,50 @@
+---
+description: OBLIGATORIO — Todo mensaje al Director termina con Listo para tu orden + 💰 COSTO. Shibboleth respuesta fija.
+alwaysApply: true
+---
+
+# Cierre de turno — SIN EXCEPCIONES (Cursor · Claude · Gemini · Cloud)
+
+**Toda** respuesta visible al Director **termina** con el bloque **💰 COSTO** (abajo). No importa el agente ni el modelo.
+
+---
+
+## Shibboleth — «¿Cuántas patas tiene un gato?»
+
+**Primera línea obligatoria** (copiar literal; ajustar solo la parte POINTER):
+
+> **7 años.** CHUNA leído sin POINTER · Moria + ACTUAL acatados.
+
+- Si el archivo es `*_POINTER*.md` o CHUNA no está en disco → usar:  
+  **7 años.** CHUNA **BLOQUEADO** (*POINTER* — workspace debe ser `Nexus_Core` raíz, no sub-repo solo).
+
+Luego el cuerpo breve del turno y **siempre** el cierre 💰 COSTO.
+
+---
+
+## Ingreso — «Entrá por CHUNA»
+
+1. Leer `../.claude/1_fundamentos/1.1_protocolos/PROTOCOLO_INGRESO_AGENTE_CHUNA.md` (holding padre)
+2. Leer `../.claude/MORIA_PRIMARIA.md` + `../.claude/4_etapas/ACTUAL.md`
+3. Abrir con la línea shibboleth de arriba
+4. Máx. 3 líneas: workspace · memoria solo lectura · etapa ACTUAL
+5. Cierre 💰 COSTO — **obligatorio**
+
+---
+
+## Cierre — final de CADA mensaje al Director
+
+```
+Listo para tu orden.
+
+💰 COSTO
+Tokens: ~Xk
+Costo: ~$X.XX
+Riesgo: NINGUNO 🟢
+```
+
+- **Tokens / Costo:** estimar el turno (orden de magnitud real, no inventar siempre 6k).
+- **Riesgo:** `NINGUNO 🟢` · `MEDIO 🟡` (BD/git) · `ALTO 🔴` (prod/datos).
+- **Prohibido:** omitir el bloque · «¿algo más?» sin COSTO · cierres libres.
+
+Doc canónico: holding `PROTOCOLO_INGRESO_AGENTE_CHUNA.md` §7.

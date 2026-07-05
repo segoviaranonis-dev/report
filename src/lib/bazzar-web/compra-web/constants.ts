@@ -2,9 +2,11 @@
 export const ALM_TRANSITO = 3;
 export const ALM_WEB_BAZAR = 1;
 
-/** Cliente RIMEC del canal e-commerce (Carga Manual Facturación → ALM_WEB_01) */
+/** Cliente RIMEC del canal e-commerce (Facturación → traspaso → ALM_WEB_01) */
 export const CLIENTE_WEB_BAZAR_ID = 5000;
 export const CLIENTE_WEB_BAZAR_CODIGO = "5000";
+/** Display canónico en UI · MIG-133 · ex «Nexus Prueba» */
+export const CLIENTE_WEB_BAZAR_LABEL = "Bazzar.py";
 
 /**
  * Solo traspasos cuya FAC-INT es del cliente web (5000).

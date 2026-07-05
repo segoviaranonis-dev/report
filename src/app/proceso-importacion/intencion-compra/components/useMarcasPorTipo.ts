@@ -19,8 +19,14 @@ export function useMarcasPorTipo(tipoId: number | null, proveedorId?: number | "
     }
     setLoading(true);
     fetch(`/api/proceso-importacion/intencion-compra/marcas?${qs}`, { credentials: "same-origin" })
-      .then((r) => r.json())
-      .then((d) => setMarcas(d.marcas ?? []))
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok || d.ok === false) {
+          setMarcas([]);
+          return;
+        }
+        setMarcas(d.marcas ?? []);
+      })
       .catch(() => setMarcas([]))
       .finally(() => setLoading(false));
   }, [tipoId, proveedorId]);

@@ -10,6 +10,7 @@
 - **Import CSV POS** — `sdfm` / `sdsm` / `sdpl` + lote · bulk REPLACE en segundos
 - **Operativa calzado** — triángulo · TONO · grada · cards · precio venta · valor stock
 - **Operativa confecciones** — tabla por renglón · uds · precio · subtotal · vitales filtro
+- **Hub 3 entes** — fecha import · lote · vendido (`cantidad_importada` MIG-131)
 - **Caja Bazzar** — handoff **Enviar a Empaque → Bóveda ORO** · vitales factura
 - **Caso biblioteca** — barra BCL en detalle depósito
 - **Tablet** — catálogo y carrito con `precio_unitario` desde depósito
@@ -42,6 +43,11 @@ Detalle completo: CHUSAR maestro § «Proceso de importación CSV».
 | API | `src/app/api/depositos/import-csv/route.ts` |
 | UI import | `src/app/depositos-bazzar/components/ImportCsvDepositoButton.tsx` |
 | Operativa calzado | `src/app/depositos-bazzar/components/TabOperativaCalzado.tsx` |
+| Hub API | `src/app/api/depositos/hub/route.ts` |
+| Hub UI | `src/app/depositos-bazzar/DepositosHubClient.tsx` |
+| Operativa calzado | `src/app/depositos-bazzar/components/TabOperativaCalzado.tsx` |
+| MIG-131 | `migrations/131_deposito_cantidad_importada.sql` · `scripts/aplicar_migracion_131.mjs` |
+| Doc hub | `docs/HUB_DEPOSITOS_BAZZAR.md` |
 | Handoff ORO | `docs/HANDOFF_BOVEDA_ORO_ENVIAR_EMPAQUE.md` |
 | Deploy | `docs/DEPLOY_VERCEL_REPORT_20260610.md` |
 

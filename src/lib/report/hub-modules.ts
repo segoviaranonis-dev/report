@@ -199,6 +199,17 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     navKey: "tablet-bazzar",
     roles: [1, 2],
   },
+  {
+    href: "/bobeda-oro",
+    title: "Bóveda de Oro",
+    shortLabel: "Bóveda ORO",
+    description:
+      "Histórico ventas POS · bobeda_venta_pos · 6 tiendas · filtros por tienda, estado, factura, molécula y trazabilidad depósito/Excel.",
+    icon: "🏆",
+    group: "bazzar",
+    navKey: "bobeda-oro",
+    roles: [1, 2],
+  },
 
   // ── BAZZAR WEB (2.3.7 · rutas /bazzar-web/*) ──
   {
@@ -292,6 +303,9 @@ export function filterHubModules(
       if (m.href === "/retail") {
         return categoria === "ADMIN" || categoria === "VENDEDOR";
       }
+      if (m.href === "/bobeda-oro") {
+        return categoria === "ADMIN";
+      }
       return false;
     }
 
@@ -308,6 +322,9 @@ export function filterHubModules(
     }
     if (m.href === "/retail") {
       return rolId === 1 || (rolId === 2 && (categoria === "ADMIN" || categoria === "VENDEDOR"));
+    }
+    if (m.href === "/bobeda-oro") {
+      return rolId === 1 || (rolId === 2 && categoria === "ADMIN");
     }
     return m.roles.includes(rolId);
   });

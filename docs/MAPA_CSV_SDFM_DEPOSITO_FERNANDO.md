@@ -1,7 +1,7 @@
 # MAPA CSV sdfm — Depósitos Bazzar Fernando
 
 **Etapa:** **2.3.2.1.1** · Admin dinámico stock Bazzar  
-**Archivo ejemplo:** `Nexus_Core/sdfm4708.csv` (15.222 filas · delimitador `|`)  
+**Archivo ejemplo:** `Nexus_Core/csv's/stock's/sdfm4708.csv` (15.222 filas · delimitador `|`)  
 **Código lib:** `report/src/lib/depositos/bazzar-csv-sdfm.ts`  
 **Import CLI:** `node scripts/import_bazzar_csv_deposito.mjs <ruta.csv> [--dry-run]`
 
@@ -65,13 +65,30 @@ WHERE proveedor_id = :pid AND codigo_proveedor = :codigo;
 
 ---
 
-## Volumen sdfm4708 (análisis 2026-06)
+## Volumen sdfm4708 (análisis 2026-07)
 
-| sdfm4708 (dry-run dual) | Filas | Unidades |
-|-------------------------|-------|----------|
+| sdfm4708 (post-matriz · calzado adultos sin conf.) | Filas | Unidades |
+|----------------------------------------------------|-------|----------|
 | S00_D1 · 2100 tienda | 6.362 | 9.191 (solo calzado) |
 | S00_D2 · 2100 guardado | 2.183 | 2.992 |
 | S00_NINHOS · 2900 tienda | 5.092 | 6.286 (2.226 calz · 2.866 conf.) |
+
+**CSV bruto (sin filtro matriz):** S00_D1 7.153 filas · 10.054 uds · S00_D2 3.214 · 4.263 · S00_NINHOS 5.115 · 6.322.
+
+---
+
+## Ratificación hub · lote 4708 (2026-06-28)
+
+Import **REPLACE** en `/depositos-bazzar` · toggle **TIENDA** · batch `sdfm4708` · fecha **28/06/2026 21:47**.
+
+| Tarjeta hub | Columna CSV | Tabla | Hub (saldo vivo) | Importadas | Vendido |
+|-------------|-------------|-------|------------------|------------|---------|
+| Fernando Adultos **2100** | `S00_D1` | `deposito_1_2100_tienda` | 9.185 uds calzado · 6.359 filas | 9.188 | 3 |
+| Fernando Niños **2900** | `S00_NINHOS` | `deposito_1_2900_tienda` | 2.975 calz + 3.296 conf · 5.083 filas | 6.266 | 0 |
+
+**Coherencia:** `9.188 − 3 vendido = 9.185` calzado adultos · lote en tarjeta = nombre archivo sin extensión · mismo ritual que `sdsm4708` / `sdpl4708` en San Martín / Palma.
+
+CHUSAR: [CHUSAR_IMPORT_CSV_HIEDRA_VENENOSA.md](../../.claude/2_modulos/2.3_report/depositos/CHUSAR_IMPORT_CSV_HIEDRA_VENENOSA.md) · hub: [CHUSAR_HUB_TRES_ENTES_METRICAS.md](../../.claude/2_modulos/2.3_report/depositos/CHUSAR_HUB_TRES_ENTES_METRICAS.md)
 
 ---
 
@@ -105,9 +122,8 @@ No mezclar en la misma operación. Tras import CSV, Operativa en `/depositos-baz
 
 ## Pendiente
 
-- San Martín / Palma: archivos con columnas distintas (OT futura).
+- PASS piso formal ritual 4708 (tablet venta prueba · checklist §10 integración).
 - Chooser tablet: primera rama confecciones (`tipo_v2=2`) en cadena tono — UI pendiente.
-- Botón import en UI Report (fase 2 admin dinámico).
 
 ---
 

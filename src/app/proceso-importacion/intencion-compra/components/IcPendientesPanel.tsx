@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { IcCatalogos } from "@/lib/intencion-compra/catalogos-query";
+import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { IcPendienteRow } from "@/lib/intencion-compra/pendientes-query";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
 import { INTENCION_COMPRA_NUEVA } from "@/lib/report/routes";

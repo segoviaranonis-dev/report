@@ -36,3 +36,4 @@ yarn-error.log*
 *.tsbuildinfo
 docs/ot/evidencia/*.png
 docs/ot/evidencia/*.jpg
+.vercel

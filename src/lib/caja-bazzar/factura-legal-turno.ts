@@ -209,8 +209,9 @@ export async function asignarSerialActivoAFacturaBandeja(input: {
     r = await pool.query(
       `
         UPDATE public.${TABLA_BANDEJA}
-        SET numero_factura_legal = $1,
-            snapshot_json = COALESCE(snapshot_json, '{}'::jsonb) || jsonb_build_object('numero_factura_legal', $1)
+        SET numero_factura_legal = $1::text,
+            snapshot_json = COALESCE(snapshot_json, '{}'::jsonb)
+              || jsonb_build_object('numero_factura_legal', $1::text)
         WHERE cliente_id = $2 AND staging_id = $3
           AND upper(btrim(estado)) IN ('PENDIENTE_CAJA', 'CSV_DESCARGADO')
       `,
@@ -220,8 +221,9 @@ export async function asignarSerialActivoAFacturaBandeja(input: {
     r = await pool.query(
       `
         UPDATE public.${TABLA_BANDEJA}
-        SET numero_factura_legal = $1,
-            snapshot_json = COALESCE(snapshot_json, '{}'::jsonb) || jsonb_build_object('numero_factura_legal', $1)
+        SET numero_factura_legal = $1::text,
+            snapshot_json = COALESCE(snapshot_json, '{}'::jsonb)
+              || jsonb_build_object('numero_factura_legal', $1::text)
         WHERE cliente_id = $2 AND codigo_bandeja = ANY($3::text[])
           AND upper(btrim(estado)) IN ('PENDIENTE_CAJA', 'CSV_DESCARGADO')
       `,
@@ -252,10 +254,10 @@ export async function asegurarSerialLegalEnBandeja(input: {
     r = await pool.query(
       `
         UPDATE public.${TABLA_BANDEJA}
-        SET numero_factura_legal = COALESCE(NULLIF(btrim(numero_factura_legal), ''), $1),
+        SET numero_factura_legal = COALESCE(NULLIF(btrim(numero_factura_legal), ''), $1::text),
             snapshot_json = COALESCE(snapshot_json, '{}'::jsonb) ||
               CASE WHEN NULLIF(btrim(numero_factura_legal), '') IS NULL
-                THEN jsonb_build_object('numero_factura_legal', $1)
+                THEN jsonb_build_object('numero_factura_legal', $1::text)
                 ELSE '{}'::jsonb END
         WHERE cliente_id = $2 AND staging_id = $3
           AND upper(btrim(estado)) IN ('PENDIENTE_CAJA', 'CSV_DESCARGADO')
@@ -266,10 +268,10 @@ export async function asegurarSerialLegalEnBandeja(input: {
     r = await pool.query(
       `
         UPDATE public.${TABLA_BANDEJA}
-        SET numero_factura_legal = COALESCE(NULLIF(btrim(numero_factura_legal), ''), $1),
+        SET numero_factura_legal = COALESCE(NULLIF(btrim(numero_factura_legal), ''), $1::text),
             snapshot_json = COALESCE(snapshot_json, '{}'::jsonb) ||
               CASE WHEN NULLIF(btrim(numero_factura_legal), '') IS NULL
-                THEN jsonb_build_object('numero_factura_legal', $1)
+                THEN jsonb_build_object('numero_factura_legal', $1::text)
                 ELSE '{}'::jsonb END
         WHERE cliente_id = $2 AND codigo_bandeja = ANY($3::text[])
           AND upper(btrim(estado)) IN ('PENDIENTE_CAJA', 'CSV_DESCARGADO')

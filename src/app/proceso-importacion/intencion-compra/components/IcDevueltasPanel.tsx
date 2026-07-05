@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { IcCatalogos } from "@/lib/intencion-compra/catalogos-query";
+import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { IcDevueltaRow } from "@/lib/intencion-compra/pendientes-query";
 import { IcPendienteCard } from "./IcPendienteCard";
 

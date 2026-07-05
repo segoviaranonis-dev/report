@@ -30,6 +30,28 @@ export const MES_MAP: Record<string, number> = {
   Diciembre: 12,
 };
 
+/** Venta general calzados — STOCK · PREVENTA · PROXIMAMENTE (categoria_v2). Alejandro Magno / init Sales Report. */
+export const CATEGORIA_VENTA_CALZADOS_IDS = [1, 2, 3] as const;
+
+const CALZADOS_CAT_ALIASES = ["STOCK", "PREVENTA", "PRE VENTA", "PROXIMAMENTE", "PROGRAMADO"] as const;
+
+/** Tres categorías calzados visibles en cascada — fallback si ids 1-2-3 no coinciden con BD. */
+export function defaultCalzadosCategoriaIds(
+  categorias: { id_categoria: number; nombre: string }[],
+): number[] {
+  if (!categorias.length) return [...CATEGORIA_VENTA_CALZADOS_IDS];
+  const byId = new Set(categorias.map((c) => c.id_categoria));
+  const fromConstants = CATEGORIA_VENTA_CALZADOS_IDS.filter((id) => byId.has(id));
+  if (fromConstants.length >= 3) return [...fromConstants];
+  if (fromConstants.length >= 2) return [...fromConstants];
+  const matched = categorias.filter((c) => {
+    const n = c.nombre.trim().toUpperCase();
+    return CALZADOS_CAT_ALIASES.some((a) => n === a || n.includes(a.replace(" ", "")));
+  });
+  if (matched.length >= 2) return [...new Set(matched.map((c) => c.id_categoria))];
+  return categorias.map((c) => c.id_categoria);
+}
+
 export const MESES_LISTA = Object.keys(MES_MAP);
 
 export const MES_NOMBRES: Record<number, string> = Object.fromEntries(

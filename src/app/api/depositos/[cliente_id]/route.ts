@@ -34,6 +34,9 @@ export type DepositoRow = {
   tipo_1: string | null;
   /** Precio venta tienda (LPN CSV → precio_unitario). */
   precio_unitario: number | null;
+  /** Stock PE — depósito legal CSV */
+  deposito_codigo?: string | null;
+  columna_stock_legal?: string | null;
 };
 
 /**

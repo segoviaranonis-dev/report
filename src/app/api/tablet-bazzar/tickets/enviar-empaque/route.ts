@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { assertClienteIdAccess, resolveCajaAccess } from "@/lib/caja-bazzar/access";
 import { enviarBandejaAEmpaque, tablaBandejaExiste, tablaBobedaExiste } from "@/lib/caja-bazzar/handoff-bobeda";
+import { avanzarSiguienteFacturaLegal } from "@/lib/caja-bazzar/factura-legal-turno";
 import { isCajaClienteId } from "@/lib/caja-bazzar/tiendas";
 import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
@@ -58,7 +59,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: r.error }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, inserted: r.inserted });
+    await avanzarSiguienteFacturaLegal(clienteId, session?.name ?? null);
+
+    return NextResponse.json({ ok: true, inserted: r.inserted, serial_avanzado: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al enviar a Empaque";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

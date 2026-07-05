@@ -220,6 +220,33 @@ export function TicketsPanel({ clienteId, modo }: Props) {
     }
   }
 
+  async function asignarSerialActiva(f: FacturaPosHeader) {
+    setBusyKey(f.key);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/tablet-bazzar/factura-legal/asignar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          codigos: f.codigos,
+          staging_id: f.staging_id,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) {
+        setMsg(data.error ?? "No se pudo asignar serial legal");
+        return;
+      }
+      setMsg(`Serial legal ${data.serial} asignado · ${facturaDisplayId(f)}`);
+      load();
+    } catch {
+      setMsg("Error de red");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   async function enviarFacturaEmpaque(f: FacturaPosHeader) {
     const tot = calcTotalesFacturaPos(f);
     const montoTxt = formatPrecioGs(tot.monto);
@@ -347,6 +374,7 @@ export function TicketsPanel({ clienteId, modo }: Props) {
                 busyLineaPrefix={busyKey?.startsWith(`${f.key}:`) ? busyKey : null}
                 onDescargar={() => void descargarFactura(f)}
                 onFacturar={() => void enviarFacturaEmpaque(f)}
+                onAsignarSerial={() => void asignarSerialActiva(f)}
                 onGuardarTitular={(payload) => void guardarTitularFactura(f, payload)}
                 onEliminarLinea={(codigo) => void eliminarLineaFactura(f, codigo)}
               />
@@ -397,6 +425,7 @@ function FacturaPosCard({
   busyLineaPrefix,
   onDescargar,
   onFacturar,
+  onAsignarSerial,
   onGuardarTitular,
   onEliminarLinea,
 }: {
@@ -405,6 +434,7 @@ function FacturaPosCard({
   busyLineaPrefix: string | null;
   onDescargar: () => void;
   onFacturar: () => void;
+  onAsignarSerial: () => void;
   onGuardarTitular: (payload: {
     cedula: string;
     nombre: string;
@@ -453,11 +483,27 @@ function FacturaPosCard({
                 <span className="font-mono text-xs font-bold text-rimec-azul-dark">{id}</span>
                 <span className="text-xs text-neutral-muted group-open:hidden">· tocá para ver ítems</span>
               </div>
-              <p className="mt-1 text-xs text-neutral-600">
-                Factura legal:{" "}
-                <span className="font-semibold tabular-nums">{f.numero_factura_legal?.trim() || "—"}</span>
-                <span className="text-neutral-muted"> (pendiente destino UI)</span>
-              </p>
+              <div className="mt-2 rounded-xl border-2 border-rimec-azul/40 bg-white px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
+                  Factura legal · bóveda ORO
+                </p>
+                <p className="mt-1 font-mono text-xl font-black uppercase tracking-wide text-rimec-azul-dark">
+                  {f.numero_factura_legal?.trim() || "— sin serial —"}
+                </p>
+                {!f.numero_factura_legal?.trim() && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onAsignarSerial();
+                    }}
+                    className="mt-2 rounded-lg border-2 border-rimec-azul bg-rimec-azul/10 px-3 py-1.5 text-xs font-bold text-rimec-azul disabled:opacity-50"
+                  >
+                    Usar serial Activa (barra superior)
+                  </button>
+                )}
+              </div>
 
               <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-rimec-azul">
                 Cliente · facturar a nombre de

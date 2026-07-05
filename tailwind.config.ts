@@ -156,6 +156,46 @@ const config: Config = {
         sans: ["var(--font-report-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         serif: ["var(--font-report-serif)", "Georgia", "ui-serif", "serif"],
       },
+      keyframes: {
+        "rimec-shimmer": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(400%)" },
+        },
+        "spin-slow": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
+        "rimec-orbit": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
+        "rimec-gauge-spin": {
+          from: { transform: "rotate(-120deg)" },
+          to: { transform: "rotate(240deg)" },
+        },
+        "rimec-bar-rise": {
+          "0%": { transform: "scaleY(0.2)", opacity: "0.3" },
+          "100%": { transform: "scaleY(1)", opacity: "0.55" },
+        },
+        "rimec-attention-pulse": {
+          "0%, 100%": {
+            boxShadow: "0 0 0 0 rgba(0, 43, 78, 0.35)",
+            transform: "scale(1)",
+          },
+          "50%": {
+            boxShadow: "0 0 0 8px rgba(0, 43, 78, 0)",
+            transform: "scale(1.04)",
+          },
+        },
+      },
+      animation: {
+        "rimec-shimmer": "rimec-shimmer 1.4s ease-in-out infinite",
+        "spin-slow": "spin-slow 2.4s linear infinite",
+        "rimec-orbit": "rimec-orbit 1.1s linear infinite",
+        "rimec-gauge-spin": "rimec-gauge-spin 2.8s ease-in-out infinite alternate",
+        "rimec-bar-rise": "rimec-bar-rise 1.2s ease-out forwards",
+        "rimec-attention-pulse": "rimec-attention-pulse 1.55s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

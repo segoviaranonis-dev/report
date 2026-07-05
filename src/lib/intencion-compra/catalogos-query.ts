@@ -1,18 +1,31 @@
 import type { Pool } from "pg";
+import type { IcCatalogos, LineaConCaso } from "./ic-catalogos-types";
 
-export type IcCatalogos = {
-  tipos: { id: number; label: string }[];
-  categorias: { id: number; label: string; raw: string }[];
-  marcas: { id: number; label: string }[];
-  proveedores: { id: number; label: string }[];
-  vendedores: { id: number; label: string }[];
-  plazos: { id: number | null; label: string }[];
-  eventos: { id: number | null; label: string; total_skus?: number }[];
-  comisiones: { id: number; label: string; porcentaje: number }[];
-};
+export type { IcCatalogos, LineaConCaso } from "./ic-catalogos-types";
+
+async function loadMarcasPorTipoMap(pool: Pool): Promise<Record<number, { id: number; label: string }[]>> {
+  try {
+    const { rows } = await pool.query<{ tipo_id: string; id: string; label: string }>(`
+      SELECT mt.id_tipo AS tipo_id, m.id_marca AS id, TRIM(m.descp_marca) AS label
+      FROM marca_tipo_v2 mt
+      JOIN marca_v2 m ON m.id_marca = mt.id_marca
+      WHERE m.descp_marca IS NOT NULL AND TRIM(m.descp_marca) <> ''
+      ORDER BY mt.id_tipo, TRIM(m.descp_marca)
+    `);
+    const map: Record<number, { id: number; label: string }[]> = {};
+    for (const r of rows) {
+      const tid = Number(r.tipo_id);
+      if (!map[tid]) map[tid] = [];
+      map[tid].push({ id: Number(r.id), label: r.label });
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
 
 export async function loadIcCatalogos(pool: Pool): Promise<IcCatalogos> {
-  const [tipos, categorias, marcas, proveedores, vendedores, plazos, eventos, comisiones] =
+  const [tipos, categorias, marcas, marcasPorTipo, proveedores, vendedores, plazos, eventos, comisiones] =
     await Promise.all([
       pool.query<{ id: string; label: string }>(
         "SELECT id_tipo AS id, descp_tipo AS label FROM tipo_v2 ORDER BY descp_tipo",
@@ -23,15 +36,15 @@ export async function loadIcCatalogos(pool: Pool): Promise<IcCatalogos> {
       pool.query<{ id: string; label: string }>(
         "SELECT id_marca AS id, descp_marca AS label FROM marca_v2 ORDER BY descp_marca",
       ),
+      loadMarcasPorTipoMap(pool),
       pool.query<{ id: string; label: string }>(
         "SELECT id, nombre AS label FROM proveedor_importacion ORDER BY nombre",
       ),
       pool.query<{ id: string; label: string }>(`
-        SELECT DISTINCT u.id_usuario AS id, u.descp_usuario AS label
-        FROM usuario_v2 u
-        JOIN maestro_rol_acceso r ON u.rol_id = r.id
-        WHERE r.nombre_rol IN ('VENDEDOR', 'ADMIN')
-        ORDER BY u.descp_usuario
+        SELECT id_vendedor AS id, TRIM(descp_vendedor) AS label
+        FROM vendedor_v2
+        WHERE descp_vendedor IS NOT NULL AND TRIM(descp_vendedor) <> ''
+        ORDER BY TRIM(descp_vendedor)
       `),
       pool.query<{ id: string; label: string }>(
         "SELECT id_plazo AS id, descp_plazo AS label FROM plazo_v2 ORDER BY descp_plazo",
@@ -66,6 +79,7 @@ export async function loadIcCatalogos(pool: Pool): Promise<IcCatalogos> {
       raw: r.label,
     })),
     marcas: marcas.rows.map((r) => ({ id: Number(r.id), label: r.label })),
+    marcasPorTipo,
     proveedores: proveedores.rows.map((r) => ({ id: Number(r.id), label: r.label })),
     vendedores: vendedores.rows.map((r) => ({ id: Number(r.id), label: r.label })),
     plazos: [
@@ -83,13 +97,6 @@ export async function loadIcCatalogos(pool: Pool): Promise<IcCatalogos> {
     ],
   };
 }
-
-export type LineaConCaso = {
-  id: number;
-  codigo_proveedor: number;
-  descripcion: string | null;
-  caso_nombre: string | null;
-};
 
 export async function getLineasConCaso(pool: Pool, proveedorId: number): Promise<LineaConCaso[]> {
   const { rows } = await pool.query<{

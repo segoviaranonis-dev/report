@@ -310,7 +310,7 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
           <div className={`mt-20 grid flex-1 ${radialGridClass}`}>
             {showSem1Chart ? (
               <SemesterRealRadialCard
-                title="1er semestre"
+                title="Semestral"
                 subtitle="Ene — Jun"
                 real2025={aggS1.real_2025}
                 real2026={aggS1.real_2026}
@@ -375,7 +375,7 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
           <tfoot>
             <SubtotalEvolucionRow
               subtitle="Sumatoria"
-              label="1er semestre — Sub total"
+              label="Semestral — Sub total"
               agg={aggS1}
               tone="s1"
             />

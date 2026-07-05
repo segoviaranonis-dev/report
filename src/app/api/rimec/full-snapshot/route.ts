@@ -102,6 +102,7 @@ export async function POST(req: Request) {
   }
 
   try {
+    const t0 = Date.now();
     const pool = getRimecPool();
     const raw = (await req.json().catch(() => ({}))) as FullSnapshotBody;
     const filtros = await mergeSnapshotFilters(raw, pool);
@@ -109,11 +110,28 @@ export async function POST(req: Request) {
     const { text: pivotSql, values: pivotVals } = buildPivotSql(filtros);
     const { text: jerSql, values: jerVals } = buildJerarquiaSql(filtros);
 
-    const [rPivot, rJer] = await Promise.all([
-      pool.query(pivotSql, pivotVals),
-      pool.query(jerSql, jerVals),
-    ]);
+    const pivotP = (async () => {
+      const s = Date.now();
+      const r = await pool.query(pivotSql, pivotVals);
+      return { r, ms: Date.now() - s };
+    })();
+    const jerP = (async () => {
+      const s = Date.now();
+      const r = await pool.query(jerSql, jerVals);
+      return { r, ms: Date.now() - s };
+    })();
+    const cascadaP = (async () => {
+      const s = Date.now();
+      const c = await fetchCascadeDomains(pool, filtros);
+      return { c, ms: Date.now() - s };
+    })();
 
+    const [pivotRes, jerRes, cascadaRes] = await Promise.all([pivotP, jerP, cascadaP]);
+    const rPivot = pivotRes.r;
+    const rJer = jerRes.r;
+    const cascada = cascadaRes.c;
+
+    const tBuild = Date.now();
     const rows =
       rPivot.rows && rPivot.rows.length
         ? enrichPivotRows(rPivot.rows as Record<string, unknown>[], filtros.objetivo_pct)
@@ -125,11 +143,19 @@ export async function POST(req: Request) {
     );
 
     const snapshot = buildFullSnapshotResponse(rows, filtros, jerarquia_clientes);
-    const cascada = await fetchCascadeDomains(pool, filtros);
+    const buildMs = Date.now() - tBuild;
+    const totalMs = Date.now() - t0;
 
     return NextResponse.json({
       ...snapshot,
       cascada,
+      _timing: {
+        totalMs,
+        pivotMs: pivotRes.ms,
+        jerMs: jerRes.ms,
+        cascadaMs: cascadaRes.ms,
+        buildMs,
+      },
       _debug:
         process.env.NODE_ENV === "development"
           ? { sql: pivotSql, paramCount: pivotVals.length, pivot_rows: rows.length, filtros }

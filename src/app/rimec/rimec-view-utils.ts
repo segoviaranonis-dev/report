@@ -71,6 +71,27 @@ export function mesesSemestre(which: "s1" | "s2" | "year"): string[] {
   return Object.keys(MES_MAP);
 }
 
+function mesesPresetKey(meses: string[]): string {
+  return [...meses]
+    .sort((a, b) => (MES_MAP[a] ?? 0) - (MES_MAP[b] ?? 0))
+    .join("\u0001");
+}
+
+/** Qué botón Período rápido coincide con la selección de meses (apuntador visual). */
+export function periodoRapidoActivo(
+  meses: string[],
+  mesesPool: string[],
+): "s1" | "s2" | "year" | null {
+  const pool = new Set(mesesPool);
+  const selKey = mesesPresetKey(meses.filter((m) => pool.has(m)));
+  for (const k of ["s1", "s2", "year"] as const) {
+    const want = mesesSemestre(k).filter((m) => pool.has(m));
+    if (!want.length) continue;
+    if (selKey === mesesPresetKey(want)) return k;
+  }
+  return null;
+}
+
 export function evolucionPorSemestre(
   evolucionMes: RimecEvolucionMes[],
   filtros: SalesReportFilters

@@ -77,15 +77,15 @@ export function TabAnalisis({ cliente_id, categoria = "tienda" }: Props) {
   return (
     <div className="mx-auto max-w-6xl px-4">
       <div className="mb-6 flex items-center justify-between">
-        <label className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-          <input
-            type="checkbox"
-            checked={soloConSaldo}
-            onChange={(e) => setSoloConSaldo(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-bazzar-naranja focus:ring-bazzar-naranja"
-          />
-          Solo con saldo &gt; 0
-        </label>
+          <label className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            <input
+              type="checkbox"
+              checked={soloConSaldo}
+              onChange={(e) => setSoloConSaldo(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-bazzar-naranja focus:ring-bazzar-naranja"
+            />
+            Solo con saldo &gt; 0
+          </label>
 
         <button
           type="button"
@@ -111,7 +111,7 @@ export function TabAnalisis({ cliente_id, categoria = "tienda" }: Props) {
         analisisPorMarca={analisis_por_marca}
         soloConSaldo={soloConSaldo}
       />
-    </div>
+        </div>
   );
 }
 
