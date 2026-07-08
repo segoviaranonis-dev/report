@@ -110,6 +110,12 @@ function molKeyProformaRow(r: ProformaRow): string {
   );
 }
 
+function normalizeClienteId(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
 function aggregateIcsPorCliente(ics: IcRow[]): Map<
   number,
   { paresIc: number; icIds: number[]; icNros: string[]; clienteNombre: string }
@@ -119,11 +125,12 @@ function aggregateIcsPorCliente(ics: IcRow[]): Map<
     { paresIc: number; icIds: number[]; icNros: string[]; clienteNombre: string }
   >();
   for (const r of ics) {
-    const cid = r.id_cliente;
+    const cid = normalizeClienteId(r.id_cliente);
+    if (cid == null) continue;
     const bucket = agg.get(cid) ?? { paresIc: 0, icIds: [], icNros: [], clienteNombre: r.descp_cliente ?? "" };
-    bucket.paresIc += r.cantidad_total_pares ?? 0;
-    bucket.icIds.push(r.ic_id);
-    bucket.icNros.push(r.numero_registro);
+    bucket.paresIc += Number(r.cantidad_total_pares ?? 0);
+    bucket.icIds.push(Number(r.ic_id));
+    bucket.icNros.push(String(r.numero_registro));
     if (!bucket.clienteNombre && r.descp_cliente) bucket.clienteNombre = r.descp_cliente;
     agg.set(cid, bucket);
   }
@@ -196,7 +203,16 @@ export async function previewImportProformaProgramadoTs(
   const ics = await loadIcsPpProgramado(pool, ppId);
   if (!ics.length) return { ok: false, error: "El PP no tiene ICs vinculadas." };
 
-  const eventoIds = [...new Set(ics.map((i) => i.precio_evento_id).filter((x): x is number => x != null))];
+  const eventoIds = [
+    ...new Set(
+      ics
+        .map((i) => {
+          const n = Number(i.precio_evento_id);
+          return Number.isFinite(n) ? n : null;
+        })
+        .filter((x): x is number => x != null),
+    ),
+  ];
   if (eventoIds.length !== 1) {
     return { ok: false, error: "Las ICs del PP deben compartir un único listado de precios vinculado." };
   }
@@ -620,7 +636,7 @@ export async function importProformaProgramadoTs(
 
     const icsByShop = new Map<string, IcRow[]>();
     for (const ic of ics) {
-      const shop = String(ic.id_cliente);
+      const shop = String(normalizeClienteId(ic.id_cliente) ?? ic.id_cliente);
       const list = icsByShop.get(shop) ?? [];
       list.push(ic);
       icsByShop.set(shop, list);
