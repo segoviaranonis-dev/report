@@ -1,59 +1,47 @@
+import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { getRimecPool } from "@/lib/rimec/pool";
+import {
+  importProformaCompraPreviaTs,
+  importProformaProgramadoTs,
+  isProgramadoCategoria,
+  previewImportProformaProgramadoTs,
+  previewProformaSimpleTs,
+  type EmparejamientoShop,
+  type FiCreadaProgramado,
+  type ProformaImportResult,
+  type ProformaPreviewResult,
+} from "./proforma-programado-engine";
+
+export type { EmparejamientoShop, FiCreadaProgramado, ProformaImportResult, ProformaPreviewResult };
 
 const execFileAsync = promisify(execFile);
 
 const CONTROL_CENTRAL = path.resolve(process.cwd(), "..", "control_central");
 const SCRIPT = path.join(CONTROL_CENTRAL, "scripts", "report_import_proforma_pp.py");
 
-export type EmparejamientoShop = {
-  brand: string;
-  shop: string;
-  pares_proforma: number;
-  ic_id: number;
-  ic_nro: string;
-  id_cliente: number;
-  cliente_nombre: string;
-  pares_ic: number;
-  match: boolean;
-};
+function shouldUseTsEngine(): boolean {
+  if (process.env.VERCEL === "1") return true;
+  if (process.env.PP_PROFORMA_USE_TS === "1") return true;
+  try {
+    return !existsSync(SCRIPT);
+  } catch {
+    return true;
+  }
+}
 
-export type ProformaPreviewResult = {
-  ok: boolean;
-  preview?: boolean;
-  programado?: boolean;
-  total_pares?: number;
-  n_filas?: number;
-  n_grupos_shop?: number;
-  emparejamientos?: EmparejamientoShop[];
-  errores?: string[];
-  listado_vinculado?: boolean;
-  evento_id?: number;
-  error?: string;
-};
-
-export type FiCreadaProgramado = {
-  ic_nro: string;
-  shop: string;
-  fi_nro: string;
-  pares: number;
-};
-
-export type ProformaImportResult = {
-  ok: boolean;
-  programado?: boolean;
-  pp_id?: number;
-  pares?: number;
-  n_articulos?: number;
-  message?: string;
-  n_fi?: number;
-  fi_creadas?: FiCreadaProgramado[];
-  fi_errores?: string[];
-  error?: string;
-};
+async function loadPpCategoria(ppId: number): Promise<number | null> {
+  const pool = getRimecPool();
+  const { rows } = await pool.query<{ categoria_id: number | null }>(
+    "SELECT categoria_id FROM pedido_proveedor WHERE id = $1",
+    [ppId],
+  );
+  return rows[0]?.categoria_id ?? null;
+}
 
 type RunOpts = {
   proforma?: string;
@@ -131,7 +119,22 @@ export async function runProformaPreviewPython(
   fileBuffer: Buffer,
   originalName: string,
 ): Promise<ProformaPreviewResult> {
+  if (shouldUseTsEngine()) {
+    const categoria = await loadPpCategoria(ppId);
+    if (isProgramadoCategoria(categoria)) {
+      return previewImportProformaProgramadoTs(ppId, fileBuffer);
+    }
+    return previewProformaSimpleTs(fileBuffer);
+  }
+
   const raw = await runPythonScript(ppId, fileBuffer, originalName, { preview: true });
+  if (raw.ok === false && !raw.emparejamientos && !raw.errores) {
+    const categoria = await loadPpCategoria(ppId);
+    if (isProgramadoCategoria(categoria)) {
+      return previewImportProformaProgramadoTs(ppId, fileBuffer);
+    }
+    return previewProformaSimpleTs(fileBuffer);
+  }
   return raw as ProformaPreviewResult;
 }
 
@@ -141,10 +144,25 @@ export async function runProformaImportPython(
   originalName: string,
   opts: { proforma?: string; borrarImport?: boolean },
 ): Promise<ProformaImportResult> {
+  if (shouldUseTsEngine()) {
+    const categoria = await loadPpCategoria(ppId);
+    if (isProgramadoCategoria(categoria)) {
+      return importProformaProgramadoTs(ppId, fileBuffer, opts.proforma);
+    }
+    return importProformaCompraPreviaTs(ppId, fileBuffer, opts.proforma);
+  }
+
   const raw = await runPythonScript(ppId, fileBuffer, originalName, {
     proforma: opts.proforma,
     borrarImport: opts.borrarImport,
   });
+  if (raw.ok === false && String(raw.error ?? "").includes("script")) {
+    const categoria = await loadPpCategoria(ppId);
+    if (isProgramadoCategoria(categoria)) {
+      return importProformaProgramadoTs(ppId, fileBuffer, opts.proforma);
+    }
+    return importProformaCompraPreviaTs(ppId, fileBuffer, opts.proforma);
+  }
   return raw as ProformaImportResult;
 }
 
