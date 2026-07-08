@@ -1,6 +1,12 @@
 import type { Pool, PoolClient } from "pg";
 import { getRimecPool } from "@/lib/rimec/pool";
 import { parseProforma, type ProformaRow } from "./parse-proforma";
+import {
+  canonicalMolKey,
+  categoriaEsProgramado,
+  upsertColorProforma,
+  upsertMaterialProforma,
+} from "./pilares-proforma-upsert";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -47,8 +53,6 @@ export type ProformaImportResult = {
   fi_errores?: string[];
   error?: string;
 };
-
-const CATEGORIA_PROGRAMADO = 3;
 
 type IcRow = {
   ic_id: number;
@@ -97,13 +101,13 @@ function factorDescuentoIcPct(d1: number, d2: number, d3: number, d4: number): n
 }
 
 function molKeyProformaRow(r: ProformaRow): string {
-  return JSON.stringify([
+  return canonicalMolKey(
     r.linea_codigo_proveedor,
     r.referencia_codigo_proveedor,
     r.material_code,
     r.color_code,
-    JSON.stringify(r.grades_json, Object.keys(r.grades_json).sort()),
-  ]);
+    r.grades_json,
+  );
 }
 
 function aggregateIcsPorCliente(ics: IcRow[]): Map<
@@ -421,21 +425,11 @@ async function populatePpFromProforma(
 
     const healCol = (r.color || "").trim();
     if (colCode && healCol) {
-      await client.query(
-        `UPDATE color SET nombre = $1
-         WHERE proveedor_id = $2::bigint AND codigo_proveedor::text = $3
-           AND (nombre IS NULL OR TRIM(nombre) = '')`,
-        [healCol.slice(0, 2000), provId, colCode],
-      );
+      await upsertColorProforma(client, colCode, provId, healCol);
     }
     const healMat = (r.material || "").trim();
     if (matCode && healMat) {
-      await client.query(
-        `UPDATE material SET descripcion = $1
-         WHERE proveedor_id = $2::bigint AND codigo_proveedor::text = $3
-           AND (descripcion IS NULL OR TRIM(descripcion) = '')`,
-        [healMat.slice(0, 2000), provId, matCode],
-      );
+      await upsertMaterialProforma(client, matCode, provId, healMat);
     }
   }
 
@@ -610,14 +604,9 @@ export async function importProformaProgramadoTs(
     );
     const ppdByMol = new Map<string, number>();
     for (const pr of ppdMapRes.rows) {
-      const gj = typeof pr.grades_json === "object" && pr.grades_json ? (pr.grades_json as Record<string, number>) : {};
-      const key = JSON.stringify([
-        String(pr.linea),
-        String(pr.referencia),
-        String(pr.material_code),
-        String(pr.color_code),
-        JSON.stringify(gj, Object.keys(gj).sort()),
-      ]);
+      const gj =
+        typeof pr.grades_json === "object" && pr.grades_json ? (pr.grades_json as Record<string, number>) : {};
+      const key = canonicalMolKey(String(pr.linea), String(pr.referencia), String(pr.material_code), String(pr.color_code), gj);
       ppdByMol.set(key, pr.id);
     }
 
@@ -728,6 +717,18 @@ export async function importProformaProgramadoTs(
       };
     }
 
+    const nIcsEsperadas = ics.length;
+    if (fiCreadas.length === 0 || fiCreadas.length < nIcsEsperadas) {
+      await client.query("ROLLBACK");
+      return {
+        ok: false,
+        error: `Import programado incompleto: ${fiCreadas.length}/${nIcsEsperadas} FI creadas. Revisá pilares/LPN o emparejamiento SHOP.`,
+        programado: true,
+        fi_creadas: fiCreadas,
+        n_fi: fiCreadas.length,
+      };
+    }
+
     if (fiCreadas.length) {
       await client.query(
         `UPDATE pedido_proveedor_detalle SET pares_vendidos = cantidad_pares WHERE pedido_proveedor_id = $1`,
@@ -812,6 +813,64 @@ export async function importProformaCompraPreviaTs(
   }
 }
 
-export function isProgramadoCategoria(categoriaId: number | null | undefined): boolean {
-  return categoriaId === CATEGORIA_PROGRAMADO;
+export async function borrarImportacionTs(ppId: number): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const pool = getRimecPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const chk = await client.query<{ n: number; vend: number; fi_conf: number }>(
+      `SELECT COUNT(ppd.id)::int AS n,
+              COALESCE(SUM(ppd.pares_vendidos), 0)::int AS vend,
+              (SELECT COUNT(*)::int FROM factura_interna fi
+               WHERE fi.pp_id = $1 AND UPPER(TRIM(fi.estado)) = 'CONFIRMADA') AS fi_conf
+       FROM pedido_proveedor_detalle ppd WHERE ppd.pedido_proveedor_id = $1`,
+      [ppId],
+    );
+    const row = chk.rows[0];
+    if (!row?.n) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "No hay artículos importados." };
+    }
+    if (row.vend > 0 || row.fi_conf > 0) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "No se puede borrar: hay ventas o FI confirmadas." };
+    }
+
+    await client.query(
+      `DELETE FROM venta_transito vt
+       USING pedido_proveedor_detalle ppd
+       WHERE vt.pedido_proveedor_detalle_id = ppd.id AND ppd.pedido_proveedor_id = $1`,
+      [ppId],
+    );
+    await client.query(
+      `DELETE FROM factura_interna_detalle fid
+       USING factura_interna fi
+       WHERE fid.factura_id = fi.id AND fi.pp_id = $1`,
+      [ppId],
+    );
+    await client.query(`DELETE FROM factura_interna WHERE pp_id = $1`, [ppId]);
+    await client.query(`DELETE FROM snapshot_costos WHERE pp_id = $1`, [ppId]);
+    const del = await client.query(`DELETE FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1 RETURNING id`, [
+      ppId,
+    ]);
+    await client.query(`UPDATE pedido_proveedor SET pares_comprometidos = 0 WHERE id = $1`, [ppId]);
+    await client.query(`UPDATE pedido_proveedor SET estado_transito = NULL WHERE id = $1 AND estado_transito = 'EN_TRANSITO'`, [
+      ppId,
+    ]);
+    await client.query("COMMIT");
+    return {
+      ok: true,
+      message: `Importación eliminada (${del.rowCount ?? 0} artículos). Podés cargar la proforma de nuevo.`,
+    };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return { ok: false, error: e instanceof Error ? e.message : "Error al borrar importación" };
+  } finally {
+    client.release();
+  }
+}
+
+export function isProgramadoCategoria(categoriaId: unknown): boolean {
+  return categoriaEsProgramado(categoriaId);
 }

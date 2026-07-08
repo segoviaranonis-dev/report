@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { borrarImportacionTs } from "./proforma-programado-engine";
 import { runProformaBorrarPython } from "./run-python-pp";
 
 export type BorrarImportEstado = {
@@ -76,6 +77,10 @@ export async function getEstadoBorradoImportPp(pool: Pool, ppId: number): Promis
   };
 }
 
+function shouldUseTsBorrar(): boolean {
+  return process.env.VERCEL === "1" || process.env.PP_PROFORMA_USE_TS === "1";
+}
+
 export async function borrarImportacionPp(
   pool: Pool,
   ppId: number,
@@ -88,15 +93,26 @@ export async function borrarImportacionPp(
     return { ok: false, error: estado.motivo || "No se puede borrar esta importación." };
   }
 
-  const py = await runProformaBorrarPython(ppId);
-  if (!py.ok) {
-    return { ok: false, error: py.error || py.message || "Error al borrar importación." };
+  const result = shouldUseTsBorrar()
+    ? await borrarImportacionTs(ppId)
+    : await runProformaBorrarPython(ppId);
+
+  if (!result.ok) {
+    if (!shouldUseTsBorrar()) {
+      const fallback = await borrarImportacionTs(ppId);
+      if (fallback.ok) {
+        return { ok: true, message: fallback.message || "Importación eliminada. Podés cargar la proforma de nuevo." };
+      }
+    }
+    return { ok: false, error: result.error || ("message" in result ? result.message : undefined) || "Error al borrar importación." };
   }
 
-  await pool.query(
-    `UPDATE pedido_proveedor SET estado_transito = NULL WHERE id = $1 AND estado_transito = 'EN_TRANSITO'`,
-    [ppId],
-  );
+  if (!shouldUseTsBorrar()) {
+    await pool.query(
+      `UPDATE pedido_proveedor SET estado_transito = NULL WHERE id = $1 AND estado_transito = 'EN_TRANSITO'`,
+      [ppId],
+    );
+  }
 
-  return { ok: true, message: py.message || "Importación eliminada. Podés cargar la proforma de nuevo." };
+  return { ok: true, message: result.message || "Importación eliminada. Podés cargar la proforma de nuevo." };
 }

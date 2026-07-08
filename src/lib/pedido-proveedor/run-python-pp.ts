@@ -36,11 +36,14 @@ function shouldUseTsEngine(): boolean {
 
 async function loadPpCategoria(ppId: number): Promise<number | null> {
   const pool = getRimecPool();
-  const { rows } = await pool.query<{ categoria_id: number | null }>(
+  const { rows } = await pool.query<{ categoria_id: string | number | null }>(
     "SELECT categoria_id FROM pedido_proveedor WHERE id = $1",
     [ppId],
   );
-  return rows[0]?.categoria_id ?? null;
+  const raw = rows[0]?.categoria_id;
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 type RunOpts = {
