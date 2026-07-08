@@ -262,7 +262,7 @@ export async function getFiRegistroPorNumero(nroFactura: string): Promise<FiRegi
     `
     SELECT
       fi.id, fi.nro_factura, fi.pv_global, fi.estado, fi.created_at,
-      fi.pp_id,
+      fi.pp_id, fi.pedido_id, fi.cliente_id,
       pp.numero_registro AS nro_pp,
       fi.marca, fi.caso,
       cv.descp_cliente AS cliente,

@@ -42,7 +42,11 @@ type CsvCarlosRow = {
   descuento_2: string | null;
   descuento_3: string | null;
   descuento_4: string | null;
+  /** PE / override — id numérico Carlos; si null → matriz Francis por caso */
+  vendedor_carlos?: string | null;
 };
+
+export type { CsvCarlosRow };
 
 function csvCell(value: unknown): string {
   const s = value == null ? "" : String(value);
@@ -220,7 +224,9 @@ export function buildCsvCarlosContent(
         fmtDesc(r.descuento_2),
         fmtDesc(r.descuento_3),
         fmtDesc(r.descuento_4),
-        carlosVendedorIdFrancis(r.caso, translator),
+        r.vendedor_carlos != null && r.vendedor_carlos !== ""
+          ? r.vendedor_carlos
+          : carlosVendedorIdFrancis(r.caso, translator),
         COBRADOR,
       ]),
     );

@@ -229,7 +229,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         body: fd,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error en preview");
+      const hasPreviewPayload = Array.isArray(data.emparejamientos) || (data.errores?.length ?? 0) > 0;
+      if (!res.ok && !hasPreviewPayload) {
+        throw new Error(data.error || "Error en preview");
+      }
 
       setPreviewRows(data.emparejamientos ?? []);
       setPreviewOk(Boolean(data.ok));
@@ -243,7 +246,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares.`,
         );
       } else {
-        onMsg(`Preview con errores — revisá la tabla SHOP↔IC.`);
+        const nErr = data.errores?.length ?? 0;
+        onMsg(
+          `Preview con ${nErr} error(es) SHOP↔IC — corregí Excel o ICs. Paso 2 bloqueado hasta match total.`,
+        );
       }
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
@@ -560,6 +566,14 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     {busy ? "Importando…" : "2 · Confirmar import programado →"}
                   </button>
                 </div>
+                {esProgramado && (
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-slate-600">
+                    <li>{proformaFile ? "✅" : "⬜"} Archivo Excel seleccionado</li>
+                    <li>{draft.numero_proforma.trim() ? "✅" : "⬜"} Nro proforma en cabecera</li>
+                    <li>{draft.quincena_arribo_id > 0 ? "✅" : "⬜"} Fecha de embarque (quincena)</li>
+                    <li>{previewOk ? "✅" : "⬜"} Preview SHOP↔IC sin errores (paso 1)</li>
+                  </ul>
+                )}
                 {(previewRows || previewErrores.length > 0) && (
                   <div className="mt-4 overflow-x-auto rounded-lg border border-violet-200 bg-white">
                     <table className="w-full min-w-[640px] text-left text-xs">

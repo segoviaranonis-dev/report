@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { FacturaInternaCabecera } from "./FacturaInternaCabecera";
 import { CompraWebFiPanel } from "@/app/bazzar-web/compra/components/CompraWebFiPanel";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
@@ -12,7 +13,7 @@ import type { FacturaKpis, FacturaListItem } from "@/lib/facturacion/types";
 import { TERMINO_FI } from "@/lib/facturacion/types";
 import type { FiDetalleCanonico, FiRegistroRow } from "@/lib/bazzar-web/compra-web/types";
 import { FACTURACION } from "@/lib/report/routes";
-import { fiDisplayId, ppDisplay } from "@/app/aprobaciones/lib/aprobaciones-utils";
+import { fiDisplayId } from "@/app/aprobaciones/lib/aprobaciones-utils";
 
 type Props = {
   origen: OrigenFacturacion;
@@ -23,8 +24,22 @@ type Props = {
   footerNote: string;
 };
 
-function fmtGs(n: number | null | undefined): string {
-  return `Gs. ${Math.round(Number(n) || 0).toLocaleString("es-PY")}`;
+async function descargarCsvFactura(f: FacturaListItem): Promise<void> {
+  const res = await fetch(`/api/facturacion/${encodeURIComponent(f.factura_legacy)}/csv`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Error al descargar CSV");
+  }
+  const blob = await res.blob();
+  const disp = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(disp);
+  const filename = match?.[1] ?? "factura.csv";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function FacturacionBandejaClient({
@@ -41,6 +56,7 @@ export function FacturacionBandejaClient({
   const [configured, setConfigured] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [descargandoCsv, setDescargandoCsv] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [fiDetail, setFiDetail] = useState<{
@@ -115,85 +131,59 @@ export function FacturacionBandejaClient({
 
   const puedeEnviar = (estado: string) => estado === "SIN_TRASPASO" || estado === "BORRADOR";
 
+  async function onDescargarCsv(f: FacturaListItem) {
+    setDescargandoCsv(f.factura_legacy);
+    setError(null);
+    try {
+      await descargarCsvFactura(f);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error CSV");
+    } finally {
+      setDescargandoCsv(null);
+    }
+  }
+
+  const puedeCsv = (f: FacturaListItem) =>
+    f.fi_id != null && (f.fi_estado === "CONFIRMADA" || f.fi_estado === "RESERVADA");
+
   function renderFacturaRow(f: FacturaListItem) {
     const badge = TRP_ESTADO_COLOR[f.traspaso_estado] ?? TRP_ESTADO_COLOR.SIN_TRASPASO;
     const isOpen = expanded === f.factura_legacy;
-    const displayId = fiDisplayId({ pv_global: f.pv_global, nro_factura: f.factura_legacy });
-    const legacy = f.factura_legacy;
-    const esPe = origen === "pronta-entrega";
-    const ppLabel = ppDisplay({
-      nro_pp: f.pedido,
-      pp_id: f.pp_id,
-      proforma: f.proforma,
-      origen_pe: esPe,
-      nro_factura: f.factura_legacy,
-    });
-    const fiBadge =
-      f.fi_estado === "RESERVADA"
-        ? { bg: "#CA8A04", fg: "#fff", label: "RESERVADA" }
-        : f.fi_estado === "CONFIRMADA"
-          ? { bg: "#15803D", fg: "#fff", label: "CONFIRMADA" }
-          : null;
 
     return (
-      <article key={`${f.factura}-${f.pedido}`} className="rounded-xl border-2 border-neutral-300 bg-card-bg overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg bg-rimec-azul px-3 py-1.5 text-sm font-bold tabular-nums text-white shadow-sm">
-                {displayId}
-              </span>
-              <span className="rounded-lg border-2 border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800">
-                {ppLabel}
-              </span>
-              {esPe && (
-                <span className="rounded-md bg-orange-700 px-2 py-0.5 text-[10px] font-black tracking-wide text-white">
-                  PRONTA ENTREGA
-                </span>
-              )}
-              {fiBadge && (
-                <span
-                  className="rounded-md px-2 py-0.5 text-[10px] font-bold"
-                  style={{ backgroundColor: fiBadge.bg, color: fiBadge.fg }}
-                >
-                  {fiBadge.label}
-                </span>
-              )}
-              {legacy && legacy !== displayId && (
-                <span className="rounded-lg border border-dashed border-neutral-400 bg-neutral-50 px-2.5 py-1.5 text-xs font-medium text-neutral-600">
-                  {TERMINO_FI} {legacy}
-                </span>
-              )}
-            </div>
-            <p className="mt-2 text-sm text-neutral-600">
-              {f.marca} · {f.cliente} · {f.pares.toLocaleString("es-PY")} pares
-              {!esPe && f.compra !== "—" ? ` · CL ${f.compra}` : ""}
-              {f.total_monto != null && f.total_monto > 0 ? ` · ${fmtGs(f.total_monto)}` : ""}
-            </p>
-            <p className="text-xs text-neutral-500">
-              {esPe ? "Stock importado · PPD vía detalle" : `${TERMINO_FI} · PP ${f.pedido}`}
-            </p>
-          </div>
+      <article key={`${f.factura}-${f.pedido}`} className="overflow-hidden rounded-xl border-2 border-neutral-300 bg-card-bg shadow-sm">
+        <FacturaInternaCabecera f={f} origen={origen} />
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 sm:px-5">
+          <span
+            className="rounded-full px-3 py-1 text-xs font-bold"
+            style={{ backgroundColor: badge.bg, color: badge.fg }}
+          >
+            {TRP_ESTADO_LABEL[f.traspaso_estado] ?? f.traspaso_estado}
+          </span>
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="rounded-full px-3 py-1 text-xs font-bold"
-              style={{ backgroundColor: badge.bg, color: badge.fg }}
-            >
-              {TRP_ESTADO_LABEL[f.traspaso_estado] ?? f.traspaso_estado}
-            </span>
+            {puedeCsv(f) && (
+              <button
+                type="button"
+                disabled={descargandoCsv === f.factura_legacy}
+                onClick={() => onDescargarCsv(f)}
+                className="rounded-lg border-2 border-rimec-azul bg-rimec-azul/5 px-4 py-2 text-xs font-bold text-rimec-azul-dark hover:bg-rimec-azul/10 disabled:opacity-50"
+              >
+                {descargandoCsv === f.factura_legacy ? "Generando…" : "Descargar CSV"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => (isOpen ? setExpanded(null) : loadFiDetail(f.factura_legacy))}
-              className="rounded-lg border border-neutral-400 px-3 py-1.5 text-xs font-semibold hover:bg-neutral-50"
+              className="rounded-lg border border-neutral-400 px-3 py-2 text-xs font-semibold hover:bg-neutral-50"
             >
-              {isOpen ? "Cerrar FI" : `Ver ${TERMINO_FI}`}
+              {isOpen ? "Cerrar detalle" : `Ver ${TERMINO_FI}`}
             </button>
             {puedeEnviar(f.traspaso_estado) && (
               <button
                 type="button"
                 disabled={enviando === f.factura_legacy}
                 onClick={() => enviarWeb(f)}
-                className="rounded-lg bg-[#F97316] px-4 py-1.5 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+                className="rounded-lg bg-[#F97316] px-4 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50"
               >
                 {enviando === f.factura_legacy ? "Enviando…" : "Enviar Web Bazar"}
               </button>
@@ -262,14 +252,11 @@ export function FacturacionBandejaClient({
           <div className="mt-8 space-y-8">
             {grupos.map((g) => (
               <section key={g.fecha || "all"}>
-                {groupByDate && g.fecha && (
-                  <h2 className="mb-3 border-b border-neutral-300 pb-2 font-serif text-xl text-rimec-azul-dark">
-                    {g.fecha}
-                    <span className="ml-2 text-sm font-normal text-neutral-500">
-                      ({g.facturas.length} {TERMINO_FI}
-                      {g.facturas.length === 1 ? "" : "s"})
-                    </span>
-                  </h2>
+                {groupByDate && g.fecha && g.facturas.length > 1 && (
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                    Agrupado · {g.fecha} · {g.facturas.length} {TERMINO_FI}
+                    {g.facturas.length === 1 ? "" : "s"}
+                  </p>
                 )}
                 <div className="space-y-4">{g.facturas.map(renderFacturaRow)}</div>
               </section>

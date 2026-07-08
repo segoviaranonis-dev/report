@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { BibliotecaCasoBar } from "@/app/depositos-bazzar/components/operativa/BibliotecaCasoBar";
-import { TrianguloHeaderDeposito } from "@/app/depositos-bazzar/components/operativa/TrianguloHeaderDeposito";
-import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
+import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
@@ -15,7 +13,6 @@ import {
 } from "@/lib/depositos/caso-biblioteca";
 import type { StockProntaEntregaResumen } from "@/lib/stock-pronta-entrega/queries-resumen";
 import { RIMEC_SDRM_DEPOSIT_MAP } from "@/lib/deposito-rimec/rimec-csv-sdrm";
-import { COLORES_ESTANDAR_DEFAULT } from "@/lib/pilares/colores-estandar";
 
 type Props = {
   resumenInicial: StockProntaEntregaResumen;
@@ -97,44 +94,35 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
   }, [filtradas, casoActivo, lineaCasoMap]);
 
   return (
-    <div className="space-y-3">
-      <BibliotecaCasoBar
-        indiceApiPath="/api/stock-pronta-entrega/filtros-indice"
-        bibliotecaId={bibliotecaId}
-        casoActivo={casoActivo}
-        onBibliotecaChange={setBibliotecaId}
-        onCasoChange={setCasoActivo}
-        onCasosLoaded={onCasosLoaded}
-      />
-      <TrianguloHeaderDeposito
-        filtros={filtros}
-        onChange={setFiltros}
-        opciones={opciones}
-        tonoCatalog={COLORES_ESTANDAR_DEFAULT}
-        totalProductos={cardsCount}
-        totalPares={totalPares}
-        valorInventario={valorInventario}
-        gradaVariant="importadora"
-        filtersDefaultOpen={false}
-        hideVitalesHero
-        hideProductosVital
-        categoriaEnCabecera
-        summaryLayout="vitales-first"
-        summaryTrailing={
-          <PeVentasRegistroBar
-            batchLabel={batchLabel}
-            calzadoPares={calzadoPares}
-            confeccionesPares={confeccionesPares}
-            calzadoGs={calzadoGs}
-            confeccionesGs={confeccionesGs}
-          />
-        }
-        extraFilters={
-          <DepositoLegalRow value={depositoLegal} onChange={setDepositoLegal} />
-        }
-      />
-      <GrillaPeImportadora productos={filtradasGrid} casoPorLinea={lineaCasoMap} showVentas />
-    </div>
+    <PanelControlGrillaStack
+      bibliotecaIndicePath="/api/stock-pronta-entrega/filtros-indice"
+      bibliotecaId={bibliotecaId}
+      casoActivo={casoActivo}
+      onBibliotecaChange={setBibliotecaId}
+      onCasoChange={setCasoActivo}
+      onCasosLoaded={onCasosLoaded}
+      filtros={filtros}
+      onFiltrosChange={setFiltros}
+      opciones={opciones}
+      cardsCount={cardsCount}
+      totalPares={totalPares}
+      valorInventario={valorInventario}
+      summaryTrailing={
+        <PeVentasRegistroBar
+          batchLabel={batchLabel}
+          calzadoPares={calzadoPares}
+          confeccionesPares={confeccionesPares}
+          calzadoGs={calzadoGs}
+          confeccionesGs={confeccionesGs}
+        />
+      }
+      extraFilters={
+        <DepositoLegalRow value={depositoLegal} onChange={setDepositoLegal} />
+      }
+      productos={filtradasGrid}
+      casoPorLinea={lineaCasoMap}
+      grilla={{ showVentas: true }}
+    />
   );
 }
 
@@ -147,8 +135,8 @@ function StockPeShell({ resumenInicial }: Props) {
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <Link href="/deposito-rimec" className="text-sm text-rimec-azul hover:underline">
-              ← Depósito RIMEC
+            <Link href="/rimec?mundo=panel-control" className="text-sm text-rimec-azul hover:underline">
+              ← Panel de Control
             </Link>
             <h1 className="font-serif text-lg font-semibold text-slate-900">Stock Pronta Entrega</h1>
             <span className="text-xs text-slate-500">batch {resumenInicial.batch_label}</span>

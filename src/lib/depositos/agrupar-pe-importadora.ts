@@ -1,4 +1,6 @@
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
+import type { VentaCompradorLinea } from "@/lib/clientes/etiqueta-comprador";
+import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import { lookupCasoLinea } from "@/lib/depositos/caso-biblioteca";
 import { resolvePrecioGrupoLRM } from "@/lib/depositos/precio-venta";
 
@@ -23,6 +25,8 @@ export type PeImportadoraCard = {
   casoComercial: string | null;
   /** Tránsito — quincena_arribo.descripcion (dato duro llegada) */
   llegadaDesc: string | null;
+  /** Ventas confirmadas · cadena o cliente (2 nombres) · solo vista expandida. */
+  compradores: VentaCompradorLinea[];
 };
 
 function moleculeKey(p: DepositoRow): string {
@@ -51,6 +55,8 @@ export function llegadaDescFromRows(rows: DepositoRow[]): string | null {
 type AgruparPeOpts = {
   /** Tránsito / programado — prioriza vendido en orden de tarjetas. */
   ordenVentas?: boolean;
+  /** Map molécula → compradores (cadena/cliente). */
+  ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
 };
 
 /** Agrupa molécula L+R+material+color · una imagen · gradas = curvas con saldo/vendido. */
@@ -97,18 +103,26 @@ export function agruparPeImportadora(
         );
 
       const totalPares = gradas.reduce((s, g) => s + g.pares, 0);
+      const p = items[0];
+      const molKey = moleculeKeyVentas(
+        p.linea_codigo_proveedor,
+        p.referencia_codigo_proveedor,
+        p.material_code,
+        p.color_code,
+      );
 
       return {
         key,
-        producto: items[0],
+        producto: p,
         gradas,
         totalPares,
         totalInicial,
         totalVendidos,
-        estilo: items[0].estilo,
+        estilo: p.estilo,
         precioVenta: resolvePrecioGrupoLRM(items),
-        casoComercial: lookupCasoLinea(casoPorLinea, items[0].linea_codigo_proveedor),
+        casoComercial: lookupCasoLinea(casoPorLinea, p.linea_codigo_proveedor),
         llegadaDesc: llegadaDescFromRows(items),
+        compradores: opts?.ventasPorMol?.get(molKey) ?? [],
       };
     })
     .sort((a, b) => {

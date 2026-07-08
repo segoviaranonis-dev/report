@@ -8,6 +8,8 @@ type Props = {
   paresSaldo: number;
   valorInventario: number;
   modo?: "canonico" | "filtrado";
+  /** Una sola vitale protagonista por vista (Panel CP). */
+  destaque?: "ambos" | "saldo" | "vendido";
 };
 
 export function TransitoVentasVitales({
@@ -16,6 +18,7 @@ export function TransitoVentasVitales({
   paresSaldo,
   valorInventario,
   modo = "canonico",
+  destaque = "ambos",
 }: Props) {
   const vendidoGs =
     paresInicial > 0 && valorInventario > 0
@@ -25,6 +28,7 @@ export function TransitoVentasVitales({
 
   return (
     <>
+      {(destaque === "ambos" || destaque === "vendido") && (
       <span className="rounded-lg border-2 border-rose-300 bg-rose-50 px-3 py-1.5">
         <span className="block text-[9px] font-bold uppercase tracking-wider text-rose-700">
           Vendido · tránsito
@@ -39,7 +43,9 @@ export function TransitoVentasVitales({
           </span>
         ) : null}
       </span>
+      )}
 
+      {(destaque === "ambos" || destaque === "saldo") && (
       <span className="rounded-lg border-2 border-rimec-azul/30 bg-rimec-azul/5 px-3 py-1.5">
         <span className="block text-[9px] font-bold uppercase tracking-wider text-rimec-azul">
           Saldo · tránsito
@@ -53,6 +59,7 @@ export function TransitoVentasVitales({
           {modo === "filtrado" ? " · filtrado" : " · canónico"}
         </span>
       </span>
+      )}
     </>
   );
 }

@@ -38,6 +38,8 @@ const ENTITY_STYLE: Record<
 function EntidadCard({ e }: { e: EntidadActivoResumen }) {
   const st = ENTITY_STYLE[e.entidad];
 
+  const dualCp = e.entidad === "COMPRA_PREVIA";
+
   return (
     <section className={`rounded-2xl border-2 ${st.ring} bg-white shadow-sm`}>
       <div className="p-5">
@@ -88,12 +90,43 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
           ) : null}
         </dl>
 
-        <Link
-          href={e.enlace_report}
-          className={`mt-5 inline-flex w-full items-center justify-center rounded-xl border py-2 text-xs font-semibold uppercase tracking-widest transition ${st.btn}`}
-        >
-          Ver productos →
-        </Link>
+        {dualCp ? (
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Link
+              href="/stock-transito/disponible"
+              className="flex flex-col rounded-xl border border-rimec-azul/30 bg-rimec-azul/5 p-3 transition hover:border-rimec-azul hover:bg-rimec-azul/10"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wide text-rimec-azul">Saldo disponible</span>
+              <span className="mt-1 font-serif text-lg font-semibold tabular-nums text-rimec-azul-dark">
+                {fmtN(e.pares_saldo)} p
+              </span>
+              <span className="mt-2 text-[10px] font-semibold text-rimec-azul">Control stock →</span>
+            </Link>
+            <Link
+              href="/stock-transito/ventas"
+              className="flex flex-col rounded-xl border border-rose-200 bg-rose-50/80 p-3 transition hover:border-rose-400 hover:bg-rose-50"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wide text-rose-800">Ventas ejecutadas</span>
+              <span className="mt-1 font-serif text-lg font-semibold tabular-nums text-rose-900">
+                {fmtN(e.pares_vendidos)} p
+              </span>
+              <span className="mt-2 text-[10px] font-semibold text-rose-700">Detalle partidas →</span>
+            </Link>
+            <Link
+              href={e.enlace_report}
+              className="sm:col-span-2 text-center text-[10px] font-medium text-slate-500 hover:text-rimec-azul hover:underline"
+            >
+              Ver hub compra previa tránsito
+            </Link>
+          </div>
+        ) : (
+          <Link
+            href={e.enlace_report}
+            className={`mt-5 inline-flex w-full items-center justify-center rounded-xl border py-2 text-xs font-semibold uppercase tracking-widest transition ${st.btn}`}
+          >
+            Ver productos →
+          </Link>
+        )}
       </div>
     </section>
   );

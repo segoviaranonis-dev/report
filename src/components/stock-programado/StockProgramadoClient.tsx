@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { BibliotecaCasoBar } from "@/app/depositos-bazzar/components/operativa/BibliotecaCasoBar";
-import { TrianguloHeaderDeposito } from "@/app/depositos-bazzar/components/operativa/TrianguloHeaderDeposito";
-import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
+import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
 import { ProgramadoVentasVitales } from "@/components/stock-programado/ProgramadoVentasVitales";
 import {
   StockProgramadoProvider,
@@ -18,7 +16,6 @@ import {
 } from "@/lib/depositos/caso-biblioteca";
 import { resolveProgramadoVitales } from "@/lib/stock-programado/programado-vitales-canonicos";
 import type { StockProgramadoResumen } from "@/lib/stock-programado/queries-resumen";
-import { COLORES_ESTANDAR_DEFAULT } from "@/lib/pilares/colores-estandar";
 
 type Props = {
   resumenInicial: StockProgramadoResumen;
@@ -66,55 +63,41 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
   );
 
   return (
-    <div className="space-y-3">
-      <BibliotecaCasoBar
-        indiceApiPath="/api/stock-programado/filtros-indice"
-        bibliotecaId={bibliotecaId}
-        casoActivo={casoActivo}
-        onBibliotecaChange={setBibliotecaId}
-        onCasoChange={setCasoActivo}
-        onCasosLoaded={onCasosLoaded}
-      />
-      <TrianguloHeaderDeposito
-        filtros={filtros}
-        onChange={setFiltros}
-        opciones={opciones}
-        tonoCatalog={COLORES_ESTANDAR_DEFAULT}
-        totalProductos={cardsCount}
-        totalPares={totalPares}
-        valorInventario={valorInventario}
-        gradaVariant="importadora"
-        filtersDefaultOpen={false}
-        hideVitalesHero
-        hideProductosVital
-        categoriaEnCabecera
-        summaryLayout="vitales-first"
-        summaryTrailing={
-          <ProgramadoVentasVitales
-            paresInicial={vitales.inicial}
-            paresVendidos={vitales.vendidos}
-            paresSaldo={vitales.saldo}
-            valorInventario={valorInventario}
-            modo={vitales.modo}
+    <PanelControlGrillaStack
+      bibliotecaIndicePath="/api/stock-programado/filtros-indice"
+      bibliotecaId={bibliotecaId}
+      casoActivo={casoActivo}
+      onBibliotecaChange={setBibliotecaId}
+      onCasoChange={setCasoActivo}
+      onCasosLoaded={onCasosLoaded}
+      filtros={filtros}
+      onFiltrosChange={setFiltros}
+      opciones={opciones}
+      cardsCount={cardsCount}
+      totalPares={totalPares}
+      valorInventario={valorInventario}
+      summaryTrailing={
+        <ProgramadoVentasVitales
+          paresInicial={vitales.inicial}
+          paresVendidos={vitales.vendidos}
+          paresSaldo={vitales.saldo}
+          valorInventario={valorInventario}
+          modo={vitales.modo}
+        />
+      }
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
+          <FiltroLlegadaMulti
+            quincenas={resumen.por_quincena}
+            selectedIds={quincenaIds}
+            onChange={setQuincenaIds}
           />
-        }
-        extraFilters={
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
-            <FiltroLlegadaMulti
-              quincenas={resumen.por_quincena}
-              selectedIds={quincenaIds}
-              onChange={setQuincenaIds}
-            />
-          </div>
-        }
-      />
-      <GrillaPeImportadora
-        productos={filtradasGrid}
-        casoPorLinea={lineaCasoMap}
-        showLlegada
-        showVentas
-      />
-    </div>
+        </div>
+      }
+      productos={filtradasGrid}
+      casoPorLinea={lineaCasoMap}
+      grilla={{ showLlegada: true, showVentas: true }}
+    />
   );
 }
 

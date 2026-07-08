@@ -28,8 +28,14 @@ function mapRows(rows: FacturaListItem[]): FacturaListItem[] {
   return rows.map((r) => ({
     ...r,
     pares: num(r.pares),
+    fi_id: r.fi_id != null ? num(r.fi_id) : null,
     pv_global: r.pv_global != null ? num(r.pv_global) : null,
     pp_id: r.pp_id != null ? num(r.pp_id) : null,
+    lista_precio_id: r.lista_precio_id != null ? num(r.lista_precio_id) : null,
+    descuento_1: num(r.descuento_1),
+    descuento_2: num(r.descuento_2),
+    descuento_3: num(r.descuento_3),
+    descuento_4: num(r.descuento_4),
     traspaso_id: r.traspaso_id != null ? num(r.traspaso_id) : null,
   }));
 }
@@ -64,12 +70,15 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
 
   const { rows } = await pool.query<FacturaListItem>(
     `
-    SELECT factura, factura_legacy, pv_global, pp_id, pedido, proforma, marca, fecha::text AS fecha,
-           cliente, codigo_cliente, pares::int, compra, compra_id, traspaso_estado, traspaso_id,
+    SELECT factura, factura_legacy, fi_id, pv_global, pp_id, pedido, proforma, marca, fecha::text AS fecha,
+           cliente, codigo_cliente, vendedor, lista_precio_id,
+           descuento_1, descuento_2, descuento_3, descuento_4,
+           pares::int, compra, compra_id, traspaso_estado, traspaso_id,
            origen_stock, fi_estado, total_monto
     FROM (
       SELECT vt.numero_factura_interna AS factura,
              vt.numero_factura_interna AS factura_legacy,
+             NULL::int AS fi_id,
              NULL::int AS pv_global,
              vt.pedido_proveedor_id AS pp_id,
              pp.numero_registro AS pedido, pp.numero_proforma AS proforma,
@@ -77,6 +86,10 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
              MIN(vt.fecha_operacion)::text AS fecha,
              COALESCE(cv.descp_cliente, vt.codigo_cliente::text) AS cliente,
              vt.codigo_cliente::text AS codigo_cliente,
+             NULL::text AS vendedor,
+             NULL::int AS lista_precio_id,
+             0::numeric AS descuento_1, 0::numeric AS descuento_2,
+             0::numeric AS descuento_3, 0::numeric AS descuento_4,
              SUM(vt.cantidad_vendida) AS pares,
              COALESCE(cl.numero_registro, '—') AS compra,
              COALESCE(cl.id::text, '') AS compra_id,
@@ -100,13 +113,20 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
 
       SELECT CASE WHEN fi.pv_global IS NOT NULL THEN 'PV' || LPAD(fi.pv_global::text, 6, '0') ELSE fi.nro_factura END AS factura,
              fi.nro_factura AS factura_legacy,
+             fi.id AS fi_id,
              fi.pv_global::int AS pv_global,
              fi.pp_id,
              pp.numero_registro AS pedido, pp.numero_proforma AS proforma,
              COALESCE(mv.descp_marca, fi.marca, '—') AS marca,
-             fi.created_at::date::text AS fecha,
+             COALESCE(fi.fecha_confirmacion, fi.created_at)::date::text AS fecha,
              COALESCE(cv.descp_cliente, fi.cliente_id::text) AS cliente,
              fi.cliente_id::text AS codigo_cliente,
+             COALESCE(vv.descp_usuario, '—') AS vendedor,
+             fi.lista_precio_id,
+             COALESCE(fi.descuento_1, 0) AS descuento_1,
+             COALESCE(fi.descuento_2, 0) AS descuento_2,
+             COALESCE(fi.descuento_3, 0) AS descuento_3,
+             COALESCE(fi.descuento_4, 0) AS descuento_4,
              SUM(fid.pares) AS pares,
              COALESCE(cl.numero_registro, '—') AS compra,
              COALESCE(cl.id::text, '') AS compra_id,
@@ -121,12 +141,15 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
       JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
       LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
       LEFT JOIN cliente_v2 cv ON cv.id_cliente = fi.cliente_id
+      LEFT JOIN usuario_v2 vv ON vv.id_usuario = fi.vendedor_id
       LEFT JOIN compra_legal_pedido clp ON clp.pedido_proveedor_id = fi.pp_id
       LEFT JOIN compra_legal cl ON cl.id = clp.compra_legal_id
       WHERE fi.estado IN ('CONFIRMADA', 'RESERVADA') ${filtroFi}
-      GROUP BY fi.pv_global, fi.nro_factura, pp.numero_registro, pp.numero_proforma,
+      GROUP BY fi.id, fi.pv_global, fi.nro_factura, pp.numero_registro, pp.numero_proforma,
                mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente, cl.numero_registro, cl.id,
-               fi.created_at, fi.estado, fi.total_monto
+               fi.created_at, fi.fecha_confirmacion, fi.estado, fi.total_monto,
+               vv.descp_usuario, fi.lista_precio_id,
+               fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4
     ) u
     ORDER BY fecha DESC NULLS LAST, factura
     `,
@@ -145,14 +168,21 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
     SELECT
       CASE WHEN fi.pv_global IS NOT NULL THEN 'PV' || LPAD(fi.pv_global::text, 6, '0') ELSE fi.nro_factura END AS factura,
       fi.nro_factura AS factura_legacy,
+      fi.id AS fi_id,
       fi.pv_global::int AS pv_global,
       fi.pp_id,
       COALESCE(pp.numero_registro, 'Pronta entrega') AS pedido,
       COALESCE(pp.numero_proforma, '—') AS proforma,
       COALESCE(mv.descp_marca, fi.marca, '—') AS marca,
-      fi.created_at::date::text AS fecha,
+      COALESCE(fi.fecha_confirmacion, fi.created_at)::date::text AS fecha,
       COALESCE(cv.descp_cliente, fi.cliente_id::text) AS cliente,
       fi.cliente_id::text AS codigo_cliente,
+      COALESCE(vv.descp_usuario, '—') AS vendedor,
+      fi.lista_precio_id,
+      COALESCE(fi.descuento_1, 0) AS descuento_1,
+      COALESCE(fi.descuento_2, 0) AS descuento_2,
+      COALESCE(fi.descuento_3, 0) AS descuento_3,
+      COALESCE(fi.descuento_4, 0) AS descuento_4,
       SUM(fid.pares)::int AS pares,
       '—' AS compra,
       '' AS compra_id,
@@ -167,10 +197,14 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN marca_v2 mv ON mv.id_marca = COALESCE(ppd.id_marca, fi.marca_id)
     LEFT JOIN cliente_v2 cv ON cv.id_cliente = fi.cliente_id
+    LEFT JOIN usuario_v2 vv ON vv.id_usuario = fi.vendedor_id
     WHERE fi.estado IN ('CONFIRMADA', 'RESERVADA')
       AND ${SQL_FI_ES_PE}
     GROUP BY fi.id, fi.pv_global, fi.nro_factura, pp.numero_registro, pp.numero_proforma,
-             mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente, fi.created_at, fi.estado, fi.total_monto
+             mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente,
+             fi.created_at, fi.fecha_confirmacion, fi.estado, fi.total_monto,
+             vv.descp_usuario, fi.lista_precio_id,
+             fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4
     ORDER BY fi.created_at::date DESC NULLS LAST, fi.nro_factura DESC
     `,
   );

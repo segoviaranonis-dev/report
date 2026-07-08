@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: Params) {
     const name = file instanceof File ? file.name : "proforma.xls";
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await runProformaPreviewPython(ppId, buffer, name);
-    if (!result.ok) {
+    if (!result.ok && !result.emparejamientos?.length && !result.errores?.length) {
       return NextResponse.json(result, { status: 400 });
     }
     return NextResponse.json(result);

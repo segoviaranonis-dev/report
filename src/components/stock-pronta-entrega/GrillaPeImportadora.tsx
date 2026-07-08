@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
+import type { VentaCompradorLinea } from "@/lib/clientes/etiqueta-comprador";
 import { agruparPeImportadora } from "@/lib/depositos/agrupar-pe-importadora";
 import { PeCardMiniatura } from "./PeCardMiniatura";
 
@@ -10,6 +11,7 @@ type Props = {
   casoPorLinea?: Map<string, string> | null;
   showLlegada?: boolean;
   showVentas?: boolean;
+  ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
 };
 
 export function GrillaPeImportadora({
@@ -17,11 +19,16 @@ export function GrillaPeImportadora({
   casoPorLinea = null,
   showLlegada = false,
   showVentas = false,
+  ventasPorMol = null,
 }: Props) {
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
-    () => agruparPeImportadora(productos, casoPorLinea, { ordenVentas: showVentas }),
-    [productos, casoPorLinea, showVentas],
+    () =>
+      agruparPeImportadora(productos, casoPorLinea, {
+        ordenVentas: showVentas,
+        ventasPorMol,
+      }),
+    [productos, casoPorLinea, showVentas, ventasPorMol],
   );
 
   if (cards.length === 0) {

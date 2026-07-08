@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listTransitoProductos } from "@/lib/stock-transito/queries-productos";
+import { listVentasCompradorTransito } from "@/lib/stock-transito/queries-ventas-comprador";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
@@ -13,12 +14,20 @@ export async function GET() {
   try {
     const pool = getRimecPool();
     const body = await listTransitoProductos(pool);
+    let ventasComprador: Record<string, unknown> = {};
+    try {
+      const ventasMap = await listVentasCompradorTransito(pool);
+      ventasComprador = Object.fromEntries(ventasMap);
+    } catch (e) {
+      console.error("[stock-transito/productos] ventasComprador:", e);
+    }
     return NextResponse.json({
       ok: true,
       modulo: "stock-transito",
       origen_stock: "TRÁNSITO_PP",
       destino_catalogo: "v_stock_rimec",
       agrupacion: "quincena_arribo_id",
+      ventasComprador,
       ...body,
     });
   } catch (e) {

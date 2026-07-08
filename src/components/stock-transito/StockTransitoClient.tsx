@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { BibliotecaCasoBar } from "@/app/depositos-bazzar/components/operativa/BibliotecaCasoBar";
-import { TrianguloHeaderDeposito } from "@/app/depositos-bazzar/components/operativa/TrianguloHeaderDeposito";
-import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
+import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
 import { FiltroLlegadaMulti } from "@/components/stock-transito/FiltroLlegadaMulti";
 import { TransitoVentasVitales } from "@/components/stock-transito/TransitoVentasVitales";
 import { StockTransitoProvider, useStockTransito } from "@/components/stock-transito/StockTransitoContext";
@@ -15,13 +13,24 @@ import {
 } from "@/lib/depositos/caso-biblioteca";
 import type { StockTransitoResumen } from "@/lib/stock-transito/queries-resumen";
 import { resolveTransitoVitales } from "@/lib/stock-transito/vitales-canonicos";
-import { COLORES_ESTANDAR_DEFAULT } from "@/lib/pilares/colores-estandar";
+import {
+  filterTransitoRowsByVista,
+  STOCK_TRANSITO_VISTA_META,
+  type StockTransitoVista,
+} from "@/lib/stock-transito/vista-transito";
 
 type Props = {
   resumenInicial: StockTransitoResumen;
+  vista: StockTransitoVista;
 };
 
-function StockTransitoOperativaTab({ resumen }: { resumen: StockTransitoResumen }) {
+function StockTransitoOperativaTab({
+  resumen,
+  vista,
+}: {
+  resumen: StockTransitoResumen;
+  vista: StockTransitoVista;
+}) {
   const {
     filtros,
     setFiltros,
@@ -32,6 +41,7 @@ function StockTransitoOperativaTab({ resumen }: { resumen: StockTransitoResumen 
     filtradas,
     quincenaIds,
     setQuincenaIds,
+    ventasComprador,
   } = useStockTransito();
 
   const [bibliotecaId, setBibliotecaId] = useState<number | null>(null);
@@ -42,12 +52,17 @@ function StockTransitoOperativaTab({ resumen }: { resumen: StockTransitoResumen 
     setLineaCasoMap(buildLineaCasoMap(casos));
   }, []);
 
-  const filtradasGrid = useMemo(() => {
+  const filtradasCaso = useMemo(() => {
     if (!casoActivo || lineaCasoMap.size === 0) return filtradas;
     return filtradas.filter(
       (r) => lookupCasoLinea(lineaCasoMap, r.linea_codigo_proveedor) === casoActivo,
     );
   }, [filtradas, casoActivo, lineaCasoMap]);
+
+  const filtradasGrid = useMemo(
+    () => filterTransitoRowsByVista(filtradasCaso, vista),
+    [filtradasCaso, vista],
+  );
 
   const vitales = useMemo(
     () =>
@@ -62,61 +77,57 @@ function StockTransitoOperativaTab({ resumen }: { resumen: StockTransitoResumen 
     [resumen, quincenaIds, casoActivo, filtros, filtradas, filtradasGrid],
   );
 
+  const meta = STOCK_TRANSITO_VISTA_META[vista];
+  const destaqueVitales = vista === "ventas" ? "vendido" : "saldo";
+
   return (
-    <div className="space-y-3">
-      <BibliotecaCasoBar
-        indiceApiPath="/api/stock-transito/filtros-indice"
-        bibliotecaId={bibliotecaId}
-        casoActivo={casoActivo}
-        onBibliotecaChange={setBibliotecaId}
-        onCasoChange={setCasoActivo}
-        onCasosLoaded={onCasosLoaded}
-      />
-      <TrianguloHeaderDeposito
-        filtros={filtros}
-        onChange={setFiltros}
-        opciones={opciones}
-        tonoCatalog={COLORES_ESTANDAR_DEFAULT}
-        totalProductos={cardsCount}
-        totalPares={totalPares}
-        valorInventario={valorInventario}
-        gradaVariant="importadora"
-        filtersDefaultOpen={false}
-        hideVitalesHero
-        hideProductosVital
-        categoriaEnCabecera
-        summaryLayout="vitales-first"
-        summaryTrailing={
-          <TransitoVentasVitales
-            paresInicial={vitales.inicial}
-            paresVendidos={vitales.vendidos}
-            paresSaldo={vitales.saldo}
-            valorInventario={valorInventario}
-            modo={vitales.modo}
+    <PanelControlGrillaStack
+      bibliotecaIndicePath="/api/stock-transito/filtros-indice"
+      bibliotecaId={bibliotecaId}
+      casoActivo={casoActivo}
+      onBibliotecaChange={setBibliotecaId}
+      onCasoChange={setCasoActivo}
+      onCasosLoaded={onCasosLoaded}
+      filtros={filtros}
+      onFiltrosChange={setFiltros}
+      opciones={opciones}
+      cardsCount={cardsCount}
+      totalPares={totalPares}
+      valorInventario={valorInventario}
+      summaryTrailing={
+        <TransitoVentasVitales
+          paresInicial={vitales.inicial}
+          paresVendidos={vitales.vendidos}
+          paresSaldo={vitales.saldo}
+          valorInventario={valorInventario}
+          modo={vitales.modo}
+          destaque={destaqueVitales}
+        />
+      }
+      extraFilters={
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
+          <FiltroLlegadaMulti
+            quincenas={resumen.por_quincena}
+            selectedIds={quincenaIds}
+            onChange={setQuincenaIds}
           />
-        }
-        extraFilters={
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
-            <FiltroLlegadaMulti
-              quincenas={resumen.por_quincena}
-              selectedIds={quincenaIds}
-              onChange={setQuincenaIds}
-            />
-          </div>
-        }
-      />
-      <GrillaPeImportadora
-        productos={filtradasGrid}
-        casoPorLinea={lineaCasoMap}
-        showLlegada
-        showVentas
-      />
-    </div>
+        </div>
+      }
+      productos={filtradasGrid}
+      casoPorLinea={lineaCasoMap}
+      grilla={{
+        showLlegada: true,
+        showVentas: true,
+        ventasPorMol: ventasComprador,
+      }}
+      footer={<p className="text-center text-[10px] text-slate-400">{meta.subtitle}</p>}
+    />
   );
 }
 
-function StockTransitoShell({ resumenInicial }: Props) {
+function StockTransitoShell({ resumenInicial, vista }: Props) {
   const { loading, err } = useStockTransito();
+  const meta = STOCK_TRANSITO_VISTA_META[vista];
 
   return (
     <div className="pb-8">
@@ -126,11 +137,12 @@ function StockTransitoShell({ resumenInicial }: Props) {
             <Link href="/rimec?mundo=panel-control" className="text-sm text-rimec-azul hover:underline">
               ← Panel de Control
             </Link>
-            <h1 className="font-serif text-lg font-semibold text-slate-900">
-              Stock en Tránsito · Compra Previa
-            </h1>
+            <Link href={meta.hubHref} className="text-sm text-slate-500 hover:text-rimec-azul hover:underline">
+              Compra previa tránsito
+            </Link>
+            <h1 className="font-serif text-lg font-semibold text-slate-900">{meta.title}</h1>
             <span className="text-xs text-slate-500">
-              {resumenInicial.pedidos_pp} PP · estrategia ventas RIMEC Web
+              {resumenInicial.pedidos_pp} PP · cabecera estándar + grilla moléculas
             </span>
           </div>
         </div>
@@ -145,17 +157,17 @@ function StockTransitoShell({ resumenInicial }: Props) {
         {loading ? (
           <p className="text-slate-500">Cargando catálogo tránsito…</p>
         ) : (
-          <StockTransitoOperativaTab resumen={resumenInicial} />
+          <StockTransitoOperativaTab resumen={resumenInicial} vista={vista} />
         )}
       </div>
     </div>
   );
 }
 
-export function StockTransitoClient({ resumenInicial }: Props) {
+export function StockTransitoClient({ resumenInicial, vista }: Props) {
   return (
     <StockTransitoProvider>
-      <StockTransitoShell resumenInicial={resumenInicial} />
+      <StockTransitoShell resumenInicial={resumenInicial} vista={vista} />
     </StockTransitoProvider>
   );
 }

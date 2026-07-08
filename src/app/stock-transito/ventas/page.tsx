@@ -1,5 +1,5 @@
 import { DepositoRimecShell } from "@/app/deposito-rimec/components/DepositoRimecShell";
-import { StockTransitoHubClient } from "@/components/stock-transito/StockTransitoHubClient";
+import { StockTransitoClient } from "@/components/stock-transito/StockTransitoClient";
 import { getStockTransitoResumen } from "@/lib/stock-transito/queries-resumen";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
@@ -14,14 +14,14 @@ const EMPTY_RESUMEN = {
   por_quincena: [],
 };
 
-export default async function StockTransitoHubPage() {
+export default async function StockTransitoVentasPage() {
   const resumen = isRimecDatabaseConfigured()
     ? await getStockTransitoResumen(getRimecPool())
     : EMPTY_RESUMEN;
 
   return (
-    <DepositoRimecShell footer="Compra previa · Tránsito · hub Disponible + Ventas · Alejandro Magno">
-      <StockTransitoHubClient resumen={resumen} />
+    <DepositoRimecShell footer="Ventas ejecutadas · Compra previa tránsito · Panel Alejandro Magno">
+      <StockTransitoClient resumenInicial={resumen} vista="ventas" />
     </DepositoRimecShell>
   );
 }

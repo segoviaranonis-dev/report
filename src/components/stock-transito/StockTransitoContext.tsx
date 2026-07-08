@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
+import type { VentaCompradorLinea } from "@/lib/clientes/etiqueta-comprador";
 import {
   buildEstiloMarcaDrillFromRows,
   buildEstiloTonoDrillFromRows,
@@ -59,6 +60,7 @@ type StockTransitoContextValue = {
   totalInicial: number;
   totalVendidos: number;
   valorInventario: number;
+  ventasComprador: Map<string, VentaCompradorLinea[]>;
 };
 
 const StockTransitoContext = createContext<StockTransitoContextValue | null>(null);
@@ -76,6 +78,9 @@ export function StockTransitoProvider({ children }: { children: ReactNode }) {
   const [err, setErr] = useState<string | null>(null);
   const [quincenaIds, setQuincenaIds] = useState<string[]>([]);
   const [filtros, setFiltros] = useState(EMPTY_OPERATIVA_FILTERS);
+  const [ventasComprador, setVentasComprador] = useState<Map<string, VentaCompradorLinea[]>>(
+    () => new Map(),
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -89,6 +94,8 @@ export function StockTransitoProvider({ children }: { children: ReactNode }) {
         const tonoData = await tonoRes.json().catch(() => null);
         if (!prodRes.ok || !j.ok) throw new Error(j.error ?? "Error productos tránsito");
         setRows((j.productos ?? []).map((p: DepositoRow) => normalizeDepositoRow(p)));
+        const raw = (j.ventasComprador ?? {}) as Record<string, VentaCompradorLinea[]>;
+        setVentasComprador(new Map(Object.entries(raw)));
         if (tonoData?.estandar?.length) setTonoCatalog(tonoData.estandar);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Error"))
@@ -150,6 +157,7 @@ export function StockTransitoProvider({ children }: { children: ReactNode }) {
       totalInicial,
       totalVendidos,
       valorInventario,
+      ventasComprador,
     }),
     [
       rows,
@@ -171,6 +179,7 @@ export function StockTransitoProvider({ children }: { children: ReactNode }) {
       totalInicial,
       totalVendidos,
       valorInventario,
+      ventasComprador,
     ],
   );
 

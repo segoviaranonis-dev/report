@@ -37,6 +37,8 @@ export type FiRegistroRow = {
   pv_global: number | null;
   estado: string;
   pp_id: number | null;
+  pedido_id?: number | null;
+  cliente_id?: number | null;
   nro_pp: string | null;
   marca: string | null;
   caso: string | null;

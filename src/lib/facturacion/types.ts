@@ -3,6 +3,7 @@ import type { OrigenStockCanon } from "./filters";
 export type FacturaListItem = {
   factura: string;
   factura_legacy: string;
+  fi_id: number | null;
   /** MIG-107 — display canónico PV000226 */
   pv_global: number | null;
   pp_id: number | null;
@@ -12,6 +13,12 @@ export type FacturaListItem = {
   fecha: string | null;
   cliente: string;
   codigo_cliente: string;
+  vendedor: string | null;
+  lista_precio_id: number | null;
+  descuento_1: number;
+  descuento_2: number;
+  descuento_3: number;
+  descuento_4: number;
   pares: number;
   compra: string;
   compra_id: string;
