@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { runProformaPreviewPython } from "@/lib/pedido-proveedor/run-python-pp";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 
+/** Preview proforma programado — puede leer Excel grande. */
+export const maxDuration = 120;
+
 type Params = { params: Promise<{ ppId: string }> };
 
 /** Preview manual SHOP↔IC antes de import programado. */

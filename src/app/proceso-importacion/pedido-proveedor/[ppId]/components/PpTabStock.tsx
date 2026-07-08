@@ -59,6 +59,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [incluirFiConfirmadas, setIncluirFiConfirmadas] = useState(false);
   const [vincularConfirm, setVincularConfirm] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waitPhase, setWaitPhase] = useState<"preview" | "import" | null>(null);
   const [proformaFile, setProformaFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<EmparejamientoShop[] | null>(null);
   const [previewOk, setPreviewOk] = useState(false);
@@ -216,6 +217,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       return;
     }
     setBusy(true);
+    setWaitPhase("preview");
     onMsg(null);
     setPreviewRows(null);
     setPreviewOk(false);
@@ -255,6 +257,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       onMsg(e instanceof Error ? e.message : "Error");
     } finally {
       setBusy(false);
+      setWaitPhase(null);
     }
   }
 
@@ -272,6 +275,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       return;
     }
     setBusy(true);
+    setWaitPhase("import");
     onMsg(null);
     try {
       const fd = new FormData();
@@ -300,6 +304,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       onMsg(e instanceof Error ? e.message : "Error");
     } finally {
       setBusy(false);
+      setWaitPhase(null);
     }
   }
 
@@ -420,6 +425,30 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         title="Borrando importación…"
         detail={`${pp.numero_registro} · PPD + baja catálogo`}
         hint="Solo si ventas = 0"
+      />
+      <ProcesoImportacionWaitOverlay
+        open={waitPhase === "preview"}
+        title="Validando emparejamiento SHOP↔IC…"
+        detail={`${pp.numero_registro} · leyendo Excel y cruzando con ICs`}
+        hint="Suele tardar 30–90 segundos. No cierres la pestaña."
+      />
+      <ProcesoImportacionWaitOverlay
+        open={waitPhase === "import"}
+        title={
+          esProgramado
+            ? "Importando proforma PROGRAMADO…"
+            : "Importando proforma…"
+        }
+        detail={
+          esProgramado
+            ? `${pp.numero_registro} · ${(previewPares ?? pp.pares_comprometidos).toLocaleString("es-PY")} pares · pilares · FI por IC`
+            : `${pp.numero_registro} · cargando PPD`
+        }
+        hint={
+          esProgramado
+            ? "PP grande: estimado 3–6 minutos. El servidor sigue trabajando — aguarde."
+            : "Puede tardar 1–2 minutos. No cierres la pestaña."
+        }
       />
       {sinStock ? (
         <>

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { runProformaBorrarPython, runProformaImportPython } from "@/lib/pedido-proveedor/run-python-pp";
+import { runProformaImportPython } from "@/lib/pedido-proveedor/run-python-pp";
+import { borrarImportacionPp } from "@/lib/pedido-proveedor/borrar-import";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { getRimecPool } from "@/lib/rimec/pool";
+
+/** PP programado grande (700+ SKUs · 39 FI) puede superar 60s en Vercel. */
+export const maxDuration = 300;
 
 type Params = { params: Promise<{ ppId: string }> };
 
@@ -27,9 +32,9 @@ export async function POST(req: Request, { params }: Params) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     if (borrarPrevio) {
-      const del = await runProformaBorrarPython(ppId);
+      const del = await borrarImportacionPp(getRimecPool(), ppId);
       if (!del.ok) {
-        return NextResponse.json(del, { status: 400 });
+        return NextResponse.json({ ok: false, error: del.error }, { status: 400 });
       }
     }
 
