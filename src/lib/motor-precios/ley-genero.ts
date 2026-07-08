@@ -13,6 +13,14 @@ export const LEY_GENERO_REGLAS: ReadonlyArray<readonly [string, string]> = [
 
 export const GENEROS_LEY = ["DAMAS", "NIÑAS", "NIÑOS", "CABALLEROS"] as const;
 
+/** Variantes en BD public.genero — paridad ley_genero.py */
+export const CODIGOS_GENERO_BD: Record<string, readonly string[]> = {
+  DAMAS: ["DAMAS", "DAMA"],
+  "NIÑAS": ["NIÑAS", "NINAS", "NINA", "NIÑA"],
+  "NIÑOS": ["NIÑOS", "NINOS", "NINO", "NIÑO"],
+  CABALLEROS: ["CABALLEROS", "CABALLERO"],
+};
+
 export function normalizarMarca(nombre: string): string {
   return String(nombre || "")
     .toUpperCase()

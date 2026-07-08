@@ -9,6 +9,8 @@ type Props = {
   cardExpanded?: boolean;
   /** Cierra acordeón al compactar tarjetas */
   resetKey?: boolean;
+  /** Tránsito / programado — muestra vendido por curva */
+  showVentas?: boolean;
 };
 
 function fmtPares(n: number) {
@@ -20,6 +22,7 @@ export function GradaImportadoraAcordeon({
   gradas,
   cardExpanded = false,
   resetKey = false,
+  showVentas = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const slotH = cardExpanded ? "h-20" : "h-10";
@@ -32,7 +35,8 @@ export function GradaImportadoraAcordeon({
     return <div className={`${slotH} shrink-0`} aria-hidden />;
   }
 
-  const total = gradas.reduce((s, g) => s + g.pares, 0);
+  const totalSaldo = gradas.reduce((s, g) => s + g.pares, 0);
+  const totalVendido = gradas.reduce((s, g) => s + g.vendidos, 0);
 
   const filas = (
     <div className="flex flex-col gap-0.5">
@@ -44,8 +48,15 @@ export function GradaImportadoraAcordeon({
           <span className="min-w-0 flex-1 break-all" title={g.curva}>
             {g.curva}
           </span>
-          <span className="shrink-0 font-semibold text-bazzar-naranja-dark">
-            | {fmtPares(g.pares)}
+          <span className="flex shrink-0 items-center gap-1 font-semibold">
+            {showVentas && g.vendidos > 0 ? (
+              <span className="text-rose-700">{fmtPares(g.vendidos)} v</span>
+            ) : null}
+            {g.pares > 0 ? (
+              <span className="text-bazzar-naranja-dark">{fmtPares(g.pares)} p</span>
+            ) : showVentas && g.vendidos > 0 ? null : (
+              <span className="text-slate-400">0</span>
+            )}
           </span>
         </div>
       ))}
@@ -80,7 +91,9 @@ export function GradaImportadoraAcordeon({
           Grada
         </span>
         <span className="truncate text-[8px] font-semibold tabular-nums text-slate-600">
-          {gradas.length} curvas · {fmtPares(total)} p
+          {gradas.length} curvas
+          {showVentas && totalVendido > 0 ? ` · ${fmtPares(totalVendido)} v` : ""}
+          {totalSaldo > 0 ? ` · ${fmtPares(totalSaldo)} p` : ""}
         </span>
       </button>
       {open ? <div className="border-t border-orange-100 px-2 pb-1 pt-0.5">{filas}</div> : null}

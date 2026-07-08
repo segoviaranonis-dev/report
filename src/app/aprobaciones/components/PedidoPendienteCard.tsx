@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import type { AprobacionesCatalogos, FiRecord, PedidoPendiente } from "../lib/aprobaciones-types";
-import { descuentosLabel, fmtGs, listaPrecioLabel } from "../lib/aprobaciones-utils";
+import { descuentosLabel, fmtGs, listaPrecioLabel, badgeProntaEntrega } from "../lib/aprobaciones-utils";
 import { FiCard } from "./FiCard";
 import type { FiDetalle } from "../lib/aprobaciones-types";
 
@@ -44,8 +44,12 @@ export function PedidoPendienteCard({
 }: Props) {
   const [motivoRechazo, setMotivoRechazo] = useState("");
 
+  const peBadge = pedido.origen_pe ? badgeProntaEntrega() : null;
+
   return (
-    <article className="rounded-lg border-2 border-semantic-warning/40 bg-white shadow-sm">
+    <article className={`rounded-lg border-2 bg-white shadow-sm ${
+      pedido.origen_pe ? "border-orange-500/60" : "border-semantic-warning/40"
+    }`}>
       <button
         type="button"
         onClick={onExpandir}
@@ -61,6 +65,14 @@ export function PedidoPendienteCard({
           <p className="mt-1 text-sm tabular-nums text-neutral-600">
             {pedido.total_pares.toLocaleString("es-PY")} pares · {fmtGs(pedido.total_monto)}
           </p>
+          {peBadge && (
+            <span
+              className="mt-2 inline-block rounded-md px-2.5 py-1 text-[11px] font-black tracking-wide"
+              style={{ backgroundColor: peBadge.bg, color: peBadge.fg }}
+            >
+              {peBadge.label}
+            </span>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <span className="rounded-md bg-neutral-800 px-2.5 py-1 text-xs font-bold text-white">

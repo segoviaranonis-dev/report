@@ -166,17 +166,19 @@ async function metaImportacion(
       uds_vendidas: string;
     }>(
       `
+      WITH latest AS (
+        SELECT created_at, batch_label
+        FROM public.${tabla}
+        ORDER BY created_at DESC NULLS LAST
+        LIMIT 1
+      )
       SELECT
-        MAX(s.created_at) AS fecha_importacion,
-        (
-          SELECT u.batch_label
-          FROM public.${tabla} u
-          WHERE u.created_at = (SELECT MAX(created_at) FROM public.${tabla})
-          LIMIT 1
-        ) AS batch_label,
+        (SELECT created_at FROM latest) AS fecha_importacion,
+        (SELECT batch_label FROM latest) AS batch_label,
         COALESCE(SUM(COALESCE(s.cantidad_importada, s.cantidad)), 0)::float AS uds_importadas,
         COALESCE(SUM(GREATEST(COALESCE(s.cantidad_importada, s.cantidad) - s.cantidad, 0)), 0)::float AS uds_vendidas
       FROM public.${tabla} s
+      WHERE s.cantidad > 0
       `,
     );
     const r = rows[0];
@@ -233,40 +235,41 @@ export async function GET(req: NextRequest) {
   const hubs = hubEntesVisibles(acceso);
 
   try {
-    const entes: HubEnteStats[] = [];
-
-    for (const hub of hubs) {
-      const tiendas: HubTiendaStats[] = [];
-      for (const t of hub.tiendas) {
-        try {
-          const config = getDepositoConfig(t.cliente_id, categoria);
-          const stats = await statsTienda(t.cliente_id, categoria, !!t.palmaUnica);
-          const importMeta =
-            config && !stats.error ? await metaImportacion(config.tabla) : {};
-          tiendas.push({
-            cliente_id: t.cliente_id,
-            label: t.labelHub,
-            aceptaConfeccion: t.aceptaConfeccion,
-            palmaUnica: !!t.palmaUnica,
-            ...stats,
-            ...importMeta,
-          });
-        } catch (error) {
-          tiendas.push({
-            cliente_id: t.cliente_id,
-            label: t.labelHub,
-            aceptaConfeccion: t.aceptaConfeccion,
-            palmaUnica: !!t.palmaUnica,
-            registros: 0,
-            pares_total: 0,
-            calzado: { uds: 0, filas: 0 },
-            confeccion: { uds: 0, filas: 0 },
-            error: error instanceof Error ? error.message : "Error",
-          });
-        }
-      }
-      entes.push({ ente: hub.ente, slug: hub.slug, tiendas });
-    }
+    const entes: HubEnteStats[] = await Promise.all(
+      hubs.map(async (hub) => {
+        const tiendas: HubTiendaStats[] = await Promise.all(
+          hub.tiendas.map(async (t) => {
+            try {
+              const config = getDepositoConfig(t.cliente_id, categoria);
+              const stats = await statsTienda(t.cliente_id, categoria, !!t.palmaUnica);
+              const importMeta =
+                config && !stats.error ? await metaImportacion(config.tabla) : {};
+              return {
+                cliente_id: t.cliente_id,
+                label: t.labelHub,
+                aceptaConfeccion: t.aceptaConfeccion,
+                palmaUnica: !!t.palmaUnica,
+                ...stats,
+                ...importMeta,
+              };
+            } catch (error) {
+              return {
+                cliente_id: t.cliente_id,
+                label: t.labelHub,
+                aceptaConfeccion: t.aceptaConfeccion,
+                palmaUnica: !!t.palmaUnica,
+                registros: 0,
+                pares_total: 0,
+                calzado: { uds: 0, filas: 0 },
+                confeccion: { uds: 0, filas: 0 },
+                error: error instanceof Error ? error.message : "Error",
+              };
+            }
+          }),
+        );
+        return { ente: hub.ente, slug: hub.slug, tiendas };
+      }),
+    );
 
     return NextResponse.json({
       configured: true,

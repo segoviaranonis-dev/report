@@ -20,9 +20,24 @@ export function fiDisplayId(fi: Pick<FiRecord, "pv_global" | "nro_factura">): st
   return fi.nro_factura || "—";
 }
 
-export function ppDisplay(fi: Pick<FiRecord, "nro_pp" | "pp_id" | "proforma">): string {
+export function ppDisplay(
+  fi: Pick<FiRecord, "nro_pp" | "pp_id" | "proforma"> &
+    Partial<Pick<FiRecord, "origen_pe" | "nro_factura">>,
+): string {
+  if (
+    fi.origen_pe ||
+    fi.pp_id == null ||
+    String(fi.nro_factura ?? "").startsWith("PE-")
+  ) {
+    return "Pronta entrega";
+  }
   const base = fi.nro_pp || (fi.pp_id != null ? String(fi.pp_id) : "—");
   return fi.proforma ? `${base} (${fi.proforma})` : base;
+}
+
+/** Badge ámbar PE — pedido web o FI sin PP tránsito. */
+export function badgeProntaEntrega(): { bg: string; fg: string; label: string } {
+  return { bg: "#C2410C", fg: "#FFFFFF", label: "PRONTA ENTREGA" };
 }
 
 export function descuentosLabel(fi: Pick<FiRecord, "descuento_1" | "descuento_2" | "descuento_3" | "descuento_4">): string {
@@ -52,6 +67,21 @@ export const LISTAS_PRECIO_OPCIONES = [
 
 export function listaPrecioLabel(id: number | null | undefined): string {
   return LISTAS[id ?? 1] ?? `LP${id}`;
+}
+
+/** Bruto antes de cascada d1→d4 (inverso de precioNetoCascada). */
+export function brutoDesdeNeto(
+  neto: number,
+  d1: number,
+  d2: number,
+  d3: number,
+  d4: number,
+): number {
+  let factor = 1;
+  for (const d of [d1, d2, d3, d4]) {
+    if (d > 0) factor *= 1 - d / 100;
+  }
+  return factor > 0 ? Math.round(neto / factor) : Math.round(neto);
 }
 
 /** Cascada descuentos FI — mismo criterio que logic.py actualizar_fi_encabezado */
@@ -136,6 +166,19 @@ export function fmtFechaConfirmacion(iso: string | null | undefined): string {
 }
 
 /** Siempre muestra los 4 descuentos, aunque sean 0 */
+/** Fecha documento FI (solo día, Asunción). */
+export function fmtFechaDoc(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-PY", {
+    timeZone: TZ_ASUNCION,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(d);
+}
+
 export function fmtDescuentoPct(v: number | null | undefined): string {
   const n = Number(v);
   if (!Number.isFinite(n) || n === 0) return "0%";

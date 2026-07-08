@@ -30,6 +30,7 @@ import {
 } from "@/lib/rimec/sales-report-prefetch";
 
 import { MundoDashboard } from "./components/MundoDashboard";
+import { MundoPanelControl } from "./components/MundoPanelControl";
 import { ImmersiveFiltersPanel } from "./components/ImmersiveFiltersPanel";
 import { RimecEntryShell } from "./components/RimecEntryShell";
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
@@ -47,9 +48,9 @@ const MundoVendedores = dynamic(
   { loading: () => null },
 );
 
-export type MundoId = "dashboard" | "clientes" | "marcas" | "vendedores";
+export type MundoId = "dashboard" | "panel-control" | "clientes" | "marcas" | "vendedores";
 
-const MUNDO_IDS: MundoId[] = ["dashboard", "clientes", "marcas", "vendedores"];
+const MUNDO_IDS: MundoId[] = ["dashboard", "panel-control", "clientes", "marcas", "vendedores"];
 
 const MUNDO_TRANSITION = { duration: 0.12, ease: "easeOut" as const };
 
@@ -248,6 +249,8 @@ export function ImmersiveClient() {
     switch (mundo) {
       case "dashboard":
         return <MundoDashboard data={snapshot!} />;
+      case "panel-control":
+        return <MundoPanelControl />;
       case "clientes":
         return <MundoClientes data={snapshot!} />;
       case "marcas":
@@ -257,11 +260,13 @@ export function ImmersiveClient() {
     }
   };
 
-  const navItem = (id: MundoId, label: string) => (
+  const navItem = (id: MundoId, label: string, normalCase = false) => (
     <button
       type="button"
       onClick={() => selectMundo(id)}
-      className={`rounded-full border px-5 py-2 font-serif text-xs font-semibold tracking-widest uppercase transition-all duration-150 ${
+      className={`rounded-full border px-5 py-2 font-serif text-xs font-semibold tracking-widest transition-all duration-150 ${
+        normalCase ? "normal-case" : "uppercase"
+      } ${
         mundo === id
           ? "border-rimec-azul bg-rimec-azul text-rimec-text-white shadow-sm"
           : "border-rimec-azul/20 bg-white text-rimec-azul hover:border-rimec-azul hover:bg-rimec-azul/5"
@@ -286,7 +291,8 @@ export function ImmersiveClient() {
             </span>
           </div>
           <nav className="flex flex-wrap gap-2">
-            {navItem("dashboard", "Dashboard")}
+            {navItem("dashboard", "Inf. Vtas. General.", true)}
+            {navItem("panel-control", "Panel de Control", true)}
             {navItem("clientes", "Clientes")}
             {navItem("marcas", "Marcas")}
             {navItem("vendedores", "Vendedores")}
@@ -301,6 +307,7 @@ export function ImmersiveClient() {
       </section>
 
       <div className="flex h-[calc(100vh-92px)] gap-6 overflow-hidden p-6">
+        {mundo !== "panel-control" ? (
         <aside className="custom-scrollbar flex h-full w-[300px] shrink-0 flex-col gap-6 overflow-y-auto rounded-2xl border border-rimec-azul/15 bg-white p-6 shadow-sm">
           <div>
             <h3 className="mb-4 font-serif text-xs uppercase tracking-widest text-rimec-azul">Parámetros</h3>
@@ -352,6 +359,20 @@ export function ImmersiveClient() {
             {err ? <p className="mt-4 text-xs text-rimec-azul">{err}</p> : null}
           </div>
         </aside>
+        ) : (
+        <aside className="custom-scrollbar flex h-full w-[280px] shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-rimec-azul/15 bg-white p-6 shadow-sm">
+          <h3 className="font-serif text-xs uppercase tracking-widest text-rimec-azul">Panel Director</h3>
+          <p className="text-[11px] leading-relaxed text-neutral-ink-muted">
+            Vista de activos holding — tres entidades en un entorno. No usa filtros del informe de ventas.
+          </p>
+          <ul className="space-y-2 text-[11px] text-neutral-ink">
+            <li><strong className="text-emerald-800">STOCK</strong> — Pronta entrega</li>
+            <li><strong className="text-rimec-azul">COMPRA PREVIA</strong> — Tránsito · Web</li>
+            <li><strong className="text-amber-900">PROGRAMADO</strong> — sin Web</li>
+          </ul>
+          <p className="mt-auto text-[10px] text-neutral-ink-muted">Actualiza con el botón en el panel principal.</p>
+        </aside>
+        )}
 
         <main className="custom-scrollbar relative h-full flex-1 overflow-y-auto rounded-2xl bg-white shadow-sm">
           <AnimatePresence mode="wait" initial={false}>
@@ -372,7 +393,7 @@ export function ImmersiveClient() {
                   }
                 />
               </motion.div>
-            ) : !snapshot ? (
+            ) : !snapshot && mundo !== "panel-control" ? (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0 }}
@@ -387,7 +408,7 @@ export function ImmersiveClient() {
               </motion.div>
             ) : (
               <motion.div
-                key="dashboard"
+                key={mundo === "panel-control" ? "panel-control" : "dashboard"}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}

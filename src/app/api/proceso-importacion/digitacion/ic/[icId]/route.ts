@@ -25,7 +25,7 @@ export async function GET(_req: Request, { params }: Params) {
 
     const [catalogos, ppsAbiertos] = await Promise.all([
       loadIcCatalogos(pool),
-      listPpsAbiertosSelector(pool),
+      listPpsAbiertosSelector(pool, ic.categoria_id),
     ]);
 
     return NextResponse.json({ ok: true, ic, catalogos, pps_abiertos: ppsAbiertos });

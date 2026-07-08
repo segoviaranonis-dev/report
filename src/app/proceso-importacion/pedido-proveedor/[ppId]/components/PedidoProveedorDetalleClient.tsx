@@ -15,7 +15,23 @@ import type {
 } from "@/lib/pedido-proveedor/detail-query";
 import type { EventoPrecioOption, EventoPpDetalle } from "@/lib/pedido-proveedor/stock-listado";
 import { DIGITACION, INTENCION_COMPRA_BANDEJA, PEDIDO_PROVEEDOR, type PpDetalleTab, pedidoProveedorDetalle } from "@/lib/report/routes";
+import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
+import {
+  FECHA_DE_EMBARQUE_LABEL,
+  QUINCENA_ARRIBO_CATALOGO,
+  quincenaSliderValue,
+} from "@/lib/intencion-compra/quincena-arribo";
+import {
+  esListadoPrecioValido,
+  labelListadoPrecio,
+  type ListadoPrecioTierId,
+} from "@/lib/intencion-compra/listado-precio-tiers";
+import { SelectorPoliticaLp } from "@/app/proceso-importacion/intencion-compra/components/SelectorPoliticaLp";
 import { PpTabStock } from "./PpTabStock";
+import { PpTabFacturasInternas } from "./PpTabFacturasInternas";
+import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
+
+const QUINCENA_IDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
 const ESTADO_STYLE: Record<string, string> = {
   ABIERTO: "bg-amber-100 text-amber-900",
@@ -47,6 +63,7 @@ type IcFormDraft = {
   id_proveedor: number;
   categoria_id: number | null;
   precio_evento_id: number | null;
+  listado_precio_id: ListadoPrecioTierId | null;
 };
 
 function icToDraft(ic: PpIcVinculada): IcFormDraft {
@@ -58,6 +75,7 @@ function icToDraft(ic: PpIcVinculada): IcFormDraft {
     id_proveedor: ic.id_proveedor,
     categoria_id: ic.categoria_id,
     precio_evento_id: ic.evento_id,
+    listado_precio_id: esListadoPrecioValido(ic.listado_precio_id) ? ic.listado_precio_id : null,
   };
 }
 
@@ -76,11 +94,13 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const [ics, setIcs] = useState<PpIcVinculada[]>([]);
   const [alaNorte, setAlaNorte] = useState<PpAlaNorteRow[]>([]);
   const [facturas, setFacturas] = useState<PpFacturaInternaRow[]>([]);
+  const [detallesPorFi, setDetallesPorFi] = useState<Record<number, FiDetalle[]>>({});
   const [eventoDetalle, setEventoDetalle] = useState<EventoPpDetalle | null>(null);
   const [eventos, setEventos] = useState<EventoPrecioOption[]>([]);
   const [nroFactura, setNroFactura] = useState("");
   const [proforma, setProforma] = useState("");
   const [observaciones, setObservaciones] = useState("");
+  const [quincenaId, setQuincenaId] = useState(0);
   const [guardandoCabecera, setGuardandoCabecera] = useState(false);
   const [icDrafts, setIcDrafts] = useState<Record<number, IcFormDraft>>({});
   const [catalogos, setCatalogos] = useState<IcCatalogos | null>(null);
@@ -102,11 +122,13 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       setIcs(data.ics ?? []);
       setAlaNorte(data.alaNorte ?? []);
       setFacturas(data.facturas ?? []);
+      setDetallesPorFi(data.detallesPorFi ?? {});
       setEventoDetalle(data.eventoDetalle ?? null);
       setEventos(data.eventos ?? []);
       setNroFactura(data.pp?.nro_factura_importacion ?? "");
       setProforma(data.pp?.numero_proforma ?? "");
       setObservaciones(data.pp?.notas ?? "");
+      setQuincenaId(quincenaSliderValue(data.pp?.quincena_arribo_id));
       const drafts: Record<number, IcFormDraft> = {};
       for (const ic of data.ics ?? []) {
         drafts[ic.ic_id] = icToDraft(ic);
@@ -142,11 +164,16 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     router.push(pedidoProveedorDetalle(ppId, next));
   }
 
-  async function guardarCabecera(partial?: { numero_proforma?: string; notas?: string }) {
+  async function guardarCabecera(partial?: {
+    numero_proforma?: string;
+    notas?: string;
+    quincena_arribo_id?: number;
+  }) {
     if (!pp) return;
     setGuardandoCabecera(true);
     setMsg(null);
     try {
+      const q = partial?.quincena_arribo_id ?? quincenaId;
       const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}`, {
         method: "PATCH",
         credentials: "same-origin",
@@ -154,17 +181,40 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
         body: JSON.stringify({
           numero_proforma: partial?.numero_proforma ?? proforma,
           notas: partial?.notas ?? observaciones,
+          ...(partial?.quincena_arribo_id !== undefined || q !== quincenaSliderValue(pp.quincena_arribo_id)
+            ? { quincena_arribo_id: q }
+            : {}),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al guardar");
-      setMsg("Cabecera guardada.");
+      setMsg(
+        partial?.quincena_arribo_id !== undefined
+          ? `Quincena aplicada a todo el lote (${QUINCENA_ARRIBO_CATALOGO[q] ?? q}).`
+          : "Cabecera guardada.",
+      );
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Error");
     } finally {
       setGuardandoCabecera(false);
     }
+  }
+
+  async function aplicarQuincenaLote() {
+    if (!pp?.cabecera_editable || quincenaId <= 0) {
+      setMsg("Elegí una quincena válida (1–24).");
+      return;
+    }
+    const label = QUINCENA_ARRIBO_CATALOGO[quincenaId] ?? `Quincena ${quincenaId}`;
+    if (
+      !window.confirm(
+        `¿Aplicar "${label}" a todo el lote?\n\nActualiza PP + ICs vinculadas + catálogo web (quincena_arribo_id).`,
+      )
+    ) {
+      return;
+    }
+    await guardarCabecera({ quincena_arribo_id: quincenaId });
   }
 
   function patchIcDraft(icId: number, patch: Partial<IcFormDraft>) {
@@ -179,6 +229,10 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     if (!pp) return;
     const draft = icDrafts[icId];
     if (!draft) return;
+    if (draft.categoria_id === CATEGORIA_PROGRAMADO_ID && !esListadoPrecioValido(draft.listado_precio_id)) {
+      setMsg("PROGRAMADO exige elegir política LP antes de guardar.");
+      return;
+    }
     setIcBusy(icId);
     setMsg(null);
     try {
@@ -188,7 +242,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
           method: "PATCH",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draft),
+          body: JSON.stringify({
+            nro_pedido_fabrica: draft.nro_pedido_fabrica,
+            cantidad_total_pares: draft.pares,
+            id_marca: draft.id_marca,
+            id_vendedor: draft.id_vendedor,
+            id_proveedor: draft.id_proveedor,
+            categoria_id: draft.categoria_id,
+            precio_evento_id: draft.precio_evento_id,
+            listado_precio_id:
+              draft.categoria_id === CATEGORIA_PROGRAMADO_ID ? draft.listado_precio_id : null,
+          }),
         },
       );
       const data = await res.json();
@@ -303,6 +367,11 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   <span className="rounded bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-900">
                     Digitación: {pp.estado_digitacion ?? "ABIERTO"}
                   </span>
+                  {pp.web_alzado && (
+                    <span className="rounded bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-900">
+                      RIMEC Web · tránsito
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center text-sm">
@@ -352,9 +421,42 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   <dt className="text-xs text-slate-500">Creador</dt>
                   <dd>{pp.creador}</dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Quincena ETA</dt>
-                  <dd>{pp.quincena ?? "—"}</dd>
+                <div className="md:col-span-2">
+                  <dt className="text-xs text-slate-500">{FECHA_DE_EMBARQUE_LABEL}</dt>
+                  <dd className="mt-1">
+                    {pp.cabecera_editable ? (
+                      <div className="flex flex-wrap items-end gap-2">
+                        <select
+                          className={`${selectCls} min-w-[220px] flex-1`}
+                          value={quincenaId}
+                          disabled={guardandoCabecera}
+                          onChange={(e) => setQuincenaId(Number(e.target.value))}
+                        >
+                          <option value={0}>— Elegir quincena —</option>
+                          {QUINCENA_IDS.map((id) => (
+                            <option key={id} value={id}>
+                              {QUINCENA_ARRIBO_CATALOGO[id]}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={guardandoCabecera || quincenaId <= 0}
+                          onClick={() => void aplicarQuincenaLote()}
+                          className="rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          {guardandoCabecera ? "Aplicando…" : "Aplicar quincena a todo el lote"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span>{pp.quincena ?? "—"}</span>
+                    )}
+                    {pp.cabecera_editable && (
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        Retraso/advance: PP + ICs + filtros web · dato duro quincena_arribo_id
+                      </p>
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-slate-500">Proforma proveedor</dt>
@@ -522,11 +624,14 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                 <select
                                   className={selectCls}
                                   value={draft.categoria_id ?? ""}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const cat = e.target.value ? Number(e.target.value) : null;
                                     patchIcDraft(ic.ic_id, {
-                                      categoria_id: e.target.value ? Number(e.target.value) : null,
-                                    })
-                                  }
+                                      categoria_id: cat,
+                                      listado_precio_id:
+                                        cat === CATEGORIA_PROGRAMADO_ID ? draft.listado_precio_id : null,
+                                    });
+                                  }}
                                 >
                                   <option value="">—</option>
                                   {catalogos!.categorias.map((c) => (
@@ -575,6 +680,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                   ))}
                                 </select>
                               </label>
+                              {draft.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                                <div className="sm:col-span-2 lg:col-span-3">
+                                  <SelectorPoliticaLp
+                                    required
+                                    disabled={icBusy === ic.ic_id}
+                                    value={draft.listado_precio_id}
+                                    onChange={(id) => patchIcDraft(ic.ic_id, { listado_precio_id: id })}
+                                    hint={`Desde IC · actual ${labelListadoPrecio(draft.listado_precio_id)} · FI hereda al guardar.`}
+                                  />
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div className="mt-2 space-y-1 text-xs text-slate-600">
@@ -582,15 +698,25 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                 {ic.marca} · {ic.vendedor} · {ic.proveedor}
                               </p>
                               <p>{ic.pares.toLocaleString("es-PY")} pares · {ic.categoria}</p>
+                              {ic.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                                <p className="font-semibold text-rimec-azul">
+                                  LP IC: {labelListadoPrecio(ic.listado_precio_id)}
+                                </p>
+                              )}
                               <p className="font-mono">Nro. fábrica: {ic.nro_pedido_fabrica ?? "—"}</p>
                               {ic.evento_nombre && <p className="text-violet-800">Evento: {ic.evento_nombre}</p>}
                             </div>
                           )}
                           {pp.cabecera_editable && (
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-wrap items-start gap-2">
                               <button
                                 type="button"
-                                disabled={icBusy === ic.ic_id || !catalogos}
+                                disabled={
+                                  icBusy === ic.ic_id
+                                  || !catalogos
+                                  || (draft.categoria_id === CATEGORIA_PROGRAMADO_ID
+                                    && !esListadoPrecioValido(draft.listado_precio_id))
+                                }
                                 onClick={() => guardarIc(ic.ic_id)}
                                 className="rounded border border-rimec-azul/30 bg-white px-3 py-1 text-xs font-bold text-rimec-azul hover:bg-sky-50 disabled:opacity-50"
                               >
@@ -630,34 +756,21 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             )}
 
             {tab === "fi" && !pp.fi_bloqueada && (
-              <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-sm font-bold text-rimec-azul-dark">Ala Sur · Facturas internas ({facturas.length})</h2>
-                {facturas.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-500">
-                    Sin FI aún. Creá facturas internas tras import F9 y listado de precios (Streamlit o próximo hito Report).
+              <>
+                <PpTabFacturasInternas
+                  pp={pp}
+                  ppId={ppId}
+                  facturas={facturas}
+                  detallesPorFi={detallesPorFi}
+                  onReload={load}
+                  onMsg={setMsg}
+                />
+                {msg && tab === "fi" && (
+                  <p className={`mt-2 text-xs ${msg.includes("recalculada") || msg.includes("LP") ? "text-emerald-800" : "text-red-700"}`}>
+                    {msg}
                   </p>
-                ) : (
-                  <ul className="mt-4 space-y-3">
-                    {facturas.map((fi) => (
-                      <li key={fi.id} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-mono text-sm font-bold text-rimec-azul-dark">{fi.nro_factura}</span>
-                          <span className={`rounded px-2 py-0.5 text-xs font-bold ${ESTADO_STYLE[fi.estado] ?? "bg-slate-100"}`}>
-                            {fi.estado}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-600">
-                          {fi.cliente} · {fi.vendedor}
-                        </p>
-                        <p className="mt-1 text-xs tabular-nums text-slate-700">
-                          {fi.total_pares.toLocaleString("es-PY")} pares · USD{" "}
-                          {fi.total_monto.toLocaleString("es-PY", { minimumFractionDigits: 2 })}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
                 )}
-              </section>
+              </>
             )}
 
             {digitacionAbierta && pp.estado !== "ENVIADO" && tab === "ics" && (

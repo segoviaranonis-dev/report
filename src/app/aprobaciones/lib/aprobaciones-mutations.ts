@@ -11,6 +11,11 @@ import {
   recalcularFiTotalesYsyncPvr,
   restoreFiEstadoTrasEdicion,
 } from "./fi-edit-guard";
+import {
+  sqlPrecioBaseFiDetalle,
+  SQL_FROM_FI_DETALLE_PRECIO,
+  sqlPrecioComercialDesdePl,
+} from "./fi-precio-evento-lookup";
 
 export type MutationResult = { ok: boolean; msg: string };
 
@@ -226,15 +231,8 @@ export async function actualizarListaPrecioFi(
         fid.pares,
         fid.ppd_id,
         fid.subtotal,
-        CASE $2::int
-          WHEN 1 THEN ppd.precio_lpn
-          WHEN 2 THEN ppd.precio_lpc02
-          WHEN 3 THEN ppd.precio_lpc03
-          WHEN 4 THEN ppd.precio_lpc04
-          ELSE ppd.precio_lpn
-        END AS precio_base
-      FROM public.factura_interna_detalle fid
-      LEFT JOIN public.pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+        ${sqlPrecioBaseFiDetalle("$2")} AS precio_base
+      ${SQL_FROM_FI_DETALLE_PRECIO}
       WHERE fid.factura_id = $1
       ORDER BY fid.id
     `,
@@ -277,7 +275,7 @@ export async function actualizarListaPrecioFi(
       await client.query("ROLLBACK");
       return {
         ok: false,
-        msg: "Sin precios en pedido_proveedor_detalle para la lista seleccionada.",
+        msg: "Sin precios en listado PP para la lista seleccionada.",
       };
     }
 
@@ -336,15 +334,8 @@ async function recalcularDetallePreciosDesdePp(
       fid.pares,
       fid.ppd_id,
       fid.subtotal,
-      CASE $2::int
-        WHEN 1 THEN ppd.precio_lpn
-        WHEN 2 THEN ppd.precio_lpc02
-        WHEN 3 THEN ppd.precio_lpc03
-        WHEN 4 THEN ppd.precio_lpc04
-        ELSE ppd.precio_lpn
-      END AS precio_base
-    FROM public.factura_interna_detalle fid
-    LEFT JOIN public.pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+      ${sqlPrecioBaseFiDetalle("$2")} AS precio_base
+    ${SQL_FROM_FI_DETALLE_PRECIO}
     WHERE fid.factura_id = $1
     ORDER BY fid.id
   `,
@@ -373,7 +364,7 @@ async function recalcularDetallePreciosDesdePp(
   }
 
   if (actualizadas === 0) {
-    return { ok: false, msg: "Sin precios en pedido_proveedor_detalle para recalcular." };
+    return { ok: false, msg: "Sin precios en listado PP para recalcular." };
   }
   return { ok: true };
 }
@@ -819,6 +810,147 @@ export async function actualizarEncabezadoFi(
       msg: `Encabezado actualizado. Total: Gs. ${totalMonto.toLocaleString("es-PY")}`,
       totalMonto,
     };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return { ok: false, msg: e instanceof Error ? e.message : String(e) };
+  } finally {
+    client.release();
+  }
+}
+
+type ResyncLineRow = {
+  id: number;
+  ppd_id: number | null;
+  pares: number;
+  precio_antes: number;
+  precio_nuevo: number | null;
+  linea: string | null;
+  referencia: string | null;
+  evento_id: number | null;
+};
+
+/** Rescate: FI + PPD desde listado ICP (incluye CONFIRMADA / PPD vendido). */
+export async function resincronizarFiDesdeListadoPp(
+  fiId: number,
+  opts?: { usarRedondeoComercial?: boolean },
+): Promise<MutationResult & { totalMonto?: number; lineas?: string[] }> {
+  if (!isRimecDatabaseConfigured()) {
+    return { ok: false, msg: "DATABASE_URL no configurada." };
+  }
+
+  const comercial = opts?.usarRedondeoComercial !== false;
+  const pool = getRimecPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const lockRes = await lockFiEditable(client, fiId, { flipConfirmada: false });
+    if (!lockRes.ok) {
+      await client.query("ROLLBACK");
+      return { ok: false, msg: lockRes.msg };
+    }
+    const lock = lockRes.lock;
+    const tier = lock.listaPrecioId;
+    if (tier < 1 || tier > 4) {
+      await client.query("ROLLBACK");
+      return { ok: false, msg: "Lista de precio FI inválida (1–4)." };
+    }
+
+    const precioExpr = comercial
+      ? `COALESCE(${sqlPrecioComercialDesdePl("$2")}, ${sqlPrecioBaseFiDetalle("$2")})`
+      : sqlPrecioBaseFiDetalle("$2");
+
+    const detRes = await client.query<ResyncLineRow>(
+      `
+      SELECT
+        fid.id,
+        fid.ppd_id,
+        fid.pares,
+        fid.precio_neto::float AS precio_antes,
+        ${precioExpr}::float AS precio_nuevo,
+        ppd.linea,
+        ppd.referencia,
+        icp.precio_evento_id::int AS evento_id
+      ${SQL_FROM_FI_DETALLE_PRECIO}
+      WHERE fid.factura_id = $1
+      ORDER BY fid.id
+    `,
+      [fiId, tier],
+    );
+
+    if (detRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return { ok: false, msg: "FI sin líneas." };
+    }
+
+    const lineasLog: string[] = [];
+    let actualizadas = 0;
+    const sinMatch: string[] = [];
+    const tierCol =
+      tier === 2 ? "precio_lpc02" : tier === 3 ? "precio_lpc03" : tier === 4 ? "precio_lpc04" : "precio_lpn";
+
+    for (const det of detRes.rows) {
+      const base = det.precio_nuevo != null ? Number(det.precio_nuevo) : NaN;
+      if (!Number.isFinite(base) || base <= 0) {
+        sinMatch.push(`${det.linea ?? "?"}/${det.referencia ?? "?"}`);
+        continue;
+      }
+
+      const neto = precioNetoCascada(
+        base,
+        lock.descuento_1,
+        lock.descuento_2,
+        lock.descuento_3,
+        lock.descuento_4,
+      );
+      const subtotal = neto * Number(det.pares);
+
+      await client.query(
+        `UPDATE public.factura_interna_detalle SET precio_unit = $2, precio_neto = $3, subtotal = $4 WHERE id = $1`,
+        [det.id, base, neto, subtotal],
+      );
+
+      if (det.ppd_id && det.evento_id) {
+        await client.query(
+          `
+          UPDATE public.pedido_proveedor_detalle
+          SET listado_precio_id = $2, ${tierCol} = $3, precio_vinculado_en = NOW()
+          WHERE id = $1
+        `,
+          [det.ppd_id, det.evento_id, base],
+        );
+      }
+
+      lineasLog.push(
+        `L${det.linea}/R${det.referencia}: ${Number(det.precio_antes).toLocaleString("es-PY")} → ${neto.toLocaleString("es-PY")}`,
+      );
+      actualizadas++;
+    }
+
+    if (actualizadas === 0) {
+      await client.query("ROLLBACK");
+      return {
+        ok: false,
+        msg: `Sin match en listado #${detRes.rows[0]?.evento_id ?? "?"} (${sinMatch.join(", ")})`,
+      };
+    }
+
+    const { totalMonto, totalPares } = await sumFiTotalesDesdeDetalle(client, fiId);
+    await client.query(
+      `UPDATE public.factura_interna SET total_monto = $2, total_pares = $3 WHERE id = $1`,
+      [fiId, totalMonto, totalPares],
+    );
+    await syncPedidoTotalesDesdeFis(client, lock.pedidoId);
+    await syncPedidoListaSiUnicaFi(client, lock.pedidoId, tier);
+    await restoreFiEstadoTrasEdicion(client, lock);
+    await client.query("COMMIT");
+
+    let msg = `Resincronizado listado #${detRes.rows[0]?.evento_id ?? "?"}. ${actualizadas} línea(s). Total: Gs. ${totalMonto.toLocaleString("es-PY")}`;
+    if (comercial) msg += " (redondeo comercial).";
+    if (sinMatch.length) msg += ` Sin match: ${sinMatch.join(", ")}.`;
+
+    return { ok: true, msg, totalMonto, lineas: lineasLog };
   } catch (e) {
     await client.query("ROLLBACK");
     return { ok: false, msg: e instanceof Error ? e.message : String(e) };

@@ -1,27 +1,51 @@
 import { NextResponse } from "next/server";
-import { listIcPendientesDigitacion, listPpsDigitacionCerrados, listPpsEnProceso } from "@/lib/digitacion/bandeja-query";
+import {
+  listIcPendientesDigitacion,
+  listPpsDigitacionCerrados,
+  listPpsEnProceso,
+} from "@/lib/digitacion/bandeja-query";
+import type { RamoDigitacion } from "@/lib/intencion-compra/categoria-ic";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
-export async function GET() {
+function parseRamo(value: string | null): RamoDigitacion {
+  return value === "programado" ? "programado" : "compra_previa";
+}
+
+export async function GET(req: Request) {
   const gate = await requireMotorPreciosAdmin();
   if (gate.error) return gate.error;
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
   }
+
+  const url = new URL(req.url);
+  const ramo = parseRamo(url.searchParams.get("ramo"));
+
   try {
     const pool = getRimecPool();
-    const [pendientes, enProceso, cerrados] = await Promise.all([
-      listIcPendientesDigitacion(pool),
-      listPpsEnProceso(pool),
-      listPpsDigitacionCerrados(pool),
+    const [pendientes, enProceso, cerrados, pendientesCp, pendientesProg] = await Promise.all([
+      listIcPendientesDigitacion(pool, ramo),
+      listPpsEnProceso(pool, ramo),
+      listPpsDigitacionCerrados(pool, ramo),
+      listIcPendientesDigitacion(pool, "compra_previa"),
+      listIcPendientesDigitacion(pool, "programado"),
     ]);
+
+    const totalPares = pendientes.reduce((s, ic) => s + ic.pares, 0);
+
     return NextResponse.json({
       ok: true,
+      ramo,
       pendientes,
       en_proceso: enProceso,
       cerrados_digitacion: cerrados,
-      stats: { pendientes: pendientes.length },
+      stats: {
+        pendientes: pendientes.length,
+        total_pares: totalPares,
+        compra_previa: pendientesCp.length,
+        programado: pendientesProg.length,
+      },
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Error" }, { status: 500 });

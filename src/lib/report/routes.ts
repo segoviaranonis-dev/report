@@ -18,6 +18,8 @@ export const PEDIDO_PROVEEDOR_NUEVO = `${PEDIDO_PROVEEDOR}/nuevo`;
 /** Módulos RIMEC hermanos de proceso-importación (2.3.1.8–2.3.1.10) */
 export const COMPRA_LEGAL = "/compra-legal";
 export const FACTURACION = "/facturacion";
+export const FACTURACION_TRANSITO = "/facturacion/transito";
+export const FACTURACION_PRONTA_ENTREGA = "/facturacion/pronta-entrega";
 export const DEPOSITO_RIMEC = "/deposito-rimec";
 
 export function digitacionAsignar(icId: number | string): string {

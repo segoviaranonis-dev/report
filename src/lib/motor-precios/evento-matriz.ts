@@ -145,7 +145,7 @@ async function guardarLineasExcepcion(
   }
 }
 
-async function reemplazarLineasExcepcion(
+export async function reemplazarLineasExcepcion(
   pool: Pool,
   casoId: number,
   lineaCodigos: string[],

@@ -1,6 +1,13 @@
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import type { Pool } from "pg";
 import { resolveDepositoCodigo } from "@/lib/deposito-rimec/rimec-csv-sdrm";
+import {
+  PE_CODIGO_BARRAS_EXPR,
+  PE_DEPOSITO_COL_EXPR,
+  PE_PPD_FROM,
+  PE_SALDO_EXPR,
+  PE_TIPO_V2_EXPR,
+} from "@/lib/stock-pronta-entrega/pe-ppd-sql";
 
 /** Productos con saldo PP → filas operativas (grilla tablet). */
 export async function listProcesoProductos(
@@ -108,29 +115,35 @@ export async function listProcesoProductos(
 }
 
 /**
- * Stock importado (staging sdrm) → grilla tablet.
- * Estrategia: sync posterior a v_stock_rimec · ver ESTRATEGIA_HIEDRA_VENENOSA_PE.md
+ * Stock PE Alejandro Magno → grilla tablet (PPD único).
  */
 export async function listImportadoProductos(
   pool: Pool,
   opts?: { deposito?: string; batch?: string; tipo_v2?: 1 | 2 },
 ): Promise<{ productos: DepositoRow[]; cajas: number; pares: number; batch: string | null }> {
   const params: unknown[] = [];
-  const filters: string[] = ["s.cantidad > 0"];
+  const filters: string[] = [
+    `pp.entidad_comercial = 'STOCK'`,
+    `pp.deposito_codigo IS NOT NULL`,
+    `pp.estado_transito = 'EN_DEPOSITO'`,
+    `pp.categoria_id = 1`,
+    `lower(trim(qa.descripcion)) = lower('Pronta entrega')`,
+    `(${PE_SALDO_EXPR} > 0 OR COALESCE(ppd.pares_vendidos, 0) > 0)`,
+  ];
   if (opts?.deposito) {
     const dep = resolveDepositoCodigo(opts.deposito);
     if (dep) {
       params.push(dep);
-      filters.push(`s.deposito_codigo = $${params.length}`);
+      filters.push(`pp.deposito_codigo = $${params.length}`);
     }
   }
   if (opts?.batch) {
     params.push(opts.batch);
-    filters.push(`s.batch_label = $${params.length}`);
+    filters.push(`pp.numero_proforma = $${params.length}`);
   }
   if (opts?.tipo_v2 === 1 || opts?.tipo_v2 === 2) {
     params.push(opts.tipo_v2);
-    filters.push(`s.tipo_v2_id = $${params.length}`);
+    filters.push(`${PE_TIPO_V2_EXPR} = $${params.length}`);
   }
   const where = `WHERE ${filters.join(" AND ")}`;
 
@@ -148,6 +161,8 @@ export async function listImportadoProductos(
     descp_color: string | null;
     grada: string;
     cantidad: string;
+    cantidad_inicial: string;
+    pares_vendidos: string;
     precio: string;
     linea_id: string | null;
     referencia_id: string | null;
@@ -165,53 +180,48 @@ export async function listImportadoProductos(
   }>(
     `
     SELECT
-      COALESCE(l.codigo_proveedor::text, split_part(s.codigo_barras, '.', 1)) AS linea,
-      COALESCE(r.codigo_proveedor::text, split_part(s.codigo_barras, '.', 2), '0') AS referencia,
-      COALESCE(m.codigo_proveedor::text, s.excel_material_code, '0') AS material_code,
-      COALESCE(c.codigo_proveedor::text, s.excel_color_code, '0') AS color_code,
+      COALESCE(ppd.linea, split_part(${PE_CODIGO_BARRAS_EXPR}, '.', 1)) AS linea,
+      COALESCE(ppd.referencia, split_part(${PE_CODIGO_BARRAS_EXPR}, '.', 2), '0') AS referencia,
+      COALESCE(ppd.material_code, '0') AS material_code,
+      COALESCE(ppd.color_code, '0') AS color_code,
       COALESCE(NULLIF(TRIM(mv.descp_marca), ''), 'RIMEC') AS marca,
       COALESCE(NULLIF(TRIM(g.descripcion), ''), NULLIF(TRIM(g.codigo::text), ''), '(sin género)') AS genero,
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), '(sin estilo)') AS estilo,
-      COALESCE(NULLIF(TRIM(tv.descp_tipo), ''), CASE s.tipo_v2_id WHEN 1 THEN 'Calzado' WHEN 2 THEN 'Confecciones' ELSE '—' END) AS tipo_v2,
+      COALESCE(NULLIF(TRIM(tv.descp_tipo), ''), CASE ${PE_TIPO_V2_EXPR} WHEN 1 THEN 'Calzado' WHEN 2 THEN 'Confecciones' ELSE '—' END) AS tipo_v2,
       COALESCE(NULLIF(TRIM(t1.descp_tipo_1), ''), '(sin tipo 1)') AS tipo_1,
-      COALESCE(m.descripcion, s.excel_material_code) AS descp_material,
-      COALESCE(c.nombre, s.excel_color_code) AS descp_color,
-      COALESCE(NULLIF(TRIM(s.grada), ''), '—') AS grada,
-      s.cantidad::text,
-      s.precio_unitario_gs::text AS precio,
-      s.linea_id::text,
-      s.referencia_id::text,
-      s.material_id::text,
-      s.color_id::text,
+      ppd.descp_material,
+      ppd.descp_color,
+      COALESCE(NULLIF(TRIM(ppd.grada), ''), '—') AS grada,
+      ${PE_SALDO_EXPR}::text AS cantidad,
+      COALESCE(ppd.cantidad_pares, 0)::text AS cantidad_inicial,
+      COALESCE(ppd.pares_vendidos, 0)::text AS pares_vendidos,
+      COALESCE(ppd.unit_fob_ajustado, 0)::text AS precio,
+      l.id::text AS linea_id,
+      r.id::text AS referencia_id,
+      mat.id::text AS material_id,
+      col.id::text AS color_id,
       l.marca_id::text AS marca_id,
       l.genero_id::text AS genero_id,
       lr.grupo_estilo_id::text AS grupo_estilo_id,
       lr.tipo_1_id::text AS tipo_1_id,
-      s.batch_label,
-      s.tipo_v2_id::text,
-      NULLIF(TRIM(c.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
-      s.deposito_codigo,
-      COALESCE(s.columna_stock_legal,
-        CASE s.deposito_codigo
-          WHEN 'D1' THEN 'S00_D1'
-          WHEN 'DEP2' THEN 'S00_DEP2'
-          WHEN 'D3' THEN 'S00_D3'
-          ELSE s.deposito_codigo
-        END
-      ) AS columna_stock_legal
-    FROM stock_pronta_entrega_rimec s
-    LEFT JOIN linea l ON l.id = s.linea_id
-    LEFT JOIN referencia r ON r.id = s.referencia_id
-    LEFT JOIN material m ON m.id = s.material_id
-    LEFT JOIN color c ON c.id = s.color_id
-    LEFT JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+      pp.numero_proforma AS batch_label,
+      ${PE_TIPO_V2_EXPR}::text AS tipo_v2_id,
+      NULLIF(TRIM(col.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
+      pp.deposito_codigo,
+      ${PE_DEPOSITO_COL_EXPR} AS columna_stock_legal
+    ${PE_PPD_FROM}
+    LEFT JOIN linea l ON l.codigo_proveedor::text = ppd.linea AND l.proveedor_id = pp.proveedor_importacion_id
+    LEFT JOIN referencia r ON r.codigo_proveedor::text = ppd.referencia AND r.linea_id = l.id
+    LEFT JOIN material mat ON mat.codigo_proveedor::text = ppd.material_code AND mat.proveedor_id = pp.proveedor_importacion_id
+    LEFT JOIN color col ON col.codigo_proveedor::text = ppd.color_code AND col.proveedor_id = pp.proveedor_importacion_id
+    LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN genero g ON g.id = l.genero_id
     LEFT JOIN linea_referencia lr ON lr.linea_id = l.id AND lr.referencia_id = r.id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
     LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
-    LEFT JOIN tipo_v2 tv ON tv.id_tipo = s.tipo_v2_id
+    LEFT JOIN tipo_v2 tv ON tv.id_tipo = ${PE_TIPO_V2_EXPR}
     ${where}
-    ORDER BY s.deposito_codigo, s.codigo_barras
+    ORDER BY pp.deposito_codigo, ppd.linea, ppd.referencia
     LIMIT 15000
     `,
     params,
@@ -230,6 +240,8 @@ export async function listImportadoProductos(
     descp_color: r.descp_color,
     grada: r.grada,
     cantidad: Number(r.cantidad),
+    cantidad_inicial: Number(r.cantidad_inicial),
+    pares_vendidos: Number(r.pares_vendidos),
     imagen_nombre: null,
     linea_id: r.linea_id ? Number(r.linea_id) : null,
     referencia_id: r.referencia_id ? Number(r.referencia_id) : null,

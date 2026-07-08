@@ -11,7 +11,13 @@ import {
   groupPedidosPorQuincena,
   type PpListaRow,
   type PpQuincenaGrupo,
-} from "@/lib/pedido-proveedor/list-query";
+} from "@/lib/pedido-proveedor/list-types";
+import {
+  CATEGORIA_COMPRA_PREVIA_ID,
+  CATEGORIA_PROGRAMADO_ID,
+  type RamoDigitacion,
+  labelRamoDigitacion,
+} from "@/lib/intencion-compra/categoria-ic";
 import { DIGITACION, PROCESO_IMPORTACION, pedidoProveedorDetalle } from "@/lib/report/routes";
 
 const ESTADO_STYLE: Record<string, string> = {
@@ -218,9 +224,16 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
   );
 }
 
+function ppMatchesRamo(p: PpListaRow, ramo: RamoDigitacion): boolean {
+  if (ramo === "programado") return p.categoria_id === CATEGORIA_PROGRAMADO_ID;
+  return p.categoria_id == null || p.categoria_id === CATEGORIA_COMPRA_PREVIA_ID;
+}
+
 export function PedidoProveedorHubClient() {
   const searchParams = useSearchParams();
   const ppHighlight = searchParams.get("pp");
+  const ramoInicial = searchParams.get("ramo") === "programado" ? "programado" : "compra_previa";
+  const [ramo, setRamo] = useState<RamoDigitacion>(ramoInicial);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<PpListaRow[]>([]);
@@ -246,8 +259,8 @@ export function PedidoProveedorHubClient() {
   }, [load]);
 
   const visibles = useMemo(
-    () => pedidos.filter((p) => filtro === "TODOS" || p.estado === filtro),
-    [pedidos, filtro],
+    () => pedidos.filter((p) => (filtro === "TODOS" || p.estado === filtro) && ppMatchesRamo(p, ramo)),
+    [pedidos, filtro, ramo],
   );
 
   const grupos = useMemo(() => groupPedidosPorQuincena(visibles), [visibles]);
@@ -271,16 +284,35 @@ export function PedidoProveedorHubClient() {
             <p className="text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">2.3.1.7.5 · P.1.3</p>
             <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Pedido proveedor</h1>
             <p className="mt-2 max-w-2xl text-sm text-neutral-700">
-              Preventas agrupadas por <strong>{FECHA_DE_EMBARQUE_LABEL}</strong> (quincena · dato duro). Un PP nace
-              solo cuando Digitación asigna una IC autorizada — no se crea desde aquí.
+              {labelRamoDigitacion(ramo)} · preventas agrupadas por <strong>{FECHA_DE_EMBARQUE_LABEL}</strong>. Un PP
+              nace cuando Digitación asigna una IC — no se crea manualmente.
             </p>
           </div>
           <Link
-            href={DIGITACION}
+            href={`${DIGITACION}?ramo=${ramo}`}
             className="rounded-lg bg-rimec-azul px-4 py-2.5 text-sm font-bold text-white hover:bg-rimec-azul-dark"
           >
             Digitación → asignar IC
           </Link>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {(["compra_previa", "programado"] as RamoDigitacion[]).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRamo(r)}
+              className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition ${
+                ramo === r
+                  ? r === "programado"
+                    ? "border-violet-500 bg-violet-50 text-violet-900"
+                    : "border-rimec-azul bg-rimec-azul/10 text-rimec-azul-dark"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {labelRamoDigitacion(r)}
+            </button>
+          ))}
         </div>
 
         {ppHighlight && (
@@ -306,14 +338,15 @@ export function PedidoProveedorHubClient() {
 
         {loading ? (
           <div className="mt-6 space-y-3">
+            <p className="text-sm text-slate-600">Cargando pedidos desde Supabase…</p>
             <Skeleton className="h-14 w-full" count={6} />
           </div>
         ) : error ? (
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>
         ) : grupos.length === 0 ? (
           <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-12 text-center text-slate-500">
-            Sin pedidos en este filtro. Creá el primer PP en{" "}
-            <Link href={DIGITACION} className="font-semibold text-rimec-azul hover:underline">
+            Sin pedidos {labelRamoDigitacion(ramo).toLowerCase()} en este filtro. Creá el PP en{" "}
+            <Link href={`${DIGITACION}?ramo=${ramo}`} className="font-semibold text-rimec-azul hover:underline">
               Digitación
             </Link>
             .
@@ -337,7 +370,7 @@ export function PedidoProveedorHubClient() {
           en detalle de cada PP.
         </p>
       </main>
-      <ReportFooter note="Pedido proveedor · por quincena" />
+      <ReportFooter note={`Pedido proveedor · ${labelRamoDigitacion(ramo)} · por quincena`} />
     </div>
   );
 }

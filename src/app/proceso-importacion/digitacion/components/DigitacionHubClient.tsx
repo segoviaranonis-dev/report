@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { Skeleton } from "@/components/ui/LoadingState";
 import type { IcDigitacionPendiente, PpDigitacionQuincenaGrupo, PpEnProceso } from "@/lib/digitacion/bandeja-query";
 import { groupPpDigitacionPorQuincena } from "@/lib/digitacion/bandeja-query";
+import type { RamoDigitacion } from "@/lib/intencion-compra/categoria-ic";
+import { labelRamoDigitacion } from "@/lib/intencion-compra/categoria-ic";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
-import { DIGITACION, PROCESO_IMPORTACION, PEDIDO_PROVEEDOR, digitacionAsignar, pedidoProveedorDetalle } from "@/lib/report/routes";
+import {
+  DIGITACION,
+  INTENCION_COMPRA_BANDEJA,
+  PROCESO_IMPORTACION,
+  PEDIDO_PROVEEDOR,
+  digitacionAsignar,
+  pedidoProveedorDetalle,
+} from "@/lib/report/routes";
 
 type Vista = "pendientes" | "en_proceso" | "cerrados";
 
@@ -234,9 +244,18 @@ function PpCerradoRow({ pp }: { pp: PpEnProceso }) {
   );
 }
 
-function QuincenaCerradosExpander({ grupo, defaultOpen }: { grupo: PpDigitacionQuincenaGrupo; defaultOpen: boolean }) {
+function QuincenaCerradosExpander({
+  grupo,
+  defaultOpen,
+  ramo,
+}: {
+  grupo: PpDigitacionQuincenaGrupo;
+  defaultOpen: boolean;
+  ramo: RamoDigitacion;
+}) {
   const [open, setOpen] = useState(defaultOpen);
-  const label = `${grupo.quincena} — ${grupo.n_preventas} preventa${grupo.n_preventas !== 1 ? "s" : ""} · ${grupo.total_pares.toLocaleString("es-PY")} pares`;
+  const unidad = ramo === "programado" ? "programado" : "preventa";
+  const label = `${grupo.quincena} — ${grupo.n_preventas} ${unidad}${grupo.n_preventas !== 1 ? "s" : ""} · ${grupo.total_pares.toLocaleString("es-PY")} pares`;
 
   return (
     <div className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
@@ -265,30 +284,45 @@ function QuincenaCerradosExpander({ grupo, defaultOpen }: { grupo: PpDigitacionQ
 }
 
 export function DigitacionHubClient() {
+  const searchParams = useSearchParams();
+  const ramoInicial = searchParams.get("ramo") === "programado" ? "programado" : "compra_previa";
+  const [ramo, setRamo] = useState<RamoDigitacion>(ramoInicial);
   const [vista, setVista] = useState<Vista>("pendientes");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState<IcDigitacionPendiente[]>([]);
   const [enProceso, setEnProceso] = useState<PpEnProceso[]>([]);
   const [cerrados, setCerrados] = useState<PpEnProceso[]>([]);
+  const [statsRamos, setStatsRamos] = useState({ compra_previa: 0, programado: 0, total_pares: 0 });
   const [devolverIc, setDevolverIc] = useState<IcDigitacionPendiente | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/proceso-importacion/digitacion/bandeja", { credentials: "same-origin" });
+      const res = await fetch(`/api/proceso-importacion/digitacion/bandeja?ramo=${ramo}`, {
+        credentials: "same-origin",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al cargar bandeja");
       setPendientes(data.pendientes ?? []);
       setEnProceso(data.en_proceso ?? []);
       setCerrados(data.cerrados_digitacion ?? []);
+      setStatsRamos({
+        compra_previa: data.stats?.compra_previa ?? 0,
+        programado: data.stats?.programado ?? 0,
+        total_pares: data.stats?.total_pares ?? 0,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ramo]);
+
+  useEffect(() => {
+    setRamo(ramoInicial);
+  }, [ramoInicial]);
 
   useEffect(() => {
     load();
@@ -307,17 +341,51 @@ export function DigitacionHubClient() {
         <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">2.3.1.7.4 · P.1.5</p>
         <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Digitación</h1>
         <p className="mt-2 max-w-2xl text-sm text-neutral-700">
-          Puente IC <code className="text-xs">AUTORIZADO</code> → PP · tabla{" "}
+          Administrador por estrategia comercial · <strong>{labelRamoDigitacion(ramo)}</strong> · puente IC → PP vía{" "}
           <code className="text-xs">intencion_compra_pedido</code>
         </p>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {(["compra_previa", "programado"] as RamoDigitacion[]).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => {
+                setRamo(r);
+                setVista("pendientes");
+              }}
+              className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition ${
+                ramo === r
+                  ? r === "programado"
+                    ? "border-violet-500 bg-violet-50 text-violet-900"
+                    : "border-rimec-azul bg-rimec-azul/10 text-rimec-azul-dark"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {labelRamoDigitacion(r)}
+              <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 text-xs tabular-nums">
+                {r === "compra_previa" ? statsRamos.compra_previa : statsRamos.programado}
+              </span>
+            </button>
+          ))}
+        </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-4">
           <div
             className={`rounded-xl border-2 px-5 py-3 ${nPend > 0 ? "border-red-300 bg-red-50" : "border-emerald-300 bg-emerald-50"}`}
           >
-            <span className="text-xs font-bold uppercase text-slate-600">ICs pendientes de procesar</span>
+            <span className="text-xs font-bold uppercase text-slate-600">
+              ICs {labelRamoDigitacion(ramo).toLowerCase()} sin PP
+            </span>
             <p className={`font-serif text-3xl font-bold ${nPend > 0 ? "text-red-700" : "text-emerald-700"}`}>{nPend}</p>
           </div>
+          {ramo === "programado" && nPend > 0 && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+              <strong>{statsRamos.total_pares.toLocaleString("es-PY")}</strong> pares ·{" "}
+              <strong>compra_previa = false</strong> · Alejandro Magno. «Asignar PP» autoriza la IC y crea el pedido
+              proveedor programado.
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex gap-1 border-b border-slate-200">
@@ -351,16 +419,17 @@ export function DigitacionHubClient() {
           <div className="mt-4">
             {pendientes.length === 0 ? (
               <p className="rounded-xl border border-dashed border-slate-300 px-4 py-12 text-center text-slate-500">
-                No hay IC autorizadas sin asignar
+                No hay IC {labelRamoDigitacion(ramo).toLowerCase()} sin asignar
               </p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full min-w-[720px] text-sm">
+                <table className="w-full min-w-[780px] text-sm">
                   <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-3">IC</th>
                       <th className="px-3 py-3">Marca</th>
-                      <th className="px-3 py-3">Categoría</th>
+                      <th className="px-3 py-3">Cliente</th>
+                      <th className="px-3 py-3">Estado</th>
                       <th className="px-3 py-3">{FECHA_DE_EMBARQUE_LABEL}</th>
                       <th className="px-3 py-3">Pares</th>
                       <th className="px-3 py-3">Evento</th>
@@ -368,31 +437,61 @@ export function DigitacionHubClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pendientes.map((ic) => (
-                      <tr key={ic.id} className="border-t border-slate-100 hover:bg-slate-50/80">
-                        <td className="px-3 py-3 font-mono text-xs font-bold">{ic.numero_registro}</td>
-                        <td className="px-3 py-3">{ic.marca}</td>
-                        <td className="px-3 py-3">{ic.categoria}</td>
-                        <td className="px-3 py-3 text-xs">{ic.fecha_embarque ?? "—"}</td>
-                        <td className="px-3 py-3">{ic.pares.toLocaleString("es-PY")}</td>
-                        <td className="px-3 py-3 text-xs text-slate-600">{ic.evento_precio ?? "—"}</td>
-                        <td className="px-3 py-3 text-right">
-                          <Link
-                            href={digitacionAsignar(ic.id)}
-                            className="mr-2 inline-block rounded-lg bg-rimec-azul px-3 py-1.5 text-xs font-bold text-white hover:bg-rimec-azul-dark"
-                          >
-                            Asignar →
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => setDevolverIc(ic)}
-                            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
-                          >
-                            ← Devolver
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {pendientes.map((ic) => {
+                      const pendienteBandeja = ic.estado === "PENDIENTE_OPERATIVO";
+                      const esProgramadoRamo = ramo === "programado";
+                      return (
+                        <tr key={ic.id} className="border-t border-slate-100 hover:bg-slate-50/80">
+                          <td className="px-3 py-3 font-mono text-xs font-bold">{ic.numero_registro}</td>
+                          <td className="px-3 py-3">{ic.marca}</td>
+                          <td className="px-3 py-3 text-xs">{ic.cliente}</td>
+                          <td className="px-3 py-3">
+                            <span
+                              className={`rounded px-2 py-0.5 text-xs font-bold ${
+                                pendienteBandeja ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
+                              }`}
+                            >
+                              {pendienteBandeja ? "Bandeja IC" : "Autorizada"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-xs">{ic.fecha_embarque ?? "—"}</td>
+                          <td className="px-3 py-3">{ic.pares.toLocaleString("es-PY")}</td>
+                          <td className="px-3 py-3 text-xs text-slate-600">{ic.evento_precio ?? "—"}</td>
+                          <td className="px-3 py-3 text-right">
+                            {esProgramadoRamo || !pendienteBandeja ? (
+                              <>
+                                <Link
+                                  href={`${digitacionAsignar(ic.id)}?ramo=programado`}
+                                  className={`mr-2 inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white ${
+                                    esProgramadoRamo
+                                      ? "bg-violet-700 hover:bg-violet-800"
+                                      : "bg-rimec-azul hover:bg-rimec-azul-dark"
+                                  }`}
+                                >
+                                  {esProgramadoRamo ? "Asignar PP →" : "Asignar →"}
+                                </Link>
+                                {!pendienteBandeja && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDevolverIc(ic)}
+                                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                                  >
+                                    ← Devolver
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <Link
+                                href={INTENCION_COMPRA_BANDEJA}
+                                className="inline-block rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-900 hover:bg-violet-100"
+                              >
+                                Autorizar en bandeja →
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -423,13 +522,13 @@ export function DigitacionHubClient() {
               </p>
             ) : (
               gruposCerrados.map((g, i) => (
-                <QuincenaCerradosExpander key={g.key} grupo={g} defaultOpen={i === 0} />
+                <QuincenaCerradosExpander key={g.key} grupo={g} defaultOpen={i === 0} ramo={ramo} />
               ))
             )}
           </div>
         )}
       </main>
-      <ReportFooter note="Digitación · 2.3.1.7.4 · bandeja operativa" />
+      <ReportFooter note={`Digitación · ${labelRamoDigitacion(ramo)} · 2.3.1.7.4`} />
 
       {devolverIc && (
         <DevolverModal ic={devolverIc} onClose={() => setDevolverIc(null)} onDone={load} />

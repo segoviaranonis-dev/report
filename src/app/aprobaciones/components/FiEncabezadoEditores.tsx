@@ -5,6 +5,7 @@ import {
   actualizarEncabezadoFiAction,
   cambiarClienteFiAction,
   cambiarVendedorFiAction,
+  resincronizarFiDesdeListadoPpAction,
 } from "../actions";
 import type { AprobacionesCatalogos, FiRecord } from "../lib/aprobaciones-types";
 import { fmtDescuentoPct, plazoDisplay } from "../lib/aprobaciones-utils";
@@ -319,6 +320,49 @@ export function DescuentosEditor({
       >
         {guardando ? "Aplicando…" : "Aplicar descuentos (recalcula FI + PVR)"}
       </button>
+      <ResyncListadoButton fi={fi} onFeedback={onFeedback} onApplied={onApplied} />
     </div>
+  );
+}
+
+function ResyncListadoButton({
+  fi,
+  onFeedback,
+  onApplied,
+}: {
+  fi: FiRecord;
+  onFeedback?: Feedback;
+  onApplied?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function resync() {
+    if (
+      !window.confirm(
+        "Resincronizar precios desde el listado PP vigente (evento ICP). Corrige vinculaciones erróneas. ¿Continuar?",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    const res = await resincronizarFiDesdeListadoPpAction(fi.id);
+    if (res.success) {
+      onFeedback?.("success", res.message ?? "Precios resincronizados.");
+      onApplied?.();
+    } else {
+      onFeedback?.("error", res.error ?? "Error al resincronizar.");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={resync}
+      className="mt-2 ml-2 rounded border-2 border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 disabled:opacity-50"
+    >
+      {busy ? "Resincronizando…" : "Resincronizar con listado PP"}
+    </button>
   );
 }

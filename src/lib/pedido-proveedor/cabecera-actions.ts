@@ -1,5 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { quincenaDbValue } from "@/lib/intencion-compra/quincena-arribo";
+import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
+import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
 
 export function ppCabeceraEditable(estado: string): boolean {
   return estado !== "ENVIADO" && estado !== "ANULADO";
@@ -92,6 +94,23 @@ export async function patchPpCabecera(
     }
 
     await client.query(`UPDATE pedido_proveedor SET ${sets.join(", ")} WHERE id = $1`, vals);
+
+    if (fields.quincena_arribo_id !== undefined) {
+      const qid = quincenaDbValue(fields.quincena_arribo_id ?? 0);
+      if (qid != null) {
+        await client.query(
+          `
+          UPDATE intencion_compra ic
+          SET quincena_arribo_id = $2
+          FROM intencion_compra_pedido icp
+          WHERE icp.intencion_compra_id = ic.id
+            AND icp.pedido_proveedor_id = $1
+        `,
+          [ppId, qid],
+        );
+      }
+    }
+
     await client.query("COMMIT");
     return { ok: true };
   } catch (e) {
@@ -110,6 +129,7 @@ export type UpdateIcVinculadaInput = {
   id_proveedor?: number;
   categoria_id?: number | null;
   precio_evento_id?: number | null;
+  listado_precio_id?: number | null;
 };
 
 export async function updateIcVinculadaPp(
@@ -184,6 +204,23 @@ export async function updateIcVinculadaPp(
         return { ok: false, error: "Evento de precio inválido." };
       }
     }
+    if (fields.listado_precio_id !== undefined && fields.listado_precio_id != null && !esListadoPrecioValido(fields.listado_precio_id)) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "Política LP inválida (use 1–4)." };
+    }
+
+    const catRes = await client.query<{ categoria_id: string | null }>(
+      `SELECT categoria_id::text FROM intencion_compra WHERE id = $1`,
+      [icId],
+    );
+    const categoriaEfectiva =
+      fields.categoria_id !== undefined ? fields.categoria_id : Number(catRes.rows[0]?.categoria_id ?? 0) || null;
+    if (categoriaEfectiva === CATEGORIA_PROGRAMADO_ID && fields.listado_precio_id !== undefined) {
+      if (!esListadoPrecioValido(fields.listado_precio_id)) {
+        await client.query("ROLLBACK");
+        return { ok: false, error: "PROGRAMADO exige política LP (LPN, LPC02, LPC03 o LPC04)." };
+      }
+    }
 
     const icSets: string[] = [];
     const icVals: unknown[] = [icId];
@@ -213,9 +250,26 @@ export async function updateIcVinculadaPp(
       icSets.push(`precio_evento_id = $${i++}`);
       icVals.push(fields.precio_evento_id);
     }
+    if (fields.listado_precio_id !== undefined) {
+      icSets.push(`listado_precio_id = $${i++}`);
+      icVals.push(fields.listado_precio_id);
+    }
 
     if (icSets.length) {
       await client.query(`UPDATE intencion_compra SET ${icSets.join(", ")} WHERE id = $1`, icVals);
+    }
+
+    if (fields.listado_precio_id !== undefined && esListadoPrecioValido(fields.listado_precio_id)) {
+      await client.query(
+        `UPDATE factura_interna fi
+         SET lista_precio_id = $3
+         FROM intencion_compra ic
+         WHERE fi.pp_id = $1
+           AND fi.cliente_id = ic.id_cliente
+           AND ic.id = $2
+           AND fi.estado IN ('RESERVADA', 'CONFIRMADA')`,
+        [ppId, icId, fields.listado_precio_id],
+      );
     }
 
     const icpSets: string[] = [];

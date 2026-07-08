@@ -12,6 +12,14 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function inferOrigenPeFi(r: Record<string, unknown>): boolean {
+  const ppId = r.pp_id;
+  const nro = String(r.nro_factura ?? "");
+  if (ppId == null) return true;
+  if (nro.startsWith("PE-")) return true;
+  return false;
+}
+
 function mapFiRow(r: Record<string, unknown>): FiRecord {
   return {
     id: num(r.id),
@@ -40,6 +48,7 @@ function mapFiRow(r: Record<string, unknown>): FiRecord {
     quincena_llegada: r.quincena_llegada != null ? String(r.quincena_llegada) : null,
     pp_estado: r.pp_estado != null ? String(r.pp_estado) : null,
     notas: r.notas != null ? String(r.notas) : null,
+    origen_pe: inferOrigenPeFi(r),
     created_at: r.created_at != null ? String(r.created_at) : null,
     fecha_confirmacion:
       r.fecha_confirmacion != null ? String(r.fecha_confirmacion) : null,
@@ -64,7 +73,13 @@ export async function fetchPedidosPendientes(): Promise<PedidoPendiente[]> {
       pvr.descuento_1, pvr.descuento_2, pvr.descuento_3, pvr.descuento_4,
       pvr.total_pares,
       pvr.total_monto,
-      pvr.created_at
+      pvr.created_at,
+      EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(COALESCE(pvr.payload_json->'lotes', '[]'::jsonb)) l
+        WHERE COALESCE((l->>'origen_pe')::boolean, false)
+           OR NULLIF(l->>'pp_id', '')::bigint < 0
+      ) AS origen_pe
     FROM pedido_venta_rimec pvr
     JOIN cliente_v2 c ON c.id_cliente = pvr.cliente_id
     LEFT JOIN usuario_v2 v ON v.id_usuario = pvr.vendedor_id
@@ -93,6 +108,7 @@ export async function fetchPedidosPendientes(): Promise<PedidoPendiente[]> {
     total_pares: num(r.total_pares),
     total_monto: num(r.total_monto),
     created_at: r.created_at != null ? String(r.created_at) : null,
+    origen_pe: Boolean(r.origen_pe),
   }));
 }
 
@@ -242,6 +258,7 @@ function mapDetalleRow(r: Record<string, unknown>): FiDetalle {
     id: num(r.id),
     pares: num(r.pares),
     cajas: num(r.cajas),
+    precio_unit: num(r.precio_unit),
     precio_neto: num(r.precio_neto),
     subtotal: num(r.subtotal),
     linea_codigo: snap.linea_codigo,
@@ -260,6 +277,7 @@ const FI_DETALLE_SELECT = `
     fid.factura_id,
     fid.pares,
     fid.cajas,
+    fid.precio_unit,
     fid.precio_neto,
     fid.subtotal,
     fid.linea_snapshot,

@@ -12,6 +12,13 @@ import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo"
 import { INTENCION_COMPRA, INTENCION_COMPRA_BANDEJA, PROCESO_IMPORTACION } from "@/lib/report/routes";
 import { FechaEmbarqueSlider } from "./FechaEmbarqueSlider";
 import { IntencionCompraSubNav } from "./IntencionCompraSubNav";
+import { SelectorPoliticaLp } from "./SelectorPoliticaLp";
+import {
+  ID_CATEGORIA_PROGRAMADO,
+  LISTADO_IMPUETO_8604,
+  esListadoPrecioValido,
+  type ListadoPrecioTierId,
+} from "@/lib/intencion-compra/listado-precio-tiers";
 
 const ID_COMPRA_PREVIA = 2;
 const ID_PROGRAMADO = 3;
@@ -64,11 +71,10 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
   const [d4, setD4] = useState(0);
   const [obs, setObs] = useState("");
   const [precioEventoId, setPrecioEventoId] = useState<number | null>(null);
-  const [listadoPrecioId, setListadoPrecioId] = useState<number | null>(null);
+  const [listadoPrecioId, setListadoPrecioId] = useState<ListadoPrecioTierId | null>(null);
   const [comisionId, setComisionId] = useState<number | null>(null);
   const [lineas, setLineas] = useState<LineaConCaso[]>([]);
   const [lineaSel, setLineaSel] = useState<number | "">("");
-  const [listadosNeg, setListadosNeg] = useState<{ id: number; nombre: string }[]>([]);
 
   const neto = useMemo(() => calcularNeto(bruto, d1, d2, d3, d4), [bruto, d1, d2, d3, d4]);
   const marcasOpciones = useMemo(
@@ -152,6 +158,15 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
   }, [codCliente]);
 
   useEffect(() => {
+    if (categoriaId === ID_PROGRAMADO && listadoPrecioId == null) {
+      setListadoPrecioId(LISTADO_IMPUETO_8604);
+    }
+    if (categoriaId === ID_COMPRA_PREVIA) {
+      setListadoPrecioId(null);
+    }
+  }, [categoriaId, listadoPrecioId]);
+
+  useEffect(() => {
     if (!idProveedor || categoriaId !== ID_PROGRAMADO) {
       setLineas([]);
       return;
@@ -164,22 +179,12 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
       .catch(() => setLineas([]));
   }, [idProveedor, categoriaId]);
 
-  useEffect(() => {
-    if (!precioEventoId || !casoNombre) {
-      setListadosNeg([]);
-      return;
-    }
-    fetch(
-      `/api/proceso-importacion/intencion-compra/negociacion?evento_id=${precioEventoId}&caso=${encodeURIComponent(casoNombre)}`,
-      { credentials: "same-origin" },
-    )
-      .then((r) => r.json())
-      .then((d) => setListadosNeg(d.listados ?? []))
-      .catch(() => setListadosNeg([]));
-  }, [precioEventoId, casoNombre]);
-
   async function handleRegistrar() {
     setError(null);
+    if (categoriaId === ID_PROGRAMADO && !esListadoPrecioValido(listadoPrecioId)) {
+      setError("PROGRAMADO exige elegir política LP (LPN, LPC02, LPC03 o LPC04).");
+      return;
+    }
     setSubmitting(true);
     try {
       const comision = catalogos?.comisiones.find((c) => c.id === comisionId);
@@ -206,7 +211,7 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
           nota_pedido: nota || null,
           observaciones: obs || null,
           precio_evento_id: precioEventoId,
-          listado_precio_id: listadoPrecioId,
+          listado_precio_id: categoriaId === ID_PROGRAMADO ? listadoPrecioId : null,
           comision_vendedor_id: comisionId && comisionId > 0 ? comisionId : null,
           comision_porcentaje_snap: comision && comision.id > 0 ? comision.porcentaje : null,
         }),
@@ -348,6 +353,15 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
             <button type="button" onClick={() => setPaso("paso_a")} className="text-sm font-semibold text-rimec-azul hover:underline">
               ← Cambiar clasificación
             </button>
+
+            {categoriaId === ID_PROGRAMADO && (
+              <SelectorPoliticaLp
+                required
+                value={listadoPrecioId}
+                onChange={setListadoPrecioId}
+                hint="Obligatorio PROGRAMADO · default LPC04 (maratón 8604). Tier de venta para FI + proforma."
+              />
+            )}
 
             <p className="text-sm text-slate-600">
               El número <code className="text-xs">IC-YYYY-XXXX</code> se asigna al guardar.
@@ -494,12 +508,12 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
 
             {categoriaId === ID_PROGRAMADO && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                <p className="text-sm font-bold text-rimec-azul-dark">Negociación PROGRAMADO</p>
+                <p className="text-sm font-bold text-rimec-azul-dark">Negociación PROGRAMADO — línea · comisión</p>
                 {lineas.length === 0 ? (
                   <p className="text-xs text-amber-800">No hay líneas para este proveedor.</p>
                 ) : (
                   <>
-                    <Field label="Línea del pedido">
+                    <Field label="Línea del pedido (caso automático)">
                       <select value={lineaSel} onChange={(e) => setLineaSel(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                         <option value="">— Elegir —</option>
                         {lineas.map((l) => (
@@ -510,22 +524,9 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
                         ))}
                       </select>
                     </Field>
-                    {casoNombre && precioEventoId && listadosNeg.length > 0 && (
-                      <Field label="Listado aplicable">
-                        <select
-                          value={listadoPrecioId ?? ""}
-                          onChange={(e) => setListadoPrecioId(Number(e.target.value))}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        >
-                          <option value="">— Elegir —</option>
-                          {listadosNeg.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.nombre}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    )}
+                    {casoNombre ? (
+                      <p className="text-xs font-semibold text-rimec-azul">Caso detectado: {casoNombre}</p>
+                    ) : null}
                     <Field label="Comisión vendedor">
                       <select
                         value={comisionId ?? 0}
@@ -544,19 +545,6 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
               </div>
             )}
 
-            {categoriaId === ID_COMPRA_PREVIA && (
-              <Field label="Listado referencia — COMPRA PREVIA">
-                <select
-                  value={listadoPrecioId ?? ""}
-                  onChange={(e) => setListadoPrecioId(e.target.value === "" ? null : Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Sin definir — se determina en ventas</option>
-                  <option value={1}>LPN — referencia base</option>
-                </select>
-              </Field>
-            )}
-
             {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>}
             {success && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -566,7 +554,14 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
 
             <button
               type="button"
-              disabled={submitting || !clienteNombre || !idProveedor || !idMarca || !idVendedor}
+              disabled={
+                submitting
+                || !clienteNombre
+                || !idProveedor
+                || !idMarca
+                || !idVendedor
+                || (categoriaId === ID_PROGRAMADO && !esListadoPrecioValido(listadoPrecioId))
+              }
               onClick={handleRegistrar}
               className="w-full rounded-xl bg-rimec-azul py-3 text-sm font-bold text-white hover:bg-rimec-azul-dark disabled:opacity-40"
             >

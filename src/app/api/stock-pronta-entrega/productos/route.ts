@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       modulo: "stock-pronta-entrega",
-      origen_stock: "STOCK_PRONTA_ENTREGA",
+      origen_stock: "pedido_proveedor_detalle",
       destino_catalogo: "v_stock_rimec",
       ...body,
       batch: sp.get("batch") ?? body.batch ?? "sdrm0831",

@@ -19,14 +19,34 @@
 │  Ente cod 2–4   → BAZZAR     (Fernando · San Martín · Palma)            │
 │  Ente cod 5     → BAZZAR WEB (e-commerce)                               │
 │                                                                         │
+│  «ROLES DE USUARIOS» (Director) = 2 cuentas por tienda:                 │
+│    · VENDEDOR tienda (BZZS/BZZSN…) → RIMEC Web compra (como ATI)        │
+│    · ADMIN gerente (IVO…) → Report Bazzar + Tablet total                │
+│                                                                         │
 │  Código tienda POS:  BZZ + sede(F/S/P) + segmento(A/N)                  │
 │    BZZSN = San Martín Niños (2700)   BZZPN = Palma Niños (3200)         │
 │                                                                         │
 │  Report  → http://localhost:3000/login                                  │
+│  RIMEC Web → http://localhost:3001/login                                 │
 │  Tablet  → http://localhost:3002/login                                  │
 │  Tras cambiar ente/rol → LOGOUT + LOGIN (sesión v4 Report)              │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 1b. Qué significa «roles de usuarios» (Director · 2026-07-07)
+
+| Tipo | Cat | Ejemplo SM | Herramientas |
+|------|-----|------------|--------------|
+| **Cuenta compra tienda** | VENDEDOR · rol 2 | **BZZS** adultos · **BZZSN** niños | **RIMEC Web** (catálogo + carrito + código cliente, paridad **ATI**) · **Tablet** POS |
+| **Cuenta gerencial tienda** | ADMIN · rol 2 | **IVO** | **Report** solo Bazzar · **Tablet** total |
+
+**Operación:** cuando la tienda compra/recibe de RIMEC, el cajero/vendedor usa la cuenta **VENDEDOR** del segmento en RIMEC Web. El gerente (**IVO**) administra stock, depósitos y caja desde Report + Tablet.
+
+**Matriz canónica:** `.claude/1_fundamentos/1.3_politicas/MATRIZ_ROLES_ACCESOS_HOLDING.md` § Lenguaje Director.
+
+**Auth web:** hotfix 2026-07-07 `rimec-web/lib/auth/roles.ts` (antes bloqueaba VENDEDOR Bazzar por error).
 
 ---
 
@@ -61,17 +81,18 @@ Patrón usuario tablet / caja: **`BZZ` + sede + segmento**
 
 ## 3. Tarjetas de usuario (estado BD — actualizado 2026-06-26)
 
-> Hotfix menú Report: [HOTFIX_BZZ_MENU_REPORT_20260626.md](./HOTFIX_BZZ_MENU_REPORT_20260626.md)  
-> **Regla:** todo `BZZ*` → `rol_id=2`. ADMIN = Report Bazzar · VENDEDOR = solo Tablet POS.
+> **Regla (2026-07-07):** `BZZ*` VENDEDOR = **RIMEC Web** compra tienda (paridad ATI) + Tablet POS. `ADMIN` gerencial (IVO) = Report Bazzar + Tablet total.
 
-| Usuario | rol_id | cat | ente | Report | Tablet |
-|---------|--------|-----|------|--------|--------|
-| BZZF | 2 | ADMIN | 2 | Bazzar only | ✅ |
-| BZZFN | 2 | ADMIN | 2 | Bazzar only | ✅ |
-| BZZPN | 2 | ADMIN | 4 | Bazzar only | ✅ |
-| BZZSN | 2 | ADMIN | 3 | Bazzar only | ✅ |
-| BZZP | 2 | VENDEDOR | 4 | ❌ | POS ✅ |
-| BZZS | 2 | VENDEDOR | 3 | ❌ | POS ✅ |
+| Usuario | rol_id | cat | ente | Report | RIMEC Web | Tablet |
+|---------|--------|-----|------|--------|-----------|--------|
+| **IVO** | 2 | ADMIN | 3 | Bazzar only | 🟢 | ✅ total |
+| BZZF | 2 | ADMIN | 2 | Bazzar only | 🟢 | ✅ |
+| BZZFN | 2 | ADMIN | 2 | Bazzar only | 🟢 | ✅ |
+| BZZPN | 2 | ADMIN | 4 | Bazzar only | 🟢 | ✅ |
+| BZZSN | 2 | ADMIN | 3 | Bazzar only | 🟢 | ✅ |
+| BZZP | 2 | VENDEDOR | 4 | ❌ | 🟢 compra | POS ✅ |
+| BZZS | 2 | VENDEDOR | 3 | ❌ | 🟢 compra | POS ✅ |
+| **ATI** | 3 | VENDEDOR | 1 | ventas-fotos | 🟢 referencia | ❌ |
 
 ---
 
@@ -169,13 +190,13 @@ Patrón usuario tablet / caja: **`BZZ` + sede + segmento**
 
 ### RIMEC Web (`localhost:3001`)
 
-| Pantalla | DIOS | ADMIN tienda (BZZ*) | VENDEDOR Bazzar |
-|----------|:----:|:-------------------:|:---------------:|
-| Login catálogo | 🟢 | 🟢 | 🔴 |
-| Catálogo + carrito | 🟢 | 🟢 | 🔴 |
-| Estadísticas / admin web | 🟢 | según cat ADMIN | 🔴 |
+| Pantalla | DIOS | ADMIN tienda (IVO…) | VENDEDOR tienda (BZZS…) | ATI (ref.) |
+|----------|:----:|:-------------------:|:-----------------------:|:----------:|
+| Login catálogo | 🟢 | 🟢 | 🟢 | 🟢 |
+| Catálogo + carrito + código cliente | 🟢 | 🟢 | 🟢 | 🟢 |
+| Estadísticas / admin web | 🟢 | según cat ADMIN | 🔴 | 🔴 |
 
-Solo usuarios BZZ con `categoria` **ADMIN** entran en RIMEC Web; **VENDEDOR** tienda queda bloqueado en login.
+**Cuenta compra tienda** (`VENDEDOR` Bazzar) = mismo nivel web que **ATI** para operar preventas/compra RIMEC.
 
 ### Tablet Bazzar (`localhost:3002`)
 
@@ -286,4 +307,4 @@ WHERE e.codigo = 3
 
 **Código documento:** `2.3.5.4.1` · **Etapa:** `HOLD-ACCESOS-BZZ-2026` ✅  
 **Índice Moria:** `.claude/2_modulos/2.3_report/pilares/INDICE.md`  
-**Última actualización:** 2026-06-10
+**Última actualización:** 2026-07-07 — roles Director (cuenta compra vs gerente · IVO · BZZS) · RIMEC Web VENDEDOR Bazzar.

@@ -8,8 +8,14 @@ import {
   FECHA_DE_EMBARQUE_LABEL,
 } from "@/lib/intencion-compra/quincena-arribo";
 import { FechaEmbarqueSlider } from "./FechaEmbarqueSlider";
+import { SelectorPoliticaLp } from "./SelectorPoliticaLp";
 import { useMarcasPorTipo } from "./useMarcasPorTipo";
 import { resolveMarcasIcOptions } from "@/lib/intencion-compra/marcas-ic-options";
+import {
+  ID_CATEGORIA_PROGRAMADO,
+  labelListadoPrecio,
+  type ListadoPrecioTierId,
+} from "@/lib/intencion-compra/listado-precio-tiers";
 
 type Props = {
   ic: IcPendienteRow;
@@ -81,7 +87,9 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
   );
 
   const quincenaOk = (ic.quincena_arribo_id ?? 0) > 0;
-  const canAuth = ic.tipo_id != null && ic.categoria_id != null && ic.pares > 0 && quincenaOk;
+  const esProgramado = ic.categoria_id === ID_CATEGORIA_PROGRAMADO;
+  const lpOk = !esProgramado || (ic.listado_precio_id != null && ic.listado_precio_id >= 1 && ic.listado_precio_id <= 4);
+  const canAuth = ic.tipo_id != null && ic.categoria_id != null && ic.pares > 0 && quincenaOk && lpOk;
 
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -172,6 +180,17 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
               ))}
             </select>
           </div>
+          {esProgramado ? (
+            <div className="min-w-full basis-full">
+              <SelectorPoliticaLp
+                required
+                disabled={busy}
+                value={(ic.listado_precio_id as ListadoPrecioTierId | null) ?? null}
+                onChange={(id) => save("listado_precio_id", id)}
+                hint={`Actual: ${labelListadoPrecio(ic.listado_precio_id)} · FI usará este tier al vincular proforma.`}
+              />
+            </div>
+          ) : null}
           <div className="min-w-[200px] flex-[2]">
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Notas</label>
             <input
@@ -236,6 +255,7 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
         {!canAuth && (
           <p className="text-xs text-amber-800">
             Tipo, Categoría, Pares y {FECHA_DE_EMBARQUE_LABEL} son obligatorios para autorizar.
+            {esProgramado && !lpOk ? " PROGRAMADO exige política LP (LPN/LPC02/LPC03/LPC04)." : ""}
           </p>
         )}
         {err && <p className="text-xs text-red-700">{err}</p>}

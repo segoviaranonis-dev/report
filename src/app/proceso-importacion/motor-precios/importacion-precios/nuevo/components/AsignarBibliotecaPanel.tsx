@@ -40,7 +40,17 @@ export function AsignarBibliotecaPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ biblioteca_id: bibSeleccionada }),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data: { ok?: boolean; error?: string; biblioteca_nombre?: string; casos_copiados?: number; evento?: PrecioEventoDetalle };
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Respuesta inválida del servidor"
+            : `Error ${res.status}: ${raw.slice(0, 120) || "sin detalle"} — reiniciá dev (borrar .next) si persiste`,
+        );
+      }
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "No se pudo asignar la biblioteca");
       }

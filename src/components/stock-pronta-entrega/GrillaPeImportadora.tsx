@@ -8,13 +8,20 @@ import { PeCardMiniatura } from "./PeCardMiniatura";
 type Props = {
   productos: DepositoRow[];
   casoPorLinea?: Map<string, string> | null;
+  showLlegada?: boolean;
+  showVentas?: boolean;
 };
 
-export function GrillaPeImportadora({ productos, casoPorLinea = null }: Props) {
+export function GrillaPeImportadora({
+  productos,
+  casoPorLinea = null,
+  showLlegada = false,
+  showVentas = false,
+}: Props) {
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
-    () => agruparPeImportadora(productos, casoPorLinea),
-    [productos, casoPorLinea],
+    () => agruparPeImportadora(productos, casoPorLinea, { ordenVentas: showVentas }),
+    [productos, casoPorLinea, showVentas],
   );
 
   if (cards.length === 0) {
@@ -29,7 +36,8 @@ export function GrillaPeImportadora({ productos, casoPorLinea = null }: Props) {
     <div className="pb-10">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          {cards.length.toLocaleString("es-PY")} moléculas · orden por pares
+          {cards.length.toLocaleString("es-PY")} moléculas · 1 imagen c/u
+          {showVentas ? " · orden por vendido" : " · orden por pares"}
         </p>
         <button
           type="button"
@@ -52,6 +60,8 @@ export function GrillaPeImportadora({ productos, casoPorLinea = null }: Props) {
             card={card}
             expanded={expandAll}
             showCasoBadge={!!casoPorLinea?.size}
+            showLlegada={showLlegada}
+            showVentas={showVentas}
           />
         ))}
       </div>

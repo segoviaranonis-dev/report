@@ -37,6 +37,15 @@ export type DepositoRow = {
   /** Stock PE — depósito legal CSV */
   deposito_codigo?: string | null;
   columna_stock_legal?: string | null;
+  /** Stock tránsito — compra previa · dato duro quincena */
+  quincena_arribo_id?: number | null;
+  quincena_desc?: string | null;
+  pp_id?: number | null;
+  pp_nro?: string | null;
+  proforma?: string | null;
+  caso_precio?: string | null;
+  cantidad_inicial?: number | null;
+  pares_vendidos?: number | null;
 };
 
 /**

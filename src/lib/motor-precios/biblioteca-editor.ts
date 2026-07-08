@@ -300,6 +300,35 @@ export async function validarLineasParaCaso(
   return { ok: true, codigos: [...new Set(codigos)] };
 }
 
+/** Agrega códigos pilar línea a un caso BCL sin reemplazar los existentes. */
+export async function agregarLineasCasoBiblioteca(
+  pool: Pool,
+  bibliotecaId: number,
+  casoId: number,
+  proveedorId: number,
+  codigosNuevos: string[],
+): Promise<{ ok: boolean; error?: string; lineas?: string[] }> {
+  const editor = await loadBibliotecaEditor(pool, bibliotecaId, proveedorId);
+  const caso = editor?.casos.find((c) => c.id === casoId);
+  if (!caso) {
+    return { ok: false, error: "Caso no encontrado en biblioteca." };
+  }
+
+  const nuevos = codigosNuevos
+    .map((c) => String(Math.trunc(Number(c))))
+    .filter((c) => c && c !== "NaN");
+  const merged = [...new Set([...caso.lineas, ...nuevos])];
+
+  const val = await validarLineasParaCaso(pool, bibliotecaId, casoId, proveedorId, merged);
+  if (!val.ok) {
+    return { ok: false, error: val.error };
+  }
+
+  const finales = val.codigos ?? merged;
+  await persistirLineasCaso(pool, bibliotecaId, casoId, proveedorId, finales);
+  return { ok: true, lineas: finales };
+}
+
 export async function updateCasoBiblioteca(
   pool: Pool,
   bibliotecaId: number,

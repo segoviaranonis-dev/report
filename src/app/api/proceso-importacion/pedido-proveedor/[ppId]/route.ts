@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { cerrarPp } from "@/lib/digitacion/actions";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { patchPpCabecera } from "@/lib/pedido-proveedor/cabecera-actions";
+import { syncFiEncabezadoDesdeIc } from "@/lib/pedido-proveedor/fi-pp-actions";
 import { getPpDetalle, listAlaNortePp, listFacturasInternasPp, listIcsVinculadasPp } from "@/lib/pedido-proveedor/detail-query";
 import { getEventoPpDetalle, listEventosPrecioPp } from "@/lib/pedido-proveedor/stock-listado";
+import { fetchFiDetallesBatch } from "@/app/aprobaciones/lib/aprobaciones-queries";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 type Params = { params: Promise<{ ppId: string }> };
@@ -28,10 +30,12 @@ export async function GET(_req: Request, { params }: Params) {
     }
     const ics = await listIcsVinculadasPp(pool, ppId);
     const alaNorte = await listAlaNortePp(pool, ppId);
+    await syncFiEncabezadoDesdeIc(pool, ppId);
     const facturas = await listFacturasInternasPp(pool, ppId);
+    const detallesPorFi = await fetchFiDetallesBatch(facturas.map((f) => f.id));
     const eventoDetalle = await getEventoPpDetalle(pool, ppId);
     const eventos = await listEventosPrecioPp(pool, ppId);
-    return NextResponse.json({ ok: true, pp: header, ics, alaNorte, facturas, eventoDetalle, eventos });
+    return NextResponse.json({ ok: true, pp: header, ics, alaNorte, facturas, detallesPorFi, eventoDetalle, eventos });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Error" }, { status: 500 });
   }

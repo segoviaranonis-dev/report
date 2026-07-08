@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { aplicarBibliotecaAEvento } from "./evento-biblioteca";
-import { prepararStagingPaso3 } from "./evento-paso3";
+import { auditarCoberturaCasos } from "./evento-paso3";
 import { getPrecioEventoDetalle } from "./evento-queries";
 import { contarSkusExcel } from "./evento-sku-staging";
 
@@ -12,6 +12,13 @@ export type PreviewAuditSku = {
   motivo: string;
 };
 
+export type PreviewAuditLinea = {
+  marca: string;
+  linea_codigo: string;
+  skus_afectados: number;
+  motivo: string;
+};
+
 export type PreviewAuditResult = {
   ok: boolean;
   evento_id: number;
@@ -20,7 +27,10 @@ export type PreviewAuditResult = {
   skus_excel: number;
   skus_con_caso: number;
   skus_sin_caso: number;
+  lineas_sin_caso: number;
   matriz_sincronizada: boolean;
+  lineas_huerfanas: PreviewAuditLinea[];
+  /** @deprecated Usar lineas_huerfanas — detalle SKU para debug */
   skus_huerfanos: PreviewAuditSku[];
   warnings: string[];
   error?: string;
@@ -38,7 +48,9 @@ export async function auditarPreviewEvento(pool: Pool, eventoId: number): Promis
       skus_excel: 0,
       skus_con_caso: 0,
       skus_sin_caso: 0,
+      lineas_sin_caso: 0,
       matriz_sincronizada: false,
+      lineas_huerfanas: [],
       skus_huerfanos: [],
       warnings: [],
       error: "Evento no encontrado",
@@ -55,7 +67,9 @@ export async function auditarPreviewEvento(pool: Pool, eventoId: number): Promis
       skus_excel: evento.matriz.excel_skus_count,
       skus_con_caso: 0,
       skus_sin_caso: evento.matriz.excel_skus_count,
+      lineas_sin_caso: 0,
       matriz_sincronizada: false,
+      lineas_huerfanas: [],
       skus_huerfanos: [],
       warnings: ["Asigná biblioteca en Memoria (Paso 1)."],
       error: "Sin biblioteca asignada",
@@ -82,7 +96,9 @@ export async function auditarPreviewEvento(pool: Pool, eventoId: number): Promis
         skus_excel: evento.matriz.excel_skus_count,
         skus_con_caso: 0,
         skus_sin_caso: evento.matriz.excel_skus_count,
+        lineas_sin_caso: 0,
         matriz_sincronizada: false,
+        lineas_huerfanas: [],
         skus_huerfanos: [],
         warnings: [],
         error: sync.error,
@@ -92,37 +108,35 @@ export async function auditarPreviewEvento(pool: Pool, eventoId: number): Promis
     warnings.push(`${sync.n_casos} casos sincronizados desde biblioteca #${bibId}.`);
   }
 
-  const skusExcel = await contarSkusExcel(pool, eventoId);
-  const prep = await prepararStagingPaso3(pool, eventoId, evento.proveedor_id);
+  const [skusExcel, cobertura] = await Promise.all([
+    contarSkusExcel(pool, eventoId),
+    auditarCoberturaCasos(pool, eventoId),
+  ]);
 
-  const huerfanos: PreviewAuditSku[] = [];
-  for (const w of prep.warnings) {
-    if (w.startsWith("Sin caso:")) {
-      const m = w.match(/Sin caso: (.+?) · L(\d+) \((\d+)\)/);
-      if (m) {
-        huerfanos.push({
-          marca: m[1],
-          linea: m[2],
-          referencia: m[3],
-          material: "",
-          motivo: "Sin caso en matriz biblioteca",
-        });
-      }
-    }
-  }
+  const huerfanos: PreviewAuditSku[] = cobertura.huerfanos.map((r) => ({
+    ...r,
+    motivo: "Sin caso en matriz biblioteca",
+  }));
+
+  const lineasHuerfanas: PreviewAuditLinea[] = cobertura.lineas_huerfanas.map((r) => ({
+    ...r,
+    motivo: "Sin caso en matriz biblioteca (pilar línea)",
+  }));
 
   const refreshed = await getPrecioEventoDetalle(pool, eventoId);
 
   return {
-    ok: prep.skus_sin_caso === 0 && skusExcel > 0 && (refreshed?.matriz.casos_count ?? 0) > 0,
+    ok: cobertura.skus_sin_caso === 0 && skusExcel > 0 && (refreshed?.matriz.casos_count ?? 0) > 0,
     evento_id: eventoId,
     biblioteca_id: bibId,
     casos_count: refreshed?.matriz.casos_count ?? 0,
-    skus_excel: skusExcel || prep.skus_total,
-    skus_con_caso: prep.skus_resueltos,
-    skus_sin_caso: prep.skus_sin_caso,
+    skus_excel: skusExcel || cobertura.skus_total,
+    skus_con_caso: cobertura.skus_con_caso,
+    skus_sin_caso: cobertura.skus_sin_caso,
+    lineas_sin_caso: cobertura.lineas_sin_caso,
     matriz_sincronizada: matrizSincronizada,
-    skus_huerfanos: huerfanos.slice(0, 200),
-    warnings: [...warnings, ...prep.warnings.filter((w) => !w.startsWith("Sin caso:"))].slice(0, 30),
+    lineas_huerfanas: lineasHuerfanas,
+    skus_huerfanos: huerfanos,
+    warnings: [...warnings, ...cobertura.warnings].slice(0, 30),
   };
 }

@@ -1,5 +1,11 @@
 import type { Pool } from "pg";
 import type { RimecDepositoCodigo } from "./rimec-csv-sdrm";
+import {
+  PE_CODIGO_BARRAS_EXPR,
+  PE_MONTO_GS_EXPR,
+  PE_PPD_FROM,
+  PE_SALDO_EXPR,
+} from "@/lib/stock-pronta-entrega/pe-ppd-sql";
 
 export type StockImportadoRow = {
   id: number;
@@ -24,23 +30,32 @@ export type StockImportadoSummary = {
   por_deposito: { deposito_codigo: string; filas: number; cantidad: number; monto_gs: number }[];
 };
 
+function peFilters(opts?: { deposito?: string; batch?: string }) {
+  const params: unknown[] = [];
+  const filters: string[] = [
+    `pp.entidad_comercial = 'STOCK'`,
+    `pp.deposito_codigo IS NOT NULL`,
+    `pp.estado_transito = 'EN_DEPOSITO'`,
+    `pp.categoria_id = 1`,
+    `lower(trim(qa.descripcion)) = lower('Pronta entrega')`,
+    `${PE_SALDO_EXPR} > 0`,
+  ];
+  if (opts?.deposito) {
+    params.push(opts.deposito);
+    filters.push(`pp.deposito_codigo = $${params.length}`);
+  }
+  if (opts?.batch) {
+    params.push(opts.batch);
+    filters.push(`pp.numero_proforma = $${params.length}`);
+  }
+  return { params, where: `WHERE ${filters.join(" AND ")}` };
+}
+
 export async function getStockImportado(
   pool: Pool,
   opts?: { deposito?: string; batch?: string },
 ): Promise<{ rows: StockImportadoRow[]; summary: StockImportadoSummary }> {
-  const params: unknown[] = [];
-  const filters: string[] = ["s.cantidad > 0"];
-
-  if (opts?.deposito) {
-    params.push(opts.deposito);
-    filters.push(`s.deposito_codigo = $${params.length}`);
-  }
-  if (opts?.batch) {
-    params.push(opts.batch);
-    filters.push(`s.batch_label = $${params.length}`);
-  }
-
-  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+  const { params, where } = peFilters(opts);
 
   const { rows } = await pool.query<{
     id: string;
@@ -57,28 +72,24 @@ export async function getStockImportado(
   }>(
     `
     SELECT
-      s.id,
-      s.deposito_codigo,
-      s.codigo_barras,
+      ppd.id,
+      pp.deposito_codigo,
+      ${PE_CODIGO_BARRAS_EXPR} AS codigo_barras,
       COALESCE(
-        NULLIF(TRIM(CONCAT(l.codigo_proveedor::text, '.', r.codigo_proveedor::text)), '.'),
-        s.cod_art_proveedor,
+        NULLIF(TRIM(CONCAT(ppd.linea, '.', ppd.referencia)), '.'),
+        ppd.nombre,
         '—'
       ) AS lr,
-      COALESCE(m.descripcion, s.excel_material_code, '—') AS material,
-      COALESCE(c.nombre, s.excel_color_code, '—') AS color,
-      COALESCE(NULLIF(TRIM(s.grada), ''), '—') AS grada,
-      s.cantidad::text,
-      s.precio_unitario_gs::text,
-      s.monto_gs::text,
-      s.batch_label
-    FROM stock_pronta_entrega_rimec s
-    LEFT JOIN linea l ON l.id = s.linea_id
-    LEFT JOIN referencia r ON r.id = s.referencia_id
-    LEFT JOIN material m ON m.id = s.material_id
-    LEFT JOIN color c ON c.id = s.color_id
+      COALESCE(ppd.descp_material, '—') AS material,
+      COALESCE(ppd.descp_color, '—') AS color,
+      COALESCE(NULLIF(TRIM(ppd.grada), ''), '—') AS grada,
+      ${PE_SALDO_EXPR}::text AS cantidad,
+      COALESCE(ppd.unit_fob_ajustado, 0)::text AS precio_unitario_gs,
+      ${PE_MONTO_GS_EXPR}::text AS monto_gs,
+      pp.numero_proforma AS batch_label
+    ${PE_PPD_FROM}
     ${where}
-    ORDER BY s.deposito_codigo, s.codigo_barras
+    ORDER BY pp.deposito_codigo, ppd.linea, ppd.referencia
     LIMIT 8000
     `,
     params,
@@ -105,20 +116,26 @@ export async function getStockImportado(
     monto_gs: string;
   }>(
     `
-    SELECT deposito_codigo,
+    SELECT pp.deposito_codigo,
            COUNT(*)::text AS filas,
-           SUM(cantidad)::text AS cantidad,
-           SUM(monto_gs)::text AS monto_gs
-    FROM stock_pronta_entrega_rimec s
+           SUM(${PE_SALDO_EXPR})::text AS cantidad,
+           SUM(${PE_MONTO_GS_EXPR})::text AS monto_gs
+    ${PE_PPD_FROM}
     ${where}
-    GROUP BY deposito_codigo
-    ORDER BY deposito_codigo
+    GROUP BY pp.deposito_codigo
+    ORDER BY pp.deposito_codigo
     `,
     params,
   );
 
   const batchesRes = await pool.query<{ batch_label: string }>(
-    `SELECT DISTINCT batch_label FROM stock_pronta_entrega_rimec ORDER BY batch_label DESC`,
+    `
+    SELECT DISTINCT pp.numero_proforma AS batch_label
+    FROM pedido_proveedor pp
+    WHERE pp.entidad_comercial = 'STOCK'
+      AND pp.deposito_codigo IS NOT NULL
+    ORDER BY pp.numero_proforma DESC
+    `,
   );
 
   const skus = new Set(mapped.map((r) => r.codigo_barras)).size;

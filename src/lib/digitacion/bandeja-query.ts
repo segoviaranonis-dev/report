@@ -1,10 +1,17 @@
 import type { Pool } from "pg";
+import {
+  CATEGORIA_PROGRAMADO_ID,
+  type RamoDigitacion,
+  categoriaIdFromRamo,
+} from "@/lib/intencion-compra/categoria-ic";
 
 export type IcDigitacionPendiente = {
   id: number;
   numero_registro: string;
   marca: string;
   categoria: string;
+  categoria_id: number | null;
+  estado: string;
   proveedor: string;
   cliente: string;
   pares: number;
@@ -44,20 +51,33 @@ export type IcDePp = {
   nro_pedido_fabrica: string | null;
 };
 
-export async function listIcPendientesDigitacion(pool: Pool): Promise<IcDigitacionPendiente[]> {
+export async function listIcPendientesDigitacion(
+  pool: Pool,
+  ramo?: RamoDigitacion,
+): Promise<IcDigitacionPendiente[]> {
+  const categoriaId = ramo ? categoriaIdFromRamo(ramo) : null;
+  const estados =
+    ramo === "programado"
+      ? ["PENDIENTE_OPERATIVO", "AUTORIZADO"]
+      : ["AUTORIZADO"];
+
   const { rows } = await pool.query<{
     id: string;
     numero_registro: string;
     marca: string;
     categoria: string;
+    categoria_id: string | null;
+    estado: string;
     proveedor: string;
     cliente: string;
     pares: string;
     fecha_embarque: string | null;
     evento_precio: string | null;
     precio_evento_id: string | null;
-  }>(`
-    SELECT ic.id, ic.numero_registro,
+  }>(
+    `
+    SELECT ic.id, ic.numero_registro, ic.estado,
+           ic.categoria_id::text AS categoria_id,
            mv.descp_marca AS marca,
            COALESCE(cat.descp_categoria, '—') AS categoria,
            pi.nombre AS proveedor,
@@ -73,18 +93,23 @@ export async function listIcPendientesDigitacion(pool: Pool): Promise<IcDigitaci
     LEFT JOIN categoria_v2 cat ON cat.id_categoria = ic.categoria_id
     LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id
     LEFT JOIN quincena_arribo qa ON qa.id = ic.quincena_arribo_id
-    WHERE ic.estado = 'AUTORIZADO'
+    WHERE ic.estado = ANY($1::text[])
       AND NOT EXISTS (
         SELECT 1 FROM intencion_compra_pedido icp WHERE icp.intencion_compra_id = ic.id
       )
+      AND ($2::int IS NULL OR ic.categoria_id = $2)
     ORDER BY ic.quincena_arribo_id ASC NULLS LAST, ic.numero_registro ASC
-  `);
+  `,
+    [estados, categoriaId],
+  );
 
   return rows.map((r) => ({
     id: Number(r.id),
     numero_registro: r.numero_registro,
     marca: r.marca,
     categoria: r.categoria,
+    categoria_id: r.categoria_id != null ? Number(r.categoria_id) : null,
+    estado: r.estado,
     proveedor: r.proveedor,
     cliente: r.cliente,
     pares: Number(r.pares ?? 0),
@@ -94,7 +119,8 @@ export async function listIcPendientesDigitacion(pool: Pool): Promise<IcDigitaci
   }));
 }
 
-export async function listPpsEnProceso(pool: Pool): Promise<PpEnProceso[]> {
+export async function listPpsEnProceso(pool: Pool, ramo?: RamoDigitacion): Promise<PpEnProceso[]> {
+  const categoriaId = ramo ? categoriaIdFromRamo(ramo) : null;
   const { rows } = await pool.query<{
     id: string;
     numero_registro: string;
@@ -139,6 +165,18 @@ export async function listPpsEnProceso(pool: Pool): Promise<PpEnProceso[]> {
     WHERE pp.estado IN ('ABIERTO', 'CERRADO')
       AND COALESCE(pp.estado, '') != 'ENVIADO'
       AND COALESCE(pp.estado_digitacion, 'ABIERTO') != 'CERRADO'
+      AND (
+        $1::int IS NULL
+        OR COALESCE(
+          pp.categoria_id,
+          (SELECT ic0.categoria_id
+           FROM intencion_compra_pedido icp0
+           JOIN intencion_compra ic0 ON ic0.id = icp0.intencion_compra_id
+           WHERE icp0.pedido_proveedor_id = pp.id
+           ORDER BY ic0.numero_registro
+           LIMIT 1)
+        ) = $1
+      )
     GROUP BY pp.id, qa.descripcion
     ORDER BY
       COALESCE(
@@ -151,7 +189,7 @@ export async function listPpsEnProceso(pool: Pool): Promise<PpEnProceso[]> {
         9999
       ) ASC,
       pp.numero_registro ASC
-  `);
+  `, [categoriaId]);
 
   return rows.map((r) => ({
     id: Number(r.id),
@@ -226,8 +264,12 @@ export async function getIcAsignacion(pool: Pool, icId: number) {
     JOIN cliente_v2 cv ON cv.id_cliente = ic.id_cliente
     LEFT JOIN categoria_v2 cat ON cat.id_categoria = ic.categoria_id
     LEFT JOIN quincena_arribo qa ON qa.id = ic.quincena_arribo_id
-    WHERE ic.id = $1 AND ic.estado = 'AUTORIZADO'
-  `, [icId]);
+    WHERE ic.id = $1
+      AND (
+        ic.estado = 'AUTORIZADO'
+        OR (ic.estado = 'PENDIENTE_OPERATIVO' AND ic.categoria_id = $2)
+      )
+  `, [icId, CATEGORIA_PROGRAMADO_ID]);
 
   const r = rows[0];
   if (!r) return null;
@@ -246,7 +288,8 @@ export async function getIcAsignacion(pool: Pool, icId: number) {
   };
 }
 
-export async function listPpsDigitacionCerrados(pool: Pool): Promise<PpEnProceso[]> {
+export async function listPpsDigitacionCerrados(pool: Pool, ramo?: RamoDigitacion): Promise<PpEnProceso[]> {
+  const categoriaId = ramo ? categoriaIdFromRamo(ramo) : null;
   const { rows } = await pool.query<{
     id: string;
     numero_registro: string;
@@ -290,6 +333,18 @@ export async function listPpsDigitacionCerrados(pool: Pool): Promise<PpEnProceso
     LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     WHERE pp.estado IN ('ABIERTO', 'CERRADO')
       AND pp.estado_digitacion = 'CERRADO'
+      AND (
+        $1::int IS NULL
+        OR COALESCE(
+          pp.categoria_id,
+          (SELECT ic0.categoria_id
+           FROM intencion_compra_pedido icp0
+           JOIN intencion_compra ic0 ON ic0.id = icp0.intencion_compra_id
+           WHERE icp0.pedido_proveedor_id = pp.id
+           ORDER BY ic0.numero_registro
+           LIMIT 1)
+        ) = $1
+      )
     GROUP BY pp.id, qa.descripcion
     ORDER BY
       COALESCE(
@@ -302,7 +357,7 @@ export async function listPpsDigitacionCerrados(pool: Pool): Promise<PpEnProceso
         9999
       ) ASC,
       pp.numero_registro ASC
-  `);
+  `, [categoriaId]);
 
   return rows.map((r) => ({
     id: Number(r.id),
@@ -354,8 +409,9 @@ export function groupPpDigitacionPorQuincena(pps: PpEnProceso[]): PpDigitacionQu
   return grupos;
 }
 
-export async function listPpsAbiertosSelector(pool: Pool) {
-  const { rows } = await pool.query<{ id: string; numero_registro: string; marcas: string; pares: string }>(`
+export async function listPpsAbiertosSelector(pool: Pool, categoriaId?: number | null) {
+  const { rows } = await pool.query<{ id: string; numero_registro: string; marcas: string; pares: string }>(
+    `
     SELECT pp.id, pp.numero_registro,
            COALESCE(string_agg(DISTINCT mv.descp_marca, ', '), '—') AS marcas,
            COALESCE(pp.pares_comprometidos, 0)::text AS pares
@@ -365,9 +421,23 @@ export async function listPpsAbiertosSelector(pool: Pool) {
     LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     WHERE pp.estado = 'ABIERTO'
       AND COALESCE(pp.estado_digitacion, 'ABIERTO') != 'CERRADO'
+      AND (
+        $1::int IS NULL
+        OR COALESCE(
+          pp.categoria_id,
+          (SELECT ic0.categoria_id
+           FROM intencion_compra_pedido icp0
+           JOIN intencion_compra ic0 ON ic0.id = icp0.intencion_compra_id
+           WHERE icp0.pedido_proveedor_id = pp.id
+           ORDER BY ic0.numero_registro
+           LIMIT 1)
+        ) = $1
+      )
     GROUP BY pp.id
     ORDER BY pp.numero_registro DESC
-  `);
+  `,
+    [categoriaId ?? null],
+  );
   return rows.map((r) => ({
     id: Number(r.id),
     label: `${r.numero_registro} · ${r.marcas} · ${Number(r.pares).toLocaleString("es-PY")} pares`,

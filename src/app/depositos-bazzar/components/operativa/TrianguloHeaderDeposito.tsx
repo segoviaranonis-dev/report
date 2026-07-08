@@ -36,6 +36,8 @@ type Props = {
   summaryLayout?: "default" | "vitales-first";
   /** PE: Calzado/Confecciones trascendental en barra colapsada (no fila chips) */
   categoriaEnCabecera?: boolean;
+  /** PE: pills extra junto a pares/Gs (venta demo) */
+  summaryTrailing?: React.ReactNode;
 };
 
 function Pill({
@@ -180,6 +182,7 @@ export function TrianguloHeaderDeposito({
   categoriaFirst = false,
   summaryLayout = "default",
   categoriaEnCabecera = false,
+  summaryTrailing,
 }: Props) {
   const patch = (p: Partial<OperativaFilterState>) =>
     onChange((prev) => ({ ...prev, ...p }));
@@ -263,6 +266,7 @@ export function TrianguloHeaderDeposito({
                     variant="prominent"
                     hideProductos={hideProductosVital}
                   />
+                  {summaryTrailing}
                   {!categoriaEnCabecera ? (
                     <p className="hidden text-[10px] font-bold uppercase tracking-[0.18em] text-bazzar-naranja/70 sm:block">
                       Filtros

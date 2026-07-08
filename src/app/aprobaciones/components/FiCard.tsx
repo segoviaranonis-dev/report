@@ -11,6 +11,7 @@ import {
   fmtGs,
   listaPrecioLabel,
   ppDisplay,
+  badgeProntaEntrega,
 } from "../lib/aprobaciones-utils";
 import {
   ClienteEditor,
@@ -87,6 +88,7 @@ export function FiCard({
   }, [fi.id, onLoadDetalle, detallesProp]);
 
   const badge = estadoBadge(fi.estado);
+  const peBadge = fi.origen_pe ? badgeProntaEntrega() : null;
   const displayId = fiDisplayId(fi);
   const legacy = fi.nro_factura || null;
   const estadoUpper = (fi.estado || "").toUpperCase();
@@ -132,6 +134,14 @@ export function FiCard({
             <span className="rounded-lg border-2 border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800">
               {ppDisplay(fi)}
             </span>
+            {peBadge && (
+              <span
+                className="rounded-lg px-3 py-1.5 text-xs font-black tracking-wide"
+                style={{ backgroundColor: peBadge.bg, color: peBadge.fg }}
+              >
+                {peBadge.label}
+              </span>
+            )}
             {legacy && legacy !== displayId && (
               <span className="rounded-lg border border-dashed border-neutral-400 bg-neutral-50 px-2.5 py-1.5 text-xs font-medium text-neutral-600">
                 FI {legacy}

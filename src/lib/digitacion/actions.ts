@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { getNextNumeroPp } from "./numeracion-pp";
 
 export type AsignarIcInput = {
@@ -47,7 +48,21 @@ export async function asignarIc(
       [input.ic_id],
     );
     const ic = icRes.rows[0];
-    if (!ic || ic.estado !== "AUTORIZADO") {
+    if (!ic) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "IC no encontrada." };
+    }
+
+    const catId = ic.categoria_id ? Number(ic.categoria_id) : null;
+    const esProgramado = catId === CATEGORIA_PROGRAMADO_ID;
+
+    if (ic.estado === "PENDIENTE_OPERATIVO") {
+      if (!esProgramado) {
+        await client.query("ROLLBACK");
+        return { ok: false, error: "IC no está AUTORIZADA. Autorizá en Bandeja IC." };
+      }
+      await client.query(`UPDATE intencion_compra SET estado = 'AUTORIZADO' WHERE id = $1`, [input.ic_id]);
+    } else if (ic.estado !== "AUTORIZADO") {
       await client.query("ROLLBACK");
       return { ok: false, error: "IC no está AUTORIZADA." };
     }
@@ -72,7 +87,7 @@ export async function asignarIc(
           proveedor_importacion_id, categoria_id, pares_comprometidos, quincena_arribo_id
         ) VALUES ($1, $2, 'ABIERTO', 'ABIERTO', $3, $4, 0, $5)
         RETURNING id, numero_registro`,
-        [numero, anio, Number(ic.id_proveedor), ic.categoria_id ? Number(ic.categoria_id) : null, quincenaId],
+        [numero, anio, Number(ic.id_proveedor), catId, quincenaId],
       );
       ppId = Number(ins.rows[0].id);
     } else {
@@ -105,8 +120,15 @@ export async function asignarIc(
          categoria_id = COALESCE(categoria_id, $4),
          quincena_arribo_id = COALESCE(quincena_arribo_id, $5)
        WHERE id = $1`,
-      [ppId, pares, Number(ic.id_proveedor), ic.categoria_id ? Number(ic.categoria_id) : null, quincenaId],
+      [ppId, pares, Number(ic.id_proveedor), catId, quincenaId],
     );
+
+    if (esProgramado) {
+      await client.query(
+        `UPDATE pedido_proveedor SET categoria_id = $2 WHERE id = $1 AND (categoria_id IS NULL OR categoria_id != $2)`,
+        [ppId, CATEGORIA_PROGRAMADO_ID],
+      );
+    }
 
     const ppNum = await client.query<{ numero_registro: string }>(
       `SELECT numero_registro FROM pedido_proveedor WHERE id = $1`,

@@ -1,5 +1,13 @@
 import type { Pool } from "pg";
 import { resolveDepositoCodigo } from "@/lib/deposito-rimec/rimec-csv-sdrm";
+import {
+  PE_CODIGO_BARRAS_EXPR,
+  PE_DEPOSITO_COL_EXPR,
+  PE_MONTO_GS_EXPR,
+  PE_PPD_FROM,
+  PE_SALDO_EXPR,
+  PE_TIPO_V2_EXPR,
+} from "@/lib/stock-pronta-entrega/pe-ppd-sql";
 
 export type PeResumenRamo = { tipo_v2_id: number; label: string; uds: number; filas: number; monto_gs: number };
 export type PeResumenDeposito = {
@@ -15,38 +23,69 @@ export type StockProntaEntregaResumen = {
   filas: number;
   skus: number;
   uds_total: number;
+  uds_inicial: number;
   uds_vendidas: number;
   monto_gs: number;
   calzado: PeResumenRamo;
   confecciones: PeResumenRamo;
   por_deposito: PeResumenDeposito[];
   violacion: "HIEDRA_VENENOSA_PE";
+  origen: "pedido_proveedor_detalle";
 };
 
-export async function getStockProntaEntregaResumen(
-  pool: Pool,
+function buildPeFilters(
   opts?: { deposito?: string; batch?: string; tipo_v2?: number },
-): Promise<StockProntaEntregaResumen> {
+  saldoPositivo = true,
+) {
   const params: unknown[] = [];
-  const filters: string[] = ["s.cantidad > 0"];
+  const filters: string[] = [
+    `pp.entidad_comercial = 'STOCK'`,
+    `pp.deposito_codigo IS NOT NULL`,
+    `pp.estado_transito = 'EN_DEPOSITO'`,
+    `pp.categoria_id = 1`,
+    `lower(trim(qa.descripcion)) = lower('Pronta entrega')`,
+  ];
+  if (saldoPositivo) {
+    filters.push(`GREATEST(0, COALESCE(ppd.cantidad_pares, 0) - COALESCE(ppd.pares_vendidos, 0)) > 0`);
+  }
 
   if (opts?.deposito) {
     const dep = resolveDepositoCodigo(opts.deposito);
     if (dep) {
       params.push(dep);
-      filters.push(`s.deposito_codigo = $${params.length}`);
+      filters.push(`pp.deposito_codigo = $${params.length}`);
     }
   }
   if (opts?.batch) {
     params.push(opts.batch);
-    filters.push(`s.batch_label = $${params.length}`);
+    filters.push(`pp.numero_proforma = $${params.length}`);
   }
   if (opts?.tipo_v2 === 1 || opts?.tipo_v2 === 2) {
     params.push(opts.tipo_v2);
-    filters.push(`s.tipo_v2_id = $${params.length}`);
+    filters.push(`${PE_TIPO_V2_EXPR} = $${params.length}`);
   }
 
-  const where = `WHERE ${filters.join(" AND ")}`;
+  return { params, where: `WHERE ${filters.join(" AND ")}` };
+}
+
+export async function getStockProntaEntregaResumen(
+  pool: Pool,
+  opts?: { deposito?: string; batch?: string; tipo_v2?: number },
+): Promise<StockProntaEntregaResumen> {
+  const { params, where } = buildPeFilters(opts);
+  const { params: paramsAll, where: whereAll } = buildPeFilters(opts, false);
+
+  const vendidoQ = await pool.query<{ inicial: string; saldo: string; vendido: string }>(
+    `
+    SELECT
+      COALESCE(SUM(COALESCE(ppd.cantidad_pares, 0)), 0)::text AS inicial,
+      COALESCE(SUM(${PE_SALDO_EXPR}), 0)::text AS saldo,
+      COALESCE(SUM(COALESCE(ppd.pares_vendidos, 0)), 0)::text AS vendido
+    ${PE_PPD_FROM}
+    ${whereAll}
+    `,
+    paramsAll,
+  );
 
   const agg = await pool.query<{
     batch_label: string;
@@ -58,29 +97,40 @@ export async function getStockProntaEntregaResumen(
   }>(
     `
     SELECT
-      COALESCE(MAX(s.batch_label), '—') AS batch_label,
+      COALESCE(MAX(pp.numero_proforma), '—') AS batch_label,
       COUNT(*)::text AS filas,
-      COUNT(DISTINCT s.codigo_barras)::text AS skus,
-      COALESCE(SUM(s.cantidad), 0)::text AS uds,
-      COALESCE(SUM(s.monto_gs), 0)::text AS monto,
-      MAX(s.created_at)::text AS max_created
-    FROM stock_pronta_entrega_rimec s
+      COUNT(DISTINCT ${PE_CODIGO_BARRAS_EXPR})::text AS skus,
+      COALESCE(SUM(${PE_SALDO_EXPR}), 0)::text AS uds,
+      COALESCE(SUM(${PE_MONTO_GS_EXPR}), 0)::text AS monto,
+      MAX(ppd.created_at)::text AS max_created
+    ${PE_PPD_FROM}
     ${where}
     `,
     params,
   );
 
   const row = agg.rows[0];
+  const v = vendidoQ.rows[0];
+  const udsInicial = Number(v?.inicial ?? row?.uds ?? 0);
+  const udsSaldo = Number(row?.uds ?? 0);
+  const udsVendidas = Number(v?.vendido ?? Math.max(udsInicial - udsSaldo, 0));
+
   const calzadoQ = await pool.query<{ uds: string; filas: string; monto: string }>(
-    `SELECT COALESCE(SUM(cantidad),0)::text AS uds, COUNT(*)::text AS filas,
-            COALESCE(SUM(monto_gs),0)::text AS monto
-     FROM stock_pronta_entrega_rimec s ${where} AND s.tipo_v2_id = 1`,
+    `
+    SELECT COALESCE(SUM(${PE_SALDO_EXPR}),0)::text AS uds, COUNT(*)::text AS filas,
+           COALESCE(SUM(${PE_MONTO_GS_EXPR}),0)::text AS monto
+    ${PE_PPD_FROM}
+    ${where} AND ${PE_TIPO_V2_EXPR} = 1
+    `,
     params,
   );
   const confQ = await pool.query<{ uds: string; filas: string; monto: string }>(
-    `SELECT COALESCE(SUM(cantidad),0)::text AS uds, COUNT(*)::text AS filas,
-            COALESCE(SUM(monto_gs),0)::text AS monto
-     FROM stock_pronta_entrega_rimec s ${where} AND s.tipo_v2_id = 2`,
+    `
+    SELECT COALESCE(SUM(${PE_SALDO_EXPR}),0)::text AS uds, COUNT(*)::text AS filas,
+           COALESCE(SUM(${PE_MONTO_GS_EXPR}),0)::text AS monto
+    ${PE_PPD_FROM}
+    ${where} AND ${PE_TIPO_V2_EXPR} = 2
+    `,
     params,
   );
 
@@ -92,21 +142,14 @@ export async function getStockProntaEntregaResumen(
   }>(
     `
     SELECT
-      s.deposito_codigo,
-      COALESCE(s.columna_stock_legal,
-        CASE s.deposito_codigo
-          WHEN 'D1' THEN 'S00_D1'
-          WHEN 'DEP2' THEN 'S00_DEP2'
-          WHEN 'D3' THEN 'S00_D3'
-          ELSE s.deposito_codigo
-        END
-      ) AS columna_stock_legal,
-      COALESCE(SUM(s.cantidad), 0)::text AS uds,
+      pp.deposito_codigo,
+      ${PE_DEPOSITO_COL_EXPR} AS columna_stock_legal,
+      COALESCE(SUM(${PE_SALDO_EXPR}), 0)::text AS uds,
       COUNT(*)::text AS filas
-    FROM stock_pronta_entrega_rimec s
+    ${PE_PPD_FROM}
     ${where}
-    GROUP BY s.deposito_codigo, s.columna_stock_legal
-    ORDER BY s.deposito_codigo
+    GROUP BY pp.deposito_codigo
+    ORDER BY pp.deposito_codigo
     `,
     params,
   );
@@ -116,8 +159,9 @@ export async function getStockProntaEntregaResumen(
     fecha_importacion: row?.max_created ?? null,
     filas: Number(row?.filas ?? 0),
     skus: Number(row?.skus ?? 0),
-    uds_total: Number(row?.uds ?? 0),
-    uds_vendidas: 0,
+    uds_total: udsSaldo,
+    uds_inicial: udsInicial,
+    uds_vendidas: udsVendidas,
     monto_gs: Number(row?.monto ?? 0),
     calzado: {
       tipo_v2_id: 1,
@@ -140,5 +184,6 @@ export async function getStockProntaEntregaResumen(
       filas: Number(d.filas),
     })),
     violacion: "HIEDRA_VENENOSA_PE",
+    origen: "pedido_proveedor_detalle",
   };
 }

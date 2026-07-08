@@ -58,6 +58,10 @@ type StockPeContextValue = {
   cardsCount: number;
   totalPares: number;
   valorInventario: number;
+  calzadoPares: number;
+  confeccionesPares: number;
+  calzadoGs: number;
+  confeccionesGs: number;
 };
 
 const StockPeContext = createContext<StockPeContextValue | null>(null);
@@ -118,6 +122,28 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
   const totalPares = useMemo(() => filtradas.reduce((s, p) => s + p.cantidad, 0), [filtradas]);
   const valorInventario = useMemo(() => calcValorInventario(filtradas), [filtradas]);
 
+  const calzadoFiltrado = useMemo(
+    () => filtradas.filter((r) => r.tipo_v2_id === 1),
+    [filtradas],
+  );
+  const confeccionesFiltrado = useMemo(
+    () => filtradas.filter((r) => r.tipo_v2_id === 2),
+    [filtradas],
+  );
+  const calzadoPares = useMemo(
+    () => calzadoFiltrado.reduce((s, p) => s + p.cantidad, 0),
+    [calzadoFiltrado],
+  );
+  const confeccionesPares = useMemo(
+    () => confeccionesFiltrado.reduce((s, p) => s + p.cantidad, 0),
+    [confeccionesFiltrado],
+  );
+  const calzadoGs = useMemo(() => calcValorInventario(calzadoFiltrado), [calzadoFiltrado]);
+  const confeccionesGs = useMemo(
+    () => calcValorInventario(confeccionesFiltrado),
+    [confeccionesFiltrado],
+  );
+
   const value = useMemo(
     () => ({
       rows,
@@ -140,6 +166,10 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       cardsCount,
       totalPares,
       valorInventario,
+      calzadoPares,
+      confeccionesPares,
+      calzadoGs,
+      confeccionesGs,
     }),
     [
       rows,
@@ -159,6 +189,10 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       cardsCount,
       totalPares,
       valorInventario,
+      calzadoPares,
+      confeccionesPares,
+      calzadoGs,
+      confeccionesGs,
     ],
   );
 

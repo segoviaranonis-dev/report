@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { SkuStagingRow } from "./excel-proveedor";
 import { normalizarMarca } from "./ley-genero";
-import { parseCodigoPilar, resolverPilaresSku } from "./evento-pilares";
+import { parseCodigoPilar, resolverPilaresSku, codigoLineaDesdeSku } from "./evento-pilares";
 import { cargarSkusExcel, contarSkusExcel } from "./evento-sku-staging";
 
 export type CasoAsignacion = {
@@ -60,12 +60,12 @@ async function cargarCasosAsignacion(pool: Pool, eventoId: number): Promise<Caso
 }
 
 function asignarCasoId(sku: SkuStagingRow, casos: CasoAsignacion[]): number | null {
-  const lineaCod = parseCodigoPilar(sku.linea);
+  const lineaCod = codigoLineaDesdeSku(sku);
   const marcaNorm = normalizarMarca(sku.marca);
 
-  if (lineaCod != null) {
+  if (lineaCod) {
     for (const c of casos) {
-      if (c.lineas.includes(String(lineaCod))) return c.id;
+      if (c.lineas.includes(lineaCod)) return c.id;
     }
   }
 
@@ -79,6 +79,88 @@ function asignarCasoId(sku: SkuStagingRow, casos: CasoAsignacion[]): number | nu
   if (catchAll) return catchAll.id;
 
   return casos.length === 1 ? casos[0].id : null;
+}
+
+export type LineaHuérfana = {
+  marca: string;
+  linea_codigo: string;
+  skus_afectados: number;
+};
+
+export type CoberturaCasosResult = {
+  warnings: string[];
+  skus_total: number;
+  skus_con_caso: number;
+  skus_sin_caso: number;
+  lineas_sin_caso: number;
+  lineas_huerfanas: LineaHuérfana[];
+  huerfanos: Array<{
+    marca: string;
+    linea: string;
+    referencia: string;
+    material: string;
+  }>;
+};
+
+/** Preview — solo Excel × matriz de casos (sin tocar pilares en BD). */
+export async function auditarCoberturaCasos(pool: Pool, eventoId: number): Promise<CoberturaCasosResult> {
+  const skus = await cargarSkusExcel(pool, eventoId);
+  const casos = await cargarCasosAsignacion(pool, eventoId);
+  const warnings: string[] = [];
+  const huerfanos: CoberturaCasosResult["huerfanos"] = [];
+  const lineasMap = new Map<string, { marca: string; count: number }>();
+  let conCaso = 0;
+  let sinCaso = 0;
+
+  if (!skus.length) {
+    warnings.push("No hay SKUs Excel persistidos — volvé al Paso 0 y cargá el archivo.");
+  }
+  if (!casos.length) {
+    warnings.push("Matriz de casos vacía — asigná biblioteca en Memoria.");
+  }
+
+  for (const sku of skus) {
+    const casoId = asignarCasoId(sku, casos);
+    if (!casoId) {
+      sinCaso += 1;
+      const lineaCod = codigoLineaDesdeSku(sku);
+      if (lineaCod) {
+        const prev = lineasMap.get(lineaCod);
+        lineasMap.set(lineaCod, {
+          marca: sku.marca,
+          count: (prev?.count ?? 0) + 1,
+        });
+      }
+      if (huerfanos.length < 200) {
+        huerfanos.push({
+          marca: sku.marca,
+          linea: sku.linea,
+          referencia: sku.referencia,
+          material: sku.material,
+        });
+      }
+    } else {
+      conCaso += 1;
+    }
+  }
+
+  const lineas_huerfanas: LineaHuérfana[] = [...lineasMap.entries()]
+    .map(([linea_codigo, v]) => ({
+      marca: v.marca,
+      linea_codigo,
+      skus_afectados: v.count,
+    }))
+    .sort((a, b) => Number(a.linea_codigo) - Number(b.linea_codigo));
+
+  return {
+    warnings,
+    skus_total: skus.length,
+    skus_con_caso: conCaso,
+    skus_sin_caso: sinCaso,
+    lineas_sin_caso: lineas_huerfanas.length,
+    lineas_huerfanas,
+    huerfanos,
+  };
 }
 
 export async function prepararStagingPaso3(
@@ -99,8 +181,15 @@ export async function prepararStagingPaso3(
     warnings.push("Matriz de casos vacía — asigná biblioteca en Memoria.");
   }
 
+  const pilaresCache = new Map<string, Awaited<ReturnType<typeof resolverPilaresSku>>>();
+
   for (const sku of skus) {
-    const pilares = await resolverPilaresSku(pool, proveedorId, sku);
+    const cacheKey = `${proveedorId}|${sku.linea}|${sku.referencia}|${sku.material}|${sku.marca}`;
+    let pilares = pilaresCache.get(cacheKey);
+    if (pilares === undefined) {
+      pilares = await resolverPilaresSku(pool, proveedorId, sku);
+      pilaresCache.set(cacheKey, pilares);
+    }
     if (!pilares) {
       warnings.push(`SKU sin pilares: ${sku.marca} · L${sku.linea} R${sku.referencia} M${sku.material}`);
       continue;

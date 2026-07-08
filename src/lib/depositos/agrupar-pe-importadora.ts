@@ -4,17 +4,25 @@ import { resolvePrecioGrupoLRM } from "@/lib/depositos/precio-venta";
 
 export type GradaImportadoraLine = {
   curva: string;
+  /** Saldo actual (pares disponibles). */
   pares: number;
+  /** Pares vendidos en la curva. */
+  vendidos: number;
 };
 
 export type PeImportadoraCard = {
   key: string;
   producto: DepositoRow;
   gradas: GradaImportadoraLine[];
+  /** Saldo agregado (suma cantidad). */
   totalPares: number;
+  totalInicial: number;
+  totalVendidos: number;
   estilo: string;
   precioVenta: number | null;
   casoComercial: string | null;
+  /** Tránsito — quincena_arribo.descripcion (dato duro llegada) */
+  llegadaDesc: string | null;
 };
 
 function moleculeKey(p: DepositoRow): string {
@@ -26,10 +34,30 @@ function canonCurva(raw: string | null | undefined): string {
   return s && s !== "—" ? s : "(sin grada)";
 }
 
-/** Agrupa molécula L+R+material+color · gradas = curvas importadora con pares. */
+/** Etiqueta llegada desde filas agrupadas (quincena_arribo.descripcion). */
+export function llegadaDescFromRows(rows: DepositoRow[]): string | null {
+  const labels = [
+    ...new Set(
+      rows
+        .map((r) => String(r.quincena_desc ?? "").trim())
+        .filter((s) => s && s !== "—" && !/^sin quincena/i.test(s)),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "es"));
+  if (labels.length === 0) return null;
+  if (labels.length === 1) return labels[0];
+  return `${labels[0]} · +${labels.length - 1}`;
+}
+
+type AgruparPeOpts = {
+  /** Tránsito / programado — prioriza vendido en orden de tarjetas. */
+  ordenVentas?: boolean;
+};
+
+/** Agrupa molécula L+R+material+color · una imagen · gradas = curvas con saldo/vendido. */
 export function agruparPeImportadora(
   rows: DepositoRow[],
   casoPorLinea?: Map<string, string> | null,
+  opts?: AgruparPeOpts,
 ): PeImportadoraCard[] {
   const map = new Map<string, DepositoRow[]>();
 
@@ -42,15 +70,31 @@ export function agruparPeImportadora(
 
   return Array.from(map.entries())
     .map(([key, items]) => {
-      const gradaMap = new Map<string, number>();
+      const gradaMap = new Map<string, { pares: number; vendidos: number }>();
+      let totalInicial = 0;
+      let totalVendidos = 0;
+
       for (const item of items) {
         const curva = canonCurva(item.grada);
-        gradaMap.set(curva, (gradaMap.get(curva) ?? 0) + item.cantidad);
+        const prev = gradaMap.get(curva) ?? { pares: 0, vendidos: 0 };
+        const vend = item.pares_vendidos ?? 0;
+        const ini = item.cantidad_inicial ?? item.cantidad + vend;
+        gradaMap.set(curva, {
+          pares: prev.pares + item.cantidad,
+          vendidos: prev.vendidos + vend,
+        });
+        totalInicial += ini;
+        totalVendidos += vend;
       }
 
       const gradas = Array.from(gradaMap.entries())
-        .map(([curva, pares]) => ({ curva, pares }))
-        .sort((a, b) => b.pares - a.pares || a.curva.localeCompare(b.curva, "es"));
+        .map(([curva, g]) => ({ curva, pares: g.pares, vendidos: g.vendidos }))
+        .filter((g) => g.pares > 0 || g.vendidos > 0)
+        .sort(
+          (a, b) =>
+            b.vendidos + b.pares - (a.vendidos + a.pares) ||
+            a.curva.localeCompare(b.curva, "es"),
+        );
 
       const totalPares = gradas.reduce((s, g) => s + g.pares, 0);
 
@@ -59,12 +103,19 @@ export function agruparPeImportadora(
         producto: items[0],
         gradas,
         totalPares,
+        totalInicial,
+        totalVendidos,
         estilo: items[0].estilo,
         precioVenta: resolvePrecioGrupoLRM(items),
         casoComercial: lookupCasoLinea(casoPorLinea, items[0].linea_codigo_proveedor),
+        llegadaDesc: llegadaDescFromRows(items),
       };
     })
     .sort((a, b) => {
+      if (opts?.ordenVentas) {
+        const dv = b.totalVendidos - a.totalVendidos;
+        if (dv !== 0) return dv;
+      }
       const dp = b.totalPares - a.totalPares;
       if (dp !== 0) return dp;
       return a.key.localeCompare(b.key, "es");

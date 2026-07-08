@@ -32,37 +32,45 @@ export type PpDetalleHeader = {
   cabecera_editable: boolean;
   listado_editable: boolean;
   listado_precio: { evento_id: number; nombre: string } | null;
+  /** EN_TRANSITO = visible catálogo RIMEC Web (v_stock_rimec · TRÁNSITO_PP). */
+  estado_transito: string | null;
+  web_alzado: boolean;
   n_facturas_internas: number;
   n_fi_confirmadas: number;
   fi_bloqueada: boolean;
 };
 
-export type PpAlaNorteRow = {
-  id: number;
-  marca: string;
-  linea: string;
-  referencia: string;
-  material: string;
-  color: string;
-  grada: string | null;
-  cantidad_inicial: number;
-  vendido: number;
-  saldo: number;
-};
+import type { PpAlaNorteRow } from "./ala-norte-types";
+
+export type { PpAlaNorteRow };
 
 export type PpFacturaInternaRow = {
   id: number;
   nro_factura: string;
   estado: string;
   total_pares: number;
+  total_cajas: number;
   total_monto: number;
+  created_at: string | null;
+  cliente_id: number | null;
   cliente: string;
   vendedor: string;
+  marca: string;
+  caso: string;
+  lista_precio_id: number | null;
+  ic_listado_precio_id: number | null;
+  plazo_nombre: string | null;
+  descuento_1: number;
+  descuento_2: number;
+  descuento_3: number;
+  descuento_4: number;
+  item_count: number;
 };
 
 export type PpIcVinculada = IcDePp & {
   evento_id: number | null;
   evento_nombre: string | null;
+  listado_precio_id: number | null;
   id_marca: number;
   id_vendedor: number;
   id_proveedor: number;
@@ -76,6 +84,7 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     id: string;
     numero_registro: string;
     estado: string;
+    estado_transito: string | null;
     estado_digitacion: string | null;
     numero_proforma: string | null;
     nro_factura_importacion: string | null;
@@ -106,6 +115,7 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
       pp.id,
       pp.numero_registro,
       pp.estado,
+      pp.estado_transito,
       pp.estado_digitacion,
       pp.numero_proforma,
       pp.nro_factura_importacion,
@@ -245,6 +255,8 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     descuento_4: Number(r.descuento_4 ?? 0),
     cabecera_editable: ppCabeceraEditable(r.estado),
     listado_editable: r.estado !== "ENVIADO",
+    estado_transito: r.estado_transito,
+    web_alzado: r.estado_transito === "EN_TRANSITO",
     listado_precio:
       r.evento_id != null
         ? { evento_id: Number(r.evento_id), nombre: r.evento_nombre ?? `Evento #${r.evento_id}` }
@@ -261,9 +273,14 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
     marca: string;
     linea: string;
     referencia: string;
+    style_code: string | null;
+    material_code: string | null;
     material: string;
+    color_code: string | null;
     color: string;
     grada: string | null;
+    grades_json: unknown;
+    cantidad_cajas: string;
     cantidad_inicial: string;
     vendido: string;
     saldo: string;
@@ -274,9 +291,14 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
       COALESCE(mv.descp_marca, '—') AS marca,
       ppd.linea,
       ppd.referencia,
+      ppd.style_code,
+      ppd.material_code,
       COALESCE(ppd.descp_material, '—') AS material,
+      ppd.color_code,
       COALESCE(ppd.descp_color, '—') AS color,
       ppd.grada,
+      ppd.grades_json,
+      COALESCE(ppd.cantidad_cajas, 0)::text AS cantidad_cajas,
       COALESCE(ppd.cantidad_pares, 0)::text AS cantidad_inicial,
       GREATEST(
         COALESCE(ppd.pares_vendidos, 0),
@@ -294,8 +316,9 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
     WHERE ppd.pedido_proveedor_id = $1
       AND ppd.referencia IS NOT NULL
     GROUP BY ppd.id, mv.descp_marca, ppd.linea, ppd.referencia,
-             ppd.descp_material, ppd.descp_color, ppd.grada,
-             ppd.cantidad_pares, ppd.pares_vendidos
+             ppd.style_code, ppd.material_code, ppd.descp_material,
+             ppd.color_code, ppd.descp_color, ppd.grada, ppd.grades_json,
+             ppd.cantidad_cajas, ppd.cantidad_pares, ppd.pares_vendidos
     ORDER BY ppd.id
     `,
     [ppId],
@@ -306,9 +329,14 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
     marca: r.marca,
     linea: r.linea,
     referencia: r.referencia,
+    style_code: r.style_code,
+    material_code: r.material_code,
     material: r.material,
+    color_code: r.color_code,
     color: r.color,
     grada: r.grada,
+    grades_json: r.grades_json,
+    cantidad_cajas: Number(r.cantidad_cajas ?? 0),
     cantidad_inicial: Number(r.cantidad_inicial ?? 0),
     vendido: Number(r.vendido ?? 0),
     saldo: Number(r.saldo ?? 0),
@@ -321,33 +349,96 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
     nro_factura: string;
     estado: string;
     total_pares: string;
+    total_cajas: string;
     total_monto: string;
+    created_at: string | null;
+    cliente_id: string | null;
     cliente: string;
     vendedor: string;
+    marca: string;
+    caso: string;
+    lista_precio_id: string | null;
+    ic_listado_precio_id: string | null;
+    plazo_nombre: string | null;
+    descuento_1: string;
+    descuento_2: string;
+    descuento_3: string;
+    descuento_4: string;
+    item_count: string;
   }>(
     `
     SELECT fi.id, fi.nro_factura, fi.estado,
            COALESCE(fi.total_pares, 0)::text AS total_pares,
+           COALESCE((
+             SELECT SUM(fid.cajas)::text
+             FROM factura_interna_detalle fid
+             WHERE fid.factura_id = fi.id
+           ), '0') AS total_cajas,
            COALESCE(fi.total_monto, 0)::text AS total_monto,
+           fi.created_at::text AS created_at,
+           fi.cliente_id::text AS cliente_id,
            COALESCE(cv.descp_cliente, '—') AS cliente,
-           COALESCE(uv.descp_usuario, '—') AS vendedor
+           COALESCE(NULLIF(TRIM(vd.descp_vendedor), ''), '—') AS vendedor,
+           COALESCE(NULLIF(TRIM(fi.marca), ''), NULLIF(TRIM(mv.descp_marca), ''), '—') AS marca,
+           COALESCE(fi.caso, '—') AS caso,
+           fi.lista_precio_id::text AS lista_precio_id,
+           ic.listado_precio_id::text AS ic_listado_precio_id,
+           COALESCE(NULLIF(TRIM(pl.descp_plazo), ''), NULLIF(TRIM(pl_ic.descp_plazo), '')) AS plazo_nombre,
+           COALESCE(fi.descuento_1, ic.descuento_1, 0)::text AS descuento_1,
+           COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
+           COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
+           COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
+           (SELECT COUNT(*)::text FROM factura_interna_detalle d WHERE d.factura_id = fi.id) AS item_count
     FROM factura_interna fi
     LEFT JOIN cliente_v2 cv ON cv.id_cliente = fi.cliente_id
-    LEFT JOIN usuario_v2 uv ON uv.id_usuario = fi.vendedor_id
+    LEFT JOIN plazo_v2 pl ON pl.id_plazo = fi.plazo_id
+    LEFT JOIN LATERAL (
+      SELECT ic.id_vendedor, ic.listado_precio_id, ic.id_plazo, ic.id_marca,
+             ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
+      FROM intencion_compra_pedido icp
+      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
+      WHERE icp.pedido_proveedor_id = fi.pp_id
+        AND ic.id_cliente = fi.cliente_id
+      LIMIT 1
+    ) ic ON true
+    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
+    LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)
+    LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     WHERE fi.pp_id = $1
-    ORDER BY fi.id
+    ORDER BY fi.nro_factura
     `,
     [ppId],
   );
 
-  return rows.map((r) => ({
+  const seen = new Set<number>();
+  return rows
+    .filter((r) => {
+      const id = Number(r.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .map((r) => ({
     id: Number(r.id),
     nro_factura: r.nro_factura,
     estado: r.estado,
     total_pares: Number(r.total_pares ?? 0),
+    total_cajas: Number(r.total_cajas ?? 0),
     total_monto: Number(r.total_monto ?? 0),
+    created_at: r.created_at,
+    cliente_id: r.cliente_id != null ? Number(r.cliente_id) : null,
     cliente: r.cliente,
     vendedor: r.vendedor,
+    marca: r.marca,
+    caso: r.caso,
+    lista_precio_id: r.lista_precio_id != null ? Number(r.lista_precio_id) : null,
+    ic_listado_precio_id: r.ic_listado_precio_id != null ? Number(r.ic_listado_precio_id) : null,
+    plazo_nombre: r.plazo_nombre,
+    descuento_1: Number(r.descuento_1 ?? 0),
+    descuento_2: Number(r.descuento_2 ?? 0),
+    descuento_3: Number(r.descuento_3 ?? 0),
+    descuento_4: Number(r.descuento_4 ?? 0),
+    item_count: Number(r.item_count ?? 0),
   }));
 }
 
@@ -367,6 +458,7 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     categoria_id: string | null;
     categoria: string | null;
     vendedor: string | null;
+    listado_precio_id: string | null;
   }>(
     `
     SELECT ic.id AS ic_id, ic.numero_registro AS nro_ic,
@@ -377,6 +469,7 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
            ic.id_vendedor::text AS id_vendedor,
            ic.id_proveedor::text AS id_proveedor,
            ic.categoria_id::text AS categoria_id,
+           ic.listado_precio_id::text AS listado_precio_id,
            COALESCE(cat.descp_categoria, '—') AS categoria,
            COALESCE(vd.descp_vendedor, '—') AS vendedor,
            icp.nro_pedido_fabrica,
@@ -410,5 +503,6 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     categoria_id: r.categoria_id != null ? Number(r.categoria_id) : null,
     categoria: r.categoria ?? "—",
     vendedor: r.vendedor ?? "—",
+    listado_precio_id: r.listado_precio_id != null ? Number(r.listado_precio_id) : null,
   }));
 }

@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { calcularNeto } from "./calcular-neto";
 import { getNextNumeroRegistro } from "./numeracion";
 import { quincenaDbValue } from "./quincena-arribo";
+import { esListadoPrecioValido, ID_CATEGORIA_PROGRAMADO } from "./listado-precio-tiers";
 
 export type SaveIntencionInput = {
   id_proveedor: number;
@@ -37,6 +38,9 @@ export async function saveIntencion(
   const quincena = quincenaDbValue(data.quincena_arribo_id ?? 0);
   if (!quincena) {
     return { ok: false, error: "La FECHA DE EMBARQUE (quincena) es obligatoria." };
+  }
+  if (data.categoria_id === ID_CATEGORIA_PROGRAMADO && !esListadoPrecioValido(data.listado_precio_id)) {
+    return { ok: false, error: "PROGRAMADO exige elegir política LP (LPN, LPC02, LPC03 o LPC04)." };
   }
 
   const cliente = await pool.query("SELECT 1 FROM cliente_v2 WHERE id_cliente = $1", [data.id_cliente]);

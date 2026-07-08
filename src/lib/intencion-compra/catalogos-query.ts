@@ -122,31 +122,48 @@ export async function getLineasConCaso(pool: Pool, proveedorId: number): Promise
   }));
 }
 
+const CASO_SQL_FILTER: Record<string, string> = {
+  NORMAL:
+    "UPPER(TRIM(pec.nombre_caso)) LIKE '%NORMAL%' AND UPPER(TRIM(pec.nombre_caso)) NOT LIKE '%MENOR%' AND UPPER(TRIM(pec.nombre_caso)) NOT LIKE '%CHINELO%' AND UPPER(TRIM(pec.nombre_caso)) NOT LIKE '%CARTERA%'",
+  CHINELO: "UPPER(TRIM(pec.nombre_caso)) LIKE '%CHINELO%'",
+  CARTERAS: "UPPER(TRIM(pec.nombre_caso)) LIKE '%CARTERA%'",
+  NORMAL_MENOR: "UPPER(TRIM(pec.nombre_caso)) LIKE '%NORMAL%' AND UPPER(TRIM(pec.nombre_caso)) LIKE '%MENOR%'",
+  OTRO: "1=1",
+};
+
+const LISTADO_COLS: ReadonlyArray<{ col: string; id: number; nombre: string }> = [
+  { col: "lpn", id: 1, nombre: "LPN — Precio neto" },
+  { col: "lpc03", id: 3, nombre: "LPC03 — LPN + 12%" },
+  { col: "lpc04", id: 4, nombre: "LPC04 — LPN + 20%" },
+];
+
 export async function getListadosParaCaso(
   pool: Pool,
   eventoId: number,
   casoNombre: string,
 ): Promise<{ id: number; nombre: string }[]> {
-  const { rows } = await pool.query<{ id: string; nombre: string }>(`
-    SELECT DISTINCT pl.id, pl.nombre_caso_aplicado AS nombre
-    FROM precio_lista pl
-    JOIN precio_evento_caso pec ON pec.precio_evento_id = pl.evento_id
-    WHERE pl.evento_id = $1
-      AND UPPER(TRIM(pec.nombre_caso)) = UPPER(TRIM($2))
-      AND pl.nombre_caso_aplicado IS NOT NULL
-    ORDER BY pl.nombre_caso_aplicado
-  `, [eventoId, casoNombre]);
+  const filtro = CASO_SQL_FILTER[casoNombre.toUpperCase()] ?? "1=1";
+  const resultado: { id: number; nombre: string }[] = [];
 
-  if (rows.length) {
-    return rows.map((r) => ({ id: Number(r.id), nombre: r.nombre }));
+  for (const { col, id, nombre } of LISTADO_COLS) {
+    const { rows } = await pool.query<{ n: string }>(
+      `SELECT COUNT(*)::int AS n
+       FROM precio_lista pl
+       JOIN precio_evento_caso pec ON pec.id = pl.caso_id
+       WHERE pl.evento_id = $1
+         AND ${filtro}
+         AND pl.${col} IS NOT NULL AND pl.${col} > 0`,
+      [eventoId],
+    );
+    if (Number(rows[0]?.n ?? 0) > 0) {
+      resultado.push({ id, nombre });
+    }
   }
 
-  const { rows: fallback } = await pool.query<{ id: string; nombre: string }>(`
-    SELECT DISTINCT pl.id, COALESCE(pl.nombre_caso_aplicado, 'Listado') AS nombre
-    FROM precio_lista pl
-    WHERE pl.evento_id = $1 AND pl.nombre_caso_aplicado ILIKE $2
-    LIMIT 20
-  `, [eventoId, `%${casoNombre}%`]);
+  const esPromocional = casoNombre.toUpperCase().includes("PROMOCIONAL");
+  if (esPromocional && !resultado.some((r) => r.id === 3) && resultado.some((r) => r.id === 1)) {
+    resultado.push({ id: 3, nombre: "LPC03 — LPN + 12% (PROMOCIONAL)" });
+  }
 
-  return fallback.map((r) => ({ id: Number(r.id), nombre: r.nombre }));
+  return resultado;
 }

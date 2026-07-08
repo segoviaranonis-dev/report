@@ -11,6 +11,7 @@ import {
   cambiarClienteFi,
   cambiarVendedorFi,
   actualizarEncabezadoFi,
+  resincronizarFiDesdeListadoPp,
 } from "./lib/aprobaciones-mutations";
 import { requireNivelDiosAction } from "./lib/require-nivel-dios";
 
@@ -119,5 +120,19 @@ export async function actualizarEncabezadoFiAction(
     message: result.msg,
     error: result.ok ? undefined : result.msg,
     totalMonto: result.totalMonto,
+  };
+}
+
+export async function resincronizarFiDesdeListadoPpAction(fiId: number) {
+  const gate = await requireNivelDiosAction();
+  if (!gate.ok) return { success: false, error: gate.error };
+  const result = await resincronizarFiDesdeListadoPp(fiId, { usarRedondeoComercial: true });
+  if (result.ok) revalidatePath("/aprobaciones");
+  return {
+    success: result.ok,
+    message: result.msg,
+    error: result.ok ? undefined : result.msg,
+    totalMonto: result.totalMonto,
+    lineas: result.lineas,
   };
 }

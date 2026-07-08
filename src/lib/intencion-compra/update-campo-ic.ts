@@ -9,6 +9,7 @@ const CAMPOS_PERMITIDOS = new Set([
   FECHA_DE_EMBARQUE_CAMPO,
   "cantidad_total_pares",
   "precio_evento_id",
+  "listado_precio_id",
   "nota_pedido",
   "monto_neto",
 ]);
@@ -19,6 +20,11 @@ function normalizeValor(campo: string, valor: unknown): unknown {
     return quincenaDbValue(Number.isFinite(n) ? n : 0);
   }
   if (campo === "precio_evento_id" && (valor === "" || valor === 0 || valor === "0")) return null;
+  if (campo === "listado_precio_id") {
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n < 1 || n > 4) return null;
+    return n;
+  }
   if (campo === "cantidad_total_pares") return Math.max(0, Math.trunc(Number(valor) || 0));
   if (campo === "monto_neto") return Math.max(0, Number(valor) || 0);
   if (campo === "nota_pedido") return valor === "" ? null : valor;

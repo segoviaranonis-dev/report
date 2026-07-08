@@ -1,20 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { Skeleton } from "@/components/ui/LoadingState";
+import { CATEGORIA_PROGRAMADO_ID, isProgramadoIc } from "@/lib/intencion-compra/categoria-ic";
 import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
-import { DIGITACION, PEDIDO_PROVEEDOR, pedidoProveedorDetalle } from "@/lib/report/routes";
+import { DIGITACION, pedidoProveedorDetalle } from "@/lib/report/routes";
 
 type IcData = {
   id: number;
   numero_registro: string;
   marca: string;
   categoria: string;
+  categoria_id: number | null;
   proveedor: string;
   cliente: string;
   pares: number;
@@ -25,7 +27,10 @@ type IcData = {
 export function DigitacionAsignarClient() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const icId = Number(params.icId);
+  const ramoProgramado = searchParams.get("ramo") === "programado";
+  const digitacionBack = `${DIGITACION}?ramo=${ramoProgramado ? "programado" : "compra_previa"}`;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +68,7 @@ export function DigitacionAsignarClient() {
   }, [icId, load]);
 
   const eventosCerrados = (catalogos?.eventos ?? []).filter((e) => e.id != null);
+  const esProgramado = ic ? isProgramadoIc(ic.categoria_id) || ramoProgramado : ramoProgramado;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -94,7 +100,8 @@ export function DigitacionAsignarClient() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al asignar");
-      router.push(pedidoProveedorDetalle(data.pp_id ?? data.pp_numero));
+      const ppUrl = pedidoProveedorDetalle(data.pp_id ?? data.pp_numero);
+      router.push(esProgramado ? `${ppUrl}${ppUrl.includes("?") ? "&" : "?"}from=programado` : ppUrl);
     } catch (err) {
       setFormErr(err instanceof Error ? err.message : "Error");
     } finally {
@@ -106,11 +113,21 @@ export function DigitacionAsignarClient() {
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader active="proceso-importacion" />
       <main className="mx-auto max-w-2xl px-6 py-10">
-        <Link href={DIGITACION} className="text-sm font-semibold text-rimec-azul hover:underline">
-          ← Bandeja digitación
+        <Link href={digitacionBack} className="text-sm font-semibold text-rimec-azul hover:underline">
+          ← Digitación {esProgramado ? "programado" : "compra previa"}
         </Link>
-        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">Asignación IC → PP</p>
-        <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Asignar IC</h1>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">
+          Asignación IC → PP{esProgramado ? " · PROGRAMADO" : ""}
+        </p>
+        <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">
+          {esProgramado ? "Asignar pedido proveedor programado" : "Asignar IC"}
+        </h1>
+        {esProgramado && (
+          <p className="mt-2 text-sm text-violet-900">
+            <strong>compra_previa = false</strong> · categoría {CATEGORIA_PROGRAMADO_ID} · ventas vía FI directa
+            (Alejandro Magno).
+          </p>
+        )}
 
         {loading ? (
           <div className="mt-8">
@@ -229,9 +246,15 @@ export function DigitacionAsignarClient() {
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                className={`w-full rounded-lg py-3 text-sm font-bold text-white disabled:opacity-50 ${
+                  esProgramado ? "bg-violet-700 hover:bg-violet-800" : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
               >
-                {busy ? "Asignando…" : "Confirmar asignación → PP"}
+                {busy
+                  ? "Asignando…"
+                  : esProgramado
+                    ? "Confirmar PP programado →"
+                    : "Confirmar asignación → PP"}
               </button>
             </form>
           </>

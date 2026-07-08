@@ -31,6 +31,8 @@ export type FiRecord = {
   quincena_llegada: string | null;
   pp_estado: string | null;
   notas?: string | null;
+  /** FI de stock local PE — pp_id NULL o nro PE-* */
+  origen_pe: boolean;
   created_at?: string | null;
   /** RESERVADA→CONFIRMADA (MIG-114) */
   fecha_confirmacion?: string | null;
@@ -54,12 +56,15 @@ export type PedidoPendiente = {
   total_pares: number;
   total_monto: number;
   created_at: string | null;
+  /** true si el pedido web es 100% Pronta entrega (payload lotes origen_pe o pp_id negativo). */
+  origen_pe: boolean;
 };
 
 export type FiDetalle = {
   id: number;
   pares: number;
   cajas: number;
+  precio_unit: number;
   precio_neto: number;
   subtotal: number;
   linea_codigo: string;

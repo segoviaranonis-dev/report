@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { BibliotecaCasoBar } from "@/app/depositos-bazzar/components/operativa/BibliotecaCasoBar";
 import { TrianguloHeaderDeposito } from "@/app/depositos-bazzar/components/operativa/TrianguloHeaderDeposito";
 import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
+import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
 import {
@@ -63,7 +64,7 @@ function DepositoLegalRow({
   );
 }
 
-function StockPeOperativaTab() {
+function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
   const {
     filtros,
     setFiltros,
@@ -71,6 +72,10 @@ function StockPeOperativaTab() {
     cardsCount,
     totalPares,
     valorInventario,
+    calzadoPares,
+    confeccionesPares,
+    calzadoGs,
+    confeccionesGs,
     filtradas,
     depositoLegal,
     setDepositoLegal,
@@ -115,11 +120,20 @@ function StockPeOperativaTab() {
         hideProductosVital
         categoriaEnCabecera
         summaryLayout="vitales-first"
+        summaryTrailing={
+          <PeVentasRegistroBar
+            batchLabel={batchLabel}
+            calzadoPares={calzadoPares}
+            confeccionesPares={confeccionesPares}
+            calzadoGs={calzadoGs}
+            confeccionesGs={confeccionesGs}
+          />
+        }
         extraFilters={
           <DepositoLegalRow value={depositoLegal} onChange={setDepositoLegal} />
         }
       />
-      <GrillaPeImportadora productos={filtradasGrid} casoPorLinea={lineaCasoMap} />
+      <GrillaPeImportadora productos={filtradasGrid} casoPorLinea={lineaCasoMap} showVentas />
     </div>
   );
 }
@@ -169,7 +183,7 @@ function StockPeShell({ resumenInicial }: Props) {
         ) : (
           <>
             <div className={tab !== "operativa" ? "hidden" : undefined} aria-hidden={tab !== "operativa"}>
-              <StockPeOperativaTab />
+              <StockPeOperativaTab batchLabel={resumenInicial.batch_label} />
             </div>
             <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
               <TabArticulosPe />

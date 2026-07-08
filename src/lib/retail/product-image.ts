@@ -71,10 +71,10 @@ export function tieredStorageCandidates(
   if (!clean) return [];
 
   const urls: string[] = [];
+  pushUnique(urls, publicStorageObjectUrl("productos", clean));
   for (const tier of variantToTiers(variant)) {
     pushUnique(urls, publicStorageObjectUrl("productos", `${tier}/${clean}`));
   }
-  pushUnique(urls, publicStorageObjectUrl("productos", clean));
   pushUnique(urls, publicStorageObjectUrl("productos", `thumbs/${clean}`));
   return urls;
 }

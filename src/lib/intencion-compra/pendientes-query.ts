@@ -18,6 +18,7 @@ export type IcPendienteRow = {
   monto_neto: number;
   precio_evento_id: number | null;
   evento_precio: string | null;
+  listado_precio_id: number | null;
   nota_pedido: string | null;
 };
 
@@ -35,6 +36,7 @@ const IC_SELECT = `
          ic.monto_neto,
          ic.precio_evento_id,
          pe.nombre_evento AS evento_precio,
+         ic.listado_precio_id,
          ic.nota_pedido
   FROM intencion_compra ic
   JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
@@ -66,6 +68,7 @@ function mapRow(r: Record<string, unknown>): IcPendienteRow {
     monto_neto: Number(r.monto_neto ?? 0),
     precio_evento_id: r.precio_evento_id != null ? Number(r.precio_evento_id) : null,
     evento_precio: r.evento_precio != null ? String(r.evento_precio) : null,
+    listado_precio_id: r.listado_precio_id != null ? Number(r.listado_precio_id) : null,
     nota_pedido: r.nota_pedido != null ? String(r.nota_pedido) : null,
   };
 }
