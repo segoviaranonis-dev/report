@@ -6,6 +6,8 @@ export type BorrarImportEstado = {
   n_articulos: number;
   pares_total: number;
   vendido: number;
+  /** Pares reservados en FI (descontar_stock_pp) — no bloquean borrado si venta Web = 0. */
+  comprometido_fi: number;
   n_facturas: number;
   puede_borrar: boolean;
   motivo: string;
@@ -51,6 +53,7 @@ export async function getEstadoBorradoImportPp(pool: Pool, ppId: number): Promis
       n_articulos: 0,
       pares_total: 0,
       vendido: 0,
+      comprometido_fi: 0,
       n_facturas: 0,
       puede_borrar: false,
       motivo: "No hay importación cargada.",
@@ -60,19 +63,22 @@ export async function getEstadoBorradoImportPp(pool: Pool, ppId: number): Promis
 
   const vendidoVt = Number(r.vendido_vt ?? 0);
   const vendidoPpd = Number(r.vendido_ppd ?? 0);
-  const vendido = Math.max(vendidoVt, vendidoPpd);
   const fiConf = Number(r.fi_confirmadas ?? 0);
+  /** PROGRAMADO: pares_vendidos en PPD = reserva FI (descontar_stock_pp), no venta Web. */
   const puede = fiConf === 0 && vendidoVt === 0;
 
   return {
     n_articulos: Number(r.n_articulos),
     pares_total: Number(r.pares_total),
-    vendido,
+    vendido: vendidoVt,
+    comprometido_fi: vendidoPpd,
     n_facturas: Number(r.n_facturas ?? 0),
     puede_borrar: puede,
     motivo: puede
       ? ""
-      : `Ya hay ${vendido.toLocaleString("es-PY")} pares vendidos en este PP. No se puede borrar la importación.`,
+      : fiConf > 0
+        ? `Hay ${fiConf} FI confirmada(s). No se puede borrar la importación.`
+        : `Ya hay ${vendidoVt.toLocaleString("es-PY")} pares vendidos en tránsito Web. No se puede borrar.`,
     web_alzado: r.estado_transito === "EN_TRANSITO",
   };
 }
