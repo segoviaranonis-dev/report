@@ -13,6 +13,10 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   const icId = Number((await params).icId);
+  if (!Number.isFinite(icId)) {
+    return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
+  }
+
   let body: {
     precio_evento_id?: number;
     nro_pedido_fabrica?: string;
@@ -28,14 +32,19 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Evento de precio obligatorio" }, { status: 400 });
   }
 
-  const result = await asignarIc(getRimecPool(), {
-    ic_id: icId,
-    precio_evento_id: body.precio_evento_id,
-    nro_pedido_fabrica: body.nro_pedido_fabrica ?? "",
-    pedido_proveedor_id: body.pedido_proveedor_id ?? null,
-    asignado_por: gate.session?.id_usuario ?? null,
-  });
+  try {
+    const result = await asignarIc(getRimecPool(), {
+      ic_id: icId,
+      precio_evento_id: body.precio_evento_id,
+      nro_pedido_fabrica: body.nro_pedido_fabrica ?? "",
+      pedido_proveedor_id: body.pedido_proveedor_id ?? null,
+      asignado_por: gate.session?.id_usuario ?? null,
+    });
 
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-  return NextResponse.json({ ok: true, pp_id: result.pp_id, pp_numero: result.pp_numero });
+    if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    return NextResponse.json({ ok: true, pp_id: result.pp_id, pp_numero: result.pp_numero });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al asignar PP";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
 }

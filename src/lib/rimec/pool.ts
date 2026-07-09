@@ -1,4 +1,4 @@
-import { Client, Pool, type QueryResult, type QueryResultRow } from "pg";
+import { Pool } from "pg";
 import { isPoolSaturatedError } from "@/lib/rimec/pool-saturated";
 
 /**
@@ -6,7 +6,7 @@ import { isPoolSaturatedError } from "@/lib/rimec/pool-saturated";
  *
  * Vercel/serverless:
  * - URL pooler Supabase (:6543) + pgbouncer=true + connection_limit=1
- * - Una conexión efímera por query, serializada por instancia lambda (mutex)
+ * - Serializado por lambda; soporta pool.query y pool.connect (transacciones motor precios / digitación)
  * - Reintentos automáticos ante EMAXCONN (límite ~200 en pooler)
  *
  * Local: Pool singleton clásico (max 8).
@@ -32,7 +32,6 @@ export function isDirectSupabasePostgres(url: string): boolean {
 declare global {
   // eslint-disable-next-line no-var -- singleton dev HMR
   var __rimecPgPool: Pool | undefined;
-  var __rimecVercelExecutor: VercelEphemeralPg | undefined;
 }
 
 function sleep(ms: number) {
@@ -74,60 +73,16 @@ function resolveRetryMax(): number {
   return Number.isFinite(n) && n >= 1 && n <= 12 ? n : 8;
 }
 
-/**
- * Vercel: conecta → query → cierra. Mutex por lambda (Promise.all no abre N conexiones).
- * Reintenta EMAXCONN con backoff exponencial + jitter.
- */
-class VercelEphemeralPg {
-  private tail: Promise<unknown> = Promise.resolve();
+/** Pool con reintento en query() ante EMAXCONN (Vercel). */
+function wrapPoolWithRetry(base: Pool): Pool {
+  const maxAttempts = resolveRetryMax();
+  const originalQuery = base.query.bind(base);
 
-  constructor(
-    private readonly connectionString: string,
-    private readonly ssl: ReturnType<typeof resolveSsl>,
-  ) {}
-
-  private enqueue<R>(fn: () => Promise<R>): Promise<R> {
-    const next = this.tail.then(fn, fn);
-    this.tail = next.then(
-      () => undefined,
-      () => undefined,
-    );
-    return next;
-  }
-
-  async query<R extends QueryResultRow = QueryResultRow>(
-    queryText: string,
-    values?: unknown[],
-  ): Promise<QueryResult<R>>;
-  async query<R extends QueryResultRow = QueryResultRow>(
-    queryConfig: Parameters<Client["query"]>[0],
-  ): Promise<QueryResult<R>>;
-  async query<R extends QueryResultRow = QueryResultRow>(
-    queryTextOrConfig: string | Parameters<Client["query"]>[0],
-    values?: unknown[],
-  ): Promise<QueryResult<R>> {
-    return this.enqueue(() => this.runQuery<R>(queryTextOrConfig, values));
-  }
-
-  private async runQuery<R extends QueryResultRow>(
-    queryTextOrConfig: string | Parameters<Client["query"]>[0],
-    values?: unknown[],
-  ): Promise<QueryResult<R>> {
-    const maxAttempts = resolveRetryMax();
+  async function queryWithRetry(...args: Parameters<Pool["query"]>) {
     let lastError: unknown;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const client = new Client({
-        connectionString: this.connectionString,
-        ssl: this.ssl,
-        connectionTimeoutMillis: 12_000,
-      });
       try {
-        await client.connect();
-        return typeof queryTextOrConfig === "string"
-          ? values !== undefined
-            ? await client.query<R>(queryTextOrConfig, values)
-            : await client.query<R>(queryTextOrConfig)
-          : await client.query<R>(queryTextOrConfig);
+        return await originalQuery(...args);
       } catch (e) {
         lastError = e;
         if (isPoolSaturatedError(e) && attempt < maxAttempts - 1) {
@@ -135,12 +90,18 @@ class VercelEphemeralPg {
           continue;
         }
         throw e;
-      } finally {
-        await client.end().catch(() => undefined);
       }
     }
     throw lastError;
   }
+
+  return new Proxy(base, {
+    get(target, prop, receiver) {
+      if (prop === "query") return queryWithRetry;
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Pool;
 }
 
 export function getRimecPool(): Pool {
@@ -158,23 +119,20 @@ export function getRimecPool(): Pool {
   const connectionString = normalizePoolerUrl(rawUrl);
   const ssl = resolveSsl(connectionString);
 
-  if (isVercelRuntime()) {
-    if (!globalThis.__rimecVercelExecutor) {
-      globalThis.__rimecVercelExecutor = new VercelEphemeralPg(connectionString, ssl);
-    }
-    return globalThis.__rimecVercelExecutor as unknown as Pool;
-  }
-
   if (!globalThis.__rimecPgPool) {
     globalThis.__rimecPgPool = new Pool({
       connectionString,
       max: resolvePgPoolMax(),
       min: 0,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 8_000,
+      idleTimeoutMillis: isVercelRuntime() ? 5_000 : 10_000,
+      connectionTimeoutMillis: 12_000,
       allowExitOnIdle: true,
       ssl,
     });
+  }
+
+  if (isVercelRuntime()) {
+    return wrapPoolWithRetry(globalThis.__rimecPgPool);
   }
   return globalThis.__rimecPgPool;
 }
