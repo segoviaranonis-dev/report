@@ -74,7 +74,8 @@ class VercelEphemeralPg {
       });
       try {
         await client.connect();
-        return await client.query<R>(...args);
+        const result = await client.query(...args);
+        return result as QueryResult<R>;
       } catch (e) {
         lastError = e;
         if (isPoolSaturatedError(e) && attempt < maxAttempts - 1) {
