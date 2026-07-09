@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { cerrarEventoPrecio } from "@/lib/motor-precios/evento-cierre";
 import { getPrecioEventoDetalle } from "@/lib/motor-precios/evento-queries";
@@ -20,11 +21,15 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const pool = getRimecPool();
-  const result = await cerrarEventoPrecio(pool, eventoId, gate.session?.id_usuario ?? null);
-  if (!result.ok) {
-    return NextResponse.json(result, { status: 422 });
-  }
+  try {
+    const result = await cerrarEventoPrecio(pool, eventoId, gate.session?.id_usuario ?? null);
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 422 });
+    }
 
-  const evento = await getPrecioEventoDetalle(pool, eventoId);
-  return NextResponse.json({ ok: true, cierre: result.data, evento });
+    const evento = await getPrecioEventoDetalle(pool, eventoId);
+    return NextResponse.json({ ok: true, cierre: result.data, evento });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al cerrar evento");
+  }
 }

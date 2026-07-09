@@ -95,9 +95,29 @@ function wrapPoolWithRetry(base: Pool): Pool {
     throw lastError;
   }
 
+  const originalConnect = base.connect.bind(base);
+
+  async function connectWithRetry(...args: Parameters<Pool["connect"]>) {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await originalConnect(...args);
+      } catch (e) {
+        lastError = e;
+        if (isPoolSaturatedError(e) && attempt < maxAttempts - 1) {
+          await sleep(200 * 2 ** attempt + Math.random() * 400);
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastError;
+  }
+
   return new Proxy(base, {
     get(target, prop, receiver) {
       if (prop === "query") return queryWithRetry;
+      if (prop === "connect") return connectWithRetry;
       const value = Reflect.get(target, prop, receiver);
       return typeof value === "function" ? value.bind(target) : value;
     },

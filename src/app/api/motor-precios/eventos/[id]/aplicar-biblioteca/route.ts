@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { aplicarBibliotecaAEvento } from "@/lib/motor-precios/evento-biblioteca";
 import { getPrecioEventoDetalle } from "@/lib/motor-precios/evento-queries";
@@ -34,30 +35,34 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   const pool = getRimecPool();
-  const { rows: evRows } = await pool.query<{ proveedor_id: string; estado: string }>(
-    `SELECT proveedor_id, estado FROM precio_evento WHERE id = $1`,
-    [eventoId],
-  );
-  const ev = evRows[0];
-  if (!ev) {
-    return NextResponse.json({ ok: false, error: "Evento no encontrado" }, { status: 404 });
-  }
-  if (String(ev.estado).toLowerCase() === "cerrado") {
-    return NextResponse.json({ ok: false, error: "Evento cerrado" }, { status: 409 });
-  }
+  try {
+    const { rows: evRows } = await pool.query<{ proveedor_id: string; estado: string }>(
+      `SELECT proveedor_id, estado FROM precio_evento WHERE id = $1`,
+      [eventoId],
+    );
+    const ev = evRows[0];
+    if (!ev) {
+      return NextResponse.json({ ok: false, error: "Evento no encontrado" }, { status: 404 });
+    }
+    if (String(ev.estado).toLowerCase() === "cerrado") {
+      return NextResponse.json({ ok: false, error: "Evento cerrado" }, { status: 409 });
+    }
 
-  const result = await aplicarBibliotecaAEvento(
-    pool,
-    eventoId,
-    Number(ev.proveedor_id),
-    bibliotecaId,
-    body.reemplazar_matriz !== false,
-  );
+    const result = await aplicarBibliotecaAEvento(
+      pool,
+      eventoId,
+      Number(ev.proveedor_id),
+      bibliotecaId,
+      body.reemplazar_matriz !== false,
+    );
 
-  if (!result.ok) {
-    return NextResponse.json(result, { status: 422 });
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 422 });
+    }
+
+    const evento = await getPrecioEventoDetalle(pool, eventoId);
+    return NextResponse.json({ ...result, evento });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al aplicar biblioteca");
   }
-
-  const evento = await getPrecioEventoDetalle(pool, eventoId);
-  return NextResponse.json({ ...result, evento });
 }

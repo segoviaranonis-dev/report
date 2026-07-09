@@ -79,7 +79,7 @@ export async function asignarIc(
     let ppId = input.pedido_proveedor_id ?? null;
     const quincenaId = ic.quincena_arribo_id ? Number(ic.quincena_arribo_id) : null;
     if (!ppId) {
-      const numero = await getNextNumeroPp(pool);
+      const numero = await getNextNumeroPp(client);
       const anio = new Date().getFullYear();
       const ins = await client.query<{ id: string; numero_registro: string }>(
         `INSERT INTO pedido_proveedor (

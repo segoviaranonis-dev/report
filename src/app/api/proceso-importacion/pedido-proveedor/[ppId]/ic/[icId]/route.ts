@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { desasignarIcDePp, updateIcVinculadaPp, type UpdateIcVinculadaInput } from "@/lib/pedido-proveedor/cabecera-actions";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
@@ -26,9 +27,13 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "JSON inválido" }, { status: 400 });
   }
 
-  const result = await updateIcVinculadaPp(getRimecPool(), ppId, icId, body);
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-  return NextResponse.json({ ok: true });
+  try {
+    const result = await updateIcVinculadaPp(getRimecPool(), ppId, icId, body);
+    if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al actualizar IC vinculada");
+  }
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
@@ -45,7 +50,11 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "IDs inválidos" }, { status: 400 });
   }
 
-  const result = await desasignarIcDePp(getRimecPool(), ppId, icId);
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-  return NextResponse.json({ ok: true, nro_ic: result.nro_ic, pares: result.pares });
+  try {
+    const result = await desasignarIcDePp(getRimecPool(), ppId, icId);
+    if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    return NextResponse.json({ ok: true, nro_ic: result.nro_ic, pares: result.pares });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al desasignar IC");
+  }
 }

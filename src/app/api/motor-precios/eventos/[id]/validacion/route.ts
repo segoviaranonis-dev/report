@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getValidacionPaso4, marcarEventoValidado } from "@/lib/motor-precios/evento-validacion";
 import { getPrecioEventoDetalle } from "@/lib/motor-precios/evento-queries";
@@ -40,12 +41,16 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const pool = getRimecPool();
-  const result = await marcarEventoValidado(pool, eventoId);
-  if (!result.ok) {
-    return NextResponse.json(result, { status: 422 });
-  }
+  try {
+    const result = await marcarEventoValidado(pool, eventoId);
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 422 });
+    }
 
-  const validacion = await getValidacionPaso4(pool, eventoId);
-  const evento = await getPrecioEventoDetalle(pool, eventoId);
-  return NextResponse.json({ ok: true, validacion, evento });
+    const validacion = await getValidacionPaso4(pool, eventoId);
+    const evento = await getPrecioEventoDetalle(pool, eventoId);
+    return NextResponse.json({ ok: true, validacion, evento });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al validar evento");
+  }
 }

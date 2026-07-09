@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { resolverNombreEvento } from "@/lib/motor-precios/excel-proveedor";
 import { ejecutarPaso0Carga } from "@/lib/motor-precios/evento-carga";
@@ -70,7 +71,6 @@ export async function POST(req: NextRequest) {
     const { skus: _skus, ...payload } = result;
     return NextResponse.json(payload);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error en carga Paso 0";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return icApiErrorResponse(e, "Error en carga Paso 0");
   }
 }

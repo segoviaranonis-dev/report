@@ -1,8 +1,10 @@
 import type { Pool } from "pg";
 
-export async function getNextNumeroPp(pool: Pool, anio?: number): Promise<string> {
+type Queryable = Pick<Pool, "query">;
+
+export async function getNextNumeroPp(db: Queryable, anio?: number): Promise<string> {
   const year = anio ?? new Date().getFullYear();
-  const { rows } = await pool.query<{ ultimo: string }>(
+  const { rows } = await db.query<{ ultimo: string }>(
     `SELECT COALESCE(MAX(CAST(SPLIT_PART(numero_registro, '-', 3) AS INTEGER)), 0)::text AS ultimo
      FROM pedido_proveedor
      WHERE numero_registro ~ '^PP-[0-9]{4}-[0-9]+$'

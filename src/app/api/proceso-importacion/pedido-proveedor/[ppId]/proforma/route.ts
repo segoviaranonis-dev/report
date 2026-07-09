@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runProformaImportPython } from "@/lib/pedido-proveedor/run-python-pp";
 import { borrarImportacionPp } from "@/lib/pedido-proveedor/borrar-import";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool } from "@/lib/rimec/pool";
 
@@ -44,9 +45,6 @@ export async function POST(req: Request, { params }: Params) {
     }
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "Error al importar proforma" },
-      { status: 500 },
-    );
+    return icApiErrorResponse(e, "Error al importar proforma");
   }
 }

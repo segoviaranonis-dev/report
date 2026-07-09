@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { eliminarEventoPrecio } from "@/lib/motor-precios/evento-historial";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
@@ -29,9 +30,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: 'Escribí ELIMINAR para confirmar' }, { status: 422 });
   }
 
-  const result = await eliminarEventoPrecio(getRimecPool(), eventoId);
-  if (!result.ok) {
-    return NextResponse.json(result, { status: 422 });
+  try {
+    const result = await eliminarEventoPrecio(getRimecPool(), eventoId);
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 422 });
+    }
+    return NextResponse.json(result);
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al eliminar evento");
   }
-  return NextResponse.json(result);
 }

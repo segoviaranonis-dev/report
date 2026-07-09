@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { asignarIc } from "@/lib/digitacion/actions";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
@@ -44,7 +45,6 @@ export async function POST(req: Request, { params }: Params) {
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
     return NextResponse.json({ ok: true, pp_id: result.pp_id, pp_numero: result.pp_numero });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error al asignar PP";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return icApiErrorResponse(e, "Error al asignar PP");
   }
 }

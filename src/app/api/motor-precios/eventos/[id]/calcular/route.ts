@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { ejecutarCalculoPaso3, muestraPrecioLista, resumenPaso3 } from "@/lib/motor-precios/evento-paso3";
 import { getPrecioEventoDetalle } from "@/lib/motor-precios/evento-queries";
@@ -51,23 +52,27 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const pool = getRimecPool();
-  const { rows: evRows } = await pool.query<{ proveedor_id: string }>(
-    `SELECT proveedor_id FROM precio_evento WHERE id = $1`,
-    [eventoId],
-  );
-  if (!evRows[0]) {
-    return NextResponse.json({ ok: false, error: "Evento no encontrado" }, { status: 404 });
+  try {
+    const { rows: evRows } = await pool.query<{ proveedor_id: string }>(
+      `SELECT proveedor_id FROM precio_evento WHERE id = $1`,
+      [eventoId],
+    );
+    if (!evRows[0]) {
+      return NextResponse.json({ ok: false, error: "Evento no encontrado" }, { status: 404 });
+    }
+
+    const result = await ejecutarCalculoPaso3(pool, eventoId, Number(evRows[0].proveedor_id), {
+      recalcular: body.recalcular === true,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 422 });
+    }
+
+    const evento = await getPrecioEventoDetalle(pool, eventoId);
+    const muestra = await muestraPrecioLista(pool, eventoId, 80);
+    return NextResponse.json({ ...result, evento, muestra });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al calcular precios");
   }
-
-  const result = await ejecutarCalculoPaso3(pool, eventoId, Number(evRows[0].proveedor_id), {
-    recalcular: body.recalcular === true,
-  });
-
-  if (!result.ok) {
-    return NextResponse.json(result, { status: 422 });
-  }
-
-  const evento = await getPrecioEventoDetalle(pool, eventoId);
-  const muestra = await muestraPrecioLista(pool, eventoId, 80);
-  return NextResponse.json({ ...result, evento, muestra });
 }

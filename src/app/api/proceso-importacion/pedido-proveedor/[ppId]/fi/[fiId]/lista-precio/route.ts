@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { actualizarListaPrecioFiDesdePp } from "@/lib/pedido-proveedor/fi-pp-actions";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
@@ -26,10 +27,14 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "JSON inválido" }, { status: 400 });
   }
 
-  const listaPrecioId = Number(body.lista_precio_id);
-  const result = await actualizarListaPrecioFiDesdePp(getRimecPool(), ppId, fiId, listaPrecioId);
-  if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+  try {
+    const listaPrecioId = Number(body.lista_precio_id);
+    const result = await actualizarListaPrecioFiDesdePp(getRimecPool(), ppId, fiId, listaPrecioId);
+    if (!result.ok) {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true, total_monto: result.totalMonto });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al actualizar lista de precio FI");
   }
-  return NextResponse.json({ ok: true, total_monto: result.totalMonto });
 }
