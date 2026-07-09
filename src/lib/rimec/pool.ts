@@ -62,7 +62,15 @@ class VercelEphemeralPg {
   ) {}
 
   async query<R extends QueryResultRow = QueryResultRow>(
-    ...args: Parameters<Pool["query"]>
+    queryText: string,
+    values?: unknown[],
+  ): Promise<QueryResult<R>>;
+  async query<R extends QueryResultRow = QueryResultRow>(
+    queryConfig: Parameters<Client["query"]>[0],
+  ): Promise<QueryResult<R>>;
+  async query<R extends QueryResultRow = QueryResultRow>(
+    queryTextOrConfig: string | Parameters<Client["query"]>[0],
+    values?: unknown[],
   ): Promise<QueryResult<R>> {
     const maxAttempts = resolveRetryMax();
     let lastError: unknown;
@@ -74,8 +82,13 @@ class VercelEphemeralPg {
       });
       try {
         await client.connect();
-        const result = await client.query(...args);
-        return result as QueryResult<R>;
+        const result =
+          typeof queryTextOrConfig === "string"
+            ? values !== undefined
+              ? await client.query<R>(queryTextOrConfig, values)
+              : await client.query<R>(queryTextOrConfig)
+            : await client.query<R>(queryTextOrConfig);
+        return result;
       } catch (e) {
         lastError = e;
         if (isPoolSaturatedError(e) && attempt < maxAttempts - 1) {
