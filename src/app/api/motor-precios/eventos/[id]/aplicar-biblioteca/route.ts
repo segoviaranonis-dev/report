@@ -8,6 +8,8 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 type Ctx = { params: Promise<{ id: string }> };
 
 /** Copiar casos bib → evento (Paso 2 Casos — no usar en Memoria). */
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest, ctx: Ctx) {
   const gate = await requireMotorPreciosAdmin();
   if (gate.error) return gate.error;

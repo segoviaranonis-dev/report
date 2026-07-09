@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { aplicarBibliotecaAEvento, vincularBibliotecaAEvento } from "@/lib/motor-precios/evento-biblioteca";
 import { getPrecioEventoDetalle } from "@/lib/motor-precios/evento-queries";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+
+/** Biblioteca 1668 BCL × 5 casos puede superar 60s en Vercel. */
+export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -99,7 +103,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     });
   } catch (e) {
     console.error("[POST vincular-biblioteca]", e);
-    const msg = e instanceof Error ? e.message : "Error al vincular biblioteca";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return icApiErrorResponse(e, "Error al vincular biblioteca");
   }
 }

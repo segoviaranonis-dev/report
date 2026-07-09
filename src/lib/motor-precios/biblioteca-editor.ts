@@ -200,8 +200,8 @@ export async function loadBibliotecaEditor(
   };
 }
 
-async function onConflictFragment(pool: Pool): Promise<string> {
-  const { rows } = await pool.query(
+async function onConflictFragment(db: Pick<Pool, "query">): Promise<string> {
+  const { rows } = await db.query(
     `SELECT 1 FROM pg_constraint WHERE conname = 'biblioteca_caso_linea_bib_linea_uq' LIMIT 1`,
   );
   return rows.length
@@ -219,7 +219,7 @@ export async function persistirLineasCaso(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const conflict = await onConflictFragment(pool);
+    const conflict = await onConflictFragment(client);
 
     await client.query(
       `DELETE FROM biblioteca_caso_linea WHERE biblioteca_id = $1 AND caso_biblioteca_id = $2`,
@@ -683,7 +683,7 @@ export async function copiarCasosDesdeBiblioteca(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const conflictBcl = await onConflictFragment(pool);
+    const conflictBcl = await onConflictFragment(client);
 
     for (const caso of casosOrig) {
       const lineasArr = (caso.lineas ?? []).map(String);
