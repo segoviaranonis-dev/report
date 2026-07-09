@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { anularIc } from "@/lib/intencion-compra/ic-actions";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
@@ -12,7 +13,11 @@ export async function POST(_req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
   }
   const icId = Number((await params).id);
-  const result = await anularIc(getRimecPool(), icId);
-  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-  return NextResponse.json({ ok: true });
+  try {
+    const result = await anularIc(getRimecPool(), icId);
+    if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al anular");
+  }
 }

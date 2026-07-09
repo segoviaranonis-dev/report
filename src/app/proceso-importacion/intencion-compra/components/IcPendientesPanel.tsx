@@ -8,6 +8,7 @@ import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo"
 import { INTENCION_COMPRA_NUEVA } from "@/lib/report/routes";
 import { Skeleton } from "@/components/ui/LoadingState";
 import { IcPendienteCard } from "./IcPendienteCard";
+import { fetchIcApiWithRetry, icApiErrorMessage } from "@/lib/intencion-compra/ic-api-fetch";
 
 const EMAXCONN_RETRIES = 4;
 const EMAXCONN_WAIT_MS = 8_000;
@@ -26,15 +27,24 @@ export function IcPendientesPanel() {
   const [quincenaLookup, setQuincenaLookup] = useState<Record<number, string>>({});
   const [stats, setStats] = useState({ pares: 0, neto: 0 });
 
+  const removeIc = useCallback((icId: number) => {
+    setIcs((prev) => {
+      const next = prev.filter((x) => x.id !== icId);
+      setStats({
+        pares: next.reduce((s, ic) => s + ic.pares, 0),
+        neto: next.reduce((s, ic) => s + ic.monto_neto, 0),
+      });
+      return next;
+    });
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     setRetrying(false);
     try {
       for (let attempt = 0; attempt < EMAXCONN_RETRIES; attempt++) {
-        const res = await fetch("/api/proceso-importacion/intencion-compra/pendientes", {
-          credentials: "same-origin",
-        });
+        const res = await fetchIcApiWithRetry("/api/proceso-importacion/intencion-compra/pendientes");
         const data = await res.json();
         if (res.ok) {
           if (!mountedRef.current) return;
@@ -50,7 +60,7 @@ export function IcPendientesPanel() {
           await sleep(EMAXCONN_WAIT_MS);
           continue;
         }
-        throw new Error(data.error || "Error al cargar");
+        throw new Error(icApiErrorMessage(data, "Error al cargar"));
       }
     } catch (e) {
       if (!mountedRef.current) return;
@@ -148,7 +158,7 @@ export function IcPendientesPanel() {
               ic={ic}
               catalogos={catalogos}
               quincenaLookup={quincenaLookup}
-              onUpdated={load}
+              onRemoved={removeIc}
             />
           ))}
         </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { IcDevueltaRow } from "@/lib/intencion-compra/pendientes-query";
 import { IcPendienteCard } from "./IcPendienteCard";
+import { fetchIcApiWithRetry, icApiErrorMessage } from "@/lib/intencion-compra/ic-api-fetch";
 
 export function IcDevueltasPanel() {
   const [loading, setLoading] = useState(true);
@@ -53,18 +54,23 @@ export function IcDevueltasPanel() {
             <strong>Devuelta por Digitación</strong>
             {ic.devuelto_at ? ` (${ic.devuelto_at})` : ""}: {ic.motivo_devolucion ?? "Sin motivo registrado"}
           </div>
-          <IcPendienteCard ic={ic} catalogos={catalogos} quincenaLookup={quincenaLookup} onUpdated={load} />
+          <IcPendienteCard
+            ic={ic}
+            catalogos={catalogos}
+            quincenaLookup={quincenaLookup}
+            onRemoved={(id) => setIcs((prev) => prev.filter((x) => x.id !== id))}
+          />
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={async () => {
-                const res = await fetch(`/api/proceso-importacion/intencion-compra/${ic.id}/reautorizar`, {
-                  method: "POST",
-                  credentials: "same-origin",
-                });
+                const res = await fetchIcApiWithRetry(
+                  `/api/proceso-importacion/intencion-compra/${ic.id}/reautorizar`,
+                  { method: "POST" },
+                );
                 const data = await res.json();
-                if (!res.ok) alert(data.error);
-                else load();
+                if (!res.ok) alert(icApiErrorMessage(data, "Error"));
+                else setIcs((prev) => prev.filter((x) => x.id !== ic.id));
               }}
               className="flex-1 rounded-lg bg-rimec-azul px-4 py-2 text-xs font-bold text-white hover:bg-rimec-azul-dark"
             >
@@ -74,13 +80,13 @@ export function IcDevueltasPanel() {
               type="button"
               onClick={async () => {
                 if (!confirm("¿Anular definitivamente esta IC?")) return;
-                const res = await fetch(`/api/proceso-importacion/intencion-compra/${ic.id}/anular`, {
-                  method: "POST",
-                  credentials: "same-origin",
-                });
+                const res = await fetchIcApiWithRetry(
+                  `/api/proceso-importacion/intencion-compra/${ic.id}/anular`,
+                  { method: "POST" },
+                );
                 const data = await res.json();
-                if (!res.ok) alert(data.error);
-                else load();
+                if (!res.ok) alert(icApiErrorMessage(data, "Error"));
+                else setIcs((prev) => prev.filter((x) => x.id !== ic.id));
               }}
               className="flex-1 rounded-lg border border-slate-400 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >

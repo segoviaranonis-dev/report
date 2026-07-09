@@ -9,6 +9,7 @@ import {
 } from "@/lib/intencion-compra/quincena-arribo";
 import { FechaEmbarqueSlider } from "./FechaEmbarqueSlider";
 import { SelectorPoliticaLp } from "./SelectorPoliticaLp";
+import { IcProgramadoCabeceraGuide } from "./IcProgramadoCabeceraGuide";
 import { useMarcasPorTipo } from "./useMarcasPorTipo";
 import { resolveMarcasIcOptions } from "@/lib/intencion-compra/marcas-ic-options";
 import {
@@ -16,23 +17,23 @@ import {
   labelListadoPrecio,
   type ListadoPrecioTierId,
 } from "@/lib/intencion-compra/listado-precio-tiers";
+import { fetchIcApiWithRetry, icApiErrorMessage } from "@/lib/intencion-compra/ic-api-fetch";
 
 type Props = {
   ic: IcPendienteRow;
   catalogos: IcCatalogos;
   quincenaLookup: Record<number, string>;
-  onUpdated: () => void;
+  onRemoved: (icId: number) => void;
 };
 
 async function patchCampo(icId: number, campo: string, valor: unknown) {
-  const res = await fetch(`/api/proceso-importacion/intencion-compra/${icId}/campo`, {
+  const res = await fetchIcApiWithRetry(`/api/proceso-importacion/intencion-compra/${icId}/campo`, {
     method: "PATCH",
-    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ campo, valor }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Error al guardar");
+  if (!res.ok) throw new Error(icApiErrorMessage(data, "Error al guardar"));
 }
 
 function SelectField({
@@ -64,7 +65,7 @@ function SelectField({
   );
 }
 
-export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Props) {
+export function IcPendienteCard({ ic, catalogos, quincenaLookup, onRemoved }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { marcas: marcasFiltradas } = useMarcasPorTipo(ic.tipo_id);
@@ -76,14 +77,13 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
       setErr(null);
       try {
         await patchCampo(ic.id, campo, valor);
-        onUpdated();
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Error");
       } finally {
         setBusy(false);
       }
     },
-    [ic.id, onUpdated],
+    [ic.id],
   );
 
   const quincenaOk = (ic.quincena_arribo_id ?? 0) > 0;
@@ -96,8 +96,21 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
       <header className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-rimec-azul-dark px-4 py-2 text-sm">
         <span className="font-bold text-amber-300">{ic.numero_registro}</span>
         <span className="text-slate-500">|</span>
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">Cliente</span>
-        <span className="font-semibold text-white">{ic.cliente}</span>
+        <span className="text-[10px] uppercase tracking-wide text-slate-400">
+          {esProgramado ? "SHOP" : "Cliente"}
+        </span>
+        <span className="font-mono font-semibold text-white">
+          {esProgramado ? ic.id_cliente : ic.cliente}
+        </span>
+        {esProgramado && (
+          <>
+            <span className="hidden text-slate-400 sm:inline">·</span>
+            <span className="hidden max-w-[140px] truncate text-slate-300 sm:inline">{ic.cliente}</span>
+            <span className="rounded bg-violet-600/80 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+              {labelListadoPrecio(ic.listado_precio_id)}
+            </span>
+          </>
+        )}
         <span className="text-slate-500">|</span>
         <span className="text-[10px] uppercase tracking-wide text-slate-400">Vendedor</span>
         <span className="font-semibold text-white">{ic.vendedor}</span>
@@ -107,6 +120,9 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
       </header>
 
       <div className="space-y-4 p-4">
+        {esProgramado && (
+          <IcProgramadoCabeceraGuide compact shop={ic.id_cliente} lp={ic.listado_precio_id as ListadoPrecioTierId | null} />
+        )}
         <div className="flex flex-wrap items-end gap-3">
           <SelectField
             label="Tipo"
@@ -208,14 +224,15 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
               onClick={async () => {
                 if (!confirm(`¿Eliminar ${ic.numero_registro}?`)) return;
                 setBusy(true);
+                setErr(null);
                 try {
-                  const res = await fetch(`/api/proceso-importacion/intencion-compra/${ic.id}`, {
-                    method: "DELETE",
-                    credentials: "same-origin",
-                  });
+                  const res = await fetchIcApiWithRetry(
+                    `/api/proceso-importacion/intencion-compra/${ic.id}`,
+                    { method: "DELETE" },
+                  );
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error);
-                  onUpdated();
+                  if (!res.ok) throw new Error(icApiErrorMessage(data, "Error al eliminar"));
+                  onRemoved(ic.id);
                 } catch (e) {
                   setErr(e instanceof Error ? e.message : "Error");
                 } finally {
@@ -231,14 +248,15 @@ export function IcPendienteCard({ ic, catalogos, quincenaLookup, onUpdated }: Pr
               disabled={busy || !canAuth}
               onClick={async () => {
                 setBusy(true);
+                setErr(null);
                 try {
-                  const res = await fetch(`/api/proceso-importacion/intencion-compra/${ic.id}/autorizar`, {
-                    method: "POST",
-                    credentials: "same-origin",
-                  });
+                  const res = await fetchIcApiWithRetry(
+                    `/api/proceso-importacion/intencion-compra/${ic.id}/autorizar`,
+                    { method: "POST" },
+                  );
                   const data = await res.json();
-                  if (!res.ok) throw new Error(data.error);
-                  onUpdated();
+                  if (!res.ok) throw new Error(icApiErrorMessage(data, "Error al autorizar"));
+                  onRemoved(ic.id);
                 } catch (e) {
                   setErr(e instanceof Error ? e.message : "Error");
                 } finally {

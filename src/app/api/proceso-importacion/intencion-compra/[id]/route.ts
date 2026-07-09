@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eliminarIc } from "@/lib/intencion-compra/ic-actions";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -23,7 +24,6 @@ export async function DELETE(_req: Request, { params }: Params) {
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error al eliminar";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return icApiErrorResponse(e, "Error al eliminar");
   }
 }
