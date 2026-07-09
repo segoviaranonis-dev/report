@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { loadBibliotecaEditor } from "./biblioteca-editor";
 import { normalizarCaso, validarExclusividadCasosLineas } from "./caso-utils";
 
 /** Paridad Streamlit `vincular_biblioteca_a_evento`. */
