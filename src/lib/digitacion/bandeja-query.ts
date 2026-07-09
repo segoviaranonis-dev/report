@@ -98,7 +98,7 @@ export async function listIcPendientesDigitacion(
         SELECT 1 FROM intencion_compra_pedido icp WHERE icp.intencion_compra_id = ic.id
       )
       AND ($2::int IS NULL OR ic.categoria_id = $2)
-    ORDER BY ic.quincena_arribo_id ASC NULLS LAST, ic.numero_registro ASC
+    ORDER BY ic.numero_registro ASC
   `,
     [estados, categoriaId],
   );
