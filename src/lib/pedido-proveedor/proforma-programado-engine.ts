@@ -102,6 +102,7 @@ export type ProformaImportPhaseResult = ProformaImportResult & {
   fi_offset_next?: number;
   fi_total?: number;
   fi_batch?: number;
+  fi_avisos?: string[];
 };
 
 type FiLineItem = {
@@ -630,7 +631,7 @@ function buildProgramadoFiJobs(
   ics: IcRow[],
   ppdByMol: Map<string, number>,
   skuByPpd: Map<number, SkuFi>,
-): { jobs: FiJob[]; errores: string[] } {
+): { jobs: FiJob[]; errores: string[]; avisos: string[] } {
   const rowsByShop = new Map<string, ProformaRow[]>();
   for (const r of detalle) {
     const shop = r.shop.trim();
@@ -649,6 +650,7 @@ function buildProgramadoFiJobs(
 
   const jobs: FiJob[] = [];
   const errores: string[] = [];
+  const avisos: string[] = [];
   const sortedShops = [...icsByShop.keys()].sort();
 
   for (const shop of sortedShops) {
@@ -681,12 +683,12 @@ function buildProgramadoFiJobs(
         const molKey = molKeyProformaRow(r);
         const ppdId = ppdByMol.get(molKey);
         if (!ppdId) {
-          errores.push(`IC ${icRow.numero_registro}: molécula ${r.linea_codigo_proveedor}.${r.referencia_codigo_proveedor} sin PPD`);
+          avisos.push(`IC ${icRow.numero_registro}: molécula ${r.linea_codigo_proveedor}.${r.referencia_codigo_proveedor} sin PPD`);
           continue;
         }
         const sku = skuByPpd.get(ppdId);
         if (!sku?.linea_id) {
-          errores.push(`IC ${icRow.numero_registro}: pilares/LPN faltantes PPD ${ppdId}`);
+          avisos.push(`IC ${icRow.numero_registro}: pilares/LPN faltantes PPD ${ppdId}`);
           continue;
         }
         const { precio_unit, precio_neto, subtotal } = calcLineaFiPrecio(sku, tier, d1, d2, d3, d4, r.pairs);
@@ -709,10 +711,11 @@ function buildProgramadoFiJobs(
       }
 
       if (items.length) jobs.push({ shop, icRow, items });
+      else if (assigned.length) avisos.push(`IC ${icRow.numero_registro}: sin líneas con LPN/pilares (${assigned.length} filas proforma)`);
     }
   }
 
-  return { jobs, errores };
+  return { jobs, errores, avisos };
 }
 
 export async function importProformaProgramadoPhased(
@@ -848,7 +851,7 @@ export async function importProformaProgramadoPhased(
     }
 
     const ppdByMol = await loadPpdByMol(client, ppId);
-    const { jobs, errores: planErrores } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
+    const { jobs, errores: planErrores, avisos: planAvisos } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
     if (planErrores.length) {
       return {
         ok: false,
@@ -856,6 +859,7 @@ export async function importProformaProgramadoPhased(
         programado: true,
         phase: "fi",
         fi_errores: planErrores,
+        fi_avisos: planAvisos,
       };
     }
 
@@ -864,12 +868,13 @@ export async function importProformaProgramadoPhased(
       return {
         ok: false,
         error:
-          planErrores.length > 0
-            ? planErrores.slice(0, 3).join("; ")
+          planAvisos.length > 0
+            ? planAvisos.slice(0, 3).join("; ")
             : "No se generaron trabajos FI (0 IC×shop) — revisá emparejamiento SHOP↔IC y moléculas PPD.",
         programado: true,
         phase: "fi",
         fi_errores: planErrores,
+        fi_avisos: planAvisos,
         fi_total: 0,
         n_fi: 0,
       };
@@ -1069,7 +1074,7 @@ export async function completarFiProgramadoPhased(
     }
 
     const ppdByMol = await loadPpdByMol(client, ppId);
-    const { jobs, errores: planErrores } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
+    const { jobs, errores: planErrores, avisos: planAvisos } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
     if (planErrores.length) {
       return {
         ok: false,
@@ -1077,6 +1082,7 @@ export async function completarFiProgramadoPhased(
         programado: true,
         phase: "fi",
         fi_errores: planErrores,
+        fi_avisos: planAvisos,
       };
     }
 
@@ -1084,9 +1090,13 @@ export async function completarFiProgramadoPhased(
     if (fiTotal === 0 && existingFi === 0) {
       return {
         ok: false,
-        error: "No se generaron trabajos FI (0 IC) — revisá emparejamiento SHOP↔IC.",
+        error:
+          planAvisos.length > 0
+            ? planAvisos.slice(0, 3).join("; ")
+            : "No se generaron trabajos FI (0 IC) — revisá emparejamiento SHOP↔IC.",
         programado: true,
         phase: "fi",
+        fi_avisos: planAvisos,
         fi_total: 0,
         n_fi: 0,
       };

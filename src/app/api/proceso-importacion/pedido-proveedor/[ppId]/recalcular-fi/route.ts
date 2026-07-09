@@ -22,6 +22,16 @@ export async function POST(req: Request, { params }: Params) {
 
   const result = await runRecalcularFiPython(ppId, Boolean(body.incluir_confirmadas));
 
+  if (process.env.VERCEL === "1" && !result.ok && String(result.error ?? "").includes("ENOENT")) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Recalcular FI no disponible en prod (sin Python). Usá «Crear facturas internas» en tab FI.",
+      },
+      { status: 400 },
+    );
+  }
+
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error ?? result.message ?? "Error al recalcular" }, { status: 400 });
   }
