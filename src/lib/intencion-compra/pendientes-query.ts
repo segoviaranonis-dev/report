@@ -10,6 +10,7 @@ export type IcPendienteRow = {
   id_marca: number;
   marca: string;
   proveedor: string;
+  id_cliente: number;
   cliente: string;
   vendedor: string;
   quincena_arribo_id: number | null;
@@ -28,6 +29,7 @@ const IC_SELECT = `
          ic.categoria_id, COALESCE(cv2.descp_categoria, '—') AS categoria,
          ic.id_marca, mv.descp_marca AS marca,
          pi2.nombre AS proveedor,
+         ic.id_cliente,
          cv.descp_cliente AS cliente,
          vv.descp_vendedor AS vendedor,
          ic.quincena_arribo_id,
@@ -60,6 +62,7 @@ function mapRow(r: Record<string, unknown>): IcPendienteRow {
     id_marca: Number(r.id_marca),
     marca: String(r.marca),
     proveedor: String(r.proveedor),
+    id_cliente: Number(r.id_cliente),
     cliente: String(r.cliente),
     vendedor: String(r.vendedor),
     quincena_arribo_id: r.quincena_arribo_id != null ? Number(r.quincena_arribo_id) : null,
@@ -75,7 +78,7 @@ function mapRow(r: Record<string, unknown>): IcPendienteRow {
 
 export async function listIcPendientes(pool: Pool): Promise<IcPendienteRow[]> {
   const { rows } = await pool.query(`${IC_SELECT} WHERE ic.estado = 'PENDIENTE_OPERATIVO'
-    ORDER BY ic.quincena_arribo_id ASC NULLS LAST, ic.numero_registro ASC`);
+    ORDER BY ic.numero_registro ASC`);
   return rows.map(mapRow);
 }
 
