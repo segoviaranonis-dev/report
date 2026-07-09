@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { SkuStagingRow } from "./excel-proveedor";
 import { normalizarMarca } from "./ley-genero";
-import { parseCodigoPilar, resolverPilaresSku, codigoLineaDesdeSku } from "./evento-pilares";
+import { parseCodigoPilar, PilaresBulkResolver, codigoLineaDesdeSku } from "./evento-pilares";
 import { cargarSkusExcel, contarSkusExcel } from "./evento-sku-staging";
 
 export type CasoAsignacion = {
@@ -181,15 +181,11 @@ export async function prepararStagingPaso3(
     warnings.push("Matriz de casos vacía — asigná biblioteca en Memoria.");
   }
 
-  const pilaresCache = new Map<string, Awaited<ReturnType<typeof resolverPilaresSku>>>();
+  const pilaresResolver = new PilaresBulkResolver(pool, proveedorId);
+  await pilaresResolver.preload();
 
   for (const sku of skus) {
-    const cacheKey = `${proveedorId}|${sku.linea}|${sku.referencia}|${sku.material}|${sku.marca}`;
-    let pilares = pilaresCache.get(cacheKey);
-    if (pilares === undefined) {
-      pilares = await resolverPilaresSku(pool, proveedorId, sku);
-      pilaresCache.set(cacheKey, pilares);
-    }
+    const pilares = await pilaresResolver.resolveOrEnsure(sku);
     if (!pilares) {
       warnings.push(`SKU sin pilares: ${sku.marca} · L${sku.linea} R${sku.referencia} M${sku.material}`);
       continue;
@@ -298,30 +294,33 @@ export async function ejecutarCalculoPaso3(
 
     await client.query(`DELETE FROM precio_lista_staging WHERE evento_id = $1`, [eventoId]);
 
-    const values: unknown[] = [];
-    const chunks: string[] = [];
-    prep.staging.forEach((s, i) => {
-      const b = i * 7;
-      chunks.push(
-        `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7})`,
+    const CHUNK = 400;
+    for (let i = 0; i < prep.staging.length; i += CHUNK) {
+      const slice = prep.staging.slice(i, i + CHUNK);
+      const values: unknown[] = [];
+      const chunks: string[] = [];
+      slice.forEach((s, idx) => {
+        const b = idx * 7;
+        chunks.push(
+          `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7})`,
+        );
+        values.push(
+          s.evento_id,
+          s.caso_id,
+          s.marca,
+          s.linea_id,
+          s.referencia_id,
+          s.material_id,
+          s.fob_fabrica,
+        );
+      });
+      await client.query(
+        `INSERT INTO precio_lista_staging
+           (evento_id, caso_id, marca, linea_id, referencia_id, material_id, fob_fabrica)
+         VALUES ${chunks.join(", ")}`,
+        values,
       );
-      values.push(
-        s.evento_id,
-        s.caso_id,
-        s.marca,
-        s.linea_id,
-        s.referencia_id,
-        s.material_id,
-        s.fob_fabrica,
-      );
-    });
-
-    await client.query(
-      `INSERT INTO precio_lista_staging
-         (evento_id, caso_id, marca, linea_id, referencia_id, material_id, fob_fabrica)
-       VALUES ${chunks.join(", ")}`,
-      values,
-    );
+    }
 
     const calc = await client.query<{ total: string; duracion_ms: string; error: string | null }>(
       `SELECT total::text, duracion_ms::text, error

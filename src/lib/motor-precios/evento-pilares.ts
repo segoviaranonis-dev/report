@@ -170,3 +170,97 @@ export async function resolverPilaresSku(
   const material_id = await getOrCreateMaterial(pool, proveedorId, matCod);
   return { linea_id, referencia_id, material_id };
 }
+
+/** Índice en memoria — evita N×SELECT en Paso 3 (2388 SKUs en Vercel). */
+export class PilaresBulkResolver {
+  private readonly lineaByCod = new Map<number, number>();
+  private readonly refByKey = new Map<string, number>();
+  private readonly matByCod = new Map<number, number>();
+
+  constructor(
+    private readonly pool: Pool,
+    private readonly proveedorId: number,
+  ) {}
+
+  async preload(): Promise<void> {
+    const [lineas, refs, mats] = await Promise.all([
+      this.pool.query<{ id: string; codigo_proveedor: string }>(
+        `SELECT id, codigo_proveedor::text FROM linea WHERE proveedor_id = $1`,
+        [this.proveedorId],
+      ),
+      this.pool.query<{ id: string; linea_id: string; codigo_proveedor: string }>(
+        `SELECT id, linea_id::text, codigo_proveedor::text FROM referencia WHERE proveedor_id = $1`,
+        [this.proveedorId],
+      ),
+      this.pool.query<{ id: string; codigo_proveedor: string }>(
+        `SELECT id, codigo_proveedor::text FROM material WHERE proveedor_id = $1`,
+        [this.proveedorId],
+      ),
+    ]);
+    for (const r of lineas.rows) {
+      const cod = parseInt(r.codigo_proveedor, 10);
+      if (Number.isFinite(cod)) this.lineaByCod.set(cod, Number(r.id));
+    }
+    for (const r of refs.rows) {
+      const refCod = parseInt(r.codigo_proveedor, 10);
+      if (Number.isFinite(refCod)) {
+        this.refByKey.set(`${r.linea_id}:${refCod}`, Number(r.id));
+      }
+    }
+    for (const r of mats.rows) {
+      const cod = parseInt(r.codigo_proveedor, 10);
+      if (Number.isFinite(cod)) this.matByCod.set(cod, Number(r.id));
+    }
+  }
+
+  private resolveCached(
+    sku: { marca: string; linea: string; referencia: string; material: string },
+  ): PilaresResueltos | null {
+    const lineaCod = parseCodigoPilar(sku.linea);
+    const refCod = parseCodigoPilar(sku.referencia);
+    const matCod = parseCodigoPilar(sku.material);
+    if (lineaCod == null || refCod == null || matCod == null) return null;
+
+    const linea_id = this.lineaByCod.get(lineaCod);
+    const material_id = this.matByCod.get(matCod);
+    if (!linea_id || !material_id) return null;
+
+    const referencia_id = this.refByKey.get(`${linea_id}:${refCod}`);
+    if (!referencia_id) return null;
+
+    return { linea_id, referencia_id, material_id };
+  }
+
+  async resolveOrEnsure(
+    sku: { marca: string; linea: string; referencia: string; material: string },
+  ): Promise<PilaresResueltos | null> {
+    const hit = this.resolveCached(sku);
+    if (hit) return hit;
+
+    const lineaCod = parseCodigoPilar(sku.linea);
+    const refCod = parseCodigoPilar(sku.referencia);
+    const matCod = parseCodigoPilar(sku.material);
+    if (lineaCod == null || refCod == null || matCod == null) return null;
+
+    let linea_id = this.lineaByCod.get(lineaCod);
+    if (!linea_id) {
+      linea_id = await getOrCreateLinea(this.pool, this.proveedorId, lineaCod, sku.marca);
+      this.lineaByCod.set(lineaCod, linea_id);
+    }
+
+    const refKey = `${linea_id}:${refCod}`;
+    let referencia_id = this.refByKey.get(refKey);
+    if (!referencia_id) {
+      referencia_id = await getOrCreateReferencia(this.pool, this.proveedorId, linea_id, refCod);
+      this.refByKey.set(refKey, referencia_id);
+    }
+
+    let material_id = this.matByCod.get(matCod);
+    if (!material_id) {
+      material_id = await getOrCreateMaterial(this.pool, this.proveedorId, matCod);
+      this.matByCod.set(matCod, material_id);
+    }
+
+    return { linea_id, referencia_id, material_id };
+  }
+}

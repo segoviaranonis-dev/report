@@ -7,6 +7,9 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 type Params = { params: Promise<{ id: string }> };
 
+/** 2388 SKUs + calcular_precio_lista_evento_sql puede superar 60s en Vercel. */
+export const maxDuration = 300;
+
 export async function GET(_req: NextRequest, { params }: Params) {
   const gate = await requireMotorPreciosAdmin();
   if (gate.error) return gate.error;

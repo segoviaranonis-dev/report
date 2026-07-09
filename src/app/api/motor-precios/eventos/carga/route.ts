@@ -7,6 +7,8 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 const MAX_BYTES = 200 * 1024 * 1024;
 
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const gate = await requireMotorPreciosAdmin();
   if (gate.error) return gate.error;
