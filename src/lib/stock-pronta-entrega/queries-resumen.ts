@@ -43,6 +43,35 @@ export type StockProntaEntregaResumen = {
   origen: "pedido_proveedor_detalle";
 };
 
+const EMPTY_PE_RAMO = (tipo_v2_id: number, label: string): PeResumenRamo => ({
+  tipo_v2_id,
+  label,
+  uds: 0,
+  filas: 0,
+  monto_gs: 0,
+  pares_inicial: 0,
+  pares_vendidos: 0,
+  pares_saldo: 0,
+  skus: 0,
+});
+
+/** Fallback SSR cuando DATABASE_URL no está configurada (build + demo local). */
+export const EMPTY_STOCK_PE_RESUMEN: StockProntaEntregaResumen = {
+  batch_label: "—",
+  fecha_importacion: null,
+  filas: 0,
+  skus: 0,
+  uds_total: 0,
+  uds_inicial: 0,
+  uds_vendidas: 0,
+  monto_gs: 0,
+  calzado: EMPTY_PE_RAMO(1, "CALZADO"),
+  confecciones: EMPTY_PE_RAMO(2, "CONFECCIONES"),
+  por_deposito: [],
+  violacion: "HIEDRA_VENENOSA_PE",
+  origen: "pedido_proveedor_detalle",
+};
+
 function buildPeFilters(
   opts?: { deposito?: string; batch?: string; tipo_v2?: number },
   saldoPositivo = true,
