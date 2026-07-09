@@ -9,7 +9,17 @@ import {
   PE_TIPO_V2_EXPR,
 } from "@/lib/stock-pronta-entrega/pe-ppd-sql";
 
-export type PeResumenRamo = { tipo_v2_id: number; label: string; uds: number; filas: number; monto_gs: number };
+export type PeResumenRamo = {
+  tipo_v2_id: number;
+  label: string;
+  uds: number;
+  filas: number;
+  monto_gs: number;
+  pares_inicial: number;
+  pares_vendidos: number;
+  pares_saldo: number;
+  skus: number;
+};
 export type PeResumenDeposito = {
   deposito_codigo: string;
   columna_stock_legal: string;
@@ -115,23 +125,51 @@ export async function getStockProntaEntregaResumen(
   const udsSaldo = Number(row?.uds ?? 0);
   const udsVendidas = Number(v?.vendido ?? Math.max(udsInicial - udsSaldo, 0));
 
-  const calzadoQ = await pool.query<{ uds: string; filas: string; monto: string }>(
+  const calzadoQ = await pool.query<{
+    uds: string;
+    filas: string;
+    monto: string;
+    inicial: string;
+    vendido: string;
+    saldo: string;
+    skus: string;
+  }>(
     `
-    SELECT COALESCE(SUM(${PE_SALDO_EXPR}),0)::text AS uds, COUNT(*)::text AS filas,
-           COALESCE(SUM(${PE_MONTO_GS_EXPR}),0)::text AS monto
+    SELECT
+      COALESCE(SUM(${PE_SALDO_EXPR}),0)::text AS uds,
+      COUNT(*)::text AS filas,
+      COALESCE(SUM(${PE_MONTO_GS_EXPR}),0)::text AS monto,
+      COALESCE(SUM(COALESCE(ppd.cantidad_pares, 0)), 0)::text AS inicial,
+      COALESCE(SUM(COALESCE(ppd.pares_vendidos, 0)), 0)::text AS vendido,
+      COALESCE(SUM(${PE_SALDO_EXPR}), 0)::text AS saldo,
+      COUNT(DISTINCT ${PE_CODIGO_BARRAS_EXPR})::text AS skus
     ${PE_PPD_FROM}
-    ${where} AND ${PE_TIPO_V2_EXPR} = 1
+    ${whereAll} AND ${PE_TIPO_V2_EXPR} = 1
     `,
-    params,
+    paramsAll,
   );
-  const confQ = await pool.query<{ uds: string; filas: string; monto: string }>(
+  const confQ = await pool.query<{
+    uds: string;
+    filas: string;
+    monto: string;
+    inicial: string;
+    vendido: string;
+    saldo: string;
+    skus: string;
+  }>(
     `
-    SELECT COALESCE(SUM(${PE_SALDO_EXPR}),0)::text AS uds, COUNT(*)::text AS filas,
-           COALESCE(SUM(${PE_MONTO_GS_EXPR}),0)::text AS monto
+    SELECT
+      COALESCE(SUM(${PE_SALDO_EXPR}),0)::text AS uds,
+      COUNT(*)::text AS filas,
+      COALESCE(SUM(${PE_MONTO_GS_EXPR}),0)::text AS monto,
+      COALESCE(SUM(COALESCE(ppd.cantidad_pares, 0)), 0)::text AS inicial,
+      COALESCE(SUM(COALESCE(ppd.pares_vendidos, 0)), 0)::text AS vendido,
+      COALESCE(SUM(${PE_SALDO_EXPR}), 0)::text AS saldo,
+      COUNT(DISTINCT ${PE_CODIGO_BARRAS_EXPR})::text AS skus
     ${PE_PPD_FROM}
-    ${where} AND ${PE_TIPO_V2_EXPR} = 2
+    ${whereAll} AND ${PE_TIPO_V2_EXPR} = 2
     `,
-    params,
+    paramsAll,
   );
 
   const depQ = await pool.query<{
@@ -166,16 +204,24 @@ export async function getStockProntaEntregaResumen(
     calzado: {
       tipo_v2_id: 1,
       label: "CALZADO",
-      uds: Number(calzadoQ.rows[0]?.uds ?? 0),
+      uds: Number(calzadoQ.rows[0]?.saldo ?? calzadoQ.rows[0]?.uds ?? 0),
       filas: Number(calzadoQ.rows[0]?.filas ?? 0),
       monto_gs: Number(calzadoQ.rows[0]?.monto ?? 0),
+      pares_inicial: Number(calzadoQ.rows[0]?.inicial ?? 0),
+      pares_vendidos: Number(calzadoQ.rows[0]?.vendido ?? 0),
+      pares_saldo: Number(calzadoQ.rows[0]?.saldo ?? 0),
+      skus: Number(calzadoQ.rows[0]?.skus ?? 0),
     },
     confecciones: {
       tipo_v2_id: 2,
       label: "CONFECCIONES",
-      uds: Number(confQ.rows[0]?.uds ?? 0),
+      uds: Number(confQ.rows[0]?.saldo ?? confQ.rows[0]?.uds ?? 0),
       filas: Number(confQ.rows[0]?.filas ?? 0),
       monto_gs: Number(confQ.rows[0]?.monto ?? 0),
+      pares_inicial: Number(confQ.rows[0]?.inicial ?? 0),
+      pares_vendidos: Number(confQ.rows[0]?.vendido ?? 0),
+      pares_saldo: Number(confQ.rows[0]?.saldo ?? 0),
+      skus: Number(confQ.rows[0]?.skus ?? 0),
     },
     por_deposito: depQ.rows.map((d) => ({
       deposito_codigo: d.deposito_codigo,

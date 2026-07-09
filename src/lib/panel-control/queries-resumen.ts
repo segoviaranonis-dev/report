@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { getCompraPreviaEstadisticasWeb } from "@/lib/panel-control/compra-previa-estadisticas-web";
-import { getStockProntaEntregaResumen } from "@/lib/stock-pronta-entrega/queries-resumen";
+import { getStockProntaEntregaResumen, type PeResumenRamo } from "@/lib/stock-pronta-entrega/queries-resumen";
 
 export type EntidadActivoResumen = {
   entidad: "STOCK" | "COMPRA_PREVIA" | "PROGRAMADO";
@@ -13,6 +13,8 @@ export type EntidadActivoResumen = {
   monto_gs: number | null;
   rimec_web: boolean;
   enlace_report: string;
+  /** PE · segregación obligatoria calzado vs confecciones */
+  ramos?: { calzado: PeResumenRamo; confecciones: PeResumenRamo };
 };
 
 export type PanelControlResumen = {
@@ -107,6 +109,7 @@ export async function getPanelControlResumen(pool: Pool): Promise<PanelControlRe
       monto_gs: pe.monto_gs,
       rimec_web: true,
       enlace_report: "/stock-pronta-entrega",
+      ramos: { calzado: pe.calzado, confecciones: pe.confecciones },
     },
     {
       entidad: "COMPRA_PREVIA",
