@@ -24,13 +24,11 @@ export async function GET(req: Request) {
 
   try {
     const pool = getRimecPool();
-    const [pendientes, enProceso, cerrados, pendientesCp, pendientesProg] = await Promise.all([
-      listIcPendientesDigitacion(pool, ramo),
-      listPpsEnProceso(pool, ramo),
-      listPpsDigitacionCerrados(pool, ramo),
-      listIcPendientesDigitacion(pool, "compra_previa"),
-      listIcPendientesDigitacion(pool, "programado"),
-    ]);
+    const pendientes = await listIcPendientesDigitacion(pool, ramo);
+    const enProceso = await listPpsEnProceso(pool, ramo);
+    const cerrados = await listPpsDigitacionCerrados(pool, ramo);
+    const pendientesCp = await listIcPendientesDigitacion(pool, "compra_previa");
+    const pendientesProg = await listIcPendientesDigitacion(pool, "programado");
 
     const totalPares = pendientes.reduce((s, ic) => s + ic.pares, 0);
 

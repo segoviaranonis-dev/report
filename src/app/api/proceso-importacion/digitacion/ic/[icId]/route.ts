@@ -23,10 +23,8 @@ export async function GET(_req: Request, { params }: Params) {
     const ic = await getIcAsignacion(pool, icId);
     if (!ic) return NextResponse.json({ ok: false, error: "IC no disponible para asignación" }, { status: 404 });
 
-    const [catalogos, ppsAbiertos] = await Promise.all([
-      loadIcCatalogos(pool),
-      listPpsAbiertosSelector(pool, ic.categoria_id),
-    ]);
+    const catalogos = await loadIcCatalogos(pool);
+    const ppsAbiertos = await listPpsAbiertosSelector(pool, ic.categoria_id);
 
     return NextResponse.json({ ok: true, ic, catalogos, pps_abiertos: ppsAbiertos });
   } catch (e) {

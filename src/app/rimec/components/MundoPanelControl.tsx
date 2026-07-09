@@ -35,10 +35,54 @@ const ENTITY_STYLE: Record<
   },
 };
 
+function PeRamoBlock({
+  ramo,
+  accent,
+}: {
+  ramo: NonNullable<EntidadActivoResumen["ramos"]>["calzado"];
+  accent: "emerald" | "violet";
+}) {
+  const border = accent === "emerald" ? "border-emerald-200 bg-emerald-50/60" : "border-violet-200 bg-violet-50/60";
+  const title = accent === "emerald" ? "text-emerald-900" : "text-violet-900";
+  const saldo = accent === "emerald" ? "text-emerald-800" : "text-violet-800";
+  const icon = ramo.tipo_v2_id === 1 ? "👟" : "👕";
+
+  return (
+    <div className={`rounded-xl border p-3 ${border}`}>
+      <p className={`text-[10px] font-bold uppercase tracking-wider ${title}`}>
+        {icon} {ramo.label}
+      </p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+        <div>
+          <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Inicial</dt>
+          <dd className="font-serif font-semibold tabular-nums text-neutral-ink">{fmtN(ramo.pares_inicial)}</dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Saldo</dt>
+          <dd className={`font-serif font-semibold tabular-nums ${saldo}`}>{fmtN(ramo.pares_saldo)}</dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Vendido</dt>
+          <dd className="font-medium tabular-nums text-rose-700">{fmtN(ramo.pares_vendidos)}</dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Productos</dt>
+          <dd className="font-medium tabular-nums text-neutral-ink">{fmtN(ramo.skus)}</dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Monto Gs</dt>
+          <dd className="font-serif text-sm font-semibold tabular-nums text-neutral-ink">{fmtGs(ramo.monto_gs)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 function EntidadCard({ e }: { e: EntidadActivoResumen }) {
   const st = ENTITY_STYLE[e.entidad];
 
   const dualCp = e.entidad === "COMPRA_PREVIA";
+  const peRamos = e.entidad === "STOCK" && e.ramos;
 
   return (
     <section className={`rounded-2xl border-2 ${st.ring} bg-white shadow-sm`}>
@@ -59,36 +103,43 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
           </span>
         </div>
 
-        <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Pares inicial</dt>
-            <dd className="font-serif text-xl font-semibold text-neutral-ink">{fmtN(e.pares_inicial)}</dd>
+        {peRamos ? (
+          <div className="mt-5 space-y-3">
+            <PeRamoBlock ramo={peRamos.calzado} accent="emerald" />
+            <PeRamoBlock ramo={peRamos.confecciones} accent="violet" />
           </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Saldo</dt>
-            <dd className={`font-serif text-xl font-semibold ${st.saldo}`}>{fmtN(e.pares_saldo)}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Vendido</dt>
-            <dd className="font-medium text-rose-700">{fmtN(e.pares_vendidos)}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Moléculas</dt>
-            <dd className="font-medium text-neutral-ink">{fmtN(e.moleculas)}</dd>
-          </div>
-          {e.monto_gs != null ? (
-            <div className="col-span-2">
-              <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Monto Gs (PE)</dt>
-              <dd className="font-serif text-lg font-semibold text-neutral-ink">{fmtGs(e.monto_gs)}</dd>
-            </div>
-          ) : null}
-          {e.pedidos_abiertos > 0 ? (
+        ) : (
+          <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
             <div>
-              <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Pedidos PP</dt>
-              <dd className="font-medium text-neutral-ink">{fmtN(e.pedidos_abiertos)}</dd>
+              <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Pares inicial</dt>
+              <dd className="font-serif text-xl font-semibold text-neutral-ink">{fmtN(e.pares_inicial)}</dd>
             </div>
-          ) : null}
-        </dl>
+            <div>
+              <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Saldo</dt>
+              <dd className={`font-serif text-xl font-semibold ${st.saldo}`}>{fmtN(e.pares_saldo)}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Vendido</dt>
+              <dd className="font-medium text-rose-700">{fmtN(e.pares_vendidos)}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Productos</dt>
+              <dd className="font-medium text-neutral-ink">{fmtN(e.moleculas)}</dd>
+            </div>
+            {e.monto_gs != null ? (
+              <div className="col-span-2">
+                <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Monto Gs (PE)</dt>
+                <dd className="font-serif text-lg font-semibold text-neutral-ink">{fmtGs(e.monto_gs)}</dd>
+              </div>
+            ) : null}
+            {e.pedidos_abiertos > 0 ? (
+              <div>
+                <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Pedidos PP</dt>
+                <dd className="font-medium text-neutral-ink">{fmtN(e.pedidos_abiertos)}</dd>
+              </div>
+            ) : null}
+          </dl>
+        )}
 
         {dualCp ? (
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -100,7 +151,7 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
               <span className="mt-1 font-serif text-lg font-semibold tabular-nums text-rimec-azul-dark">
                 {fmtN(e.pares_saldo)} p
               </span>
-              <span className="mt-2 text-[10px] font-semibold text-rimec-azul">Control stock →</span>
+              <span className="mt-2 text-[10px] font-semibold text-rimec-azul">Operativa + Artículos →</span>
             </Link>
             <Link
               href="/stock-transito/ventas"
@@ -156,6 +207,11 @@ export function MundoPanelControl() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    // HOTFIX EMAXCONN: prefetch desactivado — 3 APIs pesadas saturaban pool Supabase en prod.
+    // if (data) prefetchGrillasPanelControl();
+  }, [data]);
 
   return (
     <div className="p-8">

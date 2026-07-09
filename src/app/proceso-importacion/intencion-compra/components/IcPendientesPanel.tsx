@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { IcPendienteRow } from "@/lib/intencion-compra/pendientes-query";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
@@ -9,9 +9,18 @@ import { INTENCION_COMPRA_NUEVA } from "@/lib/report/routes";
 import { Skeleton } from "@/components/ui/LoadingState";
 import { IcPendienteCard } from "./IcPendienteCard";
 
+const EMAXCONN_RETRIES = 4;
+const EMAXCONN_WAIT_MS = 8_000;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export function IcPendientesPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const mountedRef = useRef(true);
   const [ics, setIcs] = useState<IcPendienteRow[]>([]);
   const [catalogos, setCatalogos] = useState<IcCatalogos | null>(null);
   const [quincenaLookup, setQuincenaLookup] = useState<Record<number, string>>({});
@@ -20,30 +29,59 @@ export function IcPendientesPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setRetrying(false);
     try {
-      const res = await fetch("/api/proceso-importacion/intencion-compra/pendientes", {
-        credentials: "same-origin",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al cargar");
-      setIcs(data.ics ?? []);
-      setCatalogos(data.catalogos ?? null);
-      setQuincenaLookup(data.quincena_lookup ?? {});
-      setStats(data.stats ?? { pares: 0, neto: 0 });
+      for (let attempt = 0; attempt < EMAXCONN_RETRIES; attempt++) {
+        const res = await fetch("/api/proceso-importacion/intencion-compra/pendientes", {
+          credentials: "same-origin",
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if (!mountedRef.current) return;
+          setIcs(data.ics ?? []);
+          setCatalogos(data.catalogos ?? null);
+          setQuincenaLookup(data.quincena_lookup ?? {});
+          setStats(data.stats ?? { pares: 0, neto: 0 });
+          return;
+        }
+        const saturated = res.status === 503 || data.code === "EMAXCONN";
+        if (saturated && attempt < EMAXCONN_RETRIES - 1) {
+          setRetrying(true);
+          await sleep(EMAXCONN_WAIT_MS);
+          continue;
+        }
+        throw new Error(data.error || "Error al cargar");
+      }
     } catch (e) {
+      if (!mountedRef.current) return;
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRetrying(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    void load();
   }, [load]);
 
   if (loading) {
     return (
       <div className="space-y-4 py-4">
+        {retrying ? (
+          <p className="text-sm text-amber-800">
+            Pool Supabase ocupado — reintentando automáticamente…
+          </p>
+        ) : null}
         <Skeleton className="h-24 w-full" count={3} />
       </div>
     );
@@ -51,7 +89,16 @@ export function IcPendientesPanel() {
 
   if (error) {
     return (
-      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>
+      <div className="mt-4 space-y-3">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-lg bg-rimec-azul px-4 py-2 text-sm font-bold text-white hover:bg-rimec-azul-dark"
+        >
+          Reintentar ahora
+        </button>
+      </div>
     );
   }
 

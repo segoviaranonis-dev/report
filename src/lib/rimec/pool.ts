@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 
 /**
- * Pool singleton (Next.js server). Prioridad: pocas conexiones estables y reuso entre requests.
- * Ajustar `max` vía `RIMEC_PG_POOL_MAX` si el host lo permite y hay mucha concurrencia de snapshot.
+ * Pool singleton (Next.js server). Serverless Vercel: max 1 conexión por instancia.
+ * Supabase pooler (:6543) + pgbouncer=true — evita EMAXCONN (límite ~200).
  */
 export function isRimecDatabaseConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -11,6 +11,18 @@ export function isRimecDatabaseConfigured(): boolean {
 declare global {
   // eslint-disable-next-line no-var -- singleton dev HMR
   var __rimecPgPool: Pool | undefined;
+}
+
+function normalizePoolerUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.hostname.includes("pooler.supabase.com") && !u.searchParams.has("pgbouncer")) {
+      u.searchParams.set("pgbouncer", "true");
+    }
+    return u.toString();
+  } catch {
+    return raw;
+  }
 }
 
 /** Serverless: 1 conexión por instancia — evita EMAXCONN Supabase pooler (límite ~200). */
@@ -32,14 +44,16 @@ export function getRimecPool(): Pool {
   }
   if (!globalThis.__rimecPgPool) {
     const max = resolvePgPoolMax();
+    const connectionString = normalizePoolerUrl(String(url).trim());
     globalThis.__rimecPgPool = new Pool({
-      connectionString: url,
+      connectionString,
       max,
-      idleTimeoutMillis: 20_000,
-      connectionTimeoutMillis: 10_000,
+      min: 0,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 8_000,
       allowExitOnIdle: true,
       ssl:
-        url.includes("localhost") || url.includes("127.0.0.1")
+        connectionString.includes("localhost") || connectionString.includes("127.0.0.1")
           ? false
           : { rejectUnauthorized: false },
     });
