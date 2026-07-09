@@ -89,7 +89,10 @@ export type IcDevueltaRow = IcPendienteRow & {
 
 export async function listIcDevueltas(pool: Pool): Promise<IcDevueltaRow[]> {
   const { rows } = await pool.query(
-    `${IC_SELECT}, ic.motivo_devolucion, ic.devuelto_at
+    `${IC_SELECT.replace(
+      "ic.nota_pedido",
+      "ic.nota_pedido,\n         ic.motivo_devolucion,\n         ic.devuelto_at",
+    )}
      WHERE ic.estado = 'DEVUELTO_ADMIN'
      ORDER BY ic.devuelto_at DESC NULLS LAST, ic.numero_registro ASC`,
   );
