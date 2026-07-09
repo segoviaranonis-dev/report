@@ -39,7 +39,18 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
-    const result = await runProformaImportPython(ppId, buffer, name, { proforma, borrarImport: false });
+    const phaseRaw = String(form.get("phase") ?? "all");
+    const phase = phaseRaw === "ppd" || phaseRaw === "fi" || phaseRaw === "all" ? phaseRaw : "all";
+    const fiOffset = Number(form.get("fi_offset") ?? 0);
+    const fiBatchRaw = Number(form.get("fi_batch") ?? 0);
+
+    const result = await runProformaImportPython(ppId, buffer, name, {
+      proforma,
+      borrarImport: false,
+      phase,
+      fiOffset: Number.isFinite(fiOffset) ? fiOffset : 0,
+      fiBatchSize: Number.isFinite(fiBatchRaw) && fiBatchRaw > 0 ? fiBatchRaw : undefined,
+    });
     if (!result.ok) {
       return NextResponse.json(result, { status: 400 });
     }

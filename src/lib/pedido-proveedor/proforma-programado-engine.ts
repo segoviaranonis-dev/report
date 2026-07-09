@@ -7,6 +7,12 @@ import {
   upsertColorProforma,
   upsertMaterialProforma,
 } from "./pilares-proforma-upsert";
+import {
+  calcFobAjustadoPct,
+  calcLineaFiPrecio,
+  fiListaTier,
+  type SkuPrecioTiers,
+} from "./aritmetica-programado";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -84,21 +90,39 @@ type PpRow = {
   proveedor_importacion_id: number | null;
 };
 
-function calcFobAjustado(fob: number, d1: number, d2: number, d3: number, d4: number): number {
-  let result = fob;
-  for (const d of [d1, d2, d3, d4]) {
-    if (d && d > 0) result *= 1 - Number(d);
-  }
-  return Math.round(result * 10000) / 10000;
-}
+export type ProformaImportPhase = "ppd" | "fi" | "all";
 
-function factorDescuentoIcPct(d1: number, d2: number, d3: number, d4: number): number {
-  let factor = 1;
-  for (const d of [d1, d2, d3, d4]) {
-    if (d && Number(d) > 0) factor *= 1 - Number(d) / 100;
-  }
-  return factor;
-}
+export const PROFORMA_FI_BATCH_SIZE = 12;
+
+export type ProformaImportPhaseResult = ProformaImportResult & {
+  phase?: ProformaImportPhase;
+  done?: boolean;
+  fi_offset?: number;
+  fi_offset_next?: number;
+  fi_total?: number;
+  fi_batch?: number;
+};
+
+type FiLineItem = {
+  ppd_id: number;
+  linea_id: number;
+  referencia_id: number;
+  material_id: number;
+  color_id: number | null;
+  linea_codigo: string;
+  ref_codigo: string;
+  material_nombre: string;
+  color_nombre: string;
+  cajas: number;
+  pares: number;
+  precio_unit: number;
+  precio_neto: number;
+  subtotal: number;
+};
+
+type FiJob = { shop: string; icRow: IcRow; items: FiLineItem[] };
+
+const PPD_INSERT_CHUNK = 150;
 
 function molKeyProformaRow(r: ProformaRow): string {
   return canonicalMolKey(
@@ -315,16 +339,19 @@ export async function previewImportProformaProgramadoTs(
   };
 }
 
-async function getNextNroFi(client: PoolClient, ppId: number): Promise<string> {
+async function getNextNroFiBase(client: PoolClient, ppId: number): Promise<number> {
   const { rows } = await client.query<{ correlativo: number }>(
     `SELECT COALESCE(
        MAX(CAST(REGEXP_REPLACE(nro_factura, '^[0-9]+-PV', '') AS INTEGER)), 0
-     ) + 1 AS correlativo
+     ) AS correlativo
      FROM factura_interna
      WHERE pp_id = $1 AND nro_factura ~ '^[0-9]+-PV[0-9]+$'`,
     [ppId],
   );
-  const correlativo = rows[0]?.correlativo ?? 1;
+  return rows[0]?.correlativo ?? 0;
+}
+
+function formatNroFi(ppId: number, correlativo: number): string {
   return `${ppId}-PV${String(correlativo).padStart(3, "0")}`;
 }
 
@@ -384,9 +411,13 @@ async function populatePpFromProforma(
 
   await client.query("DELETE FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1", [ppId]);
 
+  const healCols = new Map<string, string>();
+  const healMats = new Map<string, string>();
+  const insertRows: unknown[][] = [];
+
   for (const r of detalleRows) {
     const fobUnit = r.unit_fob;
-    const fobAj = calcFobAjustado(fobUnit, pp.descuento_1, pp.descuento_2, pp.descuento_3, pp.descuento_4);
+    const fobAj = calcFobAjustadoPct(fobUnit, pp.descuento_1, pp.descuento_2, pp.descuento_3, pp.descuento_4);
     const grades = r.grades_json;
     const brandKey = r.brand.trim().toUpperCase();
     const idMarca = marcaLookup.get(brandKey) ?? null;
@@ -395,58 +426,74 @@ async function populatePpFromProforma(
     const matHit = matLookup.get(matCode);
     const colHit = colLookup.get(colCode);
 
+    insertRows.push([
+      ppId,
+      r.pairs,
+      idMarca,
+      r.ncm || "",
+      r.style_code || "",
+      r.linea_codigo_proveedor || "",
+      r.referencia_codigo_proveedor || "",
+      r.name || "",
+      matHit?.id ?? null,
+      matHit?.desc ?? (r.material || ""),
+      matCode,
+      colHit?.id ?? null,
+      colHit?.nombre ?? (r.color || ""),
+      colCode,
+      r.grade_range || "",
+      grades["33"] ?? 0,
+      grades["34"] ?? 0,
+      grades["35"] ?? 0,
+      grades["36"] ?? 0,
+      grades["37"] ?? 0,
+      grades["38"] ?? 0,
+      grades["39"] ?? 0,
+      grades["40"] ?? 0,
+      r.boxes,
+      r.pairs,
+      fobUnit,
+      fobAj,
+      r.amount_fob,
+      JSON.stringify(grades),
+      Number.parseInt(r.item, 10) || 0,
+    ]);
+
+    const healCol = (r.color || "").trim();
+    if (colCode && healCol) healCols.set(colCode, healCol);
+    const healMat = (r.material || "").trim();
+    if (matCode && healMat) healMats.set(matCode, healMat);
+  }
+
+  const colCount = 30;
+  for (let i = 0; i < insertRows.length; i += PPD_INSERT_CHUNK) {
+    const chunk = insertRows.slice(i, i + PPD_INSERT_CHUNK);
+    const values: unknown[] = [];
+    const tuples = chunk.map((row, rowIdx) => {
+      const base = rowIdx * colCount;
+      values.push(...row);
+      const ph = Array.from({ length: colCount }, (_, j) => {
+        const n = base + j + 1;
+        return j === 28 ? `$${n}::jsonb` : `$${n}`;
+      });
+      return `(${ph.join(", ")})`;
+    });
     await client.query(
       `INSERT INTO pedido_proveedor_detalle (
          pedido_proveedor_id, cantidad, id_marca, ncm, style_code, linea, referencia, nombre,
          id_material, descp_material, material_code, id_color, descp_color, color_code, grada,
          t33, t34, t35, t36, t37, t38, t39, t40,
          cantidad_cajas, cantidad_pares, unit_fob, unit_fob_ajustado, amount_fob, grades_json, fila_origen_f9
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-         $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29::jsonb, $30
-       )`,
-      [
-        ppId,
-        r.pairs,
-        idMarca,
-        r.ncm || "",
-        r.style_code || "",
-        r.linea_codigo_proveedor || "",
-        r.referencia_codigo_proveedor || "",
-        r.name || "",
-        matHit?.id ?? null,
-        matHit?.desc ?? (r.material || ""),
-        matCode,
-        colHit?.id ?? null,
-        colHit?.nombre ?? (r.color || ""),
-        colCode,
-        r.grade_range || "",
-        grades["33"] ?? 0,
-        grades["34"] ?? 0,
-        grades["35"] ?? 0,
-        grades["36"] ?? 0,
-        grades["37"] ?? 0,
-        grades["38"] ?? 0,
-        grades["39"] ?? 0,
-        grades["40"] ?? 0,
-        r.boxes,
-        r.pairs,
-        fobUnit,
-        fobAj,
-        r.amount_fob,
-        JSON.stringify(grades),
-        Number.parseInt(r.item, 10) || 0,
-      ],
+       ) VALUES ${tuples.join(", ")}`,
+      values,
     );
+  }
 
-    const healCol = (r.color || "").trim();
-    if (colCode && healCol) {
-      await upsertColorProforma(client, colCode, provId, healCol);
-    }
-    const healMat = (r.material || "").trim();
-    if (matCode && healMat) {
-      await upsertMaterialProforma(client, matCode, provId, healMat);
-    }
+  for (const [code, desc] of healCols) {
+    await upsertColorProforma(client, code, provId, desc);
+  }
+  for (const [code, desc] of healMats) {
+    await upsertMaterialProforma(client, code, provId, desc);
   }
 
   return {
@@ -455,19 +502,22 @@ async function populatePpFromProforma(
   };
 }
 
-type SkuFi = {
+type SkuFi = SkuPrecioTiers & {
   ppd_id: number;
   linea_id: number;
   referencia_id: number;
   material_id: number;
   color_id: number | null;
-  lpn: number;
 };
 
 async function getSkusConPrecioParaFi(client: PoolClient, ppId: number, eventoId: number): Promise<Map<number, SkuFi>> {
   const { rows } = await client.query<SkuFi>(
     `SELECT ppd.id AS ppd_id, l.id AS linea_id, ref.id AS referencia_id,
-            m.id AS material_id, c.id AS color_id, COALESCE(pl.lpn, 0)::float AS lpn
+            m.id AS material_id, c.id AS color_id,
+            COALESCE(pl.lpn, 0)::float AS lpn,
+            COALESCE(pl.lpc02, 0)::float AS lpc02,
+            COALESCE(pl.lpc03, 0)::float AS lpc03,
+            COALESCE(pl.lpc04, 0)::float AS lpc04
      FROM pedido_proveedor_detalle ppd
      JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
      LEFT JOIN linea l ON l.proveedor_id = pp.proveedor_importacion_id AND l.codigo_proveedor::text = ppd.linea
@@ -490,24 +540,10 @@ async function crearFacturaInterna(
   client: PoolClient,
   ppId: number,
   ic: IcRow,
-  items: Array<{
-    ppd_id: number;
-    linea_id: number;
-    referencia_id: number;
-    material_id: number;
-    color_id: number | null;
-    linea_codigo: string;
-    ref_codigo: string;
-    material_nombre: string;
-    color_nombre: string;
-    cajas: number;
-    pares: number;
-    precio_unit: number;
-    precio_neto: number;
-    subtotal: number;
-  }>,
+  items: FiLineItem[],
+  nroOverride?: string,
 ): Promise<{ ok: boolean; nro: string }> {
-  const nro = await getNextNroFi(client, ppId);
+  const nro = nroOverride ?? formatNroFi(ppId, (await getNextNroFiBase(client, ppId)) + 1);
   const totalPares = items.reduce((s, i) => s + i.pares, 0);
   const totalMonto = Math.round(items.reduce((s, i) => s + i.subtotal, 0) * 100) / 100;
 
@@ -534,188 +570,322 @@ async function crearFacturaInterna(
   );
   const fiId = fiRes.rows[0].id;
 
-  for (const item of items) {
-    const snap = JSON.stringify({
-      linea_codigo: item.linea_codigo,
-      ref_codigo: item.ref_codigo,
-      material_nombre: item.material_nombre,
-      color_nombre: item.color_nombre,
+  if (items.length) {
+    const values: unknown[] = [];
+    const tuples = items.map((item, idx) => {
+      const base = idx * 8;
+      const snap = JSON.stringify({
+        linea_codigo: item.linea_codigo,
+        ref_codigo: item.ref_codigo,
+        material_nombre: item.material_nombre,
+        color_nombre: item.color_nombre,
+      });
+      values.push(fiId, item.ppd_id, item.cajas, item.pares, item.precio_unit, item.subtotal, item.precio_neto, snap);
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}::jsonb)`;
     });
     await client.query(
       `INSERT INTO factura_interna_detalle
          (factura_id, ppd_id, cajas, pares, precio_unit, subtotal, precio_neto, linea_snapshot)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-      [fiId, item.ppd_id, item.cajas, item.pares, item.precio_unit, item.subtotal, item.precio_neto, snap],
+       VALUES ${tuples.join(", ")}`,
+      values,
     );
-    if (item.ppd_id && item.pares > 0) {
-      await client.query("SELECT descontar_stock_pp($1, $2)", [item.ppd_id, item.pares]);
+    for (const item of items) {
+      if (item.ppd_id && item.pares > 0) {
+        await client.query("SELECT descontar_stock_pp($1, $2)", [item.ppd_id, item.pares]);
+      }
     }
   }
 
-  const vis = await client.query<{ numero_preventa_global: string }>(
-    "SELECT numero_preventa_global FROM v_factura_interna_preventa WHERE id = $1",
-    [fiId],
-  );
-  return { ok: true, nro: vis.rows[0]?.numero_preventa_global ?? nro };
+  return { ok: true, nro };
 }
 
-export async function importProformaProgramadoTs(
-  ppId: number,
-  fileBuffer: Buffer,
-  proformaOverride?: string,
-): Promise<ProformaImportResult> {
-  const preview = await previewImportProformaProgramadoTs(ppId, fileBuffer);
-  if (!preview.ok) {
-    return {
-      ...preview,
-      ok: false,
-      error: preview.errores?.join("; ") || "Emparejamiento SHOP↔IC inválido",
-      programado: true,
-    };
+async function loadPpdByMol(client: PoolClient, ppId: number): Promise<Map<string, number>> {
+  const ppdMapRes = await client.query<{
+    id: number;
+    linea: string;
+    referencia: string;
+    material_code: string;
+    color_code: string;
+    grades_json: unknown;
+  }>(
+    `SELECT id, linea, referencia, material_code, color_code, grades_json
+     FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1`,
+    [ppId],
+  );
+  const ppdByMol = new Map<string, number>();
+  for (const pr of ppdMapRes.rows) {
+    const gj =
+      typeof pr.grades_json === "object" && pr.grades_json ? (pr.grades_json as Record<string, number>) : {};
+    const key = canonicalMolKey(String(pr.linea), String(pr.referencia), String(pr.material_code), String(pr.color_code), gj);
+    ppdByMol.set(key, pr.id);
   }
-  if (!preview.listado_vinculado) {
-    return { ok: false, error: "Vinculá el listado de precios RIMEC antes de importar programado.", programado: true };
+  return ppdByMol;
+}
+
+function buildProgramadoFiJobs(
+  detalle: ProformaRow[],
+  ics: IcRow[],
+  ppdByMol: Map<string, number>,
+  skuByPpd: Map<number, SkuFi>,
+): { jobs: FiJob[]; errores: string[] } {
+  const rowsByShop = new Map<string, ProformaRow[]>();
+  for (const r of detalle) {
+    const shop = r.shop.trim();
+    const list = rowsByShop.get(shop) ?? [];
+    list.push(r);
+    rowsByShop.set(shop, list);
   }
 
-  const parsed = parseProforma(fileBuffer);
-  if (parsed.error) return { ok: false, error: parsed.error, programado: true };
+  const icsByShop = new Map<string, IcRow[]>();
+  for (const ic of ics) {
+    const shop = String(normalizeClienteId(ic.id_cliente) ?? ic.id_cliente);
+    const list = icsByShop.get(shop) ?? [];
+    list.push(ic);
+    icsByShop.set(shop, list);
+  }
 
-  const pool = getRimecPool();
-  const pp = await loadPp(pool, ppId);
-  if (!pp) return { ok: false, error: `PP ${ppId} no encontrado.`, programado: true };
+  const jobs: FiJob[] = [];
+  const errores: string[] = [];
+  const sortedShops = [...icsByShop.keys()].sort();
 
-  const proforma = (proformaOverride || pp.numero_proforma || "").trim();
-  if (!proforma) return { ok: false, error: "Nro proforma obligatorio.", programado: true };
-
-  const eventoId = preview.evento_id!;
-  const ics = await loadIcsPpProgramado(pool, ppId);
-  const detalle = parsed.rows;
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const pop = await populatePpFromProforma(client, pp, proforma, detalle);
-    if (!pop.ok) {
-      await client.query("ROLLBACK");
-      return { ok: false, error: pop.message, programado: true };
+  for (const shop of sortedShops) {
+    const icGroup = icsByShop.get(shop)!;
+    const icRows = rowsByShop.get(shop) ?? [];
+    if (!icRows.length) {
+      for (const icRow of icGroup) errores.push(`IC ${icRow.numero_registro}: sin filas proforma`);
+      continue;
     }
 
-    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId);
-    if (!skuByPpd.size) {
-      await client.query("ROLLBACK");
-      return { ok: false, error: "Sin SKUs PPD tras import (listado/pilares).", programado: true };
-    }
+    const quotas = icGroup.map((r) => r.cantidad_total_pares ?? 0);
+    const splitRows = splitProformaRowsPorQuotas(quotas, icRows);
 
-    const ppdMapRes = await client.query<{
-      id: number;
-      linea: string;
-      referencia: string;
-      material_code: string;
-      color_code: string;
-      grades_json: unknown;
-    }>(
-      `SELECT id, linea, referencia, material_code, color_code, grades_json
-       FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1`,
-      [ppId],
-    );
-    const ppdByMol = new Map<string, number>();
-    for (const pr of ppdMapRes.rows) {
-      const gj =
-        typeof pr.grades_json === "object" && pr.grades_json ? (pr.grades_json as Record<string, number>) : {};
-      const key = canonicalMolKey(String(pr.linea), String(pr.referencia), String(pr.material_code), String(pr.color_code), gj);
-      ppdByMol.set(key, pr.id);
-    }
-
-    const rowsByShop = new Map<string, ProformaRow[]>();
-    for (const r of detalle) {
-      const shop = r.shop.trim();
-      const list = rowsByShop.get(shop) ?? [];
-      list.push(r);
-      rowsByShop.set(shop, list);
-    }
-
-    const icsByShop = new Map<string, IcRow[]>();
-    for (const ic of ics) {
-      const shop = String(normalizeClienteId(ic.id_cliente) ?? ic.id_cliente);
-      const list = icsByShop.get(shop) ?? [];
-      list.push(ic);
-      icsByShop.set(shop, list);
-    }
-
-    const fiCreadas: FiCreadaProgramado[] = [];
-    const fiErrores: string[] = [];
-
-    for (const [shop, icGroup] of icsByShop) {
-      const icRows = rowsByShop.get(shop) ?? [];
-      if (!icRows.length) {
-        for (const icRow of icGroup) fiErrores.push(`IC ${icRow.numero_registro}: sin filas proforma`);
+    for (let i = 0; i < icGroup.length; i++) {
+      const icRow = icGroup[i];
+      const assigned = splitRows[i] ?? [];
+      if (!assigned.length) {
+        errores.push(`IC ${icRow.numero_registro}: cupo sin filas asignadas`);
         continue;
       }
 
-      const quotas = icGroup.map((r) => r.cantidad_total_pares ?? 0);
-      const splitRows = splitProformaRowsPorQuotas(quotas, icRows);
+      const d1 = Number(icRow.descuento_1 ?? 0);
+      const d2 = Number(icRow.descuento_2 ?? 0);
+      const d3 = Number(icRow.descuento_3 ?? 0);
+      const d4 = Number(icRow.descuento_4 ?? 0);
+      const tier = fiListaTier(icRow.listado_precio_id);
+      const items: FiLineItem[] = [];
 
-      for (let i = 0; i < icGroup.length; i++) {
-        const icRow = icGroup[i];
-        const assigned = splitRows[i] ?? [];
-        if (!assigned.length) {
-          fiErrores.push(`IC ${icRow.numero_registro}: cupo sin filas asignadas`);
+      for (const r of assigned) {
+        const molKey = molKeyProformaRow(r);
+        const ppdId = ppdByMol.get(molKey);
+        if (!ppdId) {
+          errores.push(`IC ${icRow.numero_registro}: molécula ${r.linea_codigo_proveedor}.${r.referencia_codigo_proveedor} sin PPD`);
           continue;
         }
-
-        const d1 = Number(icRow.descuento_1 ?? 0);
-        const d2 = Number(icRow.descuento_2 ?? 0);
-        const d3 = Number(icRow.descuento_3 ?? 0);
-        const d4 = Number(icRow.descuento_4 ?? 0);
-        const factor = factorDescuentoIcPct(d1, d2, d3, d4);
-        const items: Parameters<typeof crearFacturaInterna>[3] = [];
-
-        for (const r of assigned) {
-          const molKey = molKeyProformaRow(r);
-          const ppdId = ppdByMol.get(molKey);
-          if (!ppdId) {
-            fiErrores.push(`IC ${icRow.numero_registro}: molécula ${r.linea_codigo_proveedor}.${r.referencia_codigo_proveedor} sin PPD`);
-            continue;
-          }
-          const sku = skuByPpd.get(ppdId);
-          if (!sku?.linea_id) {
-            fiErrores.push(`IC ${icRow.numero_registro}: pilares/LPN faltantes PPD ${ppdId}`);
-            continue;
-          }
-          const paresI = r.pairs;
-          const cajasI = r.boxes || 1;
-          const lpnBase = Number(sku.lpn ?? 0);
-          const lpnNeto = Math.round(lpnBase * factor);
-          items.push({
-            ppd_id: ppdId,
-            linea_id: sku.linea_id,
-            referencia_id: sku.referencia_id,
-            material_id: sku.material_id,
-            color_id: sku.color_id,
-            linea_codigo: r.linea_codigo_proveedor,
-            ref_codigo: r.referencia_codigo_proveedor,
-            material_nombre: r.material,
-            color_nombre: r.color,
-            cajas: cajasI,
-            pares: paresI,
-            precio_unit: lpnBase,
-            precio_neto: lpnNeto,
-            subtotal: Math.round(paresI * lpnNeto),
-          });
+        const sku = skuByPpd.get(ppdId);
+        if (!sku?.linea_id) {
+          errores.push(`IC ${icRow.numero_registro}: pilares/LPN faltantes PPD ${ppdId}`);
+          continue;
         }
+        const { precio_unit, precio_neto, subtotal } = calcLineaFiPrecio(sku, tier, d1, d2, d3, d4, r.pairs);
+        items.push({
+          ppd_id: ppdId,
+          linea_id: sku.linea_id,
+          referencia_id: sku.referencia_id,
+          material_id: sku.material_id,
+          color_id: sku.color_id,
+          linea_codigo: r.linea_codigo_proveedor,
+          ref_codigo: r.referencia_codigo_proveedor,
+          material_nombre: r.material,
+          color_nombre: r.color,
+          cajas: r.boxes || 1,
+          pares: r.pairs,
+          precio_unit,
+          precio_neto,
+          subtotal,
+        });
+      }
 
-        if (!items.length) continue;
-        const fi = await crearFacturaInterna(client, ppId, icRow, items);
-        if (fi.ok) {
-          fiCreadas.push({
-            ic_nro: icRow.numero_registro,
-            shop,
-            fi_nro: fi.nro,
-            pares: items.reduce((s, x) => s + x.pares, 0),
-          });
-        } else {
-          fiErrores.push(`IC ${icRow.numero_registro}: ${fi.nro}`);
-        }
+      if (items.length) jobs.push({ shop, icRow, items });
+    }
+  }
+
+  return { jobs, errores };
+}
+
+export async function importProformaProgramadoPhased(
+  ppId: number,
+  fileBuffer: Buffer,
+  opts: {
+    proforma?: string;
+    phase?: ProformaImportPhase;
+    fiOffset?: number;
+    fiBatchSize?: number;
+  } = {},
+): Promise<ProformaImportPhaseResult> {
+  const phase = opts.phase ?? "all";
+  const fiBatchSize = Math.max(1, Math.min(30, opts.fiBatchSize ?? PROFORMA_FI_BATCH_SIZE));
+  let fiOffset = Math.max(0, opts.fiOffset ?? 0);
+
+  const parsed = parseProforma(fileBuffer);
+  if (parsed.error) return { ok: false, error: parsed.error, programado: true, phase };
+
+  let preview: ProformaPreviewResult;
+  let eventoId: number;
+
+  if (phase === "fi" && fiOffset > 0) {
+    const pool0 = getRimecPool();
+    const ics0 = await loadIcsPpProgramado(pool0, ppId);
+    const eventoIds = [
+      ...new Set(
+        ics0
+          .map((i) => {
+            const n = Number(i.precio_evento_id);
+            return Number.isFinite(n) ? n : null;
+          })
+          .filter((x): x is number => x != null),
+      ),
+    ];
+    if (eventoIds.length !== 1) {
+      return { ok: false, error: "Las ICs del PP deben compartir un único listado de precios vinculado.", programado: true, phase };
+    }
+    eventoId = eventoIds[0];
+    preview = { ok: true, listado_vinculado: true, evento_id: eventoId };
+  } else {
+    preview = await previewImportProformaProgramadoTs(ppId, fileBuffer);
+    if (!preview.ok) {
+      return {
+        ...preview,
+        ok: false,
+        error: preview.errores?.join("; ") || "Emparejamiento SHOP↔IC inválido",
+        programado: true,
+        phase,
+      };
+    }
+    if (!preview.listado_vinculado) {
+      return { ok: false, error: "Vinculá el listado de precios RIMEC antes de importar programado.", programado: true, phase };
+    }
+    eventoId = preview.evento_id!;
+  }
+
+  const pool = getRimecPool();
+  const pp = await loadPp(pool, ppId);
+  if (!pp) return { ok: false, error: `PP ${ppId} no encontrado.`, programado: true, phase };
+
+  const proforma = (opts.proforma || pp.numero_proforma || "").trim();
+  if (!proforma) return { ok: false, error: "Nro proforma obligatorio.", programado: true, phase };
+
+  const detalle = parsed.rows;
+
+  if (phase === "ppd" || phase === "all") {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const pop = await populatePpFromProforma(client, pp, proforma, detalle);
+      if (!pop.ok) {
+        await client.query("ROLLBACK");
+        return { ok: false, error: pop.message, programado: true, phase: "ppd" };
+      }
+      await client.query("COMMIT");
+      if (phase === "ppd") {
+        return {
+          ok: true,
+          programado: true,
+          phase: "ppd",
+          done: false,
+          pp_id: ppId,
+          pares: parsed.totalPares,
+          n_articulos: detalle.length,
+          message: pop.message,
+          fi_total: (await loadIcsPpProgramado(pool, ppId)).length,
+          fi_offset: 0,
+          fi_offset_next: 0,
+          fi_batch: fiBatchSize,
+        };
+      }
+    } catch (e) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: e instanceof Error ? e.message : "Error PPD", programado: true, phase: "ppd" };
+    } finally {
+      client.release();
+    }
+  }
+
+  const ics = await loadIcsPpProgramado(pool, ppId);
+  const ppdCount = await pool.query<{ c: number }>(
+    "SELECT COUNT(*)::int AS c FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1",
+    [ppId],
+  );
+  if ((ppdCount.rows[0]?.c ?? 0) === 0) {
+    return { ok: false, error: "Sin PPD — ejecutá fase ppd primero.", programado: true, phase: "fi" };
+  }
+
+  const existingFiRes = await pool.query<{ c: number }>(
+    "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
+    [ppId],
+  );
+  const existingFi = existingFiRes.rows[0]?.c ?? 0;
+  if (fiOffset < existingFi) fiOffset = existingFi;
+
+  const client = await pool.connect();
+  try {
+    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId);
+    if (!skuByPpd.size) {
+      return { ok: false, error: "Sin SKUs PPD tras import (listado/pilares).", programado: true, phase: "fi" };
+    }
+
+    const ppdByMol = await loadPpdByMol(client, ppId);
+    const { jobs, errores: planErrores } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
+    if (planErrores.length) {
+      return {
+        ok: false,
+        error: planErrores.slice(0, 3).join("; "),
+        programado: true,
+        phase: "fi",
+        fi_errores: planErrores,
+      };
+    }
+
+    const fiTotal = jobs.length;
+    const batchJobs = phase === "all" ? jobs : jobs.slice(fiOffset, fiOffset + fiBatchSize);
+    if (!batchJobs.length && fiOffset >= fiTotal) {
+      await client.query(
+        `UPDATE pedido_proveedor_detalle SET pares_vendidos = cantidad_pares WHERE pedido_proveedor_id = $1`,
+        [ppId],
+      );
+      return {
+        ok: true,
+        programado: true,
+        phase: phase === "all" ? "all" : "fi",
+        done: true,
+        pp_id: ppId,
+        pares: parsed.totalPares,
+        n_articulos: detalle.length,
+        n_fi: existingFi,
+        fi_total: fiTotal,
+        fi_offset: fiOffset,
+        fi_offset_next: fiTotal,
+        message: "Import programado completo.",
+      };
+    }
+
+    await client.query("BEGIN");
+    let nroBase = await getNextNroFiBase(client, ppId);
+    const fiCreadas: FiCreadaProgramado[] = [];
+    const fiErrores: string[] = [];
+
+    for (const job of batchJobs) {
+      nroBase += 1;
+      const nro = formatNroFi(ppId, nroBase);
+      const fi = await crearFacturaInterna(client, ppId, job.icRow, job.items, nro);
+      if (fi.ok) {
+        fiCreadas.push({
+          ic_nro: job.icRow.numero_registro,
+          shop: job.shop,
+          fi_nro: fi.nro,
+          pares: job.items.reduce((s, x) => s + x.pares, 0),
+        });
+      } else {
+        fiErrores.push(`IC ${job.icRow.numero_registro}: ${fi.nro}`);
       }
     }
 
@@ -725,27 +895,17 @@ export async function importProformaProgramadoTs(
         ok: false,
         error: fiErrores.slice(0, 3).join("; "),
         programado: true,
+        phase: "fi",
         fi_errores: fiErrores,
         fi_creadas: fiCreadas,
-        n_fi: fiCreadas.length,
-        pares: parsed.totalPares,
-        n_articulos: detalle.length,
+        n_fi: existingFi + fiCreadas.length,
       };
     }
 
-    const nIcsEsperadas = ics.length;
-    if (fiCreadas.length === 0 || fiCreadas.length < nIcsEsperadas) {
-      await client.query("ROLLBACK");
-      return {
-        ok: false,
-        error: `Import programado incompleto: ${fiCreadas.length}/${nIcsEsperadas} FI creadas. Revisá pilares/LPN o emparejamiento SHOP.`,
-        programado: true,
-        fi_creadas: fiCreadas,
-        n_fi: fiCreadas.length,
-      };
-    }
+    const nextOffset = fiOffset + batchJobs.length;
+    const done = nextOffset >= fiTotal;
 
-    if (fiCreadas.length) {
+    if (done) {
       await client.query(
         `UPDATE pedido_proveedor_detalle SET pares_vendidos = cantidad_pares WHERE pedido_proveedor_id = $1`,
         [ppId],
@@ -757,13 +917,19 @@ export async function importProformaProgramadoTs(
     return {
       ok: true,
       programado: true,
+      phase: phase === "all" ? "all" : "fi",
+      done,
       pp_id: ppId,
       pares: parsed.totalPares,
       n_articulos: detalle.length,
-      message: pop.message,
+      message: done ? "Import programado completo." : `FI ${nextOffset}/${fiTotal}`,
       fi_creadas: fiCreadas,
       fi_errores: fiErrores,
-      n_fi: fiCreadas.length,
+      n_fi: existingFi + fiCreadas.length,
+      fi_total: fiTotal,
+      fi_offset: fiOffset,
+      fi_offset_next: nextOffset,
+      fi_batch: fiBatchSize,
     };
   } catch (e) {
     await client.query("ROLLBACK");
@@ -771,10 +937,25 @@ export async function importProformaProgramadoTs(
       ok: false,
       error: e instanceof Error ? e.message : "Error al importar programado",
       programado: true,
+      phase: "fi",
     };
   } finally {
     client.release();
   }
+}
+
+export async function importProformaProgramadoTs(
+  ppId: number,
+  fileBuffer: Buffer,
+  proformaOverride?: string,
+  importOpts?: { phase?: ProformaImportPhase; fiOffset?: number; fiBatchSize?: number },
+): Promise<ProformaImportPhaseResult> {
+  return importProformaProgramadoPhased(ppId, fileBuffer, {
+    proforma: proformaOverride,
+    phase: importOpts?.phase ?? "all",
+    fiOffset: importOpts?.fiOffset,
+    fiBatchSize: importOpts?.fiBatchSize,
+  });
 }
 
 export async function previewProformaSimpleTs(fileBuffer: Buffer): Promise<ProformaPreviewResult> {
@@ -835,9 +1016,14 @@ export async function borrarImportacionTs(ppId: number): Promise<{ ok: boolean; 
   try {
     await client.query("BEGIN");
 
-    const chk = await client.query<{ n: number; vend: number; fi_conf: number }>(
+    const chk = await client.query<{ n: number; vend_vt: number; fi_conf: number }>(
       `SELECT COUNT(ppd.id)::int AS n,
-              COALESCE(SUM(ppd.pares_vendidos), 0)::int AS vend,
+              COALESCE((
+                SELECT SUM(vt.cantidad_vendida)::int
+                FROM venta_transito vt
+                JOIN pedido_proveedor_detalle d ON d.id = vt.pedido_proveedor_detalle_id
+                WHERE d.pedido_proveedor_id = $1
+              ), 0) AS vend_vt,
               (SELECT COUNT(*)::int FROM factura_interna fi
                WHERE fi.pp_id = $1 AND UPPER(TRIM(fi.estado)) = 'CONFIRMADA') AS fi_conf
        FROM pedido_proveedor_detalle ppd WHERE ppd.pedido_proveedor_id = $1`,
@@ -848,9 +1034,15 @@ export async function borrarImportacionTs(ppId: number): Promise<{ ok: boolean; 
       await client.query("ROLLBACK");
       return { ok: false, error: "No hay artículos importados." };
     }
-    if (row.vend > 0 || row.fi_conf > 0) {
+    if (row.vend_vt > 0 || row.fi_conf > 0) {
       await client.query("ROLLBACK");
-      return { ok: false, error: "No se puede borrar: hay ventas o FI confirmadas." };
+      return {
+        ok: false,
+        error:
+          row.fi_conf > 0
+            ? "No se puede borrar: hay FI confirmadas."
+            : "No se puede borrar: hay ventas en tránsito Web.",
+      };
     }
 
     await client.query(

@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/proforma/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/proforma/preview/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}

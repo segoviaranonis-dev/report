@@ -60,6 +60,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [vincularConfirm, setVincularConfirm] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [waitPhase, setWaitPhase] = useState<"preview" | "import" | null>(null);
+  const [importProgress, setImportProgress] = useState("");
   const [proformaFile, setProformaFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<EmparejamientoShop[] | null>(null);
   const [previewOk, setPreviewOk] = useState(false);
@@ -261,6 +262,17 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     }
   }
 
+  async function postProformaImport(fd: FormData) {
+    const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/proforma`, {
+      method: "POST",
+      credentials: "same-origin",
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error al importar");
+    return data;
+  }
+
   async function importarProforma() {
     if (!proformaFile) {
       onMsg("Seleccioná el archivo .xls/.xlsx de la proforma.");
@@ -276,24 +288,47 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     }
     setBusy(true);
     setWaitPhase("import");
+    setImportProgress("");
     onMsg(null);
     try {
-      const fd = new FormData();
-      fd.append("file", proformaFile);
-      fd.append("numero_proforma", draft.numero_proforma.trim());
-      if (!sinStock) fd.append("borrar_previo", "1");
+      const baseFd = (opts?: { borrarPrevio?: boolean }) => {
+        const fd = new FormData();
+        fd.append("file", proformaFile);
+        fd.append("numero_proforma", draft.numero_proforma.trim());
+        if (!sinStock && opts?.borrarPrevio) fd.append("borrar_previo", "1");
+        return fd;
+      };
 
-      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/proforma`, {
-        method: "POST",
-        credentials: "same-origin",
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al importar");
+      let data: Record<string, unknown>;
+      if (esProgramado) {
+        setImportProgress("Paso 1/2 — cargando stock PPD (moléculas)…");
+        const fdPpd = baseFd({ borrarPrevio: true });
+        fdPpd.append("phase", "ppd");
+        data = await postProformaImport(fdPpd);
 
-      let msg = `Proforma importada · ${data.pares?.toLocaleString("es-PY") ?? "?"} pares · ${data.n_articulos ?? "?"} moléculas.`;
-      if (esProgramado && data.fi_creadas?.length) {
-        msg += ` ${data.n_fi} FI programado (${data.fi_creadas.map((f: { fi_nro: string }) => f.fi_nro).join(", ")}).`;
+        let offset = 0;
+        const batch = 12;
+        const totalFi = Number(data.fi_total ?? 0);
+        while (!data.done) {
+          const next = Number(data.fi_offset_next ?? offset + batch);
+          const labelTotal = Number(data.fi_total ?? totalFi) || "?";
+          setImportProgress(`Paso 2/2 — creando FI ${Math.min(next, Number(labelTotal) || next)}/${labelTotal}…`);
+          const fdFi = baseFd();
+          fdFi.append("phase", "fi");
+          fdFi.append("fi_offset", String(offset));
+          fdFi.append("fi_batch", String(batch));
+          data = await postProformaImport(fdFi);
+          if (data.done) break;
+          offset = Number(data.fi_offset_next ?? next);
+          if (!Number.isFinite(offset) || offset <= 0) break;
+        }
+      } else {
+        data = await postProformaImport(baseFd({ borrarPrevio: true }));
+      }
+
+      let msg = `Proforma importada · ${Number(data.pares ?? 0).toLocaleString("es-PY")} pares · ${data.n_articulos ?? "?"} moléculas.`;
+      if (esProgramado && Array.isArray(data.fi_creadas) && data.fi_creadas.length) {
+        msg += ` ${data.n_fi ?? data.fi_creadas.length} FI programado.`;
       }
       onMsg(msg);
       setProformaFile(null);
@@ -305,6 +340,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     } finally {
       setBusy(false);
       setWaitPhase(null);
+      setImportProgress("");
     }
   }
 
@@ -440,13 +476,14 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
             : "Importando proforma…"
         }
         detail={
-          esProgramado
+          importProgress ||
+          (esProgramado
             ? `${pp.numero_registro} · ${(previewPares ?? pp.pares_comprometidos).toLocaleString("es-PY")} pares · pilares · FI por IC`
-            : `${pp.numero_registro} · cargando PPD`
+            : `${pp.numero_registro} · cargando PPD`)
         }
         hint={
           esProgramado
-            ? "PP grande: estimado 3–6 minutos. El servidor sigue trabajando — aguarde."
+            ? "Varias llamadas cortas (PPD + lotes FI). No cierres la pestaña."
             : "Puede tardar 1–2 minutos. No cierres la pestaña."
         }
       />
@@ -770,7 +807,17 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
               </p>
               <p className="mt-2 text-xs text-slate-500">
                 {borrarEstado.n_articulos} artículos · {borrarEstado.pares_total.toLocaleString("es-PY")} pares ·
-                vendidos: <strong>{borrarEstado.vendido.toLocaleString("es-PY")}</strong>
+                vendidos Web: <strong>{borrarEstado.vendido.toLocaleString("es-PY")}</strong>
+                {(borrarEstado.comprometido_fi ?? 0) > 0 && (
+                  <>
+                    {" "}
+                    · reservados FI:{" "}
+                    <strong>{borrarEstado.comprometido_fi.toLocaleString("es-PY")}</strong>
+                  </>
+                )}
+                {borrarEstado.n_facturas > 0 && (
+                  <> · {borrarEstado.n_facturas} FI (se eliminan al borrar)</>
+                )}
                 {borrarEstado.web_alzado ? " · baja automática del catálogo al borrar" : ""}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
