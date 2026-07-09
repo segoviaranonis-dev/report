@@ -18,6 +18,9 @@ import type { AlzarWebPreview } from "@/lib/pedido-proveedor/alzar-web";
 import type { BorrarImportEstado } from "@/lib/pedido-proveedor/borrar-import";
 import { collectGradeColumns, gradeQty, paresPorCaja } from "@/lib/pedido-proveedor/ala-norte-grades";
 
+/** Debe coincidir con PROFORMA_FI_BATCH_SIZE del engine (evitar import server-side en cliente). */
+const PROFORMA_FI_BATCH_SIZE = 12;
+
 const QUINCENA_IDS = Object.keys(QUINCENA_ARRIBO_CATALOGO).map(Number).sort((a, b) => a - b);
 
 const inputCls = "mt-0.5 w-full rounded border border-slate-300 px-2 py-1.5 text-sm";
@@ -273,6 +276,108 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     return data;
   }
 
+  async function runProgramadoFiLoop(
+    baseFd: () => FormData,
+    startOffset: number,
+    initialFiTotal?: number,
+  ): Promise<Record<string, unknown>> {
+    let offset = startOffset;
+    const batch = PROFORMA_FI_BATCH_SIZE;
+    let data: Record<string, unknown> = {
+      done: false,
+      fi_total: initialFiTotal ?? 0,
+      n_fi: startOffset,
+    };
+
+    while (!data.done) {
+      const totalFi = Number(data.fi_total ?? initialFiTotal ?? 0);
+      const labelTotal = totalFi > 0 ? totalFi : "?";
+      const labelDone = totalFi > 0 ? Math.min(offset + batch, totalFi) : offset + batch;
+      setImportProgress(`Paso 2/2 — creando FI ${labelDone}/${labelTotal}…`);
+
+      const fdFi = baseFd();
+      fdFi.append("phase", "fi");
+      fdFi.append("fi_offset", String(offset));
+      fdFi.append("fi_batch", String(batch));
+      data = await postProformaImport(fdFi);
+
+      if (data.done) break;
+
+      const nextOff = Number(data.fi_offset_next);
+      const nFi = Number(data.n_fi ?? 0);
+      const fiTotal = Number(data.fi_total ?? totalFi);
+      if (!Number.isFinite(nextOff) || nextOff <= offset) {
+        throw new Error(
+          fiTotal > 0
+            ? `FI incompletas (${nFi}/${fiTotal}). Reintentá «Completar FI pendientes».`
+            : "La fase FI se detuvo sin crear facturas — reintentá con el mismo Excel.",
+        );
+      }
+      offset = nextOff;
+    }
+
+    const nFiFinal = Number(data.n_fi ?? 0);
+    const fiTotalFinal = Number(data.fi_total ?? initialFiTotal ?? 0);
+    if (fiTotalFinal > 0 && nFiFinal < fiTotalFinal) {
+      throw new Error(`Solo ${nFiFinal}/${fiTotalFinal} FI — usá «Completar FI pendientes».`);
+    }
+    return data;
+  }
+
+  async function completarFiPendientes() {
+    setBusy(true);
+    setWaitPhase("import");
+    setImportProgress("");
+    onMsg(null);
+    try {
+      if (!proformaFile) {
+        const st = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
+          credentials: "same-origin",
+        }).then((r) => r.json());
+        if (st.needs_proforma_file) {
+          onMsg("Subí el Excel de proforma — falta el mapa SHOP (una sola vez). También podés usar tab Facturas Internas.");
+          return;
+        }
+      }
+
+      let offset = borrarEstado?.n_facturas ?? pp.n_facturas_internas ?? 0;
+      let data: Record<string, unknown> = { done: false };
+      const batch = PROFORMA_FI_BATCH_SIZE;
+
+      while (!data.done) {
+        setImportProgress(`Creando FI desde IC… ${offset + batch}…`);
+        const fd = new FormData();
+        if (proformaFile) fd.append("file", proformaFile);
+        fd.append("fi_offset", String(offset));
+        fd.append("fi_batch", String(batch));
+        const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: fd,
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(String(data.error ?? "Error al crear FI"));
+        if (data.done) break;
+        const next = Number(data.fi_offset_next);
+        if (!Number.isFinite(next) || next <= offset) {
+          throw new Error(`FI incompletas (${Number(data.n_fi ?? 0)}/${Number(data.fi_total ?? "?")})`);
+        }
+        offset = next;
+      }
+
+      const nFi = Number(data.n_fi ?? 0);
+      onMsg(`FI completadas · ${nFi} facturas · saldo PP actualizado.`);
+      setProformaFile(null);
+      await onReload();
+    } catch (e) {
+      onMsg(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBusy(false);
+      setWaitPhase(null);
+      setImportProgress("");
+    }
+  }
+
   async function importarProforma() {
     if (!proformaFile) {
       onMsg("Seleccioná el archivo .xls/.xlsx de la proforma.");
@@ -305,30 +410,17 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         const fdPpd = baseFd({ borrarPrevio: true });
         fdPpd.append("phase", "ppd");
         data = await postProformaImport(fdPpd);
-
-        let offset = 0;
-        const batch = 12;
-        const totalFi = Number(data.fi_total ?? 0);
-        while (!data.done) {
-          const next = Number(data.fi_offset_next ?? offset + batch);
-          const labelTotal = Number(data.fi_total ?? totalFi) || "?";
-          setImportProgress(`Paso 2/2 — creando FI ${Math.min(next, Number(labelTotal) || next)}/${labelTotal}…`);
-          const fdFi = baseFd();
-          fdFi.append("phase", "fi");
-          fdFi.append("fi_offset", String(offset));
-          fdFi.append("fi_batch", String(batch));
-          data = await postProformaImport(fdFi);
-          if (data.done) break;
-          offset = Number(data.fi_offset_next ?? next);
-          if (!Number.isFinite(offset) || offset <= 0) break;
-        }
+        data = await runProgramadoFiLoop(baseFd, 0, Number(data.fi_total ?? 0));
       } else {
         data = await postProformaImport(baseFd({ borrarPrevio: true }));
       }
 
       let msg = `Proforma importada · ${Number(data.pares ?? 0).toLocaleString("es-PY")} pares · ${data.n_articulos ?? "?"} moléculas.`;
-      if (esProgramado && Array.isArray(data.fi_creadas) && data.fi_creadas.length) {
-        msg += ` ${data.n_fi ?? data.fi_creadas.length} FI programado.`;
+      if (esProgramado) {
+        const nFi = Number(data.n_fi ?? 0);
+        const fiTotal = Number(data.fi_total ?? 0);
+        if (nFi > 0) msg += ` ${nFi} FI programado.`;
+        else if (fiTotal > 0) msg += ` ⚠ Sin FI (${fiTotal} esperadas) — usá «Completar FI pendientes».`;
       }
       onMsg(msg);
       setProformaFile(null);
@@ -797,6 +889,34 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           )}
 
           {/* Borrar y reimportar — clon Streamlit */}
+          {esProgramado && pp.total_articulos > 0 && pp.n_facturas_internas === 0 && (
+            <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-bold text-amber-900">Stock cargado · faltan facturas internas</p>
+              <p className="mt-1 text-xs text-amber-950">
+                {pp.total_articulos} moléculas · <strong>0 FI</strong> — saldo sin bajar. Tab{" "}
+                <strong>Facturas Internas</strong> → «Crear facturas internas» (1 FI por IC).
+              </p>
+              <label className="mt-2 block text-xs font-semibold text-amber-900">
+                Excel proforma (1ª vez — mapa SHOP, no borra stock)
+                <input
+                  type="file"
+                  accept=".xls,.xlsx"
+                  className="mt-1 block w-full max-w-md text-sm"
+                  disabled={busy}
+                  onChange={(e) => setProformaFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void completarFiPendientes()}
+                className="mt-3 rounded-lg border-2 border-amber-600 bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {busy ? "Creando FI…" : "Crear FI desde ICs"}
+              </button>
+            </div>
+          )}
+
           {borrarEstado && borrarEstado.n_articulos > 0 && (
             <div className="rounded-lg border border-red-300 bg-red-950/5 px-4 py-3">
               <p className="text-sm font-bold text-red-800">Importación incorrecta</p>

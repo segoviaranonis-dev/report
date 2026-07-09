@@ -13,6 +13,7 @@ import {
   fiListaTier,
   type SkuPrecioTiers,
 } from "./aritmetica-programado";
+import { loadProformaFilas, saveProformaFilas } from "./proforma-snapshot";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -496,6 +497,8 @@ async function populatePpFromProforma(
     await upsertMaterialProforma(client, code, provId, desc);
   }
 
+  await saveProformaFilas(client, ppId, detalleRows);
+
   return {
     ok: true,
     message: `${totalPares.toLocaleString("es-PY")} pares · ${detalleRows.length} SKUs · USD ${totalFob.toLocaleString("es-PY")}`,
@@ -732,8 +735,19 @@ export async function importProformaProgramadoPhased(
   let preview: ProformaPreviewResult;
   let eventoId: number;
 
-  if (phase === "fi" && fiOffset > 0) {
-    const pool0 = getRimecPool();
+  const pool0 = getRimecPool();
+  const ppdExistsRes =
+    phase === "fi"
+      ? await pool0.query<{ ok: boolean }>(
+          `SELECT EXISTS(
+             SELECT 1 FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1
+           ) AS ok`,
+          [ppId],
+        )
+      : null;
+  const ppdExists = ppdExistsRes?.rows[0]?.ok === true;
+
+  if (phase === "fi" && (fiOffset > 0 || ppdExists)) {
     const ics0 = await loadIcsPpProgramado(pool0, ppId);
     const eventoIds = [
       ...new Set(
@@ -846,6 +860,21 @@ export async function importProformaProgramadoPhased(
     }
 
     const fiTotal = jobs.length;
+    if (fiTotal === 0 && existingFi === 0) {
+      return {
+        ok: false,
+        error:
+          planErrores.length > 0
+            ? planErrores.slice(0, 3).join("; ")
+            : "No se generaron trabajos FI (0 IC×shop) — revisá emparejamiento SHOP↔IC y moléculas PPD.",
+        programado: true,
+        phase: "fi",
+        fi_errores: planErrores,
+        fi_total: 0,
+        n_fi: 0,
+      };
+    }
+
     const batchJobs = phase === "all" ? jobs : jobs.slice(fiOffset, fiOffset + fiBatchSize);
     if (!batchJobs.length && fiOffset >= fiTotal) {
       await client.query(
@@ -956,6 +985,209 @@ export async function importProformaProgramadoTs(
     fiOffset: importOpts?.fiOffset,
     fiBatchSize: importOpts?.fiBatchSize,
   });
+}
+
+/** Crear FI pendientes (1 por IC) sin borrar PPD. Usa snapshot guardado o Excel una sola vez. */
+export async function completarFiProgramadoPhased(
+  ppId: number,
+  opts: { fileBuffer?: Buffer | null; fiOffset?: number; fiBatchSize?: number } = {},
+): Promise<ProformaImportPhaseResult & { needs_proforma_file?: boolean }> {
+  const fiBatchSize = Math.max(1, Math.min(30, opts.fiBatchSize ?? PROFORMA_FI_BATCH_SIZE));
+  let fiOffset = Math.max(0, opts.fiOffset ?? 0);
+  const pool = getRimecPool();
+
+  let detalle: ProformaRow[];
+  let totalPares: number;
+
+  if (opts.fileBuffer?.length) {
+    const parsed = parseProforma(opts.fileBuffer);
+    if (parsed.error) return { ok: false, error: parsed.error, programado: true, phase: "fi" };
+    detalle = parsed.rows;
+    totalPares = parsed.totalPares;
+    await saveProformaFilas(pool, ppId, detalle);
+  } else {
+    const snap = await loadProformaFilas(pool, ppId);
+    if (!snap?.length) {
+      return {
+        ok: false,
+        error:
+          "Falta el mapa SHOP de la proforma — subí el Excel una vez (se guarda en BD) para crear las FI sin reimportar stock.",
+        programado: true,
+        phase: "fi",
+        needs_proforma_file: true,
+      };
+    }
+    detalle = snap;
+    totalPares = detalle.reduce((s, r) => s + r.pairs, 0);
+  }
+
+  const ics = await loadIcsPpProgramado(pool, ppId);
+  if (!ics.length) {
+    return { ok: false, error: "El PP no tiene ICs vinculadas.", programado: true, phase: "fi" };
+  }
+
+  const eventoIds = [
+    ...new Set(
+      ics
+        .map((i) => {
+          const n = Number(i.precio_evento_id);
+          return Number.isFinite(n) ? n : null;
+        })
+        .filter((x): x is number => x != null),
+    ),
+  ];
+  if (eventoIds.length !== 1) {
+    return {
+      ok: false,
+      error: "Las ICs del PP deben compartir un único listado de precios vinculado.",
+      programado: true,
+      phase: "fi",
+    };
+  }
+  const eventoId = eventoIds[0];
+
+  const ppdCount = await pool.query<{ c: number }>(
+    "SELECT COUNT(*)::int AS c FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1",
+    [ppId],
+  );
+  if ((ppdCount.rows[0]?.c ?? 0) === 0) {
+    return { ok: false, error: "Sin stock PPD — importá la proforma primero.", programado: true, phase: "fi" };
+  }
+
+  const existingFiRes = await pool.query<{ c: number }>(
+    "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
+    [ppId],
+  );
+  const existingFi = existingFiRes.rows[0]?.c ?? 0;
+  if (fiOffset < existingFi) fiOffset = existingFi;
+
+  const client = await pool.connect();
+  try {
+    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId);
+    if (!skuByPpd.size) {
+      return { ok: false, error: "Sin SKUs PPD tras import (listado/pilares).", programado: true, phase: "fi" };
+    }
+
+    const ppdByMol = await loadPpdByMol(client, ppId);
+    const { jobs, errores: planErrores } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
+    if (planErrores.length) {
+      return {
+        ok: false,
+        error: planErrores.slice(0, 3).join("; "),
+        programado: true,
+        phase: "fi",
+        fi_errores: planErrores,
+      };
+    }
+
+    const fiTotal = jobs.length;
+    if (fiTotal === 0 && existingFi === 0) {
+      return {
+        ok: false,
+        error: "No se generaron trabajos FI (0 IC) — revisá emparejamiento SHOP↔IC.",
+        programado: true,
+        phase: "fi",
+        fi_total: 0,
+        n_fi: 0,
+      };
+    }
+
+    const batchJobs = jobs.slice(fiOffset, fiOffset + fiBatchSize);
+    if (!batchJobs.length && fiOffset >= fiTotal) {
+      await client.query(
+        `UPDATE pedido_proveedor_detalle SET pares_vendidos = cantidad_pares WHERE pedido_proveedor_id = $1`,
+        [ppId],
+      );
+      return {
+        ok: true,
+        programado: true,
+        phase: "fi",
+        done: true,
+        pp_id: ppId,
+        pares: totalPares,
+        n_articulos: detalle.length,
+        n_fi: existingFi,
+        fi_total: fiTotal,
+        fi_offset: fiOffset,
+        fi_offset_next: fiTotal,
+        message: "Facturas internas completas.",
+      };
+    }
+
+    await client.query("BEGIN");
+    let nroBase = await getNextNroFiBase(client, ppId);
+    const fiCreadas: FiCreadaProgramado[] = [];
+    const fiErrores: string[] = [];
+
+    for (const job of batchJobs) {
+      nroBase += 1;
+      const nro = formatNroFi(ppId, nroBase);
+      const fi = await crearFacturaInterna(client, ppId, job.icRow, job.items, nro);
+      if (fi.ok) {
+        fiCreadas.push({
+          ic_nro: job.icRow.numero_registro,
+          shop: job.shop,
+          fi_nro: fi.nro,
+          pares: job.items.reduce((s, x) => s + x.pares, 0),
+        });
+      } else {
+        fiErrores.push(`IC ${job.icRow.numero_registro}: ${fi.nro}`);
+      }
+    }
+
+    if (fiErrores.length) {
+      await client.query("ROLLBACK");
+      return {
+        ok: false,
+        error: fiErrores.slice(0, 3).join("; "),
+        programado: true,
+        phase: "fi",
+        fi_errores: fiErrores,
+        fi_creadas: fiCreadas,
+        n_fi: existingFi + fiCreadas.length,
+      };
+    }
+
+    const nextOffset = fiOffset + batchJobs.length;
+    const done = nextOffset >= fiTotal;
+
+    if (done) {
+      await client.query(
+        `UPDATE pedido_proveedor_detalle SET pares_vendidos = cantidad_pares WHERE pedido_proveedor_id = $1`,
+        [ppId],
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      ok: true,
+      programado: true,
+      phase: "fi",
+      done,
+      pp_id: ppId,
+      pares: totalPares,
+      n_articulos: detalle.length,
+      message: done ? "Facturas internas completas." : `FI ${nextOffset}/${fiTotal}`,
+      fi_creadas: fiCreadas,
+      fi_errores: fiErrores,
+      n_fi: existingFi + fiCreadas.length,
+      fi_total: fiTotal,
+      fi_offset: fiOffset,
+      fi_offset_next: nextOffset,
+      fi_batch: fiBatchSize,
+    };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error al crear FI",
+      programado: true,
+      phase: "fi",
+    };
+  } finally {
+    client.release();
+  }
 }
 
 export async function previewProformaSimpleTs(fileBuffer: Buffer): Promise<ProformaPreviewResult> {
