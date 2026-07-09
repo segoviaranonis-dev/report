@@ -13,17 +13,31 @@ declare global {
   var __rimecPgPool: Pool | undefined;
 }
 
+/** Serverless: 1 conexión por instancia — evita EMAXCONN Supabase pooler (límite ~200). */
+function resolvePgPoolMax(): number {
+  const maxRaw = Number(process.env.RIMEC_PG_POOL_MAX);
+  if (Number.isFinite(maxRaw) && maxRaw >= 1 && maxRaw <= 32) {
+    return maxRaw;
+  }
+  if (process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return 1;
+  }
+  return 8;
+}
+
 export function getRimecPool(): Pool {
   const url = process.env.DATABASE_URL;
   if (!url || !String(url).trim()) {
     throw new Error("DATABASE_URL no configurada (connection string Postgres, solo servidor).");
   }
   if (!globalThis.__rimecPgPool) {
-    const maxRaw = Number(process.env.RIMEC_PG_POOL_MAX);
-    const max = Number.isFinite(maxRaw) && maxRaw >= 2 && maxRaw <= 32 ? maxRaw : 8;
+    const max = resolvePgPoolMax();
     globalThis.__rimecPgPool = new Pool({
       connectionString: url,
       max,
+      idleTimeoutMillis: 20_000,
+      connectionTimeoutMillis: 10_000,
+      allowExitOnIdle: true,
       ssl:
         url.includes("localhost") || url.includes("127.0.0.1")
           ? false

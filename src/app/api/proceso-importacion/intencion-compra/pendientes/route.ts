@@ -15,11 +15,9 @@ export async function GET() {
 
   try {
     const pool = getRimecPool();
-    const [ics, catalogos, quincenas] = await Promise.all([
-      listIcPendientes(pool),
-      loadIcCatalogos(pool),
-      loadQuincenasArribo(pool),
-    ]);
+    const ics = await listIcPendientes(pool);
+    const catalogos = await loadIcCatalogos(pool);
+    const quincenas = await loadQuincenasArribo(pool);
 
     const totalPares = ics.reduce((s, ic) => s + ic.pares, 0);
     const totalNeto = ics.reduce((s, ic) => s + ic.monto_neto, 0);
@@ -34,7 +32,17 @@ export async function GET() {
       quincena_lookup: quincenasToLookup(quincenas),
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error al cargar pendientes";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    const raw = e instanceof Error ? e.message : "Error al cargar pendientes";
+    const saturated = /max client connections|EMAXCONN/i.test(raw);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: saturated
+          ? "Conexiones BD saturadas (pool Supabase). Reintentá en 30 s."
+          : raw,
+        code: saturated ? "EMAXCONN" : undefined,
+      },
+      { status: saturated ? 503 : 500 },
+    );
   }
 }

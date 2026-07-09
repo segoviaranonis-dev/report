@@ -24,7 +24,17 @@ export async function GET() {
       ics,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error al listar IC";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    const raw = e instanceof Error ? e.message : "Error al listar IC";
+    const saturated = /max client connections|EMAXCONN/i.test(raw);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: saturated
+          ? "Conexiones BD saturadas (pool Supabase). Reintentá en 30 s."
+          : raw,
+        code: saturated ? "EMAXCONN" : undefined,
+      },
+      { status: saturated ? 503 : 500 },
+    );
   }
 }
