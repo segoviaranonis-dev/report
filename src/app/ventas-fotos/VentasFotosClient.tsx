@@ -11,6 +11,11 @@ import type {
   VentasFotosResponse,
 } from "@/lib/ventas-fotos/types";
 import { recordReportPerf } from "@/lib/report/report-perf";
+import {
+  fetchReportApiWithRetry,
+  isReportApiSaturated,
+  reportApiErrorMessage,
+} from "@/lib/rimec/fetch-api-retry";
 
 const VentasFotosResults = dynamic(
   () => import("./VentasFotosResults").then((m) => ({ default: m.VentasFotosResults })),
@@ -158,10 +163,15 @@ export function VentasFotosClient() {
   useEffect(() => {
     let cancelled = false;
     const loadMeta = () => {
-      fetch("/api/ventas-fotos/meta", { credentials: "same-origin", cache: "no-store" })
+      fetchReportApiWithRetry("/api/ventas-fotos/meta", { cache: "no-store" })
         .then(async (r) => {
-          const j = await readJsonResponse<VentasFotosMetaResponse>(r);
-          if (!r.ok) throw new Error(j.message ?? `Error HTTP ${r.status} leyendo marcas`);
+          const j = await readJsonResponse<VentasFotosMetaResponse & { code?: string }>(r);
+          if (!r.ok) {
+            if (isReportApiSaturated(j)) {
+              throw new Error(reportApiErrorMessage(j, "Pool Supabase saturado"));
+            }
+            throw new Error(j.message ?? `Error HTTP ${r.status} leyendo marcas`);
+          }
           return j;
         })
         .then((j) => {
@@ -172,14 +182,17 @@ export function VentasFotosClient() {
         })
         .catch((err) => {
           if (cancelled) return;
-          setMeta({
-            configured: false,
-            marcas: DEMO_MARCAS,
-            message:
-              err instanceof Error
-                ? `${err.message}; usando demostración.`
-                : "No se pudo leer la metadata; usando demostración.",
-          });
+          const msg = err instanceof Error ? err.message : "Error de red";
+          const saturated = /saturad|EMAXCONN|max client/i.test(msg);
+          if (saturated) {
+            setMeta({ configured: true, marcas: [], message: msg });
+          } else {
+            setMeta({
+              configured: false,
+              marcas: DEMO_MARCAS,
+              message: `${msg}; usando demostración.`,
+            });
+          }
         })
         .finally(() => {
           if (!cancelled) setMetaLoading(false);
@@ -236,14 +249,16 @@ export function VentasFotosClient() {
     }
     try {
       const started = performance.now();
-      const res = await fetch("/api/ventas-fotos/ventas", {
+      const res = await fetchReportApiWithRetry("/api/ventas-fotos/ventas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filters),
       });
-      const json = await readJsonResponse<VentasFotosResponse>(res);
+      const json = await readJsonResponse<VentasFotosResponse & { code?: string }>(res);
       recordReportPerf(`ventas-fotos consulta`, performance.now() - started, "user");
-      if (!res.ok) throw new Error(json.error ?? "Error al cargar ventas con fotos");
+      if (!res.ok) {
+        throw new Error(reportApiErrorMessage(json, json.error ?? "Error al cargar ventas con fotos"));
+      }
       setData(json);
       if (json.error) setError(json.error);
       if (json.rows && json.rows.length > 0) {

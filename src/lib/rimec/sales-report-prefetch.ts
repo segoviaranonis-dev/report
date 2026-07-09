@@ -74,8 +74,17 @@ export function subscribeSalesReportPrefetch(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+/** En Vercel prod el prefetch compite por pool Supabase — desactivado salvo RIMEC_SALES_PREFETCH=1. */
+export function isSalesReportPrefetchEnabled(): boolean {
+  if (process.env.RIMEC_SALES_PREFETCH === "1") return true;
+  if (process.env.VERCEL === "1") return false;
+  return true;
+}
+
 /** Dispara meta + full-snapshot en paralelo (idempotente, cache global cross-route). */
 export function prefetchSalesReportSnapshot(): Promise<void> {
+  if (!isSalesReportPrefetchEnabled()) return Promise.resolve();
+
   const cache = getCache();
 
   if (cache.status === "ready") return Promise.resolve();

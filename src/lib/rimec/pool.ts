@@ -2,11 +2,31 @@ import { Client, Pool, type QueryResult, type QueryResultRow } from "pg";
 import { isPoolSaturatedError } from "@/lib/rimec/pool-saturated";
 
 /**
- * Pool singleton (Next.js server). En Vercel: cliente efímero por query + reintentos (no retiene conexiones).
- * Supabase pooler (:6543) + pgbouncer=true — evita EMAXCONN (límite ~200).
+ * Acceso Postgres para Report (Next.js server).
+ *
+ * Vercel/serverless:
+ * - URL pooler Supabase (:6543) + pgbouncer=true + connection_limit=1
+ * - Una conexión efímera por query, serializada por instancia lambda (mutex)
+ * - Reintentos automáticos ante EMAXCONN (límite ~200 en pooler)
+ *
+ * Local: Pool singleton clásico (max 8).
+ *
+ * Doc operativa: report/docs/EMAXCONN_SOLUCION_INTEGRAL.md
  */
 export function isRimecDatabaseConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  return Boolean(resolveDatabaseUrl());
+}
+
+/** Preferir pooler explícito si existe (Vercel env). */
+export function resolveDatabaseUrl(): string | undefined {
+  const pooler = process.env.DATABASE_POOLER_URL?.trim();
+  if (pooler) return pooler;
+  const direct = process.env.DATABASE_URL?.trim();
+  return direct || undefined;
+}
+
+export function isDirectSupabasePostgres(url: string): boolean {
+  return /db\.[a-z0-9]+\.supabase\.co/i.test(url) && /:5432/.test(url);
 }
 
 declare global {
@@ -22,7 +42,7 @@ function sleep(ms: number) {
 function normalizePoolerUrl(raw: string): string {
   try {
     const u = new URL(raw);
-    if (u.hostname.includes("pooler.supabase.com")) {
+    if (u.hostname.includes("pooler.supabase.com") || u.port === "6543") {
       if (!u.searchParams.has("pgbouncer")) u.searchParams.set("pgbouncer", "true");
       if (!u.searchParams.has("connection_limit")) u.searchParams.set("connection_limit", "1");
     }
@@ -54,12 +74,26 @@ function resolveRetryMax(): number {
   return Number.isFinite(n) && n >= 1 && n <= 12 ? n : 8;
 }
 
-/** Vercel: conecta → query → cierra. Reintenta EMAXCONN con backoff. */
+/**
+ * Vercel: conecta → query → cierra. Mutex por lambda (Promise.all no abre N conexiones).
+ * Reintenta EMAXCONN con backoff exponencial + jitter.
+ */
 class VercelEphemeralPg {
+  private tail: Promise<unknown> = Promise.resolve();
+
   constructor(
     private readonly connectionString: string,
     private readonly ssl: ReturnType<typeof resolveSsl>,
   ) {}
+
+  private enqueue<R>(fn: () => Promise<R>): Promise<R> {
+    const next = this.tail.then(fn, fn);
+    this.tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
 
   async query<R extends QueryResultRow = QueryResultRow>(
     queryText: string,
@@ -69,6 +103,13 @@ class VercelEphemeralPg {
     queryConfig: Parameters<Client["query"]>[0],
   ): Promise<QueryResult<R>>;
   async query<R extends QueryResultRow = QueryResultRow>(
+    queryTextOrConfig: string | Parameters<Client["query"]>[0],
+    values?: unknown[],
+  ): Promise<QueryResult<R>> {
+    return this.enqueue(() => this.runQuery<R>(queryTextOrConfig, values));
+  }
+
+  private async runQuery<R extends QueryResultRow>(
     queryTextOrConfig: string | Parameters<Client["query"]>[0],
     values?: unknown[],
   ): Promise<QueryResult<R>> {
@@ -82,17 +123,15 @@ class VercelEphemeralPg {
       });
       try {
         await client.connect();
-        const result =
-          typeof queryTextOrConfig === "string"
-            ? values !== undefined
-              ? await client.query<R>(queryTextOrConfig, values)
-              : await client.query<R>(queryTextOrConfig)
-            : await client.query<R>(queryTextOrConfig);
-        return result;
+        return typeof queryTextOrConfig === "string"
+          ? values !== undefined
+            ? await client.query<R>(queryTextOrConfig, values)
+            : await client.query<R>(queryTextOrConfig)
+          : await client.query<R>(queryTextOrConfig);
       } catch (e) {
         lastError = e;
         if (isPoolSaturatedError(e) && attempt < maxAttempts - 1) {
-          await sleep(200 * 2 ** attempt + Math.random() * 300);
+          await sleep(200 * 2 ** attempt + Math.random() * 400);
           continue;
         }
         throw e;
@@ -105,12 +144,18 @@ class VercelEphemeralPg {
 }
 
 export function getRimecPool(): Pool {
-  const url = process.env.DATABASE_URL;
-  if (!url || !String(url).trim()) {
+  const rawUrl = resolveDatabaseUrl();
+  if (!rawUrl) {
     throw new Error("DATABASE_URL no configurada (connection string Postgres, solo servidor).");
   }
 
-  const connectionString = normalizePoolerUrl(String(url).trim());
+  if (isVercelRuntime() && isDirectSupabasePostgres(rawUrl)) {
+    console.warn(
+      "[rimec/pool] DATABASE_URL usa Postgres directo :5432. En Vercel usar DATABASE_POOLER_URL (pooler :6543).",
+    );
+  }
+
+  const connectionString = normalizePoolerUrl(rawUrl);
   const ssl = resolveSsl(connectionString);
 
   if (isVercelRuntime()) {

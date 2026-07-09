@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isPoolSaturatedError, poolSaturatedResponse } from "@/lib/rimec/pool-saturated";
 import { fetchVentasFotos } from "@/lib/ventas-fotos/queries";
 import type { VentasFotosFilters, VentasFotosResponse } from "@/lib/ventas-fotos/types";
 
@@ -55,6 +56,12 @@ export async function POST(req: Request) {
     const data = await fetchVentasFotos(getRimecPool(), parsed);
     return NextResponse.json(data);
   } catch (e) {
+    if (isPoolSaturatedError(e)) {
+      return NextResponse.json(
+        { ...EMPTY_RESPONSE, configured: true, ...poolSaturatedResponse() },
+        { status: 503, headers: { "Retry-After": "15" } },
+      );
+    }
     const message = e instanceof Error ? e.message : "Error cargando ventas con fotos";
     return NextResponse.json(
       { ...EMPTY_RESPONSE, configured: true, error: message } satisfies VentasFotosResponse,

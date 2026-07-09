@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isPoolSaturatedError, poolSaturatedResponse } from "@/lib/rimec/pool-saturated";
 
 /** Catálogo maestro de marcas (Sales Report lee dimensión desde `marca_v2`, no solo apariciones sueltas). */
 function catalogoMarcasMaestroSql() {
@@ -70,6 +71,10 @@ export async function GET() {
       vendedoresCatalogo: uniqStrings(vendedores.rows),
     });
   } catch (e) {
+    if (isPoolSaturatedError(e)) {
+      const sat = poolSaturatedResponse();
+      return NextResponse.json({ error: sat.error, code: sat.code }, { status: 503, headers: { "Retry-After": "15" } });
+    }
     const msg = e instanceof Error ? e.message : "Error meta RIMEC";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

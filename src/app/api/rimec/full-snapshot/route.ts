@@ -15,6 +15,7 @@ import type { FullSnapshotBody } from "@/lib/rimec/full-snapshot-types";
 import { buildJerarquiaSql, mapJerarquiaQueryRows } from "@/lib/rimec/cliente-jerarquia-query";
 import { buildPivotSql, enrichPivotRows } from "@/lib/rimec/pivot-query";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isPoolSaturatedError, poolSaturatedResponse } from "@/lib/rimec/pool-saturated";
 import { defaultSalesReportFilters, type SalesReportFilters } from "@/modules/sales-report/types";
 import { MES_NOMBRES } from "@/modules/sales-report/constants";
 
@@ -162,6 +163,9 @@ export async function POST(req: Request) {
           : undefined,
     });
   } catch (e) {
+    if (isPoolSaturatedError(e)) {
+      return NextResponse.json(poolSaturatedResponse(), { status: 503, headers: { "Retry-After": "15" } });
+    }
     const msg = e instanceof Error ? e.message : "Error full-snapshot RIMEC";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
