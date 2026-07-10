@@ -22,6 +22,7 @@ const COBRADOR = "90";
 const MATRIZ_CERRADA = [1, 2, 3, 3, 2, 1];
 
 type CsvCarlosRow = {
+  fi_id: string;
   cliente_id: string | null;
   plazo_id: string | null;
   linea: string | null;
@@ -110,6 +111,7 @@ export async function fetchCsvCarlosRows(
   const { rows } = await pool.query<CsvCarlosRow>(
     `
     SELECT
+      fi.id::text AS fi_id,
       fi.cliente_id::text AS cliente_id,
       COALESCE(fi.plazo_id, ic.id_plazo)::text AS plazo_id,
       TRIM(ppd.linea) AS linea,
@@ -182,7 +184,7 @@ export async function fetchCsvCarlosRows(
      AND pl.material_id = m.id
     WHERE fi.pp_id = $1
       AND fi.estado = ANY($2::text[])
-    ORDER BY fi.cliente_id, COALESCE(fi.plazo_id, ic.id_plazo), fi.id, fid.id
+    ORDER BY fi.id, fid.id
     `,
     [ppId, estados],
   );
@@ -197,7 +199,8 @@ export function buildCsvCarlosContent(
   let prevBlock = "";
 
   for (const r of rows) {
-    const blockKey = `${r.cliente_id ?? ""}|${r.plazo_id ?? ""}`;
+    // Carlos: cada bloque SHOP = 1 factura. 1 FI Nexus = 1 bloque (IC = FI = factura Carlos).
+    const blockKey = r.fi_id ?? "";
     const shop = blockKey !== prevBlock ? (r.cliente_id ?? "") : "";
     prevBlock = blockKey;
 
