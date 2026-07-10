@@ -762,20 +762,24 @@ function buildProgramadoFiJobs(
   for (const shop of sortedShops) {
     const icGroup = [...icsByShop.get(shop)!].sort((a, b) => a.ic_id - b.ic_id);
     const shopRowsAll = rowsByShop.get(shop) ?? [];
-    if (!shopRowsAll.length) {
-      for (const icRow of icGroup) errores.push(`IC ${icRow.numero_registro}: sin filas proforma`);
-      continue;
-    }
 
     const poolsByMarca = new Map<number | string, ProformaRow[]>();
-    for (const r of shopRowsAll) {
-      const mk = resolveRowMarcaKey(r, ppdByMol, ppdMarcaById);
-      const list = poolsByMarca.get(mk) ?? [];
-      list.push({ ...r });
-      poolsByMarca.set(mk, list);
+    if (shopRowsAll.length) {
+      for (const r of shopRowsAll) {
+        const mk = resolveRowMarcaKey(r, ppdByMol, ppdMarcaById);
+        const list = poolsByMarca.get(mk) ?? [];
+        list.push({ ...r });
+        poolsByMarca.set(mk, list);
+      }
     }
 
     for (const icRow of icGroup) {
+      if (!shopRowsAll.length) {
+        avisos.push(`IC ${icRow.numero_registro}: sin filas proforma shop ${shop}`);
+        jobs.push({ shop, icRow, items: [] });
+        continue;
+      }
+
       const pool = pickMarcaPool(poolsByMarca, icRow);
       const cupo = icRow.cantidad_total_pares ?? 0;
       const assigned = consumeProformaPool(pool, cupo);
@@ -784,14 +788,13 @@ function buildProgramadoFiJobs(
         avisos.push(
           `IC ${icRow.numero_registro}: sin filas proforma marca ${icRow.marca_nombre ?? "?"} en shop ${shop}`,
         );
-        continue;
-      }
-
-      const assignedPares = assigned.reduce((s, r) => s + r.pairs, 0);
-      if (cupo > 0 && assignedPares !== cupo) {
-        avisos.push(
-          `IC ${icRow.numero_registro}: cupo ${cupo}p ≠ filas marca ${assignedPares}p (${icRow.marca_nombre ?? "?"})`,
-        );
+      } else {
+        const assignedPares = assigned.reduce((s, r) => s + r.pairs, 0);
+        if (cupo > 0 && assignedPares !== cupo) {
+          avisos.push(
+            `IC ${icRow.numero_registro}: cupo ${cupo}p ≠ filas marca ${assignedPares}p (${icRow.marca_nombre ?? "?"})`,
+          );
+        }
       }
 
       const d1 = Number(icRow.descuento_1 ?? 0);
@@ -849,12 +852,12 @@ function buildProgramadoFiJobs(
         });
       }
 
-      if (items.length) jobs.push({ shop, icRow, items });
-      else if (assigned.length) {
+      if (!items.length && assigned.length) {
         avisos.push(
           `IC ${icRow.numero_registro}: sin líneas con LPN/pilares (${assigned.length} filas proforma marca)`,
         );
       }
+      jobs.push({ shop, icRow, items });
     }
   }
 

@@ -15,7 +15,7 @@ import {
 
 /** Header único — sin fila instructiva (formato final Director). */
 const HEADER_FILA =
-  "SHOP;'STYL.E;BRAND;MATERIAL CODE;MATERIAL;COLOR CODE;COLOR;GRADA;CASO;ESTILO;ABoCR;CANT PARES;PLAZO;LISTA;Desc1;Desc2;Desc3;Desc4;Vendedor;Cobrador";
+  "SHOP;IC;'STYL.E;BRAND;MATERIAL CODE;MATERIAL;COLOR CODE;COLOR;GRADA;CASO;ESTILO;ABoCR;CANT PARES;PLAZO;LISTA;Desc1;Desc2;Desc3;Desc4;Vendedor;Cobrador";
 
 const COBRADOR = "90";
 
@@ -25,6 +25,7 @@ const MATRIZ_CERRADA = [1, 2, 3, 3, 2, 1];
 type CsvCarlosRow = {
   fi_id: string;
   cliente_id: string | null;
+  ic_nro: string | null;
   plazo_id: string | null;
   linea: string | null;
   referencia: string | null;
@@ -126,6 +127,7 @@ export async function fetchCsvCarlosRows(
     SELECT
       fi.id::text AS fi_id,
       fi.cliente_id::text AS cliente_id,
+      ic.ic_nro,
       COALESCE(fi.plazo_id, ic.id_plazo)::text AS plazo_id,
       TRIM(ppd.linea) AS linea,
       TRIM(ppd.referencia) AS referencia,
@@ -156,11 +158,13 @@ export async function fetchCsvCarlosRows(
     JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN plazo_v2 pl_fi ON pl_fi.id_plazo = fi.plazo_id
     LEFT JOIN LATERAL (
-      SELECT ic.id_plazo, ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
+      SELECT ic.id_plazo, ic.numero_registro AS ic_nro,
+             ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
       FROM intencion_compra_pedido icp
       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
       WHERE icp.pedido_proveedor_id = fi.pp_id
         AND ic.id_cliente = fi.cliente_id
+      ORDER BY ic.id
       LIMIT 1
     ) ic ON TRUE
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
@@ -215,6 +219,7 @@ export function buildCsvCarlosContent(
     // Carlos: cada bloque SHOP = 1 factura. 1 FI Nexus = 1 bloque (IC = FI = factura Carlos).
     const blockKey = r.fi_id ?? "";
     const shop = blockKey !== prevBlock ? (r.cliente_id ?? "") : "";
+    const icNro = blockKey !== prevBlock ? (r.ic_nro ?? "") : "";
     prevBlock = blockKey;
 
     const style =
@@ -223,6 +228,7 @@ export function buildCsvCarlosContent(
     lines.push(
       buildCsvLine([
         shop,
+        icNro,
         style,
         r.marca ?? "",
         r.material_code ?? "",
@@ -286,6 +292,7 @@ export async function fetchCsvCarlosRowsInicial(
         WHEN $2::boolean THEN COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '')
         ELSE ''
       END AS cliente_id,
+      ic.ic_nro,
       COALESCE(ic.id_plazo, ic0.id_plazo)::text AS plazo_id,
       TRIM(ppd.linea) AS linea,
       TRIM(ppd.referencia) AS referencia,
@@ -313,7 +320,8 @@ export async function fetchCsvCarlosRowsInicial(
     JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
     JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN LATERAL (
-      SELECT ic.id_plazo, ic.listado_precio_id, ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
+      SELECT ic.numero_registro AS ic_nro, ic.id_plazo, ic.listado_precio_id,
+             ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
       FROM intencion_compra_pedido icp
       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
       WHERE icp.pedido_proveedor_id = pp.id
