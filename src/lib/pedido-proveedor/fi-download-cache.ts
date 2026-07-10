@@ -23,6 +23,12 @@ export function setCachedCsv(ppId: number, blob: Blob) {
   csvEntry = { key: String(ppId), blob };
 }
 
+export function clearCachedCsv(ppId?: number) {
+  if (ppId == null || csvEntry?.key === String(ppId)) {
+    csvEntry = null;
+  }
+}
+
 const inflightPdf = new Set<string>();
 const inflightCsv = new Set<string>();
 

@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
 import type { PpDetalleHeader, PpFacturaInternaRow } from "@/lib/pedido-proveedor/detail-query";
 import {
-  fetchCsvBlob,
-  getCachedCsv,
+  clearCachedCsv,
   prefetchPpFiDownloads,
   triggerBlobDownload,
 } from "@/lib/pedido-proveedor/fi-download-cache";
@@ -106,6 +105,7 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
           ? ` · ${data.avisos.length} avisos (ver consola diagnóstico)`
           : "";
       onMsg(`✓ ${resumenRatificarFi(data)}${avisoTxt}`);
+      clearCachedCsv(pp.id);
       await onReload();
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
@@ -118,8 +118,16 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
   async function descargarCsvVentas() {
     setCsvVentasLoading(true);
     try {
-      const blob = getCachedCsv(ppIdNum) ?? (await fetchCsvBlob(ppIdNum));
-      if (!blob) throw new Error("Error CSV");
+      clearCachedCsv(pp.id);
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${pp.id}/csv-ventas?_=${Date.now()}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Error CSV");
+      }
+      const blob = await res.blob();
       triggerBlobDownload(blob, csvCarlosFilename(pp.numero_proforma, pp.numero_registro));
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error CSV");
