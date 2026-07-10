@@ -377,7 +377,45 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center text-sm">
+              <div className="grid grid-cols-2 gap-3 text-center text-sm sm:grid-cols-3 lg:grid-cols-5">
+                <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
+                  <p className="text-xs uppercase text-violet-700">ICs</p>
+                  <p className="font-mono text-lg font-bold tabular-nums text-violet-950">
+                    {ics.length.toLocaleString("es-PY")}
+                  </p>
+                </div>
+                <div
+                  className={`rounded-lg border px-4 py-3 ${
+                    pp.categoria_id === CATEGORIA_PROGRAMADO_ID &&
+                    ics.length > 0 &&
+                    pp.n_facturas_internas !== ics.length
+                      ? "border-amber-300 bg-amber-50"
+                      : "border-emerald-200 bg-emerald-50"
+                  }`}
+                >
+                  <p
+                    className={`text-xs uppercase ${
+                      pp.categoria_id === CATEGORIA_PROGRAMADO_ID &&
+                      ics.length > 0 &&
+                      pp.n_facturas_internas !== ics.length
+                        ? "text-amber-800"
+                        : "text-emerald-700"
+                    }`}
+                  >
+                    Facturas
+                  </p>
+                  <p
+                    className={`font-mono text-lg font-bold tabular-nums ${
+                      pp.categoria_id === CATEGORIA_PROGRAMADO_ID &&
+                      ics.length > 0 &&
+                      pp.n_facturas_internas !== ics.length
+                        ? "text-amber-950"
+                        : "text-emerald-950"
+                    }`}
+                  >
+                    {pp.n_facturas_internas.toLocaleString("es-PY")}
+                  </p>
+                </div>
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
                   <p className="text-xs uppercase text-slate-500">Pares IC</p>
                   <p className="font-mono text-lg font-bold tabular-nums">{pp.pares_comprometidos.toLocaleString("es-PY")}</p>
