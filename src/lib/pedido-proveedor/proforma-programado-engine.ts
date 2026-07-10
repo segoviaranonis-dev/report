@@ -645,8 +645,8 @@ async function crearFacturaInterna(
   const fiRes = await client.query<{ id: number }>(
     `INSERT INTO factura_interna
        (pp_id, nro_factura, cliente_id, vendedor_id, plazo_id, lista_precio_id,
-        descuento_1, descuento_2, descuento_3, descuento_4, total_pares, total_monto, estado)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'RESERVADA')
+        descuento_1, descuento_2, descuento_3, descuento_4, total_pares, total_monto, estado, notas)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'RESERVADA', $13)
      RETURNING id`,
     [
       ppId,
@@ -661,6 +661,7 @@ async function crearFacturaInterna(
       ic.descuento_4,
       totalPares,
       totalMonto,
+      ic.numero_registro,
     ],
   );
   const fiId = fiRes.rows[0].id;
@@ -1586,6 +1587,37 @@ export async function diagnoseProgramadoFiPlan(ppId: number): Promise<{
   }
 }
 
+/** Vincula cada FI RESERVADA/CONFIRMADA a su IC (1:1) vía notas = numero_registro. */
+export async function backfillFiIcNotasProgramado(ppId: number): Promise<number> {
+  const pool = getRimecPool();
+  const res = await pool.query<{ id: number }>(
+    `
+    WITH fi_seq AS (
+      SELECT fi.id AS fi_id,
+             ROW_NUMBER() OVER (ORDER BY fi.cliente_id::text, fi.id) AS seq
+      FROM factura_interna fi
+      WHERE fi.pp_id = $1
+    ),
+    ic_seq AS (
+      SELECT ic.numero_registro,
+             ROW_NUMBER() OVER (ORDER BY ic.id_cliente::text, ic.id) AS seq
+      FROM intencion_compra_pedido icp
+      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
+      WHERE icp.pedido_proveedor_id = $1
+    )
+    UPDATE factura_interna fi
+    SET notas = ic.numero_registro
+    FROM fi_seq fs
+    JOIN ic_seq ic ON ic.seq = fs.seq
+    WHERE fi.id = fs.fi_id
+      AND (fi.notas IS NULL OR TRIM(fi.notas) = '')
+    RETURNING fi.id
+    `,
+    [ppId],
+  );
+  return res.rowCount ?? 0;
+}
+
 export type FiIntegridadAuditoria = {
   fi_multi_marca: number;
   fi_multi_caso: number;
@@ -1648,6 +1680,7 @@ export async function ratificarFiProgramadoCompleto(
 ): Promise<RatificarFiProgramadoResult> {
   const pool = getRimecPool();
   const brandsReparados = await enrichProformaBrandsFromPpd(pool, ppId);
+  await backfillFiIcNotasProgramado(ppId);
   const planPre = await diagnoseProgramadoFiPlan(ppId);
   if (planPre.errores.length) {
     return { ok: false, error: planPre.errores.slice(0, 3).join("; "), plan: planPre, brands_reparados: brandsReparados };

@@ -19,6 +19,7 @@ import { getRimecPool } from "../src/lib/rimec/pool";
 import { enrichProformaBrandsFromPpd } from "../src/lib/pedido-proveedor/proforma-snapshot";
 import {
   borrarFiReservadasProgramado,
+  backfillFiIcNotasProgramado,
   completarFiProgramadoPhased,
   diagnoseProgramadoFiPlan,
 } from "../src/lib/pedido-proveedor/proforma-programado-engine";
@@ -33,6 +34,8 @@ async function main() {
   const pool = getRimecPool();
   const nBrand = await enrichProformaBrandsFromPpd(pool, ppId);
   console.log("Brands reparados en snapshot:", nBrand);
+  const nNotas = await backfillFiIcNotasProgramado(ppId);
+  console.log("FI vinculadas a IC (notas):", nNotas);
 
   const pre = await diagnoseProgramadoFiPlan(ppId);
   console.log("Plan previo:", {

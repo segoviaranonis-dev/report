@@ -122,8 +122,9 @@ export async function fetchCsvCarlosRows(
   programado: boolean,
 ): Promise<CsvCarlosRow[]> {
   const estados = programado ? ["RESERVADA", "CONFIRMADA"] : ["CONFIRMADA"];
-  const { rows } = await pool.query<CsvCarlosRow>(
-    `
+  if (!programado) {
+    const { rows } = await pool.query<CsvCarlosRow>(
+      `
     SELECT
       fi.id::text AS fi_id,
       fi.cliente_id::text AS cliente_id,
@@ -202,6 +203,88 @@ export async function fetchCsvCarlosRows(
     WHERE fi.pp_id = $1
       AND fi.estado = ANY($2::text[])
     ORDER BY fi.id, fid.id
+    `,
+      [ppId, estados],
+    );
+    return rows;
+  }
+
+  const { rows } = await pool.query<CsvCarlosRow>(
+    `
+    SELECT
+      fi.id::text AS fi_id,
+      fi.cliente_id::text AS cliente_id,
+      COALESCE(NULLIF(TRIM(ic.numero_registro), ''), NULLIF(TRIM(fi.notas), '')) AS ic_nro,
+      COALESCE(fi.plazo_id, ic.id_plazo)::text AS plazo_id,
+      TRIM(ppd.linea) AS linea,
+      TRIM(ppd.referencia) AS referencia,
+      mv.descp_marca AS marca,
+      ppd.material_code,
+      ppd.descp_material,
+      ppd.color_code,
+      ppd.descp_color,
+      ppd.grades_json,
+      pl.nombre_caso_aplicado AS caso,
+      pe_evt.evento_nombre AS biblioteca,
+      COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS estilo,
+      fid.pares::text AS pares,
+      COALESCE(
+        NULLIF(TRIM(pl_fi.descp_plazo), ''),
+        NULLIF(TRIM(pl_ic.descp_plazo), ''),
+        'N/A'
+      ) AS plazo,
+      fi.lista_precio_id::text AS lista_precio_id,
+      COALESCE(fi.descuento_1, ic.descuento_1, 0)::text AS descuento_1,
+      COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
+      COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
+      COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4
+    FROM factura_interna fi
+    LEFT JOIN intencion_compra ic
+      ON ic.numero_registro = TRIM(fi.notas)
+     AND EXISTS (
+       SELECT 1 FROM intencion_compra_pedido icp
+       WHERE icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+     )
+    LEFT JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
+    LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+    LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
+    LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
+    LEFT JOIN plazo_v2 pl_fi ON pl_fi.id_plazo = fi.plazo_id
+    LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
+    LEFT JOIN material m
+      ON m.proveedor_id = pp.proveedor_importacion_id
+     AND m.codigo_proveedor::text = ppd.material_code
+    LEFT JOIN linea l
+      ON l.proveedor_id = pp.proveedor_importacion_id
+     AND l.codigo_proveedor::text = ppd.linea
+    LEFT JOIN referencia ref
+      ON ref.codigo_proveedor::text = ppd.referencia
+     AND ref.linea_id = l.id
+    LEFT JOIN linea_referencia lr
+      ON lr.linea_id = l.id AND lr.referencia_id = ref.id
+    LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN LATERAL (
+      SELECT icp.precio_evento_id
+      FROM intencion_compra_pedido icp
+      WHERE icp.pedido_proveedor_id = fi.pp_id
+        AND icp.precio_evento_id IS NOT NULL
+      ORDER BY icp.id
+      LIMIT 1
+    ) icp ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT pe.nombre_evento AS evento_nombre
+      FROM precio_evento pe
+      WHERE pe.id = icp.precio_evento_id
+      LIMIT 1
+    ) pe_evt ON TRUE
+    LEFT JOIN precio_lista pl
+      ON pl.evento_id = icp.precio_evento_id
+     AND pl.linea_id = l.id
+     AND pl.referencia_id = ref.id
+     AND pl.material_id = m.id
+    WHERE fi.pp_id = $1
+      AND fi.estado = ANY($2::text[])
+    ORDER BY fi.id, fid.id NULLS FIRST
     `,
     [ppId, estados],
   );
