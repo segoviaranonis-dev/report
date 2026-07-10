@@ -32,12 +32,14 @@ function fmtPct(n: number) {
 }
 
 function AccesoRapidoPp({ p }: { p: PpListaRow }) {
-  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvVentasLoading, setCsvVentasLoading] = useState(false);
+  const [csvInicialLoading, setCsvInicialLoading] = useState(false);
 
-  async function descargarCsv() {
-    setCsvLoading(true);
+  async function descargarCsv(endpoint: "csv-ventas" | "csv-inicial", fallback: string) {
+    const setLoading = endpoint === "csv-ventas" ? setCsvVentasLoading : setCsvInicialLoading;
+    setLoading(true);
     try {
-      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${p.id}/csv-ventas`, {
+      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${p.id}/${endpoint}`, {
         credentials: "same-origin",
       });
       if (!res.ok) {
@@ -47,7 +49,7 @@ function AccesoRapidoPp({ p }: { p: PpListaRow }) {
       const blob = await res.blob();
       const disp = res.headers.get("Content-Disposition") ?? "";
       const match = /filename="([^"]+)"/.exec(disp);
-      const filename = match?.[1] ?? `${p.numero_registro}_ventas.csv`;
+      const filename = match?.[1] ?? fallback;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -57,7 +59,7 @@ function AccesoRapidoPp({ p }: { p: PpListaRow }) {
     } catch (e) {
       alert(e instanceof Error ? e.message : "Error CSV");
     } finally {
-      setCsvLoading(false);
+      setLoading(false);
     }
   }
 
@@ -103,16 +105,31 @@ function AccesoRapidoPp({ p }: { p: PpListaRow }) {
           </Link>
         )}
       </div>
-      {p.n_fi_confirmadas > 0 && (
-        <button
-          type="button"
-          disabled={csvLoading}
-          onClick={descargarCsv}
-          title="Descargar CSV ventas"
-          className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
-        >
-          {csvLoading ? "…" : "📄 CSV"}
-        </button>
+      {(p.n_fi_confirmadas > 0 || p.total_articulos > 0 || p.pares_comprometidos > 0) && (
+        <div className="grid grid-cols-2 gap-1">
+          {p.n_fi_confirmadas > 0 && (
+            <button
+              type="button"
+              disabled={csvVentasLoading}
+              onClick={() => descargarCsv("csv-ventas", `${p.numero_registro}_ventas.csv`)}
+              title="CSV ventas · FI confirmadas"
+              className="rounded border border-emerald-400 bg-emerald-100 px-1 py-1 text-[10px] font-bold leading-tight text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
+            >
+              {csvVentasLoading ? "…" : "📄 Ventas"}
+            </button>
+          )}
+          {(p.total_articulos > 0 || p.pares_comprometidos > 0 || p.n_fi_confirmadas > 0) && (
+            <button
+              type="button"
+              disabled={csvInicialLoading}
+              onClick={() => descargarCsv("csv-inicial", `${p.numero_registro}_inicial.csv`)}
+              title="CSV cantidades iniciales · stock importado"
+              className="rounded border-2 border-cyan-400 bg-cyan-200 px-1 py-1 text-[10px] font-bold leading-tight text-cyan-950 hover:bg-cyan-300 disabled:opacity-50"
+            >
+              {csvInicialLoading ? "…" : "📋 Inicial"}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

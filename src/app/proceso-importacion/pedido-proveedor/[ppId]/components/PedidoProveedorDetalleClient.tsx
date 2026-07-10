@@ -27,6 +27,7 @@ import {
   type ListadoPrecioTierId,
 } from "@/lib/intencion-compra/listado-precio-tiers";
 import { SelectorPoliticaLp } from "@/app/proceso-importacion/intencion-compra/components/SelectorPoliticaLp";
+import { IcProgramadoCabeceraGuide } from "@/app/proceso-importacion/intencion-compra/components/IcProgramadoCabeceraGuide";
 import { PpTabStock } from "./PpTabStock";
 import { PpTabFacturasInternas } from "./PpTabFacturasInternas";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
@@ -107,7 +108,8 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const [icBusy, setIcBusy] = useState<number | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvVentasLoading, setCsvVentasLoading] = useState(false);
+  const [csvInicialLoading, setCsvInicialLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -309,11 +311,12 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     }
   }
 
-  async function descargarCsv() {
+  async function descargarCsv(endpoint: "csv-ventas" | "csv-inicial", fallback: string) {
     if (!pp) return;
-    setCsvLoading(true);
+    const setLoading = endpoint === "csv-ventas" ? setCsvVentasLoading : setCsvInicialLoading;
+    setLoading(true);
     try {
-      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/csv-ventas`, {
+      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/${endpoint}`, {
         credentials: "same-origin",
       });
       if (!res.ok) {
@@ -323,7 +326,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       const blob = await res.blob();
       const disp = res.headers.get("Content-Disposition") ?? "";
       const match = /filename="([^"]+)"/.exec(disp);
-      const filename = match?.[1] ?? `${pp.numero_registro}_ventas.csv`;
+      const filename = match?.[1] ?? fallback;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -333,7 +336,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Error CSV");
     } finally {
-      setCsvLoading(false);
+      setLoading(false);
     }
   }
 
@@ -533,24 +536,43 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   </button>
                 );
               })}
-              {pp.n_fi_confirmadas > 0 && (
-                <button
-                  type="button"
-                  disabled={csvLoading}
-                  onClick={descargarCsv}
-                  className="ml-auto rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
-                >
-                  {csvLoading ? "Generando…" : "📄 CSV ventas"}
-                </button>
+              {(pp.n_fi_confirmadas > 0 || pp.total_articulos > 0) && (
+                <div className="ml-auto flex flex-wrap gap-2">
+                  {pp.n_fi_confirmadas > 0 && (
+                    <button
+                      type="button"
+                      disabled={csvVentasLoading}
+                      onClick={() => descargarCsv("csv-ventas", `${pp.numero_registro}_ventas.csv`)}
+                      className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
+                    >
+                      {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
+                    </button>
+                  )}
+                  {pp.total_articulos > 0 && (
+                    <button
+                      type="button"
+                      disabled={csvInicialLoading}
+                      onClick={() => descargarCsv("csv-inicial", `${pp.numero_registro}_inicial.csv`)}
+                      className="rounded-lg border-2 border-cyan-400 bg-cyan-200 px-3 py-1.5 text-xs font-bold text-cyan-950 hover:bg-cyan-300 disabled:opacity-50"
+                    >
+                      {csvInicialLoading ? "Generando…" : "📋 CSV inicial"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
             {tab === "ics" && (
               <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="text-sm font-bold text-rimec-azul-dark">ICs vinculadas ({ics.length})</h2>
+                {pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                  <div className="mt-3">
+                    <IcProgramadoCabeceraGuide compact />
+                  </div>
+                )}
                 {pp.cabecera_editable && (
-                  <p className="mt-1 text-xs text-slate-600">
-                    Editá todos los campos de la IC mientras el PP no esté ENVIADO · Guardar persiste en BD.
+                  <p className="mt-2 text-xs text-slate-600">
+                    Cabecera FI · editá SHOP/LP/vendedor/plazo mientras el PP no esté ENVIADO · al cierre → CSV Carlos.
                   </p>
                 )}
                 {ics.length === 0 ? (
@@ -563,12 +585,19 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                       return (
                         <li key={ic.ic_id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <Link
-                              href={INTENCION_COMPRA_BANDEJA}
-                              className="font-mono text-xs font-bold text-rimec-azul hover:underline"
-                            >
-                              {ic.nro_ic}
-                            </Link>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link
+                                href={INTENCION_COMPRA_BANDEJA}
+                                className="font-mono text-xs font-bold text-rimec-azul hover:underline"
+                              >
+                                {ic.nro_ic}
+                              </Link>
+                              {ic.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                                <span className="rounded border border-violet-200 bg-violet-50 px-2 py-0.5 font-mono text-[10px] font-bold text-violet-900">
+                                  SHOP {ic.id_cliente} · {ic.cliente}
+                                </span>
+                              )}
+                            </div>
                             {!editable && (
                               <span className="text-xs text-slate-600">
                                 {ic.pares.toLocaleString("es-PY")} pares · {ic.marca} · {ic.vendedor}
@@ -577,6 +606,28 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                           </div>
                           {editable ? (
                             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                              {draft.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                                <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-sky-200 bg-sky-50/50 px-3 py-2">
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-rimec-azul">
+                                    SHOP · proforma col. J
+                                  </p>
+                                  <p className="font-mono text-sm font-bold text-slate-900">
+                                    {ic.id_cliente} — {ic.cliente}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">id_cliente en BD · empareja filas Excel al importar</p>
+                                </div>
+                              )}
+                              {draft.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                                <div className="sm:col-span-2 lg:col-span-3">
+                                  <SelectorPoliticaLp
+                                    required
+                                    disabled={icBusy === ic.ic_id}
+                                    value={draft.listado_precio_id}
+                                    onChange={(id) => patchIcDraft(ic.ic_id, { listado_precio_id: id })}
+                                    hint={`Cabecera FI · CSV col. LISTA · actual ${labelListadoPrecio(draft.listado_precio_id)}`}
+                                  />
+                                </div>
+                              )}
                               <label className="text-xs">
                                 <span className="font-semibold text-slate-500">Marca</span>
                                 <select
@@ -592,7 +643,9 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                 </select>
                               </label>
                               <label className="text-xs">
-                                <span className="font-semibold text-slate-500">Vendedor</span>
+                                <span className="font-semibold text-slate-500">
+                                  {draft.categoria_id === CATEGORIA_PROGRAMADO_ID ? "Vendedor → CSV" : "Vendedor"}
+                                </span>
                                 <select
                                   className={selectCls}
                                   value={draft.id_vendedor}
@@ -680,17 +733,6 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                   ))}
                                 </select>
                               </label>
-                              {draft.categoria_id === CATEGORIA_PROGRAMADO_ID && (
-                                <div className="sm:col-span-2 lg:col-span-3">
-                                  <SelectorPoliticaLp
-                                    required
-                                    disabled={icBusy === ic.ic_id}
-                                    value={draft.listado_precio_id}
-                                    onChange={(id) => patchIcDraft(ic.ic_id, { listado_precio_id: id })}
-                                    hint={`Desde IC · actual ${labelListadoPrecio(draft.listado_precio_id)} · FI hereda al guardar.`}
-                                  />
-                                </div>
-                              )}
                             </div>
                           ) : (
                             <div className="mt-2 space-y-1 text-xs text-slate-600">
@@ -699,9 +741,14 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                               </p>
                               <p>{ic.pares.toLocaleString("es-PY")} pares · {ic.categoria}</p>
                               {ic.categoria_id === CATEGORIA_PROGRAMADO_ID && (
-                                <p className="font-semibold text-rimec-azul">
-                                  LP IC: {labelListadoPrecio(ic.listado_precio_id)}
-                                </p>
+                                <>
+                                  <p className="font-mono font-semibold text-rimec-azul">
+                                    SHOP {ic.id_cliente} · {ic.cliente}
+                                  </p>
+                                  <p className="font-semibold text-violet-800">
+                                    LP IC: {labelListadoPrecio(ic.listado_precio_id)} → CSV LISTA
+                                  </p>
+                                </>
                               )}
                               <p className="font-mono">Nro. fábrica: {ic.nro_pedido_fabrica ?? "—"}</p>
                               {ic.evento_nombre && <p className="text-violet-800">Evento: {ic.evento_nombre}</p>}

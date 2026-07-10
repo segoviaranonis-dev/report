@@ -89,18 +89,30 @@ function fmtDesc(n: string | null): string {
   return Number.isInteger(v) ? `${v}.0` : String(v);
 }
 
+function csvCarlosBaseName(numeroProforma: string | null | undefined, numeroRegistro: string): string {
+  const raw = (numeroProforma ?? "").trim();
+  if (raw) {
+    const slash = raw.match(/(\d{3,5})\s*\/\s*(\d{4})/);
+    if (slash) return `${slash[1]}-${slash[2].slice(-2)}`;
+    const dash = raw.match(/(\d{3,5})[-_](\d{4})/);
+    if (dash) return `${dash[1]}-${dash[2].slice(-2)}`;
+  }
+  return numeroRegistro.replace(/[^\w.-]+/g, "_");
+}
+
 export function csvCarlosFilename(
   numeroProforma: string | null | undefined,
   numeroRegistro: string,
 ): string {
-  const raw = (numeroProforma ?? "").trim();
-  if (raw) {
-    const slash = raw.match(/(\d{3,5})\s*\/\s*(\d{4})/);
-    if (slash) return `${slash[1]}-${slash[2].slice(-2)}.csv`;
-    const dash = raw.match(/(\d{3,5})[-_](\d{4})/);
-    if (dash) return `${dash[1]}-${dash[2].slice(-2)}.csv`;
-  }
-  return `${numeroRegistro.replace(/[^\w.-]+/g, "_")}.csv`;
+  return `${csvCarlosBaseName(numeroProforma, numeroRegistro)}.csv`;
+}
+
+/** Cantidades iniciales (PPD · cantidad_pares) — mismo formato Carlos, sufijo `_inicial`. */
+export function csvCarlosInicialFilename(
+  numeroProforma: string | null | undefined,
+  numeroRegistro: string,
+): string {
+  return `${csvCarlosBaseName(numeroProforma, numeroRegistro)}_inicial.csv`;
 }
 
 export async function fetchCsvCarlosRows(
@@ -254,6 +266,130 @@ export async function exportCsvVentasPp(
   return {
     content: buildCsvCarlosContent(rows, translator),
     filename: csvCarlosFilename(opts.numeroProforma, opts.numeroRegistro),
+    rowCount: rows.length,
+  };
+}
+
+export async function fetchCsvCarlosRowsInicial(
+  pool: Pool,
+  ppId: number,
+  programado: boolean,
+): Promise<CsvCarlosRow[]> {
+  const { rows } = await pool.query<CsvCarlosRow>(
+    `
+    SELECT
+      CASE
+        WHEN $2::boolean THEN COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '0')
+        ELSE '0'
+      END AS fi_id,
+      CASE
+        WHEN $2::boolean THEN COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '')
+        ELSE ''
+      END AS cliente_id,
+      COALESCE(ic.id_plazo, ic0.id_plazo)::text AS plazo_id,
+      TRIM(ppd.linea) AS linea,
+      TRIM(ppd.referencia) AS referencia,
+      mv.descp_marca AS marca,
+      ppd.material_code,
+      ppd.descp_material,
+      ppd.color_code,
+      ppd.descp_color,
+      ppd.grades_json,
+      pl.nombre_caso_aplicado AS caso,
+      pe_evt.evento_nombre AS biblioteca,
+      COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS estilo,
+      ppd.cantidad_pares::text AS pares,
+      COALESCE(
+        NULLIF(TRIM(pl_ic.descp_plazo), ''),
+        NULLIF(TRIM(pl_ic0.descp_plazo), ''),
+        'N/A'
+      ) AS plazo,
+      COALESCE(ic.listado_precio_id, ic0.listado_precio_id, 1)::text AS lista_precio_id,
+      COALESCE(ic.descuento_1, ic0.descuento_1, 0)::text AS descuento_1,
+      COALESCE(ic.descuento_2, ic0.descuento_2, 0)::text AS descuento_2,
+      COALESCE(ic.descuento_3, ic0.descuento_3, 0)::text AS descuento_3,
+      COALESCE(ic.descuento_4, ic0.descuento_4, 0)::text AS descuento_4
+    FROM pedido_proveedor_detalle ppd
+    JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
+    JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
+    LEFT JOIN LATERAL (
+      SELECT ic.id_plazo, ic.listado_precio_id, ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
+      FROM intencion_compra_pedido icp
+      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
+      WHERE icp.pedido_proveedor_id = pp.id
+        AND (
+          NOT $2::boolean
+          OR ic.id_cliente::text = COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '')
+        )
+      ORDER BY ic.id
+      LIMIT 1
+    ) ic ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT ic.id_plazo, ic.listado_precio_id, ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
+      FROM intencion_compra_pedido icp
+      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
+      WHERE icp.pedido_proveedor_id = pp.id
+      ORDER BY ic.id
+      LIMIT 1
+    ) ic0 ON TRUE
+    LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
+    LEFT JOIN plazo_v2 pl_ic0 ON pl_ic0.id_plazo = ic0.id_plazo
+    LEFT JOIN material m
+      ON m.proveedor_id = pp.proveedor_importacion_id
+     AND m.codigo_proveedor::text = ppd.material_code
+    LEFT JOIN linea l
+      ON l.proveedor_id = pp.proveedor_importacion_id
+     AND l.codigo_proveedor::text = ppd.linea
+    LEFT JOIN referencia ref
+      ON ref.codigo_proveedor::text = ppd.referencia
+     AND ref.linea_id = l.id
+    LEFT JOIN linea_referencia lr
+      ON lr.linea_id = l.id AND lr.referencia_id = ref.id
+    LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN LATERAL (
+      SELECT icp.precio_evento_id
+      FROM intencion_compra_pedido icp
+      WHERE icp.pedido_proveedor_id = pp.id
+        AND icp.precio_evento_id IS NOT NULL
+      ORDER BY icp.id
+      LIMIT 1
+    ) icp ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT pe.nombre_evento AS evento_nombre
+      FROM precio_evento pe
+      WHERE pe.id = icp.precio_evento_id
+      LIMIT 1
+    ) pe_evt ON TRUE
+    LEFT JOIN precio_lista pl
+      ON pl.evento_id = icp.precio_evento_id
+     AND pl.linea_id = l.id
+     AND pl.referencia_id = ref.id
+     AND pl.material_id = m.id
+    WHERE ppd.pedido_proveedor_id = $1
+      AND ppd.linea IS NOT NULL
+      AND COALESCE(ppd.cantidad_pares, 0) > 0
+    ORDER BY fi_id, ppd.id
+    `,
+    [ppId, programado],
+  );
+  return rows;
+}
+
+export async function exportCsvInicialPp(
+  pool: Pool,
+  ppId: number,
+  opts: {
+    numeroRegistro: string;
+    numeroProforma: string | null;
+    categoriaId: number | null;
+  },
+): Promise<{ content: string; filename: string; rowCount: number }> {
+  const programado = opts.categoriaId === 3;
+  const translator = loadFrancisTranslator();
+  const rows = await fetchCsvCarlosRowsInicial(pool, ppId, programado);
+  return {
+    content: buildCsvCarlosContent(rows, translator),
+    filename: csvCarlosInicialFilename(opts.numeroProforma, opts.numeroRegistro),
     rowCount: rows.length,
   };
 }

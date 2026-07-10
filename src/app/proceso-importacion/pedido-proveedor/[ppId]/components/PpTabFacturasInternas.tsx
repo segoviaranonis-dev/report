@@ -9,7 +9,7 @@ import {
   prefetchPpFiDownloads,
   triggerBlobDownload,
 } from "@/lib/pedido-proveedor/fi-download-cache";
-import { csvCarlosFilename } from "@/lib/pedido-proveedor/csv-ventas-export";
+import { csvCarlosFilename, csvCarlosInicialFilename } from "@/lib/pedido-proveedor/csv-ventas-export";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { ProcesoImportacionWaitOverlay } from "@/components/report/ProcesoImportacionWaitOverlay";
 import { PpFiCard } from "./PpFiCard";
@@ -28,15 +28,15 @@ type Props = {
 export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onReload, onMsg }: Props) {
   const editable = pp.listado_editable;
   const esProgramado = pp.categoria_id === CATEGORIA_PROGRAMADO_ID;
-  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvVentasLoading, setCsvVentasLoading] = useState(false);
+  const [csvInicialLoading, setCsvInicialLoading] = useState(false);
   const [fiBusy, setFiBusy] = useState(false);
   const [fiProgress, setFiProgress] = useState("");
-  const [proformaFile, setProformaFile] = useState<File | null>(null);
   const [fiEstado, setFiEstado] = useState<{
     n_ic: number;
     n_fi: number;
-    has_snapshot: boolean;
-    needs_proforma_file: boolean;
+    has_detalle_en_bd: boolean;
+    needs_reimport_stock: boolean;
   } | null>(null);
 
   const facturasUnicas = useMemo(() => {
@@ -70,8 +70,8 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
           setFiEstado({
             n_ic: Number(d.n_ic ?? 0),
             n_fi: Number(d.n_fi ?? 0),
-            has_snapshot: Boolean(d.has_snapshot),
-            needs_proforma_file: Boolean(d.needs_proforma_file),
+            has_detalle_en_bd: Boolean(d.has_detalle_en_bd ?? d.has_snapshot),
+            needs_reimport_stock: Boolean(d.needs_reimport_stock),
           });
         }
       })
@@ -87,22 +87,8 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
     );
   }, [ppIdNum, facturasUnicas, puedeCsv]);
 
-  async function postCompletarFi(fd: FormData) {
-    const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
-      method: "POST",
-      credentials: "same-origin",
-      body: fd,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error al crear FI");
-    return data as Record<string, unknown>;
-  }
 
   async function crearFacturasInternas() {
-    if (fiEstado?.needs_proforma_file && !proformaFile) {
-      onMsg("Subí el Excel de proforma una vez — guarda el mapa SHOP↔IC para las 98 FI.");
-      return;
-    }
     setFiBusy(true);
     setFiProgress("");
     onMsg("");
@@ -113,13 +99,13 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
 
       while (!data.done) {
         setFiProgress(`Creando FI… ${Math.min(offset + FI_BATCH, Number(totalIc) || offset + FI_BATCH)}/${totalIc}`);
-        const fd = new FormData();
-        if (proformaFile && (fiEstado?.needs_proforma_file || offset === 0)) {
-          fd.append("file", proformaFile);
-        }
-        fd.append("fi_offset", String(offset));
-        fd.append("fi_batch", String(FI_BATCH));
-        data = await postCompletarFi(fd);
+        const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fi_offset: offset, fi_batch: FI_BATCH }),
+        });
+        data = await res.json();
         if (data.done) break;
         const next = Number(data.fi_offset_next);
         if (!Number.isFinite(next) || next <= offset) {
@@ -131,7 +117,6 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
       onMsg(
         `Facturas internas creadas · ${Number(data.n_fi ?? 0)} FI · cabecera = IC · saldo PP actualizado.`,
       );
-      setProformaFile(null);
       await onReload();
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
@@ -141,8 +126,8 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
     }
   }
 
-  async function descargarCsv() {
-    setCsvLoading(true);
+  async function descargarCsvVentas() {
+    setCsvVentasLoading(true);
     try {
       const blob = getCachedCsv(ppIdNum) ?? (await fetchCsvBlob(ppIdNum));
       if (!blob) throw new Error("Error CSV");
@@ -150,7 +135,26 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error CSV");
     } finally {
-      setCsvLoading(false);
+      setCsvVentasLoading(false);
+    }
+  }
+
+  async function descargarCsvInicial() {
+    setCsvInicialLoading(true);
+    try {
+      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/csv-inicial`, {
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Error CSV inicial");
+      }
+      const blob = await res.blob();
+      triggerBlobDownload(blob, csvCarlosInicialFilename(pp.numero_proforma, pp.numero_registro));
+    } catch (e) {
+      onMsg(e instanceof Error ? e.message : "Error CSV inicial");
+    } finally {
+      setCsvInicialLoading(false);
     }
   }
 
@@ -167,17 +171,30 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
           <h2 className="text-sm font-bold text-rimec-azul-dark">
             Ala Sur · Facturas internas ({facturasUnicas.length})
           </h2>
-          {(pp.categoria_id === 3 ? facturasUnicas.length > 0 : pp.n_fi_confirmadas > 0) && (
-            <button
-              type="button"
-              disabled={csvLoading}
-              onClick={descargarCsv}
-              title="CSV veneno Carlos · formato 8604-26"
-              className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50"
-            >
-              {csvLoading ? "Generando…" : "📄 CSV"}
-            </button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {(pp.categoria_id === 3 ? facturasUnicas.length > 0 : pp.n_fi_confirmadas > 0) && (
+              <button
+                type="button"
+                disabled={csvVentasLoading}
+                onClick={descargarCsvVentas}
+                title="CSV ventas · FI confirmadas"
+                className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
+              >
+                {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
+              </button>
+            )}
+            {pp.total_articulos > 0 && (
+              <button
+                type="button"
+                disabled={csvInicialLoading}
+                onClick={descargarCsvInicial}
+                title="CSV cantidades iniciales · stock importado"
+                className="rounded-lg border-2 border-cyan-400 bg-cyan-200 px-3 py-1.5 text-xs font-bold text-cyan-950 hover:bg-cyan-300 disabled:opacity-50"
+              >
+                {csvInicialLoading ? "Generando…" : "📋 CSV inicial"}
+              </button>
+            )}
+          </div>
         </div>
         {pp.categoria_id === 3 && (
           <p className="mt-1 text-xs text-violet-900">
@@ -194,23 +211,16 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
           <p className="text-base font-extrabold text-violet-950">Crear facturas internas desde las IC</p>
           <p className="mt-1 text-sm text-violet-900">
             Stock importado ({pp.total_articulos} moléculas) ·{" "}
-            <strong>{fiEstado?.n_ic ?? "—"} IC</strong> esperan su FI · saldo PP = 0 hasta completar.
+            <strong>{fiEstado?.n_ic ?? "—"} IC</strong> → 1 FI cada una · datos desde proforma en BD.
           </p>
-          {fiEstado?.needs_proforma_file && (
-            <label className="mt-3 block text-xs font-semibold text-violet-900">
-              Excel proforma (solo la primera vez — guarda mapa SHOP)
-              <input
-                type="file"
-                accept=".xls,.xlsx"
-                className="mt-1 block w-full max-w-md text-sm"
-                disabled={fiBusy}
-                onChange={(e) => setProformaFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
+          {fiEstado?.needs_reimport_stock && (
+            <p className="mt-2 text-xs font-semibold text-violet-800">
+              Sin snapshot previo — al crear FI el sistema reconstruye SHOP desde stock + IC (sin Excel).
+            </p>
           )}
           <button
             type="button"
-            disabled={fiBusy || (fiEstado?.needs_proforma_file && !proformaFile)}
+            disabled={fiBusy}
             onClick={() => void crearFacturasInternas()}
             className="mt-4 rounded-xl bg-violet-700 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-violet-800 disabled:opacity-50"
           >
