@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import type { VentaCompradorLinea } from "@/lib/clientes/etiqueta-comprador";
 import { agruparPeImportadora } from "@/lib/depositos/agrupar-pe-importadora";
+import type { GrillaLoteModo } from "@/lib/panel-control/grilla-carga-lotes";
+import { useGrillaLoteScroll } from "@/components/panel-control/useGrillaLoteScroll";
 import { PeCardMiniatura } from "./PeCardMiniatura";
 
 type Props = {
@@ -12,6 +14,8 @@ type Props = {
   showLlegada?: boolean;
   showVentas?: boolean;
   ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
+  /** unitario = 30 tarjetas · pe-dual-ramo = 30 calzado + 30 confecciones */
+  loteModo?: GrillaLoteModo;
 };
 
 export function GrillaPeImportadora({
@@ -20,6 +24,7 @@ export function GrillaPeImportadora({
   showLlegada = false,
   showVentas = false,
   ventasPorMol = null,
+  loteModo = "unitario",
 }: Props) {
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
@@ -30,6 +35,9 @@ export function GrillaPeImportadora({
       }),
     [productos, casoPorLinea, showVentas, ventasPorMol],
   );
+
+  const { visibleCards, totalProductos, visibleCount, hasMore, cargarMas, sentinelRef } =
+    useGrillaLoteScroll({ cards, modo: loteModo });
 
   if (cards.length === 0) {
     return (
@@ -43,8 +51,11 @@ export function GrillaPeImportadora({
     <div className="pb-10">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          {cards.length.toLocaleString("es-PY")} moléculas · 1 imagen c/u
+          {totalProductos.toLocaleString("es-PY")} productos · 4 pilares + JPG · 1 tarjeta c/u
           {showVentas ? " · orden por vendido" : " · orden por pares"}
+          {visibleCount < totalProductos
+            ? ` · mostrando ${visibleCount.toLocaleString("es-PY")}`
+            : null}
         </p>
         <button
           type="button"
@@ -61,7 +72,7 @@ export function GrillaPeImportadora({
       </div>
 
       <div className="grid auto-rows-fr grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        {cards.map((card) => (
+        {visibleCards.map((card) => (
           <PeCardMiniatura
             key={card.key}
             card={card}
@@ -72,6 +83,19 @@ export function GrillaPeImportadora({
           />
         ))}
       </div>
+
+      {hasMore ? (
+        <div ref={sentinelRef} className="mt-6 flex flex-col items-center gap-2 py-4">
+          <p className="text-xs text-slate-400">Cargando más productos…</p>
+          <button
+            type="button"
+            onClick={cargarMas}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:border-rimec-azul hover:text-rimec-azul"
+          >
+            Ver más productos
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

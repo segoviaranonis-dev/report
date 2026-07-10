@@ -83,13 +83,15 @@ export async function loadProformaDetalleFromPpd(
     grades_json: unknown;
     fila_origen_f9: number | null;
     id_marca: number | null;
+    marca_nombre: string | null;
   }>(
     `SELECT linea, referencia, material_code, color_code, descp_material, descp_color, nombre,
             ncm, style_code, grada, cantidad_cajas, cantidad_pares, unit_fob, amount_fob,
-            grades_json, fila_origen_f9, id_marca
-     FROM pedido_proveedor_detalle
-     WHERE pedido_proveedor_id = $1 AND linea IS NOT NULL AND linea <> ''
-     ORDER BY fila_origen_f9 NULLS LAST, id`,
+            grades_json, fila_origen_f9, ppd.id_marca, UPPER(TRIM(mv.descp_marca)) AS marca_nombre
+     FROM pedido_proveedor_detalle ppd
+     LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
+     WHERE ppd.pedido_proveedor_id = $1 AND ppd.linea IS NOT NULL AND ppd.linea <> ''
+     ORDER BY ppd.fila_origen_f9 NULLS LAST, ppd.id`,
     [ppId],
   );
   if (!rows.length) return null;
@@ -119,7 +121,7 @@ export async function loadProformaDetalleFromPpd(
       material: r.descp_material ?? "",
       color_code: String(r.color_code ?? ""),
       color: r.descp_color ?? "",
-      brand: meta.brand ?? "",
+      brand: meta.brand?.trim() || r.marca_nombre?.trim() || "",
       shop: meta.shop.trim(),
       boxes: Number(r.cantidad_cajas ?? 1),
       pairs: Number(r.cantidad_pares ?? 0),
@@ -133,14 +135,55 @@ export async function loadProformaDetalleFromPpd(
   return detalle;
 }
 
+function proformaMolKey(r: ProformaRow): string {
+  return canonicalMolKey(
+    r.linea_codigo_proveedor,
+    r.referencia_codigo_proveedor,
+    r.material_code,
+    r.color_code,
+    r.grades_json,
+  );
+}
+
+/** Repara snapshot sin brand usando metadata _brand del PPD. */
+export async function enrichProformaBrandsFromPpd(pool: Pool | PoolClient, ppId: number): Promise<number> {
+  const snap = await loadProformaFilas(pool, ppId);
+  if (!snap?.length) return 0;
+  const fromPpd = await loadProformaDetalleFromPpd(pool, ppId);
+  if (!fromPpd?.length) return 0;
+
+  const byMol = new Map<string, ProformaRow>();
+  for (const r of fromPpd) {
+    byMol.set(proformaMolKey(r), r);
+  }
+
+  let n = 0;
+  for (const row of snap) {
+    if (row.brand?.trim()) continue;
+    const hit = byMol.get(proformaMolKey(row));
+    if (!hit?.brand?.trim()) continue;
+    row.brand = hit.brand.trim();
+    n += 1;
+  }
+  if (n > 0) await saveProformaFilas(pool, ppId, snap);
+  return n;
+}
+
 /** Fuente canónica en BD: snapshot JSON → PPD con _shop → inferencia IC+PPD. Sin Excel. */
 export async function loadProformaDetalleParaFi(
   pool: Pool | PoolClient,
   ppId: number,
   opts?: { autoInfer?: boolean },
 ): Promise<{ detalle: ProformaRow[]; source: "snapshot" | "ppd" | "inferred" } | null> {
-  const snap = await loadProformaFilas(pool, ppId);
-  if (snap?.length) return { detalle: snap, source: "snapshot" };
+  let snap = await loadProformaFilas(pool, ppId);
+  if (snap?.length) {
+    const sinBrand = snap.filter((r) => !r.brand?.trim()).length;
+    if (sinBrand > snap.length * 0.5) {
+      await enrichProformaBrandsFromPpd(pool, ppId);
+      snap = (await loadProformaFilas(pool, ppId)) ?? snap;
+    }
+    return { detalle: snap, source: "snapshot" };
+  }
 
   const fromPpd = await loadProformaDetalleFromPpd(pool, ppId);
   if (fromPpd?.length) return { detalle: fromPpd, source: "ppd" };

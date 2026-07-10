@@ -13,6 +13,8 @@ import { INTENCION_COMPRA, INTENCION_COMPRA_BANDEJA, PROCESO_IMPORTACION } from 
 import { FechaEmbarqueSlider } from "./FechaEmbarqueSlider";
 import { IntencionCompraSubNav } from "./IntencionCompraSubNav";
 import { SelectorPoliticaLp } from "./SelectorPoliticaLp";
+import { IcProgramadoCabeceraGuide } from "./IcProgramadoCabeceraGuide";
+import { CampoShopProgramado } from "./CampoShopProgramado";
 import {
   ID_CATEGORIA_PROGRAMADO,
   LISTADO_IMPUETO_8604,
@@ -55,7 +57,7 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
 
   const [idProveedor, setIdProveedor] = useState<number | "">("");
   const [idMarca, setIdMarca] = useState<number | "">("");
-  const [codCliente, setCodCliente] = useState(276);
+  const [codCliente, setCodCliente] = useState(0);
   const [clienteNombre, setClienteNombre] = useState<string | null>(null);
   const [clienteErr, setClienteErr] = useState(false);
   const [idVendedor, setIdVendedor] = useState<number | "">("");
@@ -163,8 +165,13 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
     }
     if (categoriaId === ID_COMPRA_PREVIA) {
       setListadoPrecioId(null);
+      if (!codCliente) setCodCliente(276);
     }
-  }, [categoriaId, listadoPrecioId]);
+    if (categoriaId === ID_PROGRAMADO && codCliente === 276) {
+      setCodCliente(0);
+      setClienteNombre(null);
+    }
+  }, [categoriaId, listadoPrecioId, codCliente]);
 
   useEffect(() => {
     if (!idProveedor || categoriaId !== ID_PROGRAMADO) {
@@ -355,194 +362,384 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
             </button>
 
             {categoriaId === ID_PROGRAMADO && (
-              <SelectorPoliticaLp
-                required
-                value={listadoPrecioId}
-                onChange={setListadoPrecioId}
-                hint="Obligatorio PROGRAMADO · default LPC04 (maratón 8604). Tier de venta para FI + proforma."
-              />
+              <>
+                <IcProgramadoCabeceraGuide shop={codCliente || null} lp={listadoPrecioId} />
+                <SelectorPoliticaLp
+                  required
+                  value={listadoPrecioId}
+                  onChange={setListadoPrecioId}
+                  hint="Tier que hereda la FI y columna LISTA del CSV Carlos · default LPC04 (8604/8600)."
+                />
+              </>
+            )}
+
+            {categoriaId === ID_COMPRA_PREVIA && (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                Compra previa: cabecera importadora · precio se define en venta Web · sin política LP en IC.
+              </p>
             )}
 
             <p className="text-sm text-slate-600">
               El número <code className="text-xs">IC-YYYY-XXXX</code> se asigna al guardar.
             </p>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Proveedor">
-                <select
-                  value={idProveedor === "" ? "" : String(idProveedor)}
-                  onChange={(e) => setIdProveedor(e.target.value ? Number(e.target.value) : "")}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="">— Elegir —</option>
-                  {catalogos.proveedores.map((p) => (
-                    <option key={p.id} value={String(p.id)}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Marca">
-                <select
-                  value={idMarca === "" ? "" : String(idMarca)}
-                  onChange={(e) => setIdMarca(e.target.value ? Number(e.target.value) : "")}
-                  disabled={!tipoId}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  <option value="">— Elegir —</option>
-                  {marcasOpciones.map((m) => (
-                    <option key={m.id} value={String(m.id)}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                {tipoId && marcasOpciones.length === 0 && (
-                  <p className="mt-1 text-xs text-amber-700">Sin marcas para {tipoLabel} — revisá marca_tipo_v2</p>
-                )}
-              </Field>
-            </div>
+            {categoriaId === ID_PROGRAMADO ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <CampoShopProgramado
+                    shop={codCliente}
+                    onShopChange={setCodCliente}
+                    clienteNombre={clienteNombre}
+                    clienteErr={clienteErr}
+                  />
+                  <Field label="Vendedor responsable → CSV col. Vendedor">
+                    <select
+                      value={idVendedor === "" ? "" : String(idVendedor)}
+                      onChange={(e) => setIdVendedor(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">— Elegir —</option>
+                      {catalogos.vendedores.map((v) => (
+                        <option key={v.id} value={String(v.id)}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Cliente — código del papel/email">
-                <input
-                  type="number"
-                  min={1}
-                  value={codCliente}
-                  onChange={(e) => setCodCliente(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-                {clienteNombre && <p className="mt-1 text-xs text-emerald-700">✔ {codCliente} — {clienteNombre}</p>}
-                {clienteErr && <p className="mt-1 text-xs text-red-700">✗ Código no encontrado</p>}
-              </Field>
-              <Field label="Vendedor responsable">
-                <select
-                  value={idVendedor === "" ? "" : String(idVendedor)}
-                  onChange={(e) => setIdVendedor(e.target.value ? Number(e.target.value) : "")}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="">— Elegir —</option>
-                  {catalogos.vendedores.map((v) => (
-                    <option key={v.id} value={String(v.id)}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-                {catalogos.vendedores.length === 0 && (
-                  <p className="mt-1 text-xs text-amber-700">Sin vendedores en vendedor_v2</p>
-                )}
-              </Field>
-            </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Plazo → CSV col. PLAZO">
+                    <select
+                      value={idPlazo ?? ""}
+                      onChange={(e) => setIdPlazo(e.target.value === "" ? null : Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {catalogos.plazos.map((p) => (
+                        <option key={String(p.id)} value={p.id ?? ""}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Cupò pares (SHOP↔IC)">
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={pares}
+                      onChange={(e) => setPares(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+                    />
+                  </Field>
+                  <Field label="Proveedor">
+                    <select
+                      value={idProveedor === "" ? "" : String(idProveedor)}
+                      onChange={(e) => setIdProveedor(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">— Elegir —</option>
+                      {catalogos.proveedores.map((p) => (
+                        <option key={p.id} value={String(p.id)}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Marca">
+                    <select
+                      value={idMarca === "" ? "" : String(idMarca)}
+                      onChange={(e) => setIdMarca(e.target.value ? Number(e.target.value) : "")}
+                      disabled={!tipoId}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+                    >
+                      <option value="">— Elegir —</option>
+                      {marcasOpciones.map((m) => (
+                        <option key={m.id} value={String(m.id)}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Plazo de pago">
-                <select
-                  value={idPlazo ?? ""}
-                  onChange={(e) => setIdPlazo(e.target.value === "" ? null : Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {catalogos.plazos.map((p) => (
-                    <option key={String(p.id)} value={p.id ?? ""}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Total pares">
-                <input type="number" min={0} step={1} value={pares} onChange={(e) => setPares(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              </Field>
-              <Field label="Fecha registro">
-                <input type="date" value={fechaReg} onChange={(e) => setFechaReg(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              </Field>
-              <FechaEmbarqueSlider value={quincenaId} lookup={quincenaLookup} onChange={setQuincenaId} />
-            </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Nro. pedido fábrica">
+                    <input
+                      type="text"
+                      value={nota}
+                      onChange={(e) => setNota(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono"
+                      placeholder="64830"
+                    />
+                  </Field>
+                  <Field label="Fecha registro">
+                    <input
+                      type="date"
+                      value={fechaReg}
+                      onChange={(e) => setFechaReg(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                  <FechaEmbarqueSlider value={quincenaId} lookup={quincenaLookup} onChange={setQuincenaId} />
+                </div>
 
-            <Field label="Nota / referencia del pedido">
-              <input type="text" value={nota} onChange={(e) => setNota(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            </Field>
+                <Field label="Listado motor — evento cerrado (LPN/LPC en precio_lista)">
+                  <select
+                    value={precioEventoId ?? ""}
+                    onChange={(e) => setPrecioEventoId(e.target.value === "" ? null : Number(e.target.value))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {catalogos.eventos.map((ev) => (
+                      <option key={String(ev.id)} value={ev.id ?? ""}>
+                        {ev.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
 
-            <div>
-              <p className="mb-2 text-sm font-semibold text-slate-700">Condiciones financieras</p>
-              <Field label="Monto bruto total (Gs.)">
-                <input type="number" min={0} step={1000000} value={bruto} onChange={(e) => setBruto(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              </Field>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[["Desc. 1 (%)", d1, setD1], ["Desc. 2 (%)", d2, setD2], ["Desc. 3 (%)", d3, setD3], ["Desc. 4 (%)", d4, setD4]].map(
-                  ([lbl, val, set]) => (
-                    <Field key={String(lbl)} label={String(lbl)}>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        value={val as number}
-                        onChange={(e) => (set as (n: number) => void)(Number(e.target.value))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      />
-                    </Field>
-                  ),
-                )}
-              </div>
-              <div className="mt-3 rounded-xl border-l-4 border-amber-500 bg-slate-900 px-4 py-3">
-                <p className="text-xs uppercase text-slate-400">Monto neto calculado</p>
-                <p className="font-serif text-2xl font-bold text-amber-300">Gs. {neto.toLocaleString("es-PY")}</p>
-              </div>
-        </div>
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Descuentos cabecera → CSV cols Desc1–4</p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[["Desc. 1 (%)", d1, setD1], ["Desc. 2 (%)", d2, setD2], ["Desc. 3 (%)", d3, setD3], ["Desc. 4 (%)", d4, setD4]].map(
+                      ([lbl, val, set]) => (
+                        <Field key={String(lbl)} label={String(lbl)}>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={val as number}
+                            onChange={(e) => (set as (n: number) => void)(Number(e.target.value))}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </Field>
+                      ),
+                    )}
+                  </div>
+                </div>
 
-            <Field label="Observaciones">
-              <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            </Field>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <p className="text-sm font-bold text-rimec-azul-dark">Negociación PROGRAMADO — línea · comisión</p>
+                  {lineas.length === 0 ? (
+                    <p className="text-xs text-amber-800">Elegí proveedor para cargar líneas de negociación.</p>
+                  ) : (
+                    <>
+                      <Field label="Línea del pedido (caso automático)">
+                        <select
+                          value={lineaSel}
+                          onChange={(e) => setLineaSel(Number(e.target.value))}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                        >
+                          <option value="">— Elegir —</option>
+                          {lineas.map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.codigo_proveedor} — {l.descripcion ?? "—"}
+                              {l.caso_nombre ? ` · [${l.caso_nombre}]` : " · ⚠ sin caso"}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      {casoNombre ? (
+                        <p className="text-xs font-semibold text-rimec-azul">Caso detectado: {casoNombre}</p>
+                      ) : null}
+                      <Field label="Comisión vendedor">
+                        <select
+                          value={comisionId ?? 0}
+                          onChange={(e) => setComisionId(Number(e.target.value))}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                        >
+                          {catalogos.comisiones.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </>
+                  )}
+                </div>
 
-            <Field label="Listado de precios — evento cerrado">
-              <select
-                value={precioEventoId ?? ""}
-                onChange={(e) => setPrecioEventoId(e.target.value === "" ? null : Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                {catalogos.eventos.map((ev) => (
-                  <option key={String(ev.id)} value={ev.id ?? ""}>
-                    {ev.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+                <Field label="Observaciones">
+                  <textarea
+                    value={obs}
+                    onChange={(e) => setObs(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </Field>
+              </>
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Proveedor">
+                    <select
+                      value={idProveedor === "" ? "" : String(idProveedor)}
+                      onChange={(e) => setIdProveedor(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">— Elegir —</option>
+                      {catalogos.proveedores.map((p) => (
+                        <option key={p.id} value={String(p.id)}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Marca">
+                    <select
+                      value={idMarca === "" ? "" : String(idMarca)}
+                      onChange={(e) => setIdMarca(e.target.value ? Number(e.target.value) : "")}
+                      disabled={!tipoId}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                    >
+                      <option value="">— Elegir —</option>
+                      {marcasOpciones.map((m) => (
+                        <option key={m.id} value={String(m.id)}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    {tipoId && marcasOpciones.length === 0 && (
+                      <p className="mt-1 text-xs text-amber-700">Sin marcas para {tipoLabel} — revisá marca_tipo_v2</p>
+                    )}
+                  </Field>
+                </div>
 
-            {categoriaId === ID_PROGRAMADO && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                <p className="text-sm font-bold text-rimec-azul-dark">Negociación PROGRAMADO — línea · comisión</p>
-                {lineas.length === 0 ? (
-                  <p className="text-xs text-amber-800">No hay líneas para este proveedor.</p>
-                ) : (
-                  <>
-                    <Field label="Línea del pedido (caso automático)">
-                      <select value={lineaSel} onChange={(e) => setLineaSel(Number(e.target.value))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                        <option value="">— Elegir —</option>
-                        {lineas.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.codigo_proveedor} — {l.descripcion ?? "—"}
-                            {l.caso_nombre ? ` · [${l.caso_nombre}]` : " · ⚠ sin caso"}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    {casoNombre ? (
-                      <p className="text-xs font-semibold text-rimec-azul">Caso detectado: {casoNombre}</p>
-                    ) : null}
-                    <Field label="Comisión vendedor">
-                      <select
-                        value={comisionId ?? 0}
-                        onChange={(e) => setComisionId(Number(e.target.value))}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      >
-                        {catalogos.comisiones.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </>
-                )}
-              </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Cliente — código del papel/email">
+                    <input
+                      type="number"
+                      min={1}
+                      value={codCliente}
+                      onChange={(e) => setCodCliente(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    {clienteNombre && (
+                      <p className="mt-1 text-xs text-emerald-700">
+                        ✔ {codCliente} — {clienteNombre}
+                      </p>
+                    )}
+                    {clienteErr && <p className="mt-1 text-xs text-red-700">✗ Código no encontrado</p>}
+                  </Field>
+                  <Field label="Vendedor responsable">
+                    <select
+                      value={idVendedor === "" ? "" : String(idVendedor)}
+                      onChange={(e) => setIdVendedor(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">— Elegir —</option>
+                      {catalogos.vendedores.map((v) => (
+                        <option key={v.id} value={String(v.id)}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Plazo de pago">
+                    <select
+                      value={idPlazo ?? ""}
+                      onChange={(e) => setIdPlazo(e.target.value === "" ? null : Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {catalogos.plazos.map((p) => (
+                        <option key={String(p.id)} value={p.id ?? ""}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Total pares">
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={pares}
+                      onChange={(e) => setPares(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                  <Field label="Fecha registro">
+                    <input
+                      type="date"
+                      value={fechaReg}
+                      onChange={(e) => setFechaReg(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                  <FechaEmbarqueSlider value={quincenaId} lookup={quincenaLookup} onChange={setQuincenaId} />
+                </div>
+
+                <Field label="Nota / referencia del pedido">
+                  <input
+                    type="text"
+                    value={nota}
+                    onChange={(e) => setNota(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </Field>
+
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">Condiciones financieras</p>
+                  <Field label="Monto bruto total (Gs.)">
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000000}
+                      value={bruto}
+                      onChange={(e) => setBruto(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[["Desc. 1 (%)", d1, setD1], ["Desc. 2 (%)", d2, setD2], ["Desc. 3 (%)", d3, setD3], ["Desc. 4 (%)", d4, setD4]].map(
+                      ([lbl, val, set]) => (
+                        <Field key={String(lbl)} label={String(lbl)}>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={val as number}
+                            onChange={(e) => (set as (n: number) => void)(Number(e.target.value))}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </Field>
+                      ),
+                    )}
+                  </div>
+                  <div className="mt-3 rounded-xl border-l-4 border-amber-500 bg-slate-900 px-4 py-3">
+                    <p className="text-xs uppercase text-slate-400">Monto neto calculado</p>
+                    <p className="font-serif text-2xl font-bold text-amber-300">Gs. {neto.toLocaleString("es-PY")}</p>
+                  </div>
+                </div>
+
+                <Field label="Observaciones">
+                  <textarea
+                    value={obs}
+                    onChange={(e) => setObs(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </Field>
+
+                <Field label="Listado de precios — evento cerrado">
+                  <select
+                    value={precioEventoId ?? ""}
+                    onChange={(e) => setPrecioEventoId(e.target.value === "" ? null : Number(e.target.value))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {catalogos.eventos.map((ev) => (
+                      <option key={String(ev.id)} value={ev.id ?? ""}>
+                        {ev.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </>
             )}
 
             {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>}
@@ -565,7 +762,11 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
               onClick={handleRegistrar}
               className="w-full rounded-xl bg-rimec-azul py-3 text-sm font-bold text-white hover:bg-rimec-azul-dark disabled:opacity-40"
             >
-              {submitting ? "Guardando…" : "🔒 REGISTRAR"}
+              {submitting
+                ? "Guardando…"
+                : categoriaId === ID_PROGRAMADO
+                  ? "🔒 REGISTRAR CABECERA IC → FI"
+                  : "🔒 REGISTRAR"}
             </button>
           </div>
         )}

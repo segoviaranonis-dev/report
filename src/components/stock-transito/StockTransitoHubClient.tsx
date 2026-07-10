@@ -42,7 +42,7 @@ export function StockTransitoHubClient({ resumen }: Props) {
         Compra previa · Tránsito
       </h1>
       <p className="mt-2 text-sm text-slate-600">
-        {resumen.pedidos_pp} PP · {fmtN(resumen.moleculas)} moléculas · ejecución por partida
+        {resumen.pedidos_pp} PP · {fmtN(resumen.moleculas)} productos · ejecución por partida
       </p>
 
       <dl className="mt-6 grid grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-center text-sm">

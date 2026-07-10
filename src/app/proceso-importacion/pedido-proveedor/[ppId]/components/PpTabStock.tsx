@@ -17,6 +17,10 @@ import { CATEGORIA_COMPRA_PREVIA_ID, CATEGORIA_PROGRAMADO_ID } from "@/lib/inten
 import type { AlzarWebPreview } from "@/lib/pedido-proveedor/alzar-web";
 import type { BorrarImportEstado } from "@/lib/pedido-proveedor/borrar-import";
 import { collectGradeColumns, gradeQty, paresPorCaja } from "@/lib/pedido-proveedor/ala-norte-grades";
+import {
+  ejecutarRatificarFiProgramado,
+  resumenRatificarFi,
+} from "@/lib/pedido-proveedor/ratificar-fi-programado-client";
 
 /** Debe coincidir con PROFORMA_FI_BATCH_SIZE del engine (evitar import server-side en cliente). */
 const PROFORMA_FI_BATCH_SIZE = 12;
@@ -327,47 +331,11 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   async function completarFiPendientes() {
     setBusy(true);
     setWaitPhase("import");
-    setImportProgress("");
+    setImportProgress("IC = PROFORMA = FI…");
     onMsg(null);
     try {
-      if (!proformaFile) {
-        const st = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
-          credentials: "same-origin",
-        }).then((r) => r.json());
-        if (st.needs_proforma_file) {
-          onMsg("Subí el Excel de proforma — falta el mapa SHOP (una sola vez). También podés usar tab Facturas Internas.");
-          return;
-        }
-      }
-
-      let offset = borrarEstado?.n_facturas ?? pp.n_facturas_internas ?? 0;
-      let data: Record<string, unknown> = { done: false };
-      const batch = PROFORMA_FI_BATCH_SIZE;
-
-      while (!data.done) {
-        setImportProgress(`Creando FI desde IC… ${offset + batch}…`);
-        const fd = new FormData();
-        if (proformaFile) fd.append("file", proformaFile);
-        fd.append("fi_offset", String(offset));
-        fd.append("fi_batch", String(batch));
-        const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
-          method: "POST",
-          credentials: "same-origin",
-          body: fd,
-        });
-        data = await res.json();
-        if (!res.ok) throw new Error(String(data.error ?? "Error al crear FI"));
-        if (data.done) break;
-        const next = Number(data.fi_offset_next);
-        if (!Number.isFinite(next) || next <= offset) {
-          throw new Error(`FI incompletas (${Number(data.n_fi ?? 0)}/${Number(data.fi_total ?? "?")})`);
-        }
-        offset = next;
-      }
-
-      const nFi = Number(data.n_fi ?? 0);
-      onMsg(`FI completadas · ${nFi} facturas · saldo PP actualizado.`);
-      setProformaFile(null);
+      const data = await ejecutarRatificarFiProgramado(pp.id, false);
+      onMsg(`✓ ${resumenRatificarFi(data)}`);
       await onReload();
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
@@ -893,26 +861,15 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
             <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3">
               <p className="text-sm font-bold text-amber-900">Stock cargado · faltan facturas internas</p>
               <p className="mt-1 text-xs text-amber-950">
-                {pp.total_articulos} moléculas · <strong>0 FI</strong> — saldo sin bajar. Tab{" "}
-                <strong>Facturas Internas</strong> → «Crear facturas internas» (1 FI por IC).
+                {pp.total_articulos} moléculas · <strong>0 FI</strong> — generá con paridad marca×caso (riguroso).
               </p>
-              <label className="mt-2 block text-xs font-semibold text-amber-900">
-                Excel proforma (1ª vez — mapa SHOP, no borra stock)
-                <input
-                  type="file"
-                  accept=".xls,.xlsx"
-                  className="mt-1 block w-full max-w-md text-sm"
-                  disabled={busy}
-                  onChange={(e) => setProformaFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void completarFiPendientes()}
-                className="mt-3 rounded-lg border-2 border-amber-600 bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                className="mt-3 rounded-lg border-2 border-violet-600 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
               >
-                {busy ? "Creando FI…" : "Crear FI desde ICs"}
+                {busy ? "Generando…" : "⚡ IC = PROFORMA = FI"}
               </button>
             </div>
           )}

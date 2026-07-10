@@ -5,6 +5,12 @@
     },
     "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/proforma/preview/route.ts": {
       "maxDuration": 120
+    },
+    "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/ratificar-fi-programado/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/completar-fi/route.ts": {
+      "maxDuration": 300
     }
   }
 }

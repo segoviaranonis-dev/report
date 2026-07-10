@@ -69,5 +69,6 @@ Género · Marca · Estilo · Tipo 1 · Línea · Buscar · TONO (+ Grada import
 
 ## Referencias Moria
 
+- `.claude/2_modulos/2.3_report/gestion_compra/CHUSAR_PANEL_CONTROL_GRILLA_HEADER.md` · **2.3.1.20**
 - `.claude/3_arquitectura/3.2_venta_tienda/CABECERA_DE_FILTROS.md`
 - `.claude/2_modulos/2.3_report/gestion_compra/CHUSAR_PANEL_CONTROL_HUB_NAVEGACION.md`

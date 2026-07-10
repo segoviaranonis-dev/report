@@ -536,9 +536,13 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   </button>
                 );
               })}
-              {(pp.n_fi_confirmadas > 0 || pp.total_articulos > 0) && (
+              {(pp.n_fi_confirmadas > 0 ||
+                pp.total_articulos > 0 ||
+                (pp.categoria_id === CATEGORIA_PROGRAMADO_ID && pp.n_facturas_internas > 0)) && (
                 <div className="ml-auto flex flex-wrap gap-2">
-                  {pp.n_fi_confirmadas > 0 && (
+                  {(pp.categoria_id === CATEGORIA_PROGRAMADO_ID
+                    ? pp.n_facturas_internas > 0
+                    : pp.n_fi_confirmadas > 0) && (
                     <button
                       type="button"
                       disabled={csvVentasLoading}

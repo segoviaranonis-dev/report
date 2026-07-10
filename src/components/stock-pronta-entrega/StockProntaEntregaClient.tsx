@@ -121,7 +121,7 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
       }
       productos={filtradasGrid}
       casoPorLinea={lineaCasoMap}
-      grilla={{ showVentas: true }}
+      grilla={{ showVentas: true, loteModo: "pe-dual-ramo" }}
     />
   );
 }

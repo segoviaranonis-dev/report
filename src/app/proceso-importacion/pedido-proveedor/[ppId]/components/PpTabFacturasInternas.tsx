@@ -10,11 +10,13 @@ import {
   triggerBlobDownload,
 } from "@/lib/pedido-proveedor/fi-download-cache";
 import { csvCarlosFilename, csvCarlosInicialFilename } from "@/lib/pedido-proveedor/csv-ventas-export";
+import {
+  ejecutarRatificarFiProgramado,
+  resumenRatificarFi,
+} from "@/lib/pedido-proveedor/ratificar-fi-programado-client";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { ProcesoImportacionWaitOverlay } from "@/components/report/ProcesoImportacionWaitOverlay";
 import { PpFiCard } from "./PpFiCard";
-
-const FI_BATCH = 12;
 
 type Props = {
   pp: PpDetalleHeader;
@@ -49,14 +51,10 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
   }, [facturas]);
 
   const ppIdNum = Number(ppId);
-  const puedeCsv =
-    pp.categoria_id === 3 ? facturasUnicas.length > 0 : pp.n_fi_confirmadas > 0;
+  const puedeCsv = esProgramado ? pp.n_facturas_internas > 0 : pp.n_fi_confirmadas > 0;
 
   const mostrarCrearFi =
-    esProgramado &&
-    editable &&
-    pp.total_articulos > 0 &&
-    (pp.n_facturas_internas === 0 || (fiEstado != null && fiEstado.n_fi < fiEstado.n_ic));
+    esProgramado && editable && pp.total_articulos > 0;
 
   useEffect(() => {
     if (!esProgramado || pp.total_articulos === 0) {
@@ -88,35 +86,26 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
   }, [ppIdNum, facturasUnicas, puedeCsv]);
 
 
-  async function crearFacturasInternas() {
+  async function generarFiRiguroso() {
+    const regenerar = pp.n_facturas_internas > 0;
+    if (
+      regenerar &&
+      !window.confirm(
+        "Se borran FI RESERVADA y se regeneran con paridad marca×caso (IC = PROFORMA = FI). ¿Continuar?",
+      )
+    ) {
+      return;
+    }
     setFiBusy(true);
-    setFiProgress("");
+    setFiProgress("Ratificando IC = PROFORMA = FI…");
     onMsg("");
     try {
-      let offset = fiEstado?.n_fi ?? pp.n_facturas_internas ?? 0;
-      let data: Record<string, unknown> = { done: false };
-      const totalIc = fiEstado?.n_ic ?? "?";
-
-      while (!data.done) {
-        setFiProgress(`Creando FI… ${Math.min(offset + FI_BATCH, Number(totalIc) || offset + FI_BATCH)}/${totalIc}`);
-        const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/completar-fi`, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fi_offset: offset, fi_batch: FI_BATCH }),
-        });
-        data = await res.json();
-        if (data.done) break;
-        const next = Number(data.fi_offset_next);
-        if (!Number.isFinite(next) || next <= offset) {
-          throw new Error(`FI incompletas (${Number(data.n_fi ?? 0)}/${Number(data.fi_total ?? totalIc)})`);
-        }
-        offset = next;
-      }
-
-      onMsg(
-        `Facturas internas creadas · ${Number(data.n_fi ?? 0)} FI · cabecera = IC · saldo PP actualizado.`,
-      );
+      const data = await ejecutarRatificarFiProgramado(pp.id, regenerar);
+      const avisoTxt =
+        data.avisos && data.avisos.length > 0
+          ? ` · ${data.avisos.length} avisos (ver consola diagnóstico)`
+          : "";
+      onMsg(`✓ ${resumenRatificarFi(data)}${avisoTxt}`);
       await onReload();
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
@@ -162,9 +151,9 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
     <section className="mt-4 space-y-4">
       <ProcesoImportacionWaitOverlay
         open={fiBusy}
-        title="Creando facturas internas…"
-        detail={`${pp.numero_registro} · 1 FI por IC`}
-        hint={fiProgress || "Lotes de 12 · no cierres la pestaña"}
+        title="IC = PROFORMA = FI"
+        detail={`${pp.numero_registro} · paridad marca×caso · sin mezclar`}
+        hint={fiProgress || "No cierres la pestaña"}
       />
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -172,12 +161,12 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
             Ala Sur · Facturas internas ({facturasUnicas.length})
           </h2>
           <div className="flex flex-wrap gap-2">
-            {(pp.categoria_id === 3 ? facturasUnicas.length > 0 : pp.n_fi_confirmadas > 0) && (
+            {puedeCsv && (
               <button
                 type="button"
                 disabled={csvVentasLoading}
                 onClick={descargarCsvVentas}
-                title="CSV ventas · FI confirmadas"
+                title="CSV ventas Carlos · FI programado"
                 className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
               >
                 {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
@@ -198,7 +187,7 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
         </div>
         {pp.categoria_id === 3 && (
           <p className="mt-1 text-xs text-violet-900">
-            PROGRAMADO · 1 FI por IC (SHOP = id_cliente) · LP desde IC · miniaturas L-R-M-C · recalc al cambiar tier.
+            PROGRAMADO · IC = PROFORMA = FI · 1 marca por FI · 1 caso por FI · CSV Carlos listo al ratificar.
           </p>
         )}
         {!editable && (
@@ -208,23 +197,27 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
 
       {mostrarCrearFi && (
         <div className="rounded-xl border-2 border-violet-400 bg-violet-50 px-5 py-4">
-          <p className="text-base font-extrabold text-violet-950">Crear facturas internas desde las IC</p>
+          <p className="text-base font-extrabold text-violet-950">⚡ IC = PROFORMA = FI (riguroso)</p>
           <p className="mt-1 text-sm text-violet-900">
-            Stock importado ({pp.total_articulos} moléculas) ·{" "}
-            <strong>{fiEstado?.n_ic ?? "—"} IC</strong> → 1 FI cada una · datos desde proforma en BD.
+            Stock {pp.total_articulos} SKUs · {fiEstado?.n_ic ?? "—"} IC · pools por marca · caso único por FI · CSV
+            veneno al terminar.
           </p>
-          {fiEstado?.needs_reimport_stock && (
-            <p className="mt-2 text-xs font-semibold text-violet-800">
-              Sin snapshot previo — al crear FI el sistema reconstruye SHOP desde stock + IC (sin Excel).
+          {pp.n_facturas_internas > 0 && (
+            <p className="mt-2 text-xs font-semibold text-amber-900">
+              Ya hay {pp.n_facturas_internas} FI — regenerar borra solo RESERVADA (no CONFIRMADA).
             </p>
           )}
           <button
             type="button"
             disabled={fiBusy}
-            onClick={() => void crearFacturasInternas()}
+            onClick={() => void generarFiRiguroso()}
             className="mt-4 rounded-xl bg-violet-700 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-violet-800 disabled:opacity-50"
           >
-            {fiBusy ? "Creando FI…" : `Crear ${fiEstado?.n_ic ?? ""} facturas internas`}
+            {fiBusy
+              ? "Generando…"
+              : pp.n_facturas_internas > 0
+                ? "Regenerar FI + CSV"
+                : "Generar FI programadas"}
           </button>
         </div>
       )}

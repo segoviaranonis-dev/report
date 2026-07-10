@@ -10,12 +10,14 @@ import type {
   OperativaFilterState,
   OperativaOpciones,
 } from "@/lib/depositos/operativa-filters";
+import type { GrillaLoteModo } from "@/lib/panel-control/grilla-carga-lotes";
 import { PanelControlTrianguloHeader } from "./PanelControlTrianguloHeader";
 
 type GrillaOpts = {
   showLlegada?: boolean;
   showVentas?: boolean;
   ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
+  loteModo?: GrillaLoteModo;
 };
 
 type Props = {
@@ -64,6 +66,7 @@ export function PanelControlGrillaStack({
     showLlegada = false,
     showVentas = false,
     ventasPorMol = null,
+    loteModo = "unitario",
   } = grilla;
 
   return (
@@ -92,6 +95,7 @@ export function PanelControlGrillaStack({
         showLlegada={showLlegada}
         showVentas={showVentas}
         ventasPorMol={ventasPorMol}
+        loteModo={loteModo}
       />
       {footer}
     </div>

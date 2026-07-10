@@ -6,6 +6,7 @@ import { PanelControlGrillaStack } from "@/components/panel-control/PanelControl
 import { FiltroLlegadaMulti } from "@/components/stock-transito/FiltroLlegadaMulti";
 import { TransitoVentasVitales } from "@/components/stock-transito/TransitoVentasVitales";
 import { StockTransitoProvider, useStockTransito } from "@/components/stock-transito/StockTransitoContext";
+import { TabArticulosTransito } from "@/components/stock-transito/TabArticulosTransito";
 import {
   buildLineaCasoMap,
   lookupCasoLinea,
@@ -119,6 +120,7 @@ function StockTransitoOperativaTab({
         showLlegada: true,
         showVentas: true,
         ventasPorMol: ventasComprador,
+        loteModo: "unitario",
       }}
       footer={<p className="text-center text-[10px] text-slate-400">{meta.subtitle}</p>}
     />
@@ -126,8 +128,10 @@ function StockTransitoOperativaTab({
 }
 
 function StockTransitoShell({ resumenInicial, vista }: Props) {
+  const [tab, setTab] = useState<"operativa" | "articulos">("operativa");
   const { loading, err } = useStockTransito();
   const meta = STOCK_TRANSITO_VISTA_META[vista];
+  const showArticulosTab = vista === "disponible";
 
   return (
     <div className="pb-8">
@@ -142,10 +146,28 @@ function StockTransitoShell({ resumenInicial, vista }: Props) {
             </Link>
             <h1 className="font-serif text-lg font-semibold text-slate-900">{meta.title}</h1>
             <span className="text-xs text-slate-500">
-              {resumenInicial.pedidos_pp} PP · cabecera estándar + grilla moléculas
+              {resumenInicial.pedidos_pp} PP · cabecera estándar + grilla productos
             </span>
           </div>
         </div>
+        {showArticulosTab ? (
+          <div className="mx-auto flex max-w-7xl gap-2 border-t border-slate-100 px-4">
+            {(["operativa", "articulos"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`px-4 py-2 text-sm font-semibold capitalize ${
+                  tab === t
+                    ? "border-b-2 border-rimec-azul text-rimec-azul"
+                    : "text-slate-500"
+                }`}
+              >
+                {t === "operativa" ? "Operativa" : "Artículos"}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="mx-auto max-w-7xl px-4 pt-3">
@@ -156,6 +178,15 @@ function StockTransitoShell({ resumenInicial, vista }: Props) {
         ) : null}
         {loading ? (
           <p className="text-slate-500">Cargando catálogo tránsito…</p>
+        ) : showArticulosTab ? (
+          <>
+            <div className={tab !== "operativa" ? "hidden" : undefined} aria-hidden={tab !== "operativa"}>
+              <StockTransitoOperativaTab resumen={resumenInicial} vista={vista} />
+            </div>
+            <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
+              <TabArticulosTransito />
+            </div>
+          </>
         ) : (
           <StockTransitoOperativaTab resumen={resumenInicial} vista={vista} />
         )}

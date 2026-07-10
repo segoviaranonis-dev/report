@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { runProformaPreviewPython } from "@/lib/pedido-proveedor/run-python-pp";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { getRimecPool } from "@/lib/rimec/pool";
+import { parseProforma } from "@/lib/pedido-proveedor/parse-proforma";
+import { backfillPpdShopFromSnapshot, saveProformaFilas } from "@/lib/pedido-proveedor/proforma-snapshot";
 
 /** Preview proforma programado — puede leer Excel grande. */
 export const maxDuration = 120;
@@ -30,6 +33,19 @@ export async function POST(req: Request, { params }: Params) {
     if (!result.ok && !result.emparejamientos?.length && !result.errores?.length) {
       return NextResponse.json(result, { status: 400 });
     }
+
+    const parsed = parseProforma(buffer);
+    if (!parsed.error && parsed.rows.length && result.ok) {
+      const pool = getRimecPool();
+      await saveProformaFilas(pool, ppId, parsed.rows);
+      const client = await pool.connect();
+      try {
+        await backfillPpdShopFromSnapshot(client, ppId);
+      } finally {
+        client.release();
+      }
+    }
+
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json(

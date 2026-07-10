@@ -26,6 +26,7 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
     nro_factura_importacion: string | null;
     total_articulos: string;
     n_fi_confirmadas: string;
+    n_facturas_internas: string;
   }>(`
     WITH vt_agg AS (
       SELECT pedido_proveedor_id, COALESCE(SUM(cantidad_vendida), 0)::bigint AS vendido_vt
@@ -86,6 +87,11 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
       FROM factura_interna
       WHERE estado = 'CONFIRMADA'
       GROUP BY pp_id
+    ),
+    fi_all AS (
+      SELECT pp_id, COUNT(*)::int AS n_facturas_internas
+      FROM factura_interna
+      GROUP BY pp_id
     )
     SELECT pp.id, pp.numero_registro, pp.estado, pp.estado_digitacion,
            pp.categoria_id::text AS categoria_id,
@@ -103,7 +109,8 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
            COALESCE(icf.cliente_ic, c.descp_cliente, '—') AS cliente,
            COALESCE(icf.vendedor_ic, v.descp_usuario, '—') AS vendedor,
            COALESCE(ppd.total_articulos, 0)::text AS total_articulos,
-           COALESCE(fi.n_fi_confirmadas, 0)::text AS n_fi_confirmadas
+           COALESCE(fi.n_fi_confirmadas, 0)::text AS n_fi_confirmadas,
+           COALESCE(fia.n_facturas_internas, 0)::text AS n_facturas_internas
     FROM pedido_proveedor pp
     LEFT JOIN proveedor_importacion pi ON pi.id = pp.proveedor_importacion_id
     LEFT JOIN intencion_compra ic_legacy ON ic_legacy.id = pp.id_intencion_compra
@@ -117,6 +124,7 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
     LEFT JOIN marcas_ppd mppd ON mppd.pedido_proveedor_id = pp.id
     LEFT JOIN marcas_ic mic ON mic.pedido_proveedor_id = pp.id
     LEFT JOIN fi_conf fi ON fi.pp_id = pp.id
+    LEFT JOIN fi_all fia ON fia.pp_id = pp.id
     WHERE pp.estado IN ('ABIERTO', 'CERRADO', 'ANULADO', 'ENVIADO')
     ORDER BY COALESCE(pp.quincena_arribo_id, icf.quincena_arribo_id, 9999) ASC, pp.numero_registro ASC
   `);
@@ -142,5 +150,6 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
     nro_factura_importacion: r.nro_factura_importacion,
     total_articulos: Number(r.total_articulos ?? 0),
     n_fi_confirmadas: Number(r.n_fi_confirmadas ?? 0),
+    n_facturas_internas: Number(r.n_facturas_internas ?? 0),
   }));
 }

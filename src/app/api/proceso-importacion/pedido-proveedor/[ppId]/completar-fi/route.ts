@@ -3,7 +3,7 @@ import { getRimecPool } from "@/lib/rimec/pool";
 import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { completarFiProgramadoPhased } from "@/lib/pedido-proveedor/proforma-programado-engine";
-import { hasProformaFilas } from "@/lib/pedido-proveedor/proforma-snapshot";
+import { hasProformaDetalleEnBd } from "@/lib/pedido-proveedor/proforma-snapshot";
 
 export const maxDuration = 300;
 
@@ -20,8 +20,8 @@ export async function GET(_req: Request, { params }: Params) {
 
   try {
     const pool = getRimecPool();
-    const [snap, fiRes, ppdRes, icRes] = await Promise.all([
-      hasProformaFilas(pool, ppId),
+    const [hasDetalle, fiRes, ppdRes, icRes] = await Promise.all([
+      hasProformaDetalleEnBd(pool, ppId),
       pool.query<{ c: number }>("SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1", [ppId]),
       pool.query<{ c: number }>(
         "SELECT COUNT(*)::int AS c FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1",
@@ -37,12 +37,14 @@ export async function GET(_req: Request, { params }: Params) {
     const nIc = icRes.rows[0]?.c ?? 0;
     return NextResponse.json({
       ok: true,
-      has_snapshot: snap,
+      has_snapshot: hasDetalle,
+      has_detalle_en_bd: hasDetalle,
       n_fi: nFi,
       n_ppd: nPpd,
       n_ic: nIc,
       fi_pendientes: nPpd > 0 && nFi < nIc,
-      needs_proforma_file: nPpd > 0 && nFi === 0 && !snap,
+      needs_proforma_file: false,
+      needs_reimport_stock: nPpd > 0 && nFi === 0 && !hasDetalle,
     });
   } catch (e) {
     return icApiErrorResponse(e, "Error al consultar estado FI");

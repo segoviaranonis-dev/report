@@ -19,6 +19,7 @@ export type PpListaRow = {
   nro_factura_importacion: string | null;
   total_articulos: number;
   n_fi_confirmadas: number;
+  n_facturas_internas: number;
 };
 
 export type PpQuincenaGrupo = {

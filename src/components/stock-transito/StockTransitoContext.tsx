@@ -32,6 +32,7 @@ import {
 } from "@/lib/depositos/operativa-filters";
 import { calcValorInventario } from "@/lib/depositos/precio-venta";
 import { COLORES_ESTANDAR_DEFAULT, type ColorEstandar } from "@/lib/pilares/colores-estandar";
+import { loadTransitoProductosPrefetch } from "@/lib/panel-control/prefetch-grilla-apis";
 import {
   applyStockTransitoFilters,
   buildStockTransitoOpciones,
@@ -86,15 +87,14 @@ export function StockTransitoProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setErr(null);
     Promise.all([
-      fetch("/api/stock-transito/productos", { cache: "no-store" }),
+      loadTransitoProductosPrefetch(),
       fetch("/api/pilares/color?tipo_v2_id=1&limit=1", { cache: "no-store" }),
     ])
-      .then(async ([prodRes, tonoRes]) => {
-        const j = await prodRes.json();
+      .then(async ([j, tonoRes]) => {
         const tonoData = await tonoRes.json().catch(() => null);
-        if (!prodRes.ok || !j.ok) throw new Error(j.error ?? "Error productos tránsito");
-        setRows((j.productos ?? []).map((p: DepositoRow) => normalizeDepositoRow(p)));
-        const raw = (j.ventasComprador ?? {}) as Record<string, VentaCompradorLinea[]>;
+        setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
+        const raw = ((j as { ventasComprador?: Record<string, VentaCompradorLinea[]> }).ventasComprador ??
+          {}) as Record<string, VentaCompradorLinea[]>;
         setVentasComprador(new Map(Object.entries(raw)));
         if (tonoData?.estandar?.length) setTonoCatalog(tonoData.estandar);
       })

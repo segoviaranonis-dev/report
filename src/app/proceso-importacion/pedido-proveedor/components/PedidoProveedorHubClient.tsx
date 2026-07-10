@@ -19,6 +19,10 @@ import {
   labelRamoDigitacion,
 } from "@/lib/intencion-compra/categoria-ic";
 import { DIGITACION, PROCESO_IMPORTACION, pedidoProveedorDetalle } from "@/lib/report/routes";
+import {
+  ejecutarRatificarFiProgramado,
+  resumenRatificarFi,
+} from "@/lib/pedido-proveedor/ratificar-fi-programado-client";
 
 const ESTADO_STYLE: Record<string, string> = {
   ABIERTO: "bg-amber-100 text-amber-900",
@@ -34,6 +38,11 @@ function fmtPct(n: number) {
 function AccesoRapidoPp({ p }: { p: PpListaRow }) {
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
+  const [fiBusy, setFiBusy] = useState(false);
+  const esProgramado = p.categoria_id === CATEGORIA_PROGRAMADO_ID;
+  const puedeCsvVentas = esProgramado ? p.n_facturas_internas > 0 : p.n_fi_confirmadas > 0;
+  const puedeRatificarFi =
+    esProgramado && p.total_articulos > 0 && p.estado !== "ENVIADO";
 
   async function descargarCsv(endpoint: "csv-ventas" | "csv-inicial", fallback: string) {
     const setLoading = endpoint === "csv-ventas" ? setCsvVentasLoading : setCsvInicialLoading;
@@ -60,6 +69,27 @@ function AccesoRapidoPp({ p }: { p: PpListaRow }) {
       alert(e instanceof Error ? e.message : "Error CSV");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generarFiRiguroso() {
+    const regenerar = p.n_facturas_internas > 0;
+    if (
+      regenerar &&
+      !window.confirm(
+        `${p.numero_registro}: se borran FI RESERVADA y se regeneran con paridad marca×caso. ¿Continuar?`,
+      )
+    ) {
+      return;
+    }
+    setFiBusy(true);
+    try {
+      const data = await ejecutarRatificarFiProgramado(p.id, regenerar);
+      alert(`✓ ${p.numero_registro} · ${resumenRatificarFi(data)}`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error FI");
+    } finally {
+      setFiBusy(false);
     }
   }
 
@@ -105,31 +135,42 @@ function AccesoRapidoPp({ p }: { p: PpListaRow }) {
           </Link>
         )}
       </div>
-      {(p.n_fi_confirmadas > 0 || p.total_articulos > 0 || p.pares_comprometidos > 0) && (
+      {(puedeCsvVentas || p.total_articulos > 0 || p.pares_comprometidos > 0) && (
         <div className="grid grid-cols-2 gap-1">
-          {p.n_fi_confirmadas > 0 && (
+          {puedeCsvVentas && (
             <button
               type="button"
               disabled={csvVentasLoading}
               onClick={() => descargarCsv("csv-ventas", `${p.numero_registro}_ventas.csv`)}
-              title="CSV ventas · FI confirmadas"
+              title="CSV ventas · FI (Carlos)"
               className="rounded border border-emerald-400 bg-emerald-100 px-1 py-1 text-[10px] font-bold leading-tight text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
             >
               {csvVentasLoading ? "…" : "📄 Ventas"}
             </button>
           )}
-          {(p.total_articulos > 0 || p.pares_comprometidos > 0 || p.n_fi_confirmadas > 0) && (
+          {(p.total_articulos > 0 || p.pares_comprometidos > 0 || puedeCsvVentas) && (
             <button
               type="button"
               disabled={csvInicialLoading}
               onClick={() => descargarCsv("csv-inicial", `${p.numero_registro}_inicial.csv`)}
-              title="CSV cantidades iniciales · stock importado"
+              title="CSV compra inicial · stock PPD"
               className="rounded border-2 border-cyan-400 bg-cyan-200 px-1 py-1 text-[10px] font-bold leading-tight text-cyan-950 hover:bg-cyan-300 disabled:opacity-50"
             >
               {csvInicialLoading ? "…" : "📋 Inicial"}
             </button>
           )}
         </div>
+      )}
+      {puedeRatificarFi && (
+        <button
+          type="button"
+          disabled={fiBusy}
+          onClick={() => void generarFiRiguroso()}
+          title="IC = PROFORMA = FI · sin mezclar marcas ni casos"
+          className="rounded border-2 border-violet-500 bg-violet-100 px-1 py-1.5 text-[10px] font-extrabold leading-tight text-violet-950 hover:bg-violet-200 disabled:opacity-50"
+        >
+          {fiBusy ? "…" : "⚡ IC→FI"}
+        </button>
       )}
     </div>
   );

@@ -31,6 +31,7 @@ import {
 } from "@/lib/depositos/operativa-filters";
 import { calcValorInventario } from "@/lib/depositos/precio-venta";
 import { COLORES_ESTANDAR_DEFAULT, type ColorEstandar } from "@/lib/pilares/colores-estandar";
+import { loadPeProductosPrefetch } from "@/lib/panel-control/prefetch-grilla-apis";
 import {
   applyStockPeFilters,
   buildStockPeOpciones,
@@ -84,14 +85,12 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setErr(null);
     Promise.all([
-      fetch("/api/stock-pronta-entrega/productos", { cache: "no-store" }),
+      loadPeProductosPrefetch(),
       fetch("/api/pilares/color?tipo_v2_id=1&limit=1", { cache: "no-store" }),
     ])
-      .then(async ([prodRes, tonoRes]) => {
-        const j = await prodRes.json();
+      .then(async ([j, tonoRes]) => {
         const tonoData = await tonoRes.json().catch(() => null);
-        if (!prodRes.ok || !j.ok) throw new Error(j.error ?? "Error productos");
-        setRows((j.productos ?? []).map((p: DepositoRow) => normalizeDepositoRow(p)));
+        setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
         if (tonoData?.estandar?.length) setTonoCatalog(tonoData.estandar);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Error"))

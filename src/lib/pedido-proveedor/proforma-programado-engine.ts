@@ -13,7 +13,12 @@ import {
   fiListaTier,
   type SkuPrecioTiers,
 } from "./aritmetica-programado";
-import { loadProformaDetalleParaFi, saveProformaFilas, backfillPpdShopFromSnapshot } from "./proforma-snapshot";
+import {
+  enrichProformaBrandsFromPpd,
+  loadProformaDetalleParaFi,
+  saveProformaFilas,
+  backfillPpdShopFromSnapshot,
+} from "./proforma-snapshot";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -66,6 +71,8 @@ type IcRow = {
   numero_registro: string;
   id_cliente: number;
   id_vendedor: number | null;
+  id_marca: number | null;
+  marca_nombre: string | null;
   cantidad_total_pares: number;
   descuento_1: number;
   descuento_2: number;
@@ -163,6 +170,25 @@ function aggregateIcsPorCliente(ics: IcRow[]): Map<
   return agg;
 }
 
+function normalizeBrandKey(s: string | null | undefined): string {
+  return (s ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+function rowMatchesIcMarca(
+  row: ProformaRow,
+  icRow: IcRow,
+  ppdByMol: Map<string, number>,
+  ppdMarcaById: Map<number, number>,
+): boolean {
+  if (!icRow.id_marca) return true;
+  const rowBrand = normalizeBrandKey(row.brand);
+  const icBrand = normalizeBrandKey(icRow.marca_nombre);
+  if (rowBrand && icBrand && rowBrand === icBrand) return true;
+  const ppdId = ppdByMol.get(molKeyProformaRow(row));
+  if (!ppdId) return rowBrand ? rowBrand === icBrand : false;
+  return ppdMarcaById.get(ppdId) === icRow.id_marca;
+}
+
 function splitProformaRowsPorQuotas(quotas: number[], rows: ProformaRow[]): ProformaRow[][] {
   const out: ProformaRow[][] = quotas.map(() => []);
   if (!quotas.length || quotas.reduce((a, b) => a + b, 0) <= 0) return out;
@@ -191,6 +217,61 @@ function splitProformaRowsPorQuotas(quotas: number[], rows: ProformaRow[]): Prof
   return out;
 }
 
+function resolveRowMarcaKey(
+  row: ProformaRow,
+  ppdByMol: Map<string, number>,
+  ppdMarcaById: Map<number, number>,
+): number | string {
+  const ppdId = ppdByMol.get(molKeyProformaRow(row));
+  if (ppdId != null && ppdMarcaById.has(ppdId)) return ppdMarcaById.get(ppdId)!;
+  const b = normalizeBrandKey(row.brand);
+  return b ? `brand:${b}` : "unknown";
+}
+
+function pickMarcaPool(
+  poolsByMarca: Map<number | string, ProformaRow[]>,
+  icRow: IcRow,
+): ProformaRow[] {
+  if (icRow.id_marca != null) {
+    const byId = poolsByMarca.get(icRow.id_marca);
+    if (byId?.length) return byId;
+  }
+  const bk = normalizeBrandKey(icRow.marca_nombre);
+  if (bk) {
+    const byBrand = poolsByMarca.get(`brand:${bk}`);
+    if (byBrand?.length) return byBrand;
+  }
+  return [];
+}
+
+/** Consume pares de un pool mutable (misma marca) hasta cubrir cupo IC. */
+function consumeProformaPool(pool: ProformaRow[], quota: number): ProformaRow[] {
+  if (quota <= 0 || !pool.length) return [];
+  const taken: ProformaRow[] = [];
+  let left = quota;
+  let i = 0;
+  while (left > 0 && i < pool.length) {
+    const row = pool[i];
+    const pOrig = row.pairs;
+    if (pOrig <= 0) {
+      pool.splice(i, 1);
+      continue;
+    }
+    const take = Math.min(pOrig, left);
+    const boxesOrig = row.boxes || 1;
+    const r2: ProformaRow = { ...row, pairs: take };
+    if (pOrig > 0 && boxesOrig > 0) {
+      r2.boxes = Math.max(1, Math.round((boxesOrig * take) / pOrig));
+    }
+    taken.push(r2);
+    row.pairs -= take;
+    left -= take;
+    if (row.pairs <= 0) pool.splice(i, 1);
+    else i += 1;
+  }
+  return taken;
+}
+
 async function loadPp(pool: Pool, ppId: number): Promise<PpRow | null> {
   const { rows } = await pool.query<PpRow>(
     `SELECT id, numero_registro, numero_proforma, nro_pedido_externo, categoria_id,
@@ -205,14 +286,16 @@ async function loadPp(pool: Pool, ppId: number): Promise<PpRow | null> {
 async function loadIcsPpProgramado(pool: Pool, ppId: number): Promise<IcRow[]> {
   const { rows } = await pool.query<IcRow>(
     `SELECT ic.id AS ic_id, ic.numero_registro, ic.id_cliente, ic.id_vendedor,
+            ic.id_marca, UPPER(TRIM(mv.descp_marca)) AS marca_nombre,
             ic.cantidad_total_pares, ic.descuento_1, ic.descuento_2,
             ic.descuento_3, ic.descuento_4, ic.id_plazo, ic.listado_precio_id,
             icp.precio_evento_id, cv.descp_cliente
      FROM intencion_compra_pedido icp
      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
      LEFT JOIN cliente_v2 cv ON cv.id_cliente = ic.id_cliente
+     LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
      WHERE icp.pedido_proveedor_id = $1
-     ORDER BY ic.id_cliente`,
+     ORDER BY ic.id_cliente, ic.id`,
     [ppId],
   );
   return rows;
@@ -518,12 +601,14 @@ type SkuFi = SkuPrecioTiers & {
   referencia_id: number;
   material_id: number;
   color_id: number | null;
+  caso: string | null;
 };
 
 async function getSkusConPrecioParaFi(client: PoolClient, ppId: number, eventoId: number): Promise<Map<number, SkuFi>> {
   const { rows } = await client.query<SkuFi>(
     `SELECT ppd.id AS ppd_id, l.id AS linea_id, ref.id AS referencia_id,
             m.id AS material_id, c.id AS color_id,
+            NULLIF(TRIM(pl.nombre_caso_aplicado), '') AS caso,
             COALESCE(pl.lpn, 0)::float AS lpn,
             COALESCE(pl.lpc02, 0)::float AS lpc02,
             COALESCE(pl.lpc03, 0)::float AS lpc03,
@@ -635,10 +720,22 @@ async function loadPpdByMol(client: PoolClient, ppId: number): Promise<Map<strin
   return ppdByMol;
 }
 
+async function loadPpdMarcaById(client: PoolClient, ppId: number): Promise<Map<number, number>> {
+  const { rows } = await client.query<{ id: string; id_marca: string }>(
+    `SELECT id, id_marca FROM pedido_proveedor_detalle
+     WHERE pedido_proveedor_id = $1 AND id_marca IS NOT NULL`,
+    [ppId],
+  );
+  const out = new Map<number, number>();
+  for (const r of rows) out.set(Number(r.id), Number(r.id_marca));
+  return out;
+}
+
 function buildProgramadoFiJobs(
   detalle: ProformaRow[],
   ics: IcRow[],
   ppdByMol: Map<string, number>,
+  ppdMarcaById: Map<number, number>,
   skuByPpd: Map<number, SkuFi>,
 ): { jobs: FiJob[]; errores: string[]; avisos: string[] } {
   const rowsByShop = new Map<string, ProformaRow[]>();
@@ -663,22 +760,38 @@ function buildProgramadoFiJobs(
   const sortedShops = [...icsByShop.keys()].sort();
 
   for (const shop of sortedShops) {
-    const icGroup = icsByShop.get(shop)!;
-    const icRows = rowsByShop.get(shop) ?? [];
-    if (!icRows.length) {
+    const icGroup = [...icsByShop.get(shop)!].sort((a, b) => a.ic_id - b.ic_id);
+    const shopRowsAll = rowsByShop.get(shop) ?? [];
+    if (!shopRowsAll.length) {
       for (const icRow of icGroup) errores.push(`IC ${icRow.numero_registro}: sin filas proforma`);
       continue;
     }
 
-    const quotas = icGroup.map((r) => r.cantidad_total_pares ?? 0);
-    const splitRows = splitProformaRowsPorQuotas(quotas, icRows);
+    const poolsByMarca = new Map<number | string, ProformaRow[]>();
+    for (const r of shopRowsAll) {
+      const mk = resolveRowMarcaKey(r, ppdByMol, ppdMarcaById);
+      const list = poolsByMarca.get(mk) ?? [];
+      list.push({ ...r });
+      poolsByMarca.set(mk, list);
+    }
 
-    for (let i = 0; i < icGroup.length; i++) {
-      const icRow = icGroup[i];
-      const assigned = splitRows[i] ?? [];
+    for (const icRow of icGroup) {
+      const pool = pickMarcaPool(poolsByMarca, icRow);
+      const cupo = icRow.cantidad_total_pares ?? 0;
+      const assigned = consumeProformaPool(pool, cupo);
+
       if (!assigned.length) {
-        errores.push(`IC ${icRow.numero_registro}: cupo sin filas asignadas`);
+        avisos.push(
+          `IC ${icRow.numero_registro}: sin filas proforma marca ${icRow.marca_nombre ?? "?"} en shop ${shop}`,
+        );
         continue;
+      }
+
+      const assignedPares = assigned.reduce((s, r) => s + r.pairs, 0);
+      if (cupo > 0 && assignedPares !== cupo) {
+        avisos.push(
+          `IC ${icRow.numero_registro}: cupo ${cupo}p ≠ filas marca ${assignedPares}p (${icRow.marca_nombre ?? "?"})`,
+        );
       }
 
       const d1 = Number(icRow.descuento_1 ?? 0);
@@ -687,17 +800,34 @@ function buildProgramadoFiJobs(
       const d4 = Number(icRow.descuento_4 ?? 0);
       const tier = fiListaTier(icRow.listado_precio_id);
       const items: FiLineItem[] = [];
+      let casoFi: string | null = null;
 
       for (const r of assigned) {
         const molKey = molKeyProformaRow(r);
         const ppdId = ppdByMol.get(molKey);
         if (!ppdId) {
-          avisos.push(`IC ${icRow.numero_registro}: molécula ${r.linea_codigo_proveedor}.${r.referencia_codigo_proveedor} sin PPD`);
+          avisos.push(
+            `IC ${icRow.numero_registro}: molécula ${r.linea_codigo_proveedor}.${r.referencia_codigo_proveedor} sin PPD`,
+          );
           continue;
         }
+        const ppdMarca = ppdMarcaById.get(ppdId);
+        if (icRow.id_marca && ppdMarca && ppdMarca !== icRow.id_marca) continue;
         const sku = skuByPpd.get(ppdId);
         if (!sku?.linea_id) {
           avisos.push(`IC ${icRow.numero_registro}: pilares/LPN faltantes PPD ${ppdId}`);
+          continue;
+        }
+        const casoLinea = (sku.caso ?? "").trim();
+        if (!casoLinea) {
+          avisos.push(`IC ${icRow.numero_registro}: LPN sin caso comercial PPD ${ppdId}`);
+          continue;
+        }
+        if (casoFi == null) casoFi = casoLinea;
+        else if (casoLinea !== casoFi) {
+          avisos.push(
+            `IC ${icRow.numero_registro}: caso distinto omitido (${casoLinea} ≠ ${casoFi}) PPD ${ppdId}`,
+          );
           continue;
         }
         const { precio_unit, precio_neto, subtotal } = calcLineaFiPrecio(sku, tier, d1, d2, d3, d4, r.pairs);
@@ -720,7 +850,11 @@ function buildProgramadoFiJobs(
       }
 
       if (items.length) jobs.push({ shop, icRow, items });
-      else if (assigned.length) avisos.push(`IC ${icRow.numero_registro}: sin líneas con LPN/pilares (${assigned.length} filas proforma)`);
+      else if (assigned.length) {
+        avisos.push(
+          `IC ${icRow.numero_registro}: sin líneas con LPN/pilares (${assigned.length} filas proforma marca)`,
+        );
+      }
     }
   }
 
@@ -874,7 +1008,14 @@ export async function importProformaProgramadoPhased(
     }
 
     const ppdByMol = await loadPpdByMol(client, ppId);
-    const { jobs, errores: planErrores, avisos: planAvisos } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
+    const ppdMarcaById = await loadPpdMarcaById(client, ppId);
+    const { jobs, errores: planErrores, avisos: planAvisos } = buildProgramadoFiJobs(
+      detalle,
+      ics,
+      ppdByMol,
+      ppdMarcaById,
+      skuByPpd,
+    );
     if (planErrores.length) {
       return {
         ok: false,
@@ -1023,6 +1164,7 @@ export async function completarFiProgramadoPhased(
   const fiBatchSize = Math.max(1, Math.min(30, opts.fiBatchSize ?? PROFORMA_FI_BATCH_SIZE));
   let fiOffset = Math.max(0, opts.fiOffset ?? 0);
   const pool = getRimecPool();
+  await enrichProformaBrandsFromPpd(pool, ppId);
 
   let detalle: ProformaRow[];
   let totalPares: number;
@@ -1097,7 +1239,14 @@ export async function completarFiProgramadoPhased(
     }
 
     const ppdByMol = await loadPpdByMol(client, ppId);
-    const { jobs, errores: planErrores, avisos: planAvisos } = buildProgramadoFiJobs(detalle, ics, ppdByMol, skuByPpd);
+    const ppdMarcaById = await loadPpdMarcaById(client, ppId);
+    const { jobs, errores: planErrores, avisos: planAvisos } = buildProgramadoFiJobs(
+      detalle,
+      ics,
+      ppdByMol,
+      ppdMarcaById,
+      skuByPpd,
+    );
     if (planErrores.length) {
       return {
         ok: false,
@@ -1275,6 +1424,39 @@ export async function importProformaCompraPreviaTs(
   }
 }
 
+export async function borrarFiReservadasProgramado(
+  ppId: number,
+): Promise<{ ok: boolean; n?: number; error?: string }> {
+  const pool = getRimecPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const conf = await client.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM factura_interna
+       WHERE pp_id = $1 AND UPPER(TRIM(estado)) = 'CONFIRMADA'`,
+      [ppId],
+    );
+    if ((conf.rows[0]?.c ?? 0) > 0) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "Hay FI CONFIRMADA — no se puede regenerar." };
+    }
+    await client.query(
+      `DELETE FROM factura_interna_detalle fid
+       USING factura_interna fi
+       WHERE fid.factura_id = fi.id AND fi.pp_id = $1`,
+      [ppId],
+    );
+    const del = await client.query(`DELETE FROM factura_interna WHERE pp_id = $1 RETURNING id`, [ppId]);
+    await client.query("COMMIT");
+    return { ok: true, n: del.rowCount ?? 0 };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return { ok: false, error: e instanceof Error ? e.message : "Error al borrar FI" };
+  } finally {
+    client.release();
+  }
+}
+
 export async function borrarImportacionTs(ppId: number): Promise<{ ok: boolean; message?: string; error?: string }> {
   const pool = getRimecPool();
   const client = await pool.connect();
@@ -1379,7 +1561,14 @@ export async function diagnoseProgramadoFiPlan(ppId: number): Promise<{
   try {
     const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoIds[0]);
     const ppdByMol = await loadPpdByMol(client, ppId);
-    const { jobs, errores, avisos } = buildProgramadoFiJobs(loaded.detalle, ics, ppdByMol, skuByPpd);
+    const ppdMarcaById = await loadPpdMarcaById(client, ppId);
+    const { jobs, errores, avisos } = buildProgramadoFiJobs(
+      loaded.detalle,
+      ics,
+      ppdByMol,
+      ppdMarcaById,
+      skuByPpd,
+    );
     const jobNros = new Set(jobs.map((j) => j.icRow.numero_registro));
     const ic_sin_fi = ics
       .filter((ic) => !jobNros.has(ic.numero_registro))
@@ -1392,4 +1581,128 @@ export async function diagnoseProgramadoFiPlan(ppId: number): Promise<{
   } finally {
     client.release();
   }
+}
+
+export type FiIntegridadAuditoria = {
+  fi_multi_marca: number;
+  fi_multi_caso: number;
+};
+
+export async function auditarFiIntegridadProgramado(ppId: number): Promise<FiIntegridadAuditoria> {
+  const pool = getRimecPool();
+  const [multiMarca, multiCaso] = await Promise.all([
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM (
+         SELECT fi.id FROM factura_interna fi
+         JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
+         JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+         WHERE fi.pp_id = $1
+         GROUP BY fi.id HAVING COUNT(DISTINCT ppd.id_marca) > 1
+       ) t`,
+      [ppId],
+    ),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM (
+         SELECT fi.id FROM factura_interna fi
+         JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
+         JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+         JOIN pedido_proveedor pp ON pp.id = fi.pp_id
+         JOIN intencion_compra ic ON ic.id_cliente = fi.cliente_id
+         JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+         LEFT JOIN linea l ON l.proveedor_id = pp.proveedor_importacion_id AND l.codigo_proveedor::text = ppd.linea
+         LEFT JOIN referencia ref ON ref.linea_id = l.id AND ref.codigo_proveedor::text = ppd.referencia
+         LEFT JOIN material m ON m.proveedor_id = pp.proveedor_importacion_id AND m.codigo_proveedor::text = ppd.material_code
+         LEFT JOIN precio_lista pl ON pl.evento_id = icp.precio_evento_id
+           AND pl.linea_id = l.id AND pl.referencia_id = ref.id AND pl.material_id = m.id
+         WHERE fi.pp_id = $1
+         GROUP BY fi.id HAVING COUNT(DISTINCT NULLIF(TRIM(pl.nombre_caso_aplicado), '')) > 1
+       ) t`,
+      [ppId],
+    ),
+  ]);
+  return {
+    fi_multi_marca: multiMarca.rows[0]?.c ?? 0,
+    fi_multi_caso: multiCaso.rows[0]?.c ?? 0,
+  };
+}
+
+export type RatificarFiProgramadoResult = {
+  ok: boolean;
+  error?: string;
+  n_fi?: number;
+  fi_total?: number;
+  fi_borradas?: number;
+  brands_reparados?: number;
+  integridad?: FiIntegridadAuditoria;
+  plan?: Awaited<ReturnType<typeof diagnoseProgramadoFiPlan>>;
+  avisos?: string[];
+};
+
+/** IC = PROFORMA = FI riguroso: repara brand snapshot, opcional borra FI RESERVADA, crea FI por lotes, audita marcas/casos. */
+export async function ratificarFiProgramadoCompleto(
+  ppId: number,
+  opts: { regenerar?: boolean } = {},
+): Promise<RatificarFiProgramadoResult> {
+  const pool = getRimecPool();
+  const brandsReparados = await enrichProformaBrandsFromPpd(pool, ppId);
+  const planPre = await diagnoseProgramadoFiPlan(ppId);
+  if (planPre.errores.length) {
+    return { ok: false, error: planPre.errores.slice(0, 3).join("; "), plan: planPre, brands_reparados: brandsReparados };
+  }
+
+  let fiBorradas = 0;
+  if (opts.regenerar) {
+    const del = await borrarFiReservadasProgramado(ppId);
+    if (!del.ok) return { ok: false, error: del.error, plan: planPre, brands_reparados: brandsReparados };
+    fiBorradas = del.n ?? 0;
+  }
+
+  let offset = 0;
+  let last: Awaited<ReturnType<typeof completarFiProgramadoPhased>> | null = null;
+  for (;;) {
+    last = await completarFiProgramadoPhased(ppId, { fiOffset: offset, fiBatchSize: PROFORMA_FI_BATCH_SIZE });
+    if (!last.ok) {
+      return {
+        ok: false,
+        error: last.error ?? "Error al crear FI",
+        plan: planPre,
+        brands_reparados: brandsReparados,
+        fi_borradas: fiBorradas,
+        avisos: planPre.avisos,
+      };
+    }
+    if (last.done) break;
+    const next = Number(last.fi_offset_next);
+    if (!Number.isFinite(next) || next <= offset) {
+      return { ok: false, error: "FI incompletas — offset inválido", plan: planPre, brands_reparados: brandsReparados };
+    }
+    offset = next;
+  }
+
+  const planPost = await diagnoseProgramadoFiPlan(ppId);
+  const integridad = await auditarFiIntegridadProgramado(ppId);
+  if (integridad.fi_multi_marca > 0 || integridad.fi_multi_caso > 0) {
+    return {
+      ok: false,
+      error: `Integridad FI: ${integridad.fi_multi_marca} multi-marca · ${integridad.fi_multi_caso} multi-caso`,
+      n_fi: last?.n_fi,
+      fi_total: last?.fi_total,
+      fi_borradas: fiBorradas,
+      brands_reparados: brandsReparados,
+      integridad,
+      plan: planPost,
+      avisos: planPost.avisos,
+    };
+  }
+
+  return {
+    ok: true,
+    n_fi: last?.n_fi,
+    fi_total: last?.fi_total,
+    fi_borradas: fiBorradas,
+    brands_reparados: brandsReparados,
+    integridad,
+    plan: planPost,
+    avisos: planPost.avisos,
+  };
 }
