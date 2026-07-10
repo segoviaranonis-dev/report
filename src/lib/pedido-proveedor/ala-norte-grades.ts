@@ -1,23 +1,9 @@
 /** Columnas dinámicas de grada — paridad Streamlit `_render_ala_norte`. */
 import type { PpAlaNorteRow } from "./ala-norte-types";
+import { gradesJsonSoloTallas } from "./grades-json-canonical";
 
 export function parseGradesJson(raw: unknown): Record<string, number> {
-  if (raw == null) return {};
-  let obj: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      obj = JSON.parse(raw) as unknown;
-    } catch {
-      return {};
-    }
-  }
-  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return {};
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    const n = Number(v);
-    if (Number.isFinite(n)) out[String(k).trim()] = n;
-  }
-  return out;
+  return gradesJsonSoloTallas(raw);
 }
 
 export function tallaSortKey(label: string): number {

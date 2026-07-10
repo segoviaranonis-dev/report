@@ -8,6 +8,7 @@ import {
   productImageCandidates,
   productImagePrimaryFileName,
 } from "@/lib/retail/product-image";
+import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonical";
 import { legacyImageCandidates } from "@/lib/ventas-fotos/image";
 import { parseImagenMolecula } from "@/lib/ventas-fotos/parse-imagen";
 
@@ -27,31 +28,10 @@ function str(v: unknown): string {
   return v != null ? String(v).trim() : "";
 }
 
-/** Parse JSON o dict estilo Python {'34': 1, '35': 2} */
+/** Parse JSON o dict estilo Python {'34': 1, '35': 2} — solo tallas (sin _shop/_brand). */
 function parseLooseRecord(raw: unknown): Record<string, number> | null {
-  if (!raw) return null;
-  if (typeof raw === "object" && !Array.isArray(raw)) {
-    const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      const n = Number(v);
-      if (Number.isFinite(n)) out[String(k)] = n;
-    }
-    return Object.keys(out).length ? out : null;
-  }
-  if (typeof raw !== "string" || !raw.trim()) return null;
-  const s = raw.trim();
-  try {
-    const j = JSON.parse(s) as unknown;
-    return parseLooseRecord(j);
-  } catch {
-    /* sigue */
-  }
-  try {
-    const j = JSON.parse(s.replace(/'/g, '"')) as unknown;
-    return parseLooseRecord(j);
-  } catch {
-    return null;
-  }
+  const solo = gradesJsonSoloTallas(raw);
+  return Object.keys(solo).length ? solo : null;
 }
 
 function sortTallaKeys(keys: string[]): string[] {
