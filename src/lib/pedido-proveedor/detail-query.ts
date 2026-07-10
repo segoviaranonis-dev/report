@@ -68,6 +68,8 @@ export type PpFacturaInternaRow = {
 };
 
 export type PpIcVinculada = IcDePp & {
+  id_cliente: number;
+  cliente: string;
   evento_id: number | null;
   evento_nombre: string | null;
   listado_precio_id: number | null;
@@ -105,6 +107,8 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     descuento_4: string | null;
     total_articulos: string;
     total_vendido: string;
+    pares_ic_sum: string;
+    pares_ppd_inicial: string;
     evento_id: string | null;
     evento_nombre: string | null;
     n_fi: string;
@@ -181,19 +185,32 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
        FROM pedido_proveedor_detalle ppd5
        WHERE ppd5.pedido_proveedor_id = pp.id AND ppd5.linea IS NOT NULL) AS total_articulos,
       (
-        COALESCE(
-          (SELECT SUM(vt2.cantidad_vendida)
-           FROM venta_transito vt2
-           WHERE vt2.pedido_proveedor_id = pp.id),
-          0
-        )
-        + COALESCE(
-          (SELECT SUM(ppd6.pares_vendidos)
-           FROM pedido_proveedor_detalle ppd6
-           WHERE ppd6.pedido_proveedor_id = pp.id),
-          0
-        )
-      )::text AS total_vendido,
+        SELECT GREATEST(
+          COALESCE(
+            (SELECT SUM(vt2.cantidad_vendida)
+             FROM venta_transito vt2
+             WHERE vt2.pedido_proveedor_id = pp.id),
+            0
+          ),
+          COALESCE(
+            (SELECT SUM(ppd6.pares_vendidos)
+             FROM pedido_proveedor_detalle ppd6
+             WHERE ppd6.pedido_proveedor_id = pp.id),
+            0
+          )
+        )::text
+      ) AS total_vendido,
+      (
+        SELECT COALESCE(SUM(ic7.cantidad_total_pares), 0)::text
+        FROM intencion_compra_pedido icp7
+        JOIN intencion_compra ic7 ON ic7.id = icp7.intencion_compra_id
+        WHERE icp7.pedido_proveedor_id = pp.id
+      ) AS pares_ic_sum,
+      (
+        SELECT COALESCE(SUM(ppd8.cantidad_pares), 0)::text
+        FROM pedido_proveedor_detalle ppd8
+        WHERE ppd8.pedido_proveedor_id = pp.id AND ppd8.linea IS NOT NULL
+      ) AS pares_ppd_inicial,
       (
         SELECT pe.id::text
         FROM intencion_compra_pedido icp5
@@ -224,9 +241,17 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
   const r = rows[0];
   if (!r) return null;
 
-  const pares = Number(r.pares_comprometidos ?? 0);
+  const paresDb = Number(r.pares_comprometidos ?? 0);
+  const paresIcSum = Number(r.pares_ic_sum ?? 0);
+  const paresPpdInicial = Number(r.pares_ppd_inicial ?? 0);
   const vendido = Number(r.total_vendido ?? 0);
   const categoriaId = r.categoria_id != null ? Number(r.categoria_id) : null;
+
+  /** PARES IC: cabecera BD · fallback suma ICs (programado multi-IC). */
+  const paresComprometidos = Math.max(paresDb, paresIcSum);
+  /** Saldo KPI: base = stock F9 importado (Ala Norte) si existe; no pares_comprometidos=0 post-import. */
+  const paresInicial = paresPpdInicial > 0 ? paresPpdInicial : paresComprometidos;
+  const saldo = paresInicial - vendido;
 
   return {
     id: Number(r.id),
@@ -235,10 +260,10 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     estado_digitacion: r.estado_digitacion,
     numero_proforma: r.numero_proforma,
     nro_factura_importacion: r.nro_factura_importacion,
-    pares_comprometidos: pares,
+    pares_comprometidos: paresComprometidos,
     total_articulos: Number(r.total_articulos ?? 0),
     total_vendido: vendido,
-    saldo: pares - vendido,
+    saldo,
     proveedor: r.proveedor,
     marcas: r.marcas,
     quincena: r.quincena,
@@ -399,6 +424,8 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
       WHERE icp.pedido_proveedor_id = fi.pp_id
         AND ic.id_cliente = fi.cliente_id
+        AND ic.id_vendedor = fi.vendedor_id
+      ORDER BY ABS(ic.cantidad_total_pares - COALESCE(fi.total_pares, 0)) ASC, ic.id ASC
       LIMIT 1
     ) ic ON true
     LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
@@ -446,6 +473,8 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
   const { rows } = await pool.query<{
     ic_id: string;
     nro_ic: string;
+    id_cliente: string;
+    cliente: string | null;
     marca: string;
     proveedor: string;
     pares: string;
@@ -462,6 +491,8 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
   }>(
     `
     SELECT ic.id AS ic_id, ic.numero_registro AS nro_ic,
+           ic.id_cliente,
+           COALESCE(cv.descp_cliente, '—') AS cliente,
            mv.descp_marca AS marca,
            COALESCE(pi.nombre, '—') AS proveedor,
            ic.cantidad_total_pares AS pares,
@@ -478,6 +509,7 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     FROM intencion_compra_pedido icp
     JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
     JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
+    LEFT JOIN cliente_v2 cv ON cv.id_cliente = ic.id_cliente
     LEFT JOIN proveedor_importacion pi ON pi.id = ic.id_proveedor
     LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
     LEFT JOIN categoria_v2 cat ON cat.id_categoria = ic.categoria_id
@@ -491,6 +523,8 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
   return rows.map((r) => ({
     ic_id: Number(r.ic_id),
     nro_ic: r.nro_ic,
+    id_cliente: Number(r.id_cliente),
+    cliente: r.cliente ?? "—",
     marca: r.marca,
     proveedor: r.proveedor,
     pares: Number(r.pares ?? 0),
