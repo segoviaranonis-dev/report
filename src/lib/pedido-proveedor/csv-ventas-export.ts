@@ -6,6 +6,7 @@ import type { Pool } from "pg";
 import { gradasDisplayFromSnapshot } from "@/app/aprobaciones/lib/linea-snapshot-display";
 import { listaPrecioLabel } from "@/app/aprobaciones/lib/aprobaciones-utils";
 import { parseGradesJson } from "@/lib/pedido-proveedor/ala-norte-grades";
+import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonical";
 import {
   carlosVendedorIdFrancis,
   loadFrancisTranslator,
@@ -60,12 +61,12 @@ function buildCsvLine(cells: unknown[]): string {
 }
 
 function gradaFromJson(raw: unknown): string {
-  return gradasDisplayFromSnapshot({ grades_json: raw }).trim() || "";
+  return gradasDisplayFromSnapshot({ grades_json: gradesJsonSoloTallas(raw) }).trim() || "";
 }
 
 /** Col K · caja cerrada canónica 1-2-3-3-2-1 → cerrado; resto → abierto. */
 export function gradaAbiertoCerrado(raw: unknown): "abierto" | "cerrado" {
-  const grades = parseGradesJson(raw);
+  const grades = parseGradesJson(gradesJsonSoloTallas(raw));
   const keys = Object.keys(grades).sort(
     (a, b) => Number(String(a).replace(/\D/g, "")) - Number(String(b).replace(/\D/g, "")),
   );

@@ -13,7 +13,7 @@ import {
   fiListaTier,
   type SkuPrecioTiers,
 } from "./aritmetica-programado";
-import { loadProformaFilas, saveProformaFilas } from "./proforma-snapshot";
+import { loadProformaDetalleParaFi, saveProformaFilas, backfillPpdShopFromSnapshot } from "./proforma-snapshot";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -457,7 +457,12 @@ async function populatePpFromProforma(
       fobUnit,
       fobAj,
       r.amount_fob,
-      JSON.stringify(grades),
+      JSON.stringify({
+        ...grades,
+        _shop: r.shop.trim(),
+        _brand: r.brand.trim(),
+        _item: String(r.item ?? ""),
+      }),
       Number.parseInt(r.item, 10) || 0,
     ]);
 
@@ -499,6 +504,7 @@ async function populatePpFromProforma(
   }
 
   await saveProformaFilas(client, ppId, detalleRows);
+  await backfillPpdShopFromSnapshot(client, ppId);
 
   return {
     ok: true,
@@ -619,8 +625,11 @@ async function loadPpdByMol(client: PoolClient, ppId: number): Promise<Map<strin
   const ppdByMol = new Map<string, number>();
   for (const pr of ppdMapRes.rows) {
     const gj =
-      typeof pr.grades_json === "object" && pr.grades_json ? (pr.grades_json as Record<string, number>) : {};
-    const key = canonicalMolKey(String(pr.linea), String(pr.referencia), String(pr.material_code), String(pr.color_code), gj);
+      typeof pr.grades_json === "object" && pr.grades_json ? ({ ...(pr.grades_json as Record<string, unknown>) } as Record<string, unknown>) : {};
+    delete gj._shop;
+    delete gj._brand;
+    delete gj._item;
+    const key = canonicalMolKey(String(pr.linea), String(pr.referencia), String(pr.material_code), String(pr.color_code), gj as Record<string, number>);
     ppdByMol.set(key, pr.id);
   }
   return ppdByMol;
@@ -791,7 +800,21 @@ export async function importProformaProgramadoPhased(
   const proforma = (opts.proforma || pp.numero_proforma || "").trim();
   if (!proforma) return { ok: false, error: "Nro proforma obligatorio.", programado: true, phase };
 
-  const detalle = parsed.rows;
+  let detalle: ProformaRow[];
+  if (phase === "fi" && ppdExists) {
+    const loaded = await loadProformaDetalleParaFi(pool, ppId);
+    if (!loaded?.detalle.length) {
+      return {
+        ok: false,
+        error: "Proforma en BD incompleta — no se pudo inferir SHOP desde PPD+IC.",
+        programado: true,
+        phase: "fi",
+      };
+    }
+    detalle = loaded.detalle;
+  } else {
+    detalle = parsed.rows;
+  }
 
   if (phase === "ppd" || phase === "all") {
     const client = await pool.connect();
@@ -992,7 +1015,7 @@ export async function importProformaProgramadoTs(
   });
 }
 
-/** Crear FI pendientes (1 por IC) sin borrar PPD. Usa snapshot guardado o Excel una sola vez. */
+/** Crear FI pendientes (1 por IC) sin borrar PPD. Usa proforma ya guardada o inferida desde PPD+IC. */
 export async function completarFiProgramadoPhased(
   ppId: number,
   opts: { fileBuffer?: Buffer | null; fiOffset?: number; fiBatchSize?: number } = {},
@@ -1011,18 +1034,18 @@ export async function completarFiProgramadoPhased(
     totalPares = parsed.totalPares;
     await saveProformaFilas(pool, ppId, detalle);
   } else {
-    const snap = await loadProformaFilas(pool, ppId);
-    if (!snap?.length) {
+    const loaded = await loadProformaDetalleParaFi(pool, ppId);
+    if (!loaded?.detalle.length) {
       return {
         ok: false,
         error:
-          "Falta el mapa SHOP de la proforma — subí el Excel una vez (se guarda en BD) para crear las FI sin reimportar stock.",
+          "No se pudo reconstruir la proforma desde BD (PPD+IC) — verificá que stock e ICs coincidan en pares.",
         programado: true,
         phase: "fi",
-        needs_proforma_file: true,
+        needs_proforma_file: false,
       };
     }
-    detalle = snap;
+    detalle = loaded.detalle;
     totalPares = detalle.reduce((s, r) => s + r.pairs, 0);
   }
 
@@ -1323,4 +1346,50 @@ export async function borrarImportacionTs(ppId: number): Promise<{ ok: boolean; 
 
 export function isProgramadoCategoria(categoriaId: unknown): boolean {
   return categoriaEsProgramado(categoriaId);
+}
+
+/** Diagnóstico: ICs sin job FI (LPN/pilares/cupo). */
+export async function diagnoseProgramadoFiPlan(ppId: number): Promise<{
+  n_ic: number;
+  n_jobs: number;
+  ic_sin_fi: { nro: string; id_cliente: number; pares: number }[];
+  avisos: string[];
+  errores: string[];
+}> {
+  const pool = getRimecPool();
+  const loaded = await loadProformaDetalleParaFi(pool, ppId);
+  if (!loaded?.detalle.length) {
+    return { n_ic: 0, n_jobs: 0, ic_sin_fi: [], avisos: [], errores: ["Sin proforma en BD"] };
+  }
+  const ics = await loadIcsPpProgramado(pool, ppId);
+  const eventoIds = [
+    ...new Set(
+      ics
+        .map((i) => {
+          const n = Number(i.precio_evento_id);
+          return Number.isFinite(n) ? n : null;
+        })
+        .filter((x): x is number => x != null),
+    ),
+  ];
+  if (eventoIds.length !== 1) {
+    return { n_ic: ics.length, n_jobs: 0, ic_sin_fi: [], avisos: [], errores: ["Evento listado no único"] };
+  }
+  const client = await pool.connect();
+  try {
+    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoIds[0]);
+    const ppdByMol = await loadPpdByMol(client, ppId);
+    const { jobs, errores, avisos } = buildProgramadoFiJobs(loaded.detalle, ics, ppdByMol, skuByPpd);
+    const jobNros = new Set(jobs.map((j) => j.icRow.numero_registro));
+    const ic_sin_fi = ics
+      .filter((ic) => !jobNros.has(ic.numero_registro))
+      .map((ic) => ({
+        nro: ic.numero_registro,
+        id_cliente: ic.id_cliente,
+        pares: ic.cantidad_total_pares,
+      }));
+    return { n_ic: ics.length, n_jobs: jobs.length, ic_sin_fi, avisos, errores };
+  } finally {
+    client.release();
+  }
 }
