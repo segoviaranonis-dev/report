@@ -6,7 +6,7 @@ import { generarPDFVentasFotos, type PDFVentasFotosData } from '@/lib/ventas-fot
 import type { VentasFotosFilters } from '@/lib/ventas-fotos/types'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60 // Vercel Pro: 60 segundos timeout
+export const maxDuration = 120 // Vercel Pro: PDF hasta 80 filas + precarga imágenes
 export const runtime = 'nodejs'
 
 type PdfRequestBody =

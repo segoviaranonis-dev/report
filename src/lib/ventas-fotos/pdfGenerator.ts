@@ -398,6 +398,7 @@ async function renderPaginaEjecutiva(
   stats: VentasFotosPillarStats,
   esLimitado: boolean,
   totalFilas: number,
+  maxFilasPdf: number,
 ) {
   const page = pdfDoc.addPage([PAGE_W, PAGE_H])
   drawHeader(page, fonts, data)
@@ -418,7 +419,7 @@ async function renderPaginaEjecutiva(
     })
     text(
       page,
-      `PDF ejecutivo muestra primeras 80 filas con imagen. Total: ${totalFilas} filas. Detalle completo en pantalla.`,
+      `PDF muestra primeras ${maxFilasPdf} filas con imagen. Total consulta: ${totalFilas} filas. Detalle completo en pantalla.`,
       MARGIN + 8,
       y - 14,
       8,
@@ -609,7 +610,7 @@ async function preloadVentasFotosImages(
   const missing: string[] = []
   const entries = [...byImagen.entries()]
   const isServer = typeof window === 'undefined'
-  const concurrency = isServer ? 8 : getConcurrencyLimit(deviceType)
+  const concurrency = isServer ? 10 : getConcurrencyLimit(deviceType)
   let next = 0
 
   async function worker() {
@@ -773,18 +774,25 @@ function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
 }
 
 // ─── Entrada principal ──────────────────────────────────────────────────────
+/** Mismo tope en server y cliente desktop — paridad getRecommendedImageLimit('desktop'). */
+const PDF_MAX_FILAS_VENTAS_FOTOS = 80
+
 export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
   const startTime = performance.now()
 
-  // En Vercel/serverless: menos filas e imágenes para evitar timeout 504.
   const isServerless = typeof window === 'undefined' && Boolean(process.env.VERCEL)
   const deviceType = isServerless ? 'desktop' : detectDeviceType()
   const isIOS = isServerless ? false : isIOSDevice()
-  const recommendedLimit = isServerless ? 25 : getRecommendedImageLimit(deviceType)
+  const maxFilasCap = isServerless
+    ? Number(process.env.PDF_VENTAS_FOTOS_MAX_FILAS) || PDF_MAX_FILAS_VENTAS_FOTOS
+    : getRecommendedImageLimit(deviceType)
 
   console.log('[PDF Ventas-Fotos] ═══════════════════════════════════════════════════')
   console.log('[PDF Ventas-Fotos] Iniciando generación...')
   console.log('[PDF Ventas-Fotos] Dispositivo detectado:', deviceType)
+  if (isServerless) {
+    console.log('[PDF Ventas-Fotos] Serverless · tope filas:', maxFilasCap)
+  }
   if (isIOS) {
     console.log('[PDF Ventas-Fotos] 🍎 Sistema operativo: iOS (Safari)')
     console.log('[PDF Ventas-Fotos] ⚠️  IMPORTANTE: Mantén esta pestaña visible durante toda la generación')
@@ -797,9 +805,7 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
   }
 
   try {
-    const MAX_FILAS_PDF = isServerless
-      ? Math.min(recommendedLimit, 25)
-      : data.rows.length
+    const MAX_FILAS_PDF = Math.min(data.rows.length, maxFilasCap)
     const rowsLimitadas = data.rows.slice(0, MAX_FILAS_PDF)
     const esLimitado = data.rows.length > MAX_FILAS_PDF
 
@@ -823,7 +829,7 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
 
     const imageCache = await preloadVentasFotosImages(pdfDoc, rowsLimitadas, deviceType, imageMetrics)
 
-    await renderPaginaEjecutiva(pdfDoc, fonts, data, stats, esLimitado, data.rows.length)
+    await renderPaginaEjecutiva(pdfDoc, fonts, data, stats, esLimitado, data.rows.length, MAX_FILAS_PDF)
     await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageCache)
     drawFooters(pdfDoc, fonts)
 
