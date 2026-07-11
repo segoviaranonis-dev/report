@@ -12,7 +12,7 @@ import {
 import { FiltroLlegadaMulti } from "@/components/stock-transito/FiltroLlegadaMulti";
 import {
   buildLineaCasoMap,
-  lookupCasoLinea,
+  filterRowsByCasoActivo,
   type CasoBibliotecaLite,
 } from "@/lib/depositos/caso-biblioteca";
 import { resolveProgramadoVitales } from "@/lib/stock-programado/programado-vitales-canonicos";
@@ -70,12 +70,10 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
     setLineaCasoMap(buildLineaCasoMap(casos));
   }, []);
 
-  const filtradasGrid = useMemo(() => {
-    if (!casoActivo || lineaCasoMap.size === 0) return filtradas;
-    return filtradas.filter(
-      (r) => lookupCasoLinea(lineaCasoMap, r.linea_codigo_proveedor) === casoActivo,
-    );
-  }, [filtradas, casoActivo, lineaCasoMap]);
+  const filtradasGrid = useMemo(
+    () => filterRowsByCasoActivo(filtradas, casoActivo, lineaCasoMap),
+    [filtradas, casoActivo, lineaCasoMap],
+  );
 
   const vitales = useMemo(
     () =>

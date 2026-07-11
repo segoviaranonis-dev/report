@@ -42,7 +42,7 @@ export function moleculeKeyVentas(
   material: string,
   color: string,
 ): string {
-  return `${linea}-${referencia}-${material}-${color}`;
+  return `${String(linea ?? "").trim()}-${String(referencia ?? "").trim()}-${String(material ?? "").trim()}-${String(color ?? "").trim()}`;
 }
 
 export function agregarVentasPorComprador(

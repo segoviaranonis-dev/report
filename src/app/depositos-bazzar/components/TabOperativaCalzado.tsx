@@ -9,7 +9,7 @@ import {
 } from "@/app/depositos-bazzar/context/DepositoCalzadoContext";
 import {
   buildLineaCasoMap,
-  lookupCasoLinea,
+  filterRowsByCasoActivo,
   type CasoBibliotecaLite,
 } from "@/lib/depositos/caso-biblioteca";
 import { BibliotecaCasoBar } from "./operativa/BibliotecaCasoBar";
@@ -45,12 +45,10 @@ export function TabOperativaCalzado({ clienteId, categoria }: Props) {
     setLineaCasoMap(buildLineaCasoMap(casos));
   }, []);
 
-  const filtradasGrid = useMemo(() => {
-    if (!casoActivo || lineaCasoMap.size === 0) return filtradas;
-    return filtradas.filter(
-      (r) => lookupCasoLinea(lineaCasoMap, r.linea_codigo_proveedor) === casoActivo,
-    );
-  }, [filtradas, casoActivo, lineaCasoMap]);
+  const filtradasGrid = useMemo(
+    () => filterRowsByCasoActivo(filtradas, casoActivo, lineaCasoMap),
+    [filtradas, casoActivo, lineaCasoMap],
+  );
 
   if (loading || err) return null;
 

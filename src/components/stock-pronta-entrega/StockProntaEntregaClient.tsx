@@ -8,7 +8,7 @@ import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/S
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
 import {
   buildLineaCasoMap,
-  lookupCasoLinea,
+  filterRowsByCasoActivo,
   type CasoBibliotecaLite,
 } from "@/lib/depositos/caso-biblioteca";
 import type { StockProntaEntregaResumen } from "@/lib/stock-pronta-entrega/queries-resumen";
@@ -86,12 +86,10 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
     setLineaCasoMap(buildLineaCasoMap(casos));
   }, []);
 
-  const filtradasGrid = useMemo(() => {
-    if (!casoActivo || lineaCasoMap.size === 0) return filtradas;
-    return filtradas.filter(
-      (r) => lookupCasoLinea(lineaCasoMap, r.linea_codigo_proveedor) === casoActivo,
-    );
-  }, [filtradas, casoActivo, lineaCasoMap]);
+  const filtradasGrid = useMemo(
+    () => filterRowsByCasoActivo(filtradas, casoActivo, lineaCasoMap),
+    [filtradas, casoActivo, lineaCasoMap],
+  );
 
   return (
     <PanelControlGrillaStack

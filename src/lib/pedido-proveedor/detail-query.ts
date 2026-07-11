@@ -73,6 +73,13 @@ export type PpIcVinculada = IcDePp & {
   evento_id: number | null;
   evento_nombre: string | null;
   listado_precio_id: number | null;
+  monto_bruto: number;
+  monto_neto: number;
+  descuento_1: number;
+  descuento_2: number;
+  descuento_3: number;
+  descuento_4: number;
+  id_plazo: number | null;
   id_marca: number;
   id_vendedor: number;
   id_proveedor: number;
@@ -488,6 +495,13 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     categoria: string | null;
     vendedor: string | null;
     listado_precio_id: string | null;
+    monto_bruto: string | null;
+    monto_neto: string | null;
+    descuento_1: string | null;
+    descuento_2: string | null;
+    descuento_3: string | null;
+    descuento_4: string | null;
+    id_plazo: string | null;
   }>(
     `
     SELECT ic.id AS ic_id, ic.numero_registro AS nro_ic,
@@ -501,6 +515,13 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
            ic.id_proveedor::text AS id_proveedor,
            ic.categoria_id::text AS categoria_id,
            ic.listado_precio_id::text AS listado_precio_id,
+           COALESCE(ic.monto_bruto, 0)::text AS monto_bruto,
+           COALESCE(ic.monto_neto, 0)::text AS monto_neto,
+           COALESCE(ic.descuento_1, 0)::text AS descuento_1,
+           COALESCE(ic.descuento_2, 0)::text AS descuento_2,
+           COALESCE(ic.descuento_3, 0)::text AS descuento_3,
+           COALESCE(ic.descuento_4, 0)::text AS descuento_4,
+           ic.id_plazo::text AS id_plazo,
            COALESCE(cat.descp_categoria, '—') AS categoria,
            COALESCE(vd.descp_vendedor, '—') AS vendedor,
            icp.nro_pedido_fabrica,
@@ -538,5 +559,12 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     categoria: r.categoria ?? "—",
     vendedor: r.vendedor ?? "—",
     listado_precio_id: r.listado_precio_id != null ? Number(r.listado_precio_id) : null,
+    monto_bruto: Number(r.monto_bruto ?? 0),
+    monto_neto: Number(r.monto_neto ?? 0),
+    descuento_1: Number(r.descuento_1 ?? 0),
+    descuento_2: Number(r.descuento_2 ?? 0),
+    descuento_3: Number(r.descuento_3 ?? 0),
+    descuento_4: Number(r.descuento_4 ?? 0),
+    id_plazo: r.id_plazo != null ? Number(r.id_plazo) : null,
   }));
 }

@@ -18,7 +18,14 @@ export const STOCK_TRANSITO_VISTA_META: Record<
   },
 };
 
-export function filterTransitoRowsByVista(rows: DepositoRow[], vista: StockTransitoVista): DepositoRow[] {
+export function filterTransitoRowsByVista(
+  rows: DepositoRow[],
+  vista: StockTransitoVista,
+  opts?: { casoActivo?: string | null },
+): DepositoRow[] {
   if (vista === "disponible") return rows.filter((r) => r.cantidad > 0);
+  // Ventas sin caso: solo moléculas con pares vendidos.
+  // Con caso activo: mostrar todo el universo del caso (vendido puede ser 0 en algunas líneas).
+  if (opts?.casoActivo) return rows;
   return rows.filter((r) => (r.pares_vendidos ?? 0) > 0);
 }

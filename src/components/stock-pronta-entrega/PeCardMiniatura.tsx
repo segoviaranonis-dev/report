@@ -5,6 +5,7 @@ import type { PeImportadoraCard } from "@/lib/depositos/agrupar-pe-importadora";
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
+import { CompradoresVentasSlot } from "./CompradoresVentasSlot";
 import { GradaImportadoraAcordeon } from "./GradaImportadoraAcordeon";
 import { ImagenAmpliadaOverlay } from "./ImagenAmpliadaOverlay";
 
@@ -90,7 +91,11 @@ export function PeCardMiniatura({
 
         <div
           className={`flex min-h-0 flex-1 flex-col gap-1 p-2.5 ${
-            expanded ? "min-h-[11.5rem]" : "min-h-[6.75rem]"
+            expanded
+              ? showVentas
+                ? "min-h-[14.5rem]"
+                : "min-h-[11.5rem]"
+              : "min-h-[6.75rem]"
           }`}
         >
           <div className="flex min-h-[14px] items-start justify-between gap-1">
@@ -163,6 +168,10 @@ export function PeCardMiniatura({
             <p className="min-h-[14px] truncate text-[9px] font-semibold tabular-nums leading-tight text-slate-500">
               Saldo {Math.round(card.totalPares).toLocaleString("es-PY")} p
             </p>
+          ) : null}
+
+          {showVentas ? (
+            <CompradoresVentasSlot compradores={card.compradores} visible={expanded} />
           ) : null}
 
           {showCasoBadge && card.casoComercial ? (

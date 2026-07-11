@@ -19,6 +19,7 @@ import {
   saveProformaFilas,
   backfillPpdShopFromSnapshot,
 } from "./proforma-snapshot";
+import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -31,6 +32,30 @@ export type EmparejamientoShop = {
   match: boolean;
 };
 
+export type ProformaPrecioAuditEstado = "ok" | "sin_precio" | "sin_caso" | "pilares_faltantes";
+
+export type ProformaPrecioAuditFila = {
+  linea: string;
+  referencia: string;
+  material_code: string;
+  pares: number;
+  estado: ProformaPrecioAuditEstado;
+  caso: string | null;
+  lpn: number | null;
+};
+
+export type ProformaPrecioAuditResumen = {
+  n_skus: number;
+  n_ok: number;
+  n_sin_precio: number;
+  n_sin_caso: number;
+  n_pilares_faltantes: number;
+  pares_ok: number;
+  pares_sin_precio: number;
+  pares_sin_caso: number;
+  pares_pilares_faltantes: number;
+};
+
 export type ProformaPreviewResult = {
   ok: boolean;
   preview?: boolean;
@@ -41,6 +66,10 @@ export type ProformaPreviewResult = {
   n_grupos_shop?: number;
   emparejamientos?: EmparejamientoShop[];
   errores?: string[];
+  /** Avisos pilares × precio_lista — no bloquean import. */
+  avisos?: string[];
+  precio_audit?: ProformaPrecioAuditResumen;
+  precio_audit_muestra?: ProformaPrecioAuditFila[];
   listado_vinculado?: boolean;
   evento_id?: number;
   error?: string;
@@ -110,6 +139,9 @@ export type ProformaImportPhaseResult = ProformaImportResult & {
   fi_total?: number;
   fi_batch?: number;
   fi_avisos?: string[];
+  /** Avisos cruce proforma ↔ precio_lista al cargar PPD. */
+  import_avisos?: string[];
+  precio_audit?: ProformaPrecioAuditResumen;
 };
 
 type FiLineItem = {
@@ -168,6 +200,42 @@ function aggregateIcsPorCliente(ics: IcRow[]): Map<
     agg.set(cid, bucket);
   }
   return agg;
+}
+
+function icClienteMarcaKey(idCliente: number, brand: string): string {
+  return `${idCliente}|${normalizeBrandKey(brand)}`;
+}
+
+/** IC indexada por id_cliente + marca — emparejamiento canónico SHOP×BRAND del Excel. */
+function indexIcsPorClienteMarca(ics: IcRow[]): Map<
+  string,
+  { paresIc: number; icIds: number[]; icNros: string[]; clienteNombre: string; id_cliente: number; brand: string }
+> {
+  const map = new Map<
+    string,
+    { paresIc: number; icIds: number[]; icNros: string[]; clienteNombre: string; id_cliente: number; brand: string }
+  >();
+  for (const ic of ics) {
+    const cid = normalizeClienteId(ic.id_cliente);
+    if (cid == null) continue;
+    const brand = normalizeBrandKey(ic.marca_nombre);
+    if (!brand) continue;
+    const key = icClienteMarcaKey(cid, brand);
+    const bucket = map.get(key) ?? {
+      paresIc: 0,
+      icIds: [],
+      icNros: [],
+      clienteNombre: ic.descp_cliente ?? "",
+      id_cliente: cid,
+      brand,
+    };
+    bucket.paresIc += Number(ic.cantidad_total_pares ?? 0);
+    bucket.icIds.push(Number(ic.ic_id));
+    bucket.icNros.push(String(ic.numero_registro));
+    if (!bucket.clienteNombre && ic.descp_cliente) bucket.clienteNombre = ic.descp_cliente;
+    map.set(key, bucket);
+  }
+  return map;
 }
 
 function normalizeBrandKey(s: string | null | undefined): string {
@@ -301,6 +369,184 @@ async function loadIcsPpProgramado(pool: Pool, ppId: number): Promise<IcRow[]> {
   return rows;
 }
 
+type SkuPrecioKey = { linea: string; referencia: string; material_code: string; pares: number };
+
+function aggregateSkusProforma(rows: ProformaRow[]): SkuPrecioKey[] {
+  const map = new Map<string, SkuPrecioKey>();
+  for (const r of rows) {
+    const linea = String(r.linea_codigo_proveedor ?? "").trim();
+    const referencia = String(r.referencia_codigo_proveedor ?? "").trim();
+    const material_code = String(r.material_code ?? "").trim();
+    if (!linea) continue;
+    const key = `${linea}\0${referencia}\0${material_code}`;
+    const prev = map.get(key);
+    const pares = r.pairs > 0 ? r.pairs : 0;
+    map.set(key, {
+      linea,
+      referencia,
+      material_code,
+      pares: (prev?.pares ?? 0) + pares,
+    });
+  }
+  return [...map.values()];
+}
+
+function clasificarSkuPrecio(
+  row: {
+    linea_id: number | null;
+    referencia_id: number | null;
+    material_id: number | null;
+    lpn: number | null;
+    caso: string | null;
+  },
+  casoMatriz: string | null,
+): ProformaPrecioAuditEstado {
+  if (!row.linea_id || !row.referencia_id || !row.material_id) return "pilares_faltantes";
+  const caso = (row.caso ?? casoMatriz ?? "").trim();
+  if (!caso) return "sin_caso";
+  const lpn = Number(row.lpn ?? 0);
+  if (!(lpn > 0)) return "sin_precio";
+  return "ok";
+}
+
+function buildAvisosPrecioAudit(resumen: ProformaPrecioAuditResumen, muestra: ProformaPrecioAuditFila[]): string[] {
+  const avisos: string[] = [];
+  if (resumen.n_sin_caso > 0) {
+    avisos.push(
+      `⛔ ${resumen.n_sin_caso} SKU(s) / línea(s) SIN CASO en matriz (${resumen.pares_sin_caso.toLocaleString("es-PY")} pares) — obligatorio: Motor → asignar línea al caso (precio es aparte).`,
+    );
+  }
+  if (resumen.n_sin_precio > 0) {
+    avisos.push(
+      `${resumen.n_sin_precio} SKU(s) con caso OK pero sin LPN (${resumen.pares_sin_precio.toLocaleString("es-PY")} pares) — se importan con advertencia.`,
+    );
+  }
+  if (resumen.n_pilares_faltantes > 0) {
+    avisos.push(
+      `${resumen.n_pilares_faltantes} SKU(s) con pilares L·R·M incompletos (${resumen.pares_pilares_faltantes.toLocaleString("es-PY")} pares) — revisar listado o pilares.`,
+    );
+  }
+  const detalle = muestra.filter((f) => f.estado !== "ok").slice(0, 15);
+  for (const f of detalle) {
+    const sku = `${f.linea}.${f.referencia}.${f.material_code || "?"}`;
+    if (f.estado === "sin_precio") {
+      avisos.push(
+        `${sku} · L.${f.linea}: tiene caso «${f.caso ?? "?"}» pero sin LPN (${f.pares.toLocaleString("es-PY")} pares).`,
+      );
+    } else if (f.estado === "sin_caso") {
+      avisos.push(
+        `⛔ ${sku} · línea ${f.linea}: SIN CASO en matriz — asignar en Motor (POST asignar-lineas-preview) antes de operar.`,
+      );
+    } else {
+      avisos.push(`${sku}: pilares L·R·M incompletos (${f.pares.toLocaleString("es-PY")} pares).`);
+    }
+  }
+  if (resumen.n_ok > 0 && avisos.length === 0) {
+    avisos.push(`${resumen.n_ok} SKU(s) cruzados OK con precio_lista y caso.`);
+  }
+  return avisos;
+}
+
+/** Cruce proforma × precio_lista (L+R+M) × caso — paridad getSkusConPrecioParaFi. */
+export async function auditProformaVsPrecioLista(
+  pool: Pool,
+  eventoId: number,
+  provId: number,
+  rows: ProformaRow[],
+): Promise<{ resumen: ProformaPrecioAuditResumen; muestra: ProformaPrecioAuditFila[]; avisos: string[] }> {
+  const skus = aggregateSkusProforma(rows);
+  const empty: ProformaPrecioAuditResumen = {
+    n_skus: 0,
+    n_ok: 0,
+    n_sin_precio: 0,
+    n_sin_caso: 0,
+    n_pilares_faltantes: 0,
+    pares_ok: 0,
+    pares_sin_precio: 0,
+    pares_sin_caso: 0,
+    pares_pilares_faltantes: 0,
+  };
+  if (!skus.length) {
+    return { resumen: empty, muestra: [], avisos: [] };
+  }
+
+  const lineas = skus.map((s) => s.linea);
+  const refs = skus.map((s) => s.referencia);
+  const mats = skus.map((s) => s.material_code);
+
+  const mapaCasoLinea = await loadMapaCasoPorLineaEvento(pool, eventoId);
+
+  const { rows: dbRows } = await pool.query<{
+    linea: string;
+    referencia: string;
+    material_code: string;
+    linea_id: number | null;
+    referencia_id: number | null;
+    material_id: number | null;
+    lpn: number | null;
+    caso: string | null;
+  }>(
+    `SELECT t.linea, t.referencia, t.material_code,
+            l.id AS linea_id, ref.id AS referencia_id, m.id AS material_id,
+            COALESCE(pl.lpn, 0)::float AS lpn,
+            NULLIF(TRIM(pl.nombre_caso_aplicado), '') AS caso
+     FROM unnest($1::text[], $2::text[], $3::text[]) AS t(linea, referencia, material_code)
+     LEFT JOIN linea l ON l.proveedor_id = $4::bigint AND l.codigo_proveedor::text = t.linea
+     LEFT JOIN referencia ref ON ref.linea_id = l.id AND ref.codigo_proveedor::text = t.referencia
+     LEFT JOIN material m ON m.proveedor_id = $4::bigint AND m.codigo_proveedor::text = t.material_code
+     LEFT JOIN precio_lista pl ON pl.evento_id = $5
+                               AND pl.linea_id = l.id
+                               AND pl.referencia_id = ref.id
+                               AND pl.material_id = m.id`,
+    [lineas, refs, mats, provId, eventoId],
+  );
+
+  const paresByKey = new Map(skus.map((s) => [`${s.linea}\0${s.referencia}\0${s.material_code}`, s.pares]));
+  const resumen: ProformaPrecioAuditResumen = { ...empty, n_skus: skus.length };
+  const muestra: ProformaPrecioAuditFila[] = [];
+
+  for (const db of dbRows) {
+    const key = `${db.linea}\0${db.referencia}\0${db.material_code}`;
+    const pares = paresByKey.get(key) ?? 0;
+    const lineaNorm = String(Math.trunc(Number(db.linea)));
+    const casoMatriz = mapaCasoLinea.get(lineaNorm) ?? null;
+    const casoEfectivo = (db.caso ?? casoMatriz ?? "").trim() || null;
+    const estado = clasificarSkuPrecio(db, casoMatriz);
+    const fila: ProformaPrecioAuditFila = {
+      linea: db.linea,
+      referencia: db.referencia,
+      material_code: db.material_code,
+      pares,
+      estado,
+      caso: casoEfectivo,
+      lpn: db.lpn != null && db.lpn > 0 ? db.lpn : null,
+    };
+    muestra.push(fila);
+
+    if (estado === "ok") {
+      resumen.n_ok += 1;
+      resumen.pares_ok += pares;
+    } else if (estado === "sin_precio") {
+      resumen.n_sin_precio += 1;
+      resumen.pares_sin_precio += pares;
+    } else if (estado === "sin_caso") {
+      resumen.n_sin_caso += 1;
+      resumen.pares_sin_caso += pares;
+    } else {
+      resumen.n_pilares_faltantes += 1;
+      resumen.pares_pilares_faltantes += pares;
+    }
+  }
+
+  muestra.sort((a, b) => {
+    const rank = (e: ProformaPrecioAuditEstado) =>
+      e === "sin_caso" ? 0 : e === "pilares_faltantes" ? 1 : e === "sin_precio" ? 2 : 3;
+    return rank(a.estado) - rank(b.estado) || b.pares - a.pares;
+  });
+
+  return { resumen, muestra, avisos: buildAvisosPrecioAudit(resumen, muestra) };
+}
+
 export async function previewImportProformaProgramadoTs(
   ppId: number,
   fileBuffer: Buffer,
@@ -333,74 +579,77 @@ export async function previewImportProformaProgramadoTs(
   );
   const provId = ppRes.rows[0]?.proveedor_importacion_id ?? 654;
 
-  const grupos = new Map<string, { brand: string; pares: number }>();
+  const grupos = new Map<string, { brand: string; shop: string; pares: number }>();
   for (const row of parsed.rows) {
     const brand = row.brand.trim().toUpperCase();
     const shop = row.shop.trim();
     const p = row.pairs;
-    if (p <= 0) continue;
+    if (p <= 0 || !brand || !shop) continue;
     const key = `${brand}\0${shop}`;
     const prev = grupos.get(key);
-    grupos.set(key, { brand, pares: (prev?.pares ?? 0) + p });
+    grupos.set(key, { brand, shop, pares: (prev?.pares ?? 0) + p });
   }
 
-  const shopPares = new Map<string, number>();
-  const shopBrands = new Map<string, Set<string>>();
-  for (const [key, val] of grupos) {
-    const shop = key.split("\0")[1];
-    shopPares.set(shop, (shopPares.get(shop) ?? 0) + val.pares);
-    const brands = shopBrands.get(shop) ?? new Set<string>();
-    brands.add(val.brand);
-    shopBrands.set(shop, brands);
-  }
-
-  const icByCliente = aggregateIcsPorCliente(ics);
+  const icByClienteMarca = indexIcsPorClienteMarca(ics);
   const emparejamientos: EmparejamientoShop[] = [];
   const errores: string[] = [];
-  const matchedShops = new Set<string>();
+  const avisosMatch: string[] = [];
+  const matchedIcKeys = new Set<string>();
 
-  const sortedShops = [...shopPares.entries()].sort((a, b) => b[1] - a[1]);
-  for (const [shop, paresProforma] of sortedShops) {
-    const shopI = Number.parseInt(shop, 10);
+  const sortedGrupos = [...grupos.values()].sort(
+    (a, b) => Number.parseInt(a.shop, 10) - Number.parseInt(b.shop, 10) || a.brand.localeCompare(b.brand),
+  );
+
+  for (const grupo of sortedGrupos) {
+    const shopI = Number.parseInt(grupo.shop, 10);
     if (!Number.isFinite(shopI)) {
-      const brands = [...(shopBrands.get(shop) ?? [])].sort().join(", ");
-      errores.push(`SHOP no numérico: ${brands} / ${shop}`);
+      errores.push(`SHOP no numérico: ${grupo.brand} / ${grupo.shop}`);
       continue;
     }
-    const icAgg = icByCliente.get(shopI);
-    if (!icAgg) {
-      const brands = [...(shopBrands.get(shop) ?? [])].sort().join(", ");
-      errores.push(`SHOP ${shop} (${brands}) sin IC con id_cliente=${shop}`);
+    const icKey = icClienteMarcaKey(shopI, grupo.brand);
+    const icHit = icByClienteMarca.get(icKey);
+    if (!icHit) {
+      avisosMatch.push(`SHOP ${grupo.shop} · ${grupo.brand}: sin IC id_cliente=${shopI} + marca ${grupo.brand}`);
+      emparejamientos.push({
+        brand: grupo.brand,
+        shop: grupo.shop,
+        pares_proforma: grupo.pares,
+        ic_id: 0,
+        ic_nro: "—",
+        id_cliente: shopI,
+        cliente_nombre: "",
+        pares_ic: 0,
+        match: false,
+      });
       continue;
     }
-    const icPares = icAgg.paresIc;
-    const okMatch = icPares === paresProforma;
+    matchedIcKeys.add(icKey);
+    const icPares = icHit.paresIc;
+    const okMatch = icPares === grupo.pares;
     if (!okMatch) {
-      errores.push(
-        `SHOP ${shop} · IC [${icAgg.icNros.join(", ")}]: proforma ${paresProforma} ≠ IC ${icPares} pares (suma ${icAgg.icNros.length} IC)`,
+      avisosMatch.push(
+        `SHOP ${grupo.shop} · ${grupo.brand} · IC [${icHit.icNros.join(", ")}]: proforma ${grupo.pares} ≠ IC ${icPares} pares`,
       );
     }
-    matchedShops.add(shop);
-    const brands = [...(shopBrands.get(shop) ?? [])].sort().join(", ");
     emparejamientos.push({
-      brand: brands,
-      shop,
-      pares_proforma: paresProforma,
-      ic_id: icAgg.icIds[0],
-      ic_nro: icAgg.icNros.join(", "),
+      brand: grupo.brand,
+      shop: grupo.shop,
+      pares_proforma: grupo.pares,
+      ic_id: icHit.icIds[0],
+      ic_nro: icHit.icNros.join(", "),
       id_cliente: shopI,
-      cliente_nombre: icAgg.clienteNombre,
+      cliente_nombre: icHit.clienteNombre,
       pares_ic: icPares,
       match: okMatch,
     });
   }
 
-  for (const cid of [...icByCliente.keys()].sort((a, b) => a - b)) {
-    const shopS = String(cid);
-    if (!matchedShops.has(shopS)) {
-      const icLabel = icByCliente.get(cid)!.icNros.join(", ");
-      errores.push(`Cliente ${shopS} · IC [${icLabel}] sin filas en proforma`);
-    }
+  for (const [, icHit] of icByClienteMarca) {
+    const key = icClienteMarcaKey(icHit.id_cliente, icHit.brand);
+    if (matchedIcKeys.has(key)) continue;
+    avisosMatch.push(
+      `IC [${icHit.icNros.join(", ")}] · cliente ${icHit.id_cliente} · ${icHit.brand}: sin filas SHOP×BRAND en proforma`,
+    );
   }
 
   const plRes = await pool.query<{ c: number }>(
@@ -409,6 +658,19 @@ export async function previewImportProformaProgramadoTs(
   );
   const listadoOk = (plRes.rows[0]?.c ?? 0) > 0;
 
+  let avisosPrecio: string[] = [];
+  let precioAudit: ProformaPrecioAuditResumen | undefined;
+  let precioAuditMuestra: ProformaPrecioAuditFila[] | undefined;
+
+  if (listadoOk) {
+    const audit = await auditProformaVsPrecioLista(pool, eventoId, provId, parsed.rows);
+    avisosPrecio = audit.avisos;
+    precioAudit = audit.resumen;
+    precioAuditMuestra = audit.muestra.slice(0, 30);
+  } else {
+    avisosPrecio = ["Listado vinculado sin filas en precio_lista — no se pudo auditar pilares × precios."];
+  }
+
   return {
     ok: errores.length === 0,
     preview: true,
@@ -416,10 +678,13 @@ export async function previewImportProformaProgramadoTs(
     pp_id: ppId,
     total_pares: parsed.totalPares,
     n_filas: parsed.rows.length,
-    n_grupos_shop: shopPares.size,
+    n_grupos_shop: grupos.size,
     evento_id: eventoId,
     emparejamientos,
     errores,
+    avisos: [...avisosMatch, ...avisosPrecio],
+    precio_audit: precioAudit,
+    precio_audit_muestra: precioAuditMuestra,
     listado_vinculado: listadoOk,
   };
 }
@@ -954,6 +1219,8 @@ export async function importProformaProgramadoPhased(
     detalle = parsed.rows;
   }
 
+  let importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null = null;
+
   if (phase === "ppd" || phase === "all") {
     const client = await pool.connect();
     try {
@@ -964,6 +1231,8 @@ export async function importProformaProgramadoPhased(
         return { ok: false, error: pop.message, programado: true, phase: "ppd" };
       }
       await client.query("COMMIT");
+      const provId = pp.proveedor_importacion_id ?? 654;
+      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
       if (phase === "ppd") {
         return {
           ok: true,
@@ -978,6 +1247,8 @@ export async function importProformaProgramadoPhased(
           fi_offset: 0,
           fi_offset_next: 0,
           fi_batch: fiBatchSize,
+          import_avisos: importPrecioAudit.avisos,
+          precio_audit: importPrecioAudit.resumen,
         };
       }
     } catch (e) {
@@ -1067,6 +1338,9 @@ export async function importProformaProgramadoPhased(
         fi_offset: fiOffset,
         fi_offset_next: fiTotal,
         message: "Import programado completo.",
+        ...(importPrecioAudit
+          ? { import_avisos: importPrecioAudit.avisos, precio_audit: importPrecioAudit.resumen }
+          : {}),
       };
     }
 
@@ -1132,6 +1406,10 @@ export async function importProformaProgramadoPhased(
       fi_offset: fiOffset,
       fi_offset_next: nextOffset,
       fi_batch: fiBatchSize,
+      fi_avisos: planAvisos.length ? planAvisos : undefined,
+      ...(importPrecioAudit
+        ? { import_avisos: importPrecioAudit.avisos, precio_audit: importPrecioAudit.resumen }
+        : {}),
     };
   } catch (e) {
     await client.query("ROLLBACK");
@@ -1510,6 +1788,7 @@ export async function borrarImportacionTs(ppId: number): Promise<{ ok: boolean; 
     );
     await client.query(`DELETE FROM factura_interna WHERE pp_id = $1`, [ppId]);
     await client.query(`DELETE FROM snapshot_costos WHERE pp_id = $1`, [ppId]);
+    await client.query(`DELETE FROM pp_proforma_filas WHERE pp_id = $1`, [ppId]);
     const del = await client.query(`DELETE FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1 RETURNING id`, [
       ppId,
     ]);

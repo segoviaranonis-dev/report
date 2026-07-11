@@ -26,8 +26,8 @@ export async function listVentasCompradorTransito(
     SELECT
       TRIM(ppd.linea) AS linea,
       TRIM(ppd.referencia) AS referencia,
-      ppd.material_code,
-      ppd.color_code,
+      TRIM(ppd.material_code::text) AS material_code,
+      TRIM(ppd.color_code::text) AS color_code,
       cad_lat.descp_cadena AS cadena,
       COALESCE(NULLIF(TRIM(c.descp_cliente), ''), '—') AS cliente,
       SUM(fid.pares)::text AS pares
@@ -55,10 +55,10 @@ export async function listVentasCompradorTransito(
 
   return agregarVentasPorComprador(
     rows.map((r) => ({
-      linea: r.linea,
-      referencia: r.referencia,
-      material_code: r.material_code,
-      color_code: r.color_code,
+      linea: String(r.linea ?? "").trim(),
+      referencia: String(r.referencia ?? "").trim(),
+      material_code: String(r.material_code ?? "").trim(),
+      color_code: String(r.color_code ?? "").trim(),
       cadena: r.cadena,
       cliente: r.cliente,
       pares: Number(r.pares),

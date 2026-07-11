@@ -30,7 +30,12 @@ export type PeImportadoraCard = {
 };
 
 function moleculeKey(p: DepositoRow): string {
-  return `${p.linea_codigo_proveedor}-${p.referencia_codigo_proveedor}-${p.material_code}-${p.color_code}`;
+  return moleculeKeyVentas(
+    p.linea_codigo_proveedor,
+    p.referencia_codigo_proveedor,
+    p.material_code,
+    p.color_code,
+  );
 }
 
 function canonCurva(raw: string | null | undefined): string {
@@ -104,12 +109,7 @@ export function agruparPeImportadora(
 
       const totalPares = gradas.reduce((s, g) => s + g.pares, 0);
       const p = items[0];
-      const molKey = moleculeKeyVentas(
-        p.linea_codigo_proveedor,
-        p.referencia_codigo_proveedor,
-        p.material_code,
-        p.color_code,
-      );
+      const molKey = moleculeKey(p);
 
       return {
         key,
@@ -120,7 +120,8 @@ export function agruparPeImportadora(
         totalVendidos,
         estilo: p.estilo,
         precioVenta: resolvePrecioGrupoLRM(items),
-        casoComercial: lookupCasoLinea(casoPorLinea, p.linea_codigo_proveedor),
+        casoComercial:
+          lookupCasoLinea(casoPorLinea, p.linea_codigo_proveedor) ?? p.caso_precio?.trim() ?? null,
         llegadaDesc: llegadaDescFromRows(items),
         compradores: opts?.ventasPorMol?.get(molKey) ?? [],
       };

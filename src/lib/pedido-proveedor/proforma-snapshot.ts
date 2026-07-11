@@ -188,7 +188,7 @@ export async function loadProformaDetalleParaFi(
   const fromPpd = await loadProformaDetalleFromPpd(pool, ppId);
   if (fromPpd?.length) return { detalle: fromPpd, source: "ppd" };
 
-  if (opts?.autoInfer !== false) {
+  if (opts?.autoInfer === true) {
     const inferred = await inferAndPersistProformaFromPpd(pool, ppId);
     if (inferred?.detalle.length) return { detalle: inferred.detalle, source: "inferred" };
   }
@@ -216,25 +216,28 @@ export async function backfillPpdShopFromSnapshot(client: Pool | PoolClient, ppI
     referencia: string;
     material_code: string;
     color_code: string;
+    fila_origen_f9: number | null;
     grades_json: unknown;
   }>(
-    `SELECT id, linea, referencia, material_code, color_code, grades_json
+    `SELECT id, linea, referencia, material_code, color_code, fila_origen_f9, grades_json
      FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1`,
     [ppId],
   );
 
+  /** ITEM proforma (columna F9) — clave única; evita colisión molécula entre SHOPs distintos. */
+  const byItem = new Map<string, ProformaRow>();
   const byMol = new Map<string, ProformaRow>();
   for (const f of snap) {
-    byMol.set(
-      canonicalMolKey(
-        f.linea_codigo_proveedor,
-        f.referencia_codigo_proveedor,
-        f.material_code,
-        f.color_code,
-        f.grades_json,
-      ),
-      f,
+    const item = String(f.item ?? "").trim();
+    if (item) byItem.set(item, f);
+    const molKey = canonicalMolKey(
+      f.linea_codigo_proveedor,
+      f.referencia_codigo_proveedor,
+      f.material_code,
+      f.color_code,
+      f.grades_json,
     );
+    if (!byMol.has(molKey)) byMol.set(molKey, f);
   }
 
   let n = 0;
@@ -243,24 +246,31 @@ export async function backfillPpdShopFromSnapshot(client: Pool | PoolClient, ppI
       typeof r.grades_json === "object" && r.grades_json
         ? ({ ...(r.grades_json as Record<string, unknown>) } as Record<string, unknown>)
         : {};
-    if (typeof gj._shop === "string" && gj._shop.trim()) continue;
 
-    const key = canonicalMolKey(
+    const tallas = gradesSinMeta(r.grades_json);
+    const itemKey =
+      (typeof gj._item === "string" ? gj._item.trim() : "") ||
+      (r.fila_origen_f9 != null && r.fila_origen_f9 > 0 ? String(r.fila_origen_f9) : "");
+    const molKey = canonicalMolKey(
       String(r.linea),
       String(r.referencia),
       String(r.material_code),
       String(r.color_code),
-      gj as Record<string, number>,
+      tallas,
     );
-    const hit = byMol.get(key);
+    const hit = (itemKey ? byItem.get(itemKey) : undefined) ?? byMol.get(molKey);
     if (!hit?.shop) continue;
 
-    gj._shop = hit.shop.trim();
-    gj._brand = hit.brand?.trim() ?? "";
-    gj._item = hit.item ?? "";
+    const shopCanon = hit.shop.trim();
+    const brandCanon = hit.brand?.trim() ?? "";
+    const itemCanon = hit.item ?? "";
+    const prevShop = typeof gj._shop === "string" ? gj._shop.trim() : "";
+    if (prevShop === shopCanon && gj._brand === brandCanon && gj._item === itemCanon) continue;
+
+    const outGj = { ...tallas, _shop: shopCanon, _brand: brandCanon, _item: itemCanon };
     await client.query(`UPDATE pedido_proveedor_detalle SET grades_json = $2::jsonb WHERE id = $1`, [
       r.id,
-      JSON.stringify(gj),
+      JSON.stringify(outGj),
     ]);
     n += 1;
   }

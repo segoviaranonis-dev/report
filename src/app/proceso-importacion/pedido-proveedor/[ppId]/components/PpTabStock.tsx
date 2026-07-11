@@ -12,6 +12,7 @@ import {
   quincenaSliderValue,
 } from "@/lib/intencion-compra/quincena-arribo";
 import type { EmparejamientoShop } from "@/lib/pedido-proveedor/run-python-pp";
+import type { ProformaPrecioAuditResumen } from "@/lib/pedido-proveedor/proforma-programado-engine";
 import { pedidoProveedorDetalle } from "@/lib/report/routes";
 import { CATEGORIA_COMPRA_PREVIA_ID, CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import type { AlzarWebPreview } from "@/lib/pedido-proveedor/alzar-web";
@@ -72,6 +73,8 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [previewRows, setPreviewRows] = useState<EmparejamientoShop[] | null>(null);
   const [previewOk, setPreviewOk] = useState(false);
   const [previewErrores, setPreviewErrores] = useState<string[]>([]);
+  const [previewAvisos, setPreviewAvisos] = useState<string[]>([]);
+  const [precioAudit, setPrecioAudit] = useState<ProformaPrecioAuditResumen | null>(null);
   const [previewPares, setPreviewPares] = useState<number | null>(null);
   const [alzarPreview, setAlzarPreview] = useState<AlzarWebPreview | null>(null);
   const [alzarLoading, setAlzarLoading] = useState(false);
@@ -230,6 +233,8 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     setPreviewRows(null);
     setPreviewOk(false);
     setPreviewErrores([]);
+    setPreviewAvisos([]);
+    setPrecioAudit(null);
     try {
       const fd = new FormData();
       fd.append("file", proformaFile);
@@ -247,13 +252,23 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       setPreviewRows(data.emparejamientos ?? []);
       setPreviewOk(Boolean(data.ok));
       setPreviewErrores(data.errores ?? []);
+      setPreviewAvisos(data.avisos ?? []);
+      setPrecioAudit(data.precio_audit ?? null);
       setPreviewPares(data.total_pares ?? null);
 
       if (!data.listado_vinculado) {
         onMsg("Preview OK parcial — vinculá el listado RIMEC antes de confirmar import.");
       } else if (data.ok) {
+        const nAvisos = data.avisos?.length ?? 0;
+        const audit = data.precio_audit as ProformaPrecioAuditResumen | undefined;
+        const precioWarn =
+          audit && (audit.n_sin_precio > 0 || audit.n_sin_caso > 0 || audit.n_pilares_faltantes > 0)
+            ? ` · ${audit.n_sin_precio} sin LPN · ${audit.n_sin_caso} sin caso · ${audit.n_pilares_faltantes} pilares`
+            : "";
         onMsg(
-          `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares.`,
+          nAvisos > 0
+            ? `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · ${nAvisos} aviso(s) pilares/precio${precioWarn}.`
+            : `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · precios OK.`,
         );
       } else {
         const nErr = data.errores?.length ?? 0;
@@ -384,6 +399,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       }
 
       let msg = `Proforma importada · ${Number(data.pares ?? 0).toLocaleString("es-PY")} pares · ${data.n_articulos ?? "?"} moléculas.`;
+      const importAvisos = data.import_avisos as string[] | undefined;
+      if (importAvisos?.length) {
+        msg += ` ⚠ ${importAvisos.length} aviso(s) pilares/precio (ver preview).`;
+      }
       if (esProgramado) {
         const nFi = Number(data.n_fi ?? 0);
         const fiTotal = Number(data.fi_total ?? 0);
@@ -394,6 +413,8 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       setProformaFile(null);
       setPreviewRows(null);
       setPreviewOk(false);
+      setPreviewAvisos([]);
+      setPrecioAudit(null);
       await onReload();
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
@@ -700,7 +721,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     <li>{previewOk ? "✅" : "⬜"} Preview SHOP↔IC sin errores (paso 1)</li>
                   </ul>
                 )}
-                {(previewRows || previewErrores.length > 0) && (
+                {(previewRows || previewErrores.length > 0 || previewAvisos.length > 0) && (
                   <div className="mt-4 overflow-x-auto rounded-lg border border-violet-200 bg-white">
                     <table className="w-full min-w-[640px] text-left text-xs">
                       <thead>
@@ -743,6 +764,24 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                           <li key={err}>{err}</li>
                         ))}
                       </ul>
+                    )}
+                    {previewAvisos.length > 0 && (
+                      <div className="border-t border-amber-200 bg-amber-50/80 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                          Pilares × precio_lista (no bloquean import)
+                        </p>
+                        {precioAudit ? (
+                          <p className="mt-1 text-xs text-amber-900">
+                            {precioAudit.n_ok} OK · {precioAudit.n_sin_precio} sin LPN · {precioAudit.n_sin_caso}{" "}
+                            sin caso · {precioAudit.n_pilares_faltantes} pilares incompletos
+                          </p>
+                        ) : null}
+                        <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-amber-900">
+                          {previewAvisos.map((av) => (
+                            <li key={av}>{av}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 )}

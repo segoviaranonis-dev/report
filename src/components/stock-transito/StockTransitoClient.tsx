@@ -9,10 +9,12 @@ import { StockTransitoProvider, useStockTransito } from "@/components/stock-tran
 import { TabArticulosTransito } from "@/components/stock-transito/TabArticulosTransito";
 import {
   buildLineaCasoMap,
-  lookupCasoLinea,
+  filterRowsByCasoActivo,
   type CasoBibliotecaLite,
 } from "@/lib/depositos/caso-biblioteca";
+import { calcValorInventario } from "@/lib/depositos/precio-venta";
 import type { StockTransitoResumen } from "@/lib/stock-transito/queries-resumen";
+import { countTransitoCards } from "@/lib/stock-transito/stock-transito-filters";
 import { resolveTransitoVitales } from "@/lib/stock-transito/vitales-canonicos";
 import {
   filterTransitoRowsByVista,
@@ -36,9 +38,6 @@ function StockTransitoOperativaTab({
     filtros,
     setFiltros,
     opciones,
-    cardsCount,
-    totalPares,
-    valorInventario,
     filtradas,
     quincenaIds,
     setQuincenaIds,
@@ -53,16 +52,26 @@ function StockTransitoOperativaTab({
     setLineaCasoMap(buildLineaCasoMap(casos));
   }, []);
 
-  const filtradasCaso = useMemo(() => {
-    if (!casoActivo || lineaCasoMap.size === 0) return filtradas;
-    return filtradas.filter(
-      (r) => lookupCasoLinea(lineaCasoMap, r.linea_codigo_proveedor) === casoActivo,
-    );
-  }, [filtradas, casoActivo, lineaCasoMap]);
+  const filtradasCaso = useMemo(
+    () => filterRowsByCasoActivo(filtradas, casoActivo, lineaCasoMap),
+    [filtradas, casoActivo, lineaCasoMap],
+  );
 
   const filtradasGrid = useMemo(
-    () => filterTransitoRowsByVista(filtradasCaso, vista),
-    [filtradasCaso, vista],
+    () => filterTransitoRowsByVista(filtradasCaso, vista, { casoActivo }),
+    [filtradasCaso, vista, casoActivo],
+  );
+
+  const cardsCountVisible = useMemo(() => countTransitoCards(filtradasGrid), [filtradasGrid]);
+  const totalParesVisible = useMemo(() => {
+    if (vista === "ventas") {
+      return filtradasGrid.reduce((s, p) => s + (p.pares_vendidos ?? 0), 0);
+    }
+    return filtradasGrid.reduce((s, p) => s + p.cantidad, 0);
+  }, [filtradasGrid, vista]);
+  const valorInventarioVisible = useMemo(
+    () => calcValorInventario(filtradasGrid),
+    [filtradasGrid],
   );
 
   const vitales = useMemo(
@@ -92,15 +101,15 @@ function StockTransitoOperativaTab({
       filtros={filtros}
       onFiltrosChange={setFiltros}
       opciones={opciones}
-      cardsCount={cardsCount}
-      totalPares={totalPares}
-      valorInventario={valorInventario}
+      cardsCount={cardsCountVisible}
+      totalPares={totalParesVisible}
+      valorInventario={valorInventarioVisible}
       summaryTrailing={
         <TransitoVentasVitales
           paresInicial={vitales.inicial}
           paresVendidos={vitales.vendidos}
           paresSaldo={vitales.saldo}
-          valorInventario={valorInventario}
+          valorInventario={valorInventarioVisible}
           modo={vitales.modo}
           destaque={destaqueVitales}
         />

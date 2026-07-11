@@ -26,7 +26,7 @@ export function digitacionAsignar(icId: number | string): string {
   return `${DIGITACION}/asignar/${icId}`;
 }
 
-export type PpDetalleTab = "ics" | "stock" | "fi";
+export type PpDetalleTab = "ics" | "admin-ic" | "stock" | "fi";
 
 export function pedidoProveedorDetalle(ppId: number | string, tab?: PpDetalleTab): string {
   const base = `${PEDIDO_PROVEEDOR}/${ppId}`;

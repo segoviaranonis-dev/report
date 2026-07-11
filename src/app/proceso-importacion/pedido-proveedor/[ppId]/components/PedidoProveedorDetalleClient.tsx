@@ -28,6 +28,7 @@ import {
 } from "@/lib/intencion-compra/listado-precio-tiers";
 import { SelectorPoliticaLp } from "@/app/proceso-importacion/intencion-compra/components/SelectorPoliticaLp";
 import { IcProgramadoCabeceraGuide } from "@/app/proceso-importacion/intencion-compra/components/IcProgramadoCabeceraGuide";
+import { PpTabAdministradorIc } from "./PpTabAdministradorIc";
 import { PpTabStock } from "./PpTabStock";
 import { PpTabFacturasInternas } from "./PpTabFacturasInternas";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
@@ -45,12 +46,13 @@ const ESTADO_STYLE: Record<string, string> = {
 
 const TABS: { id: PpDetalleTab; label: string; icon: string }[] = [
   { id: "ics", label: "ICs Asignadas", icon: "📋" },
+  { id: "admin-ic", label: "Administrador de IC", icon: "⚖" },
   { id: "stock", label: "Importación / Stock", icon: "📦" },
   { id: "fi", label: "Facturas Internas", icon: "🧾" },
 ];
 
 function parseTab(raw: string | null): PpDetalleTab {
-  if (raw === "stock" || raw === "fi") return raw;
+  if (raw === "admin-ic" || raw === "stock" || raw === "fi") return raw;
   return "ics";
 }
 
@@ -345,7 +347,13 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader active="proceso-importacion" />
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main
+        className={`mx-auto py-10 ${
+          tab === "admin-ic"
+            ? "w-full max-w-[100rem] overflow-x-hidden px-3 sm:px-4"
+            : "max-w-6xl px-4 sm:px-6"
+        }`}
+      >
         <Link href={PEDIDO_PROVEEDOR} className="text-sm font-semibold text-rimec-azul hover:underline">
           ← Lista pedidos proveedor
         </Link>
@@ -553,7 +561,9 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-1">
-              {TABS.map((t) => {
+              {TABS.filter(
+                (t) => t.id !== "admin-ic" || pp.categoria_id === CATEGORIA_PROGRAMADO_ID,
+              ).map((t) => {
                 const locked = t.id === "fi" && pp.fi_bloqueada;
                 const active = tab === t.id;
                 return (
@@ -830,6 +840,10 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   + Asignar otra IC en Digitación
                 </Link>
               </section>
+            )}
+
+            {tab === "admin-ic" && pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+              <PpTabAdministradorIc pp={pp} ppId={ppId} onMsg={setMsg} />
             )}
 
             {tab === "stock" && (

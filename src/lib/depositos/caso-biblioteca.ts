@@ -40,6 +40,39 @@ export function lookupCasoLinea(
   return map.get(cod) ?? null;
 }
 
+/** Comparación insensible a mayúsculas para chips biblioteca ↔ fila PPD. */
+export function normalizeCasoNombre(raw: string | null | undefined): string {
+  return (raw ?? "").trim().toUpperCase();
+}
+
+type RowCasoMatch = {
+  linea_codigo_proveedor?: string | number | null;
+  caso_precio?: string | null;
+};
+
+/** BCL por línea + fallback `caso_precio` en molécula (paridad precio_lista). */
+export function rowMatchesCasoActivo(
+  row: RowCasoMatch,
+  casoActivo: string,
+  lineaCasoMap: Map<string, string> | null | undefined,
+): boolean {
+  const want = normalizeCasoNombre(casoActivo);
+  if (!want) return false;
+  const fromMap = lookupCasoLinea(lineaCasoMap, row.linea_codigo_proveedor);
+  if (fromMap && normalizeCasoNombre(fromMap) === want) return true;
+  const fromRow = normalizeCasoNombre(row.caso_precio);
+  return fromRow === want;
+}
+
+export function filterRowsByCasoActivo<T extends RowCasoMatch>(
+  rows: T[],
+  casoActivo: string | null,
+  lineaCasoMap: Map<string, string> | null | undefined,
+): T[] {
+  if (!casoActivo) return rows;
+  return rows.filter((r) => rowMatchesCasoActivo(r, casoActivo, lineaCasoMap));
+}
+
 /** Líneas pertenecientes a un caso (para filtro). */
 export function lineasEnCaso(caso: CasoBibliotecaLite): Set<string> {
   const set = new Set<string>();

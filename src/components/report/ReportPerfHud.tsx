@@ -47,6 +47,7 @@ export function ReportPerfHud() {
   }, [pathname]);
 
   if (process.env.NODE_ENV === "production") return null;
+  if (process.env.NEXT_PUBLIC_REPORT_PERF_HUD !== "1") return null;
   if (lines.length === 0) return null;
 
   return (
