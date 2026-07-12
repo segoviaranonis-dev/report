@@ -33,9 +33,15 @@ import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
 type Props = {
   pp: PpDetalleHeader;
   ppId: string;
-  onMsg: (msg: string) => void;
+  onMsg: (msg: string | null) => void;
   onReload?: () => void | Promise<void>;
 };
+
+function msgFromUnknown(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return "Error";
+}
 
 const CABECERA_GRID =
   "grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,1fr)_2rem_minmax(0,1fr)_2.5rem_0.9rem_1.1rem]";
@@ -194,9 +200,12 @@ function ArticuloFila({ art }: { art: PfArticuloRow }) {
         candidates={art.imageCandidates}
         size={40}
       />
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-6 gap-1">
         <span className="truncate" title="Línea">
           <strong>L</strong> {art.linea}
+        </span>
+        <span className="truncate font-semibold text-orange-900" title="Caso motor precios">
+          {art.caso && art.caso !== "—" ? art.caso : "—"}
         </span>
         <span className="truncate" title="Referencia">
           <strong>R</strong> {art.referencia}
@@ -238,7 +247,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
       setIcs(data.ics ?? []);
       setPrefacturas(data.prefacturas ?? []);
     } catch (e) {
-      onMsg(e instanceof Error ? e.message : "Error");
+      onMsg(msgFromUnknown(e));
     } finally {
       setLoading(false);
     }
@@ -382,7 +391,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
       await load();
       onMsg(`Listado IC → ${LISTADO_PRECIO_TIERS.find((t) => t.id === tier)?.label ?? tier}`);
     } catch (e) {
-      onMsg(e instanceof Error ? e.message : "Error listado IC");
+      onMsg(msgFromUnknown(e));
     }
   }
 
@@ -442,7 +451,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
         onMsg(`Atención: ${total} FI vs ${fiEsperadas} IC — revisá duplicados en tab FI.`);
       }
     } catch (e) {
-      onMsg(e instanceof Error ? e.message : "Error generando lote");
+      onMsg(msgFromUnknown(e));
     } finally {
       setGenerandoFiKey(null);
     }

@@ -570,7 +570,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
               {!pp.cabecera_editable && (
                 <p className="mt-2 text-xs text-amber-800">PP {pp.estado} — cabecera e ICs en solo lectura.</p>
               )}
-              {msg && tab !== "ics" && (
+              {typeof msg === "string" && msg && tab !== "ics" && (
                 <p className={`mt-2 text-xs ${msg.includes("guardad") || msg.includes("devuelta") || msg.includes("actualizado") ? "text-emerald-800" : "text-red-700"}`}>
                   {msg}
                 </p>

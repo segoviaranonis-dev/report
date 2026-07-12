@@ -12,9 +12,19 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onApplied: () => void;
+  /** Líneas recién importadas desde proforma — filtra y resalta en el panel. */
+  destacarCodigos?: string[];
 };
 
-export function LineasLibresPanel({ bibliotecaId, casos, nLibres, open, onClose, onApplied }: Props) {
+export function LineasLibresPanel({
+  bibliotecaId,
+  casos,
+  nLibres,
+  open,
+  onClose,
+  onApplied,
+  destacarCodigos = [],
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [lineas, setLineas] = useState<LineaLibre[]>([]);
   const [asignaciones, setAsignaciones] = useState<Record<string, number>>({});
@@ -44,13 +54,19 @@ export function LineasLibresPanel({ bibliotecaId, casos, nLibres, open, onClose,
     if (open) load();
   }, [open, load]);
 
+  const destacarSet = useMemo(() => new Set(destacarCodigos), [destacarCodigos]);
+
   const filtradas = useMemo(() => {
+    let base = lineas;
+    if (destacarSet.size > 0) {
+      base = lineas.filter((l) => destacarSet.has(l.codigo));
+    }
     const q = filtro.trim().toLowerCase();
-    if (!q) return lineas;
-    return lineas.filter(
+    if (!q) return base;
+    return base.filter(
       (l) => l.codigo.includes(q) || (l.marca?.toLowerCase().includes(q) ?? false),
     );
-  }, [lineas, filtro]);
+  }, [lineas, filtro, destacarSet]);
 
   const pendientes = useMemo(
     () => Object.entries(asignaciones).filter(([, casoId]) => casoId > 0).length,
@@ -112,6 +128,12 @@ export function LineasLibresPanel({ bibliotecaId, casos, nLibres, open, onClose,
           </h2>
           <p className="mt-0.5 text-xs text-slate-600">
             Elegí el caso comercial para cada línea y pulsá <strong>Aplicar</strong>.
+            {destacarSet.size > 0 ? (
+              <>
+                {" "}
+                · filtrando <strong>{destacarSet.size}</strong> línea(s) de proforma importada
+              </>
+            ) : null}
           </p>
         </div>
         <button
@@ -179,7 +201,12 @@ export function LineasLibresPanel({ bibliotecaId, casos, nLibres, open, onClose,
                 </thead>
                 <tbody>
                   {filtradas.map((l) => (
-                    <tr key={l.codigo} className="border-t border-amber-100/80 bg-white/60">
+                    <tr
+                      key={l.codigo}
+                      className={`border-t border-amber-100/80 ${
+                        destacarSet.has(l.codigo) ? "bg-amber-100/90" : "bg-white/60"
+                      }`}
+                    >
                       <td className="px-4 py-2 font-mono font-semibold text-rimec-azul-dark">{l.codigo}</td>
                       <td className="px-4 py-2 text-slate-600">{l.marca ?? "—"}</td>
                       <td className="px-4 py-2">

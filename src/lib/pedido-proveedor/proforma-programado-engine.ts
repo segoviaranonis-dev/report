@@ -7,6 +7,11 @@ import {
   upsertColorProforma,
   upsertMaterialProforma,
 } from "./pilares-proforma-upsert";
+import { provisionPilaresFromProforma, type ProformaPilaresStats } from "./proforma-pilares-provision";
+import {
+  buildProformaPilaresImportReport,
+  type ProformaPilaresImportReport,
+} from "./proforma-pilares-import-report";
 import {
   calcFobAjustadoPct,
   calcLineaFiPrecio,
@@ -20,7 +25,17 @@ import {
   backfillPpdShopFromSnapshot,
 } from "./proforma-snapshot";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
+import {
+  casoLineaFromMapa,
+  loadCasosEventoNombres,
+  resolveCasoMotorPrecios,
+} from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
+import {
+  backfillPpdPilarFks,
+  loadPpdPilarFkLookups,
+  resolvePpdPilarIds,
+} from "@/lib/pedido-proveedor/ppd-pilares-fk";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -74,6 +89,7 @@ export type ProformaPreviewResult = {
   listado_vinculado?: boolean;
   evento_id?: number;
   error?: string;
+  pilares_import?: ProformaPilaresImportReport;
 };
 
 export type FiCreadaProgramado = {
@@ -94,6 +110,9 @@ export type ProformaImportResult = {
   fi_creadas?: FiCreadaProgramado[];
   fi_errores?: string[];
   error?: string;
+  import_avisos?: string[];
+  precio_audit?: ProformaPrecioAuditResumen;
+  pilares_import?: ProformaPilaresImportReport;
 };
 
 type IcRow = {
@@ -143,6 +162,8 @@ export type ProformaImportPhaseResult = ProformaImportResult & {
   /** Avisos cruce proforma ↔ precio_lista al cargar PPD. */
   import_avisos?: string[];
   precio_audit?: ProformaPrecioAuditResumen;
+  /** Pilares + líneas sin biblioteca tras import. */
+  pilares_import?: ProformaPilaresImportReport;
 };
 
 type FiLineItem = {
@@ -551,6 +572,19 @@ export async function auditProformaVsPrecioLista(
   return { resumen, muestra, avisos: buildAvisosPrecioAudit(resumen, muestra) };
 }
 
+function payloadImportAvisos(
+  pilaresImport: ProformaPilaresImportReport | undefined,
+  importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null,
+): Pick<ProformaImportPhaseResult, "import_avisos" | "precio_audit" | "pilares_import"> {
+  if (!pilaresImport && !importPrecioAudit) return {};
+  const avisos = [...(pilaresImport?.avisos ?? []), ...(importPrecioAudit?.avisos ?? [])];
+  return {
+    ...(avisos.length ? { import_avisos: avisos } : {}),
+    ...(importPrecioAudit ? { precio_audit: importPrecioAudit.resumen } : {}),
+    ...(pilaresImport ? { pilares_import: pilaresImport } : {}),
+  };
+}
+
 export async function previewImportProformaProgramadoTs(
   ppId: number,
   fileBuffer: Buffer,
@@ -675,6 +709,13 @@ export async function previewImportProformaProgramadoTs(
     avisosPrecio = ["Listado vinculado sin filas en precio_lista — no se pudo auditar pilares × precios."];
   }
 
+  const pilaresPreview = await buildProformaPilaresImportReport(pool, {
+    rows: parsed.rows,
+    proveedorId: provId,
+    eventoId,
+    preview: true,
+  });
+
   return {
     ok: errores.length === 0,
     preview: true,
@@ -686,10 +727,11 @@ export async function previewImportProformaProgramadoTs(
     evento_id: eventoId,
     emparejamientos,
     errores,
-    avisos: [...avisosMatch, ...avisosPrecio],
+    avisos: [...avisosMatch, ...pilaresPreview.avisos, ...avisosPrecio],
     precio_audit: precioAudit,
     precio_audit_muestra: precioAuditMuestra,
     listado_vinculado: listadoOk,
+    pilares_import: pilaresPreview,
   };
 }
 
@@ -714,7 +756,7 @@ async function populatePpFromProforma(
   pp: PpRow,
   proforma: string,
   detalleRows: ProformaRow[],
-): Promise<{ ok: boolean; message: string }> {
+): Promise<{ ok: boolean; message: string; pilaresStats: ProformaPilaresStats }> {
   const ppId = pp.id;
   const totalPares = detalleRows.reduce((s, r) => s + r.pairs, 0);
   const totalFob = Math.round(detalleRows.reduce((s, r) => s + r.amount_fob, 0) * 100) / 100;
@@ -749,6 +791,8 @@ async function populatePpFromProforma(
     if (m.nom) marcaLookup.set(m.nom, m.id_marca);
   }
 
+  const pilaresStats = await provisionPilaresFromProforma(client, provId, detalleRows, marcaLookup);
+
   const matRes = await client.query<{ id: number; codigo: string; descripcion: string | null }>(
     "SELECT id, codigo_proveedor::text AS codigo, descripcion FROM material WHERE proveedor_id = $1::bigint",
     [provId],
@@ -763,10 +807,10 @@ async function populatePpFromProforma(
   const colLookup = new Map<string, { id: number; nombre: string }>();
   for (const c of colRes.rows) colLookup.set(c.codigo, { id: c.id, nombre: c.nombre ?? "" });
 
+  const pilarFkLookups = await loadPpdPilarFkLookups(client, provId);
+
   await client.query("DELETE FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1", [ppId]);
 
-  const healCols = new Map<string, string>();
-  const healMats = new Map<string, string>();
   const insertRows: unknown[][] = [];
 
   for (const r of detalleRows) {
@@ -779,6 +823,11 @@ async function populatePpFromProforma(
     const colCode = String(r.color_code || "").trim();
     const matHit = matLookup.get(matCode);
     const colHit = colLookup.get(colCode);
+    const { linea_id, referencia_id } = resolvePpdPilarIds(
+      pilarFkLookups,
+      r.linea_codigo_proveedor || "",
+      r.referencia_codigo_proveedor || "",
+    );
 
     insertRows.push([
       ppId,
@@ -816,15 +865,12 @@ async function populatePpFromProforma(
         _item: String(r.item ?? ""),
       }),
       Number.parseInt(r.item, 10) || 0,
+      linea_id,
+      referencia_id,
     ]);
-
-    const healCol = (r.color || "").trim();
-    if (colCode && healCol) healCols.set(colCode, healCol);
-    const healMat = (r.material || "").trim();
-    if (matCode && healMat) healMats.set(matCode, healMat);
   }
 
-  const colCount = 30;
+  const colCount = 32;
   for (let i = 0; i < insertRows.length; i += PPD_INSERT_CHUNK) {
     const chunk = insertRows.slice(i, i + PPD_INSERT_CHUNK);
     const values: unknown[] = [];
@@ -842,18 +888,24 @@ async function populatePpFromProforma(
          pedido_proveedor_id, cantidad, id_marca, ncm, style_code, linea, referencia, nombre,
          id_material, descp_material, material_code, id_color, descp_color, color_code, grada,
          t33, t34, t35, t36, t37, t38, t39, t40,
-         cantidad_cajas, cantidad_pares, unit_fob, unit_fob_ajustado, amount_fob, grades_json, fila_origen_f9
+         cantidad_cajas, cantidad_pares, unit_fob, unit_fob_ajustado, amount_fob, grades_json, fila_origen_f9,
+         linea_id, referencia_id
        ) VALUES ${tuples.join(", ")}`,
       values,
     );
   }
 
-  for (const [code, desc] of healCols) {
-    await upsertColorProforma(client, code, provId, desc);
-  }
-  for (const [code, desc] of healMats) {
-    await upsertMaterialProforma(client, code, provId, desc);
-  }
+  await backfillPpdPilarFks(client, ppId);
+
+  await client.query(
+    `UPDATE pedido_proveedor_detalle ppd
+     SET id_marca = COALESCE(l.marca_id, ppd.id_marca)
+     FROM linea l
+     WHERE ppd.pedido_proveedor_id = $1
+       AND ppd.linea_id = l.id
+       AND l.marca_id IS NOT NULL`,
+    [ppId],
+  );
 
   await saveProformaFilas(client, ppId, detalleRows);
   await backfillPpdShopFromSnapshot(client, ppId);
@@ -861,6 +913,7 @@ async function populatePpFromProforma(
   return {
     ok: true,
     message: `${totalPares.toLocaleString("es-PY")} pares · ${detalleRows.length} SKUs · USD ${totalFob.toLocaleString("es-PY")}`,
+    pilaresStats,
   };
 }
 
@@ -874,28 +927,101 @@ type SkuFi = SkuPrecioTiers & {
 };
 
 async function getSkusConPrecioParaFi(client: PoolClient, ppId: number, eventoId: number): Promise<Map<number, SkuFi>> {
-  const { rows } = await client.query<SkuFi>(
-    `SELECT ppd.id AS ppd_id, l.id AS linea_id, ref.id AS referencia_id,
-            m.id AS material_id, c.id AS color_id,
-            NULLIF(TRIM(pl.nombre_caso_aplicado), '') AS caso,
-            COALESCE(pl.lpn, 0)::float AS lpn,
-            COALESCE(pl.lpc02, 0)::float AS lpc02,
-            COALESCE(pl.lpc03, 0)::float AS lpc03,
-            COALESCE(pl.lpc04, 0)::float AS lpc04
+  const pool = getRimecPool();
+  const [mapaCasoLinea, casosEvento] = await Promise.all([
+    loadMapaCasoPorLineaEvento(pool, eventoId),
+    loadCasosEventoNombres(pool, eventoId),
+  ]);
+
+  const { rows } = await client.query<
+    SkuFi & {
+      linea: string;
+      caso_pl: string | null;
+      estilo_lr: string;
+      estilo_linea: string;
+      material: string;
+    }
+  >(
+    `SELECT ppd.id AS ppd_id, TRIM(ppd.linea) AS linea,
+            l_eff.id AS linea_id, ref_eff.id AS referencia_id,
+            m_eff.id AS material_id, c_eff.id AS color_id,
+            COALESCE(
+              NULLIF(TRIM(pl_fk.nombre_caso_aplicado), ''),
+              NULLIF(TRIM(pec_fk.nombre_caso), ''),
+              NULLIF(TRIM(pl_cod.nombre_caso_aplicado), ''),
+              NULLIF(TRIM(pec_cod.nombre_caso), ''),
+              '—'
+            ) AS caso_pl,
+            COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), NULLIF(TRIM(lr.descp_grupo_estilo), ''), '') AS estilo_lr,
+            COALESCE(NULLIF(TRIM(ge_linea.descp_grupo_estilo), ''), '') AS estilo_linea,
+            COALESCE(m_eff.descripcion, ppd.descp_material, '') AS material,
+            COALESCE(pl_fk.lpn, pl_cod.lpn, 0)::float AS lpn,
+            COALESCE(pl_fk.lpc02, pl_cod.lpc02, 0)::float AS lpc02,
+            COALESCE(pl_fk.lpc03, pl_cod.lpc03, 0)::float AS lpc03,
+            COALESCE(pl_fk.lpc04, pl_cod.lpc04, 0)::float AS lpc04,
+            NULL::text AS caso
      FROM pedido_proveedor_detalle ppd
      JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
-     LEFT JOIN linea l ON l.proveedor_id = pp.proveedor_importacion_id AND l.codigo_proveedor::text = ppd.linea
-     LEFT JOIN referencia ref ON ref.linea_id = l.id AND ref.codigo_proveedor::text = ppd.referencia
-     LEFT JOIN material m ON m.proveedor_id = pp.proveedor_importacion_id AND m.codigo_proveedor::text = ppd.material_code
-     LEFT JOIN color c ON c.codigo_proveedor::text = ppd.color_code
-     LEFT JOIN precio_lista pl ON pl.evento_id = $2 AND pl.linea_id = l.id
-                               AND pl.referencia_id = ref.id AND pl.material_id = m.id
+     LEFT JOIN linea l ON l.id = ppd.linea_id
+     LEFT JOIN linea l_cod
+       ON l_cod.proveedor_id = pp.proveedor_importacion_id AND l_cod.codigo_proveedor::text = ppd.linea AND l.id IS NULL
+     LEFT JOIN linea l_eff ON l_eff.id = COALESCE(l.id, l_cod.id)
+     LEFT JOIN referencia ref ON ref.id = ppd.referencia_id
+     LEFT JOIN referencia ref_cod
+       ON ref_cod.linea_id = l_eff.id AND ref_cod.codigo_proveedor::text = TRIM(COALESCE(ppd.referencia, '0')) AND ref.id IS NULL
+     LEFT JOIN referencia ref_eff ON ref_eff.id = COALESCE(ref.id, ref_cod.id)
+     LEFT JOIN linea_referencia lr
+       ON lr.linea_id = l_eff.id AND lr.referencia_id = ref_eff.id AND lr.proveedor_id = pp.proveedor_importacion_id
+     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+     LEFT JOIN grupo_estilo_v2 ge_linea ON ge_linea.id_grupo_estilo = l_eff.grupo_estilo_id
+     LEFT JOIN material m ON m.id = ppd.id_material
+     LEFT JOIN material m_cod
+       ON m_cod.proveedor_id = pp.proveedor_importacion_id AND m_cod.codigo_proveedor::text = ppd.material_code AND m.id IS NULL
+     LEFT JOIN material m_eff ON m_eff.id = COALESCE(m.id, m_cod.id)
+     LEFT JOIN color c ON c.id = ppd.id_color
+     LEFT JOIN color c_cod ON c_cod.codigo_proveedor::text = ppd.color_code AND c.id IS NULL
+     LEFT JOIN color c_eff ON c_eff.id = COALESCE(c.id, c_cod.id)
+     LEFT JOIN precio_lista pl_fk
+       ON pl_fk.evento_id = $2 AND pl_fk.linea_id = l_eff.id
+      AND pl_fk.referencia_id = ref_eff.id AND pl_fk.material_id = m_eff.id
+     LEFT JOIN precio_evento_caso pec_fk ON pec_fk.id = pl_fk.caso_id
+     LEFT JOIN LATERAL (
+       SELECT pl.nombre_caso_aplicado, pl.caso_id, pl.lpn, pl.lpc02, pl.lpc03, pl.lpc04
+       FROM precio_lista pl
+       WHERE pl.evento_id = $2
+         AND TRIM(pl.linea_codigo) = TRIM(ppd.linea)
+         AND TRIM(pl.referencia_codigo) = TRIM(ppd.referencia)
+         AND (m_eff.id IS NULL OR pl.material_id = m_eff.id)
+       ORDER BY CASE WHEN m_eff.id IS NOT NULL AND pl.material_id = m_eff.id THEN 0 ELSE 1 END, pl.id
+       LIMIT 1
+     ) pl_cod ON pl_fk.id IS NULL
+     LEFT JOIN precio_evento_caso pec_cod ON pec_cod.id = pl_cod.caso_id
      WHERE ppd.pedido_proveedor_id = $1 AND ppd.linea IS NOT NULL AND ppd.linea != ''`,
     [ppId, eventoId],
   );
   const map = new Map<number, SkuFi>();
   for (const r of rows) {
-    if (r.linea_id && r.referencia_id && r.material_id) map.set(r.ppd_id, r);
+    if (!r.linea_id || !r.referencia_id || !r.material_id) continue;
+    const casoEfectivo = resolveCasoMotorPrecios({
+      casoPl: r.caso_pl ?? "—",
+      casoPele: casoLineaFromMapa(mapaCasoLinea, r.linea),
+      estiloLr: r.estilo_lr,
+      estiloLinea: r.estilo_linea,
+      materialHint: r.material,
+      casosEvento,
+    });
+    map.set(r.ppd_id, {
+      ppd_id: r.ppd_id,
+      linea_id: r.linea_id,
+      referencia_id: r.referencia_id,
+      material_id: r.material_id,
+      color_id: r.color_id,
+      caso: casoEfectivo === "—" ? null : casoEfectivo,
+      lpn: r.lpn,
+      lpc02: r.lpc02,
+      lpc03: r.lpc03,
+      lpc04: r.lpc04,
+    });
   }
   return map;
 }
@@ -1077,7 +1203,6 @@ function buildProgramadoFiJobs(
       const d4 = Number(icRow.descuento_4 ?? 0);
       const tier = fiListaTier(icRow.listado_precio_id);
       const items: FiLineItem[] = [];
-      let casoFi: string | null = null;
 
       for (const r of assigned) {
         const molKey = molKeyProformaRow(r);
@@ -1097,15 +1222,7 @@ function buildProgramadoFiJobs(
         }
         const casoLinea = (sku.caso ?? "").trim();
         if (!casoLinea) {
-          avisos.push(`IC ${icRow.numero_registro}: LPN sin caso comercial PPD ${ppdId}`);
-          continue;
-        }
-        if (casoFi == null) casoFi = casoLinea;
-        else if (casoLinea !== casoFi) {
-          avisos.push(
-            `IC ${icRow.numero_registro}: caso distinto omitido (${casoLinea} ≠ ${casoFi}) PPD ${ppdId}`,
-          );
-          continue;
+          avisos.push(`IC ${icRow.numero_registro}: sin caso comercial PPD ${ppdId} — incluido en FI igual`);
         }
         const { precio_unit, precio_neto, subtotal } = calcLineaFiPrecio(sku, tier, d1, d2, d3, d4, r.pairs);
         items.push({
@@ -1231,6 +1348,7 @@ export async function importProformaProgramadoPhased(
   }
 
   let importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null = null;
+  let pilaresImportReport: ProformaPilaresImportReport | undefined;
 
   if (phase === "ppd" || phase === "all") {
     const client = await pool.connect();
@@ -1244,6 +1362,13 @@ export async function importProformaProgramadoPhased(
       await client.query("COMMIT");
       const provId = pp.proveedor_importacion_id ?? 654;
       importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
+      pilaresImportReport = await buildProformaPilaresImportReport(pool, {
+        rows: detalle,
+        proveedorId: provId,
+        eventoId,
+        stats: pop.pilaresStats,
+      });
+      const importAvisos = [...pilaresImportReport.avisos, ...importPrecioAudit.avisos];
       if (phase === "ppd") {
         return {
           ok: true,
@@ -1258,8 +1383,9 @@ export async function importProformaProgramadoPhased(
           fi_offset: 0,
           fi_offset_next: 0,
           fi_batch: fiBatchSize,
-          import_avisos: importPrecioAudit.avisos,
+          import_avisos: importAvisos,
           precio_audit: importPrecioAudit.resumen,
+          pilares_import: pilaresImportReport,
         };
       }
     } catch (e) {
@@ -1349,9 +1475,7 @@ export async function importProformaProgramadoPhased(
         fi_offset: fiOffset,
         fi_offset_next: fiTotal,
         message: "Import programado completo.",
-        ...(importPrecioAudit
-          ? { import_avisos: importPrecioAudit.avisos, precio_audit: importPrecioAudit.resumen }
-          : {}),
+        ...payloadImportAvisos(pilaresImportReport, importPrecioAudit),
       };
     }
 
@@ -1418,9 +1542,7 @@ export async function importProformaProgramadoPhased(
       fi_offset_next: nextOffset,
       fi_batch: fiBatchSize,
       fi_avisos: planAvisos.length ? planAvisos : undefined,
-      ...(importPrecioAudit
-        ? { import_avisos: importPrecioAudit.avisos, precio_audit: importPrecioAudit.resumen }
-        : {}),
+      ...payloadImportAvisos(pilaresImportReport, importPrecioAudit),
     };
   } catch (e) {
     await client.query("ROLLBACK");
@@ -1701,6 +1823,27 @@ export async function importProformaCompraPreviaTs(
       return { ok: false, error: pop.message };
     }
     await client.query("COMMIT");
+
+    const provId = pp.proveedor_importacion_id ?? 654;
+    const eventoRes = await pool.query<{ evento_id: number | null }>(
+      `SELECT icp.precio_evento_id::int AS evento_id
+       FROM intencion_compra_pedido icp
+       WHERE icp.pedido_proveedor_id = $1 AND icp.precio_evento_id IS NOT NULL
+       ORDER BY icp.id LIMIT 1`,
+      [ppId],
+    );
+    const eventoId = eventoRes.rows[0]?.evento_id ?? null;
+    const pilaresImport = await buildProformaPilaresImportReport(pool, {
+      rows: parsed.rows,
+      proveedorId: provId,
+      eventoId,
+      stats: pop.pilaresStats,
+    });
+    let importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null = null;
+    if (eventoId != null) {
+      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, parsed.rows);
+    }
+
     return {
       ok: true,
       programado: false,
@@ -1708,6 +1851,7 @@ export async function importProformaCompraPreviaTs(
       pares: parsed.totalPares,
       n_articulos: parsed.rows.length,
       message: pop.message,
+      ...payloadImportAvisos(pilaresImport, importPrecioAudit),
     };
   } catch (e) {
     await client.query("ROLLBACK");
@@ -1740,7 +1884,7 @@ export async function borrarFiReservadasProgramado(
          COALESCE(ppd.pares_vendidos, 0) - COALESCE(agg.pares, 0)
        )
        FROM (
-         SELECT fid.ppd_id, SUM(COALESCE(fid.cantidad_pares, 0))::int AS pares
+         SELECT fid.ppd_id, SUM(COALESCE(fid.pares, 0))::int AS pares
          FROM factura_interna_detalle fid
          INNER JOIN factura_interna fi ON fi.id = fid.factura_id
          WHERE fi.pp_id = $1

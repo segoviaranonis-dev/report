@@ -18,7 +18,7 @@ export function icParPrefactura(
 ): boolean {
   if (ic.id_cliente !== pf.id_cliente) return false;
   if (ic.id_marca === pf.id_marca) return true;
-  const caso = pf.caso.trim();
+  const caso = String(pf.caso ?? "—").trim();
   if (!caso || caso === "—") return false;
   return normAdminEtiqueta(ic.marca) === normAdminEtiqueta(caso);
 }
@@ -143,7 +143,7 @@ export function marcaAlineacionPrefactura(
   pf: Pick<PreFacturaInterna, "id_cliente" | "marca" | "caso">,
   ics: Pick<IcAdminRow, "id_cliente" | "marca">[],
 ): string {
-  const caso = pf.caso.trim();
+  const caso = String(pf.caso ?? "—").trim();
   if (caso && caso !== "—") {
     const icPorCaso = ics.find(
       (ic) => ic.id_cliente === pf.id_cliente && normAdminEtiqueta(ic.marca) === normAdminEtiqueta(caso),
@@ -262,12 +262,14 @@ export function cmpAdminFilasLote(
   montoB: number,
   tieB: string,
 ) {
+  const a = String(tieA ?? "");
+  const b = String(tieB ?? "");
   return (
     clienteA - clienteB ||
     marcaA.localeCompare(marcaB, "es") ||
     paresA - paresB ||
     montoA - montoB ||
-    tieA.localeCompare(tieB, "es")
+    a.localeCompare(b, "es")
   );
 }
 

@@ -5,10 +5,21 @@ import { listIcsVinculadasPp } from "@/lib/pedido-proveedor/detail-query";
 import { labelListadoPrecio, type ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
 import { normAdminEtiqueta, subtotalSinDescuento } from "@/lib/pedido-proveedor/administrador-ic-monto";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
+import {
+  casoLineaFromMapa,
+  loadCasosEventoNombres,
+  resolveCasoMotorPrecios,
+} from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 
 export type PfArticuloRow = {
   ppd_id: number;
+  linea_id: number | null;
+  referencia_id: number | null;
+  material_id: number | null;
+  color_id: number | null;
+  /** Caso comercial motor de precios / biblioteca (precio_lista · PELE). */
+  caso: string;
   linea: string;
   referencia: string;
   material_code: string;
@@ -41,9 +52,7 @@ export type PreFacturaInterna = {
 };
 
 export type IcAdminRow = PpIcVinculada & {
-  /** Monto registrado en IC (bruto · referencia comercial). */
   monto_ic: number;
-  /** Monto calculado proforma × listado IC · sin descuentos (fase parejas). */
   monto_proforma: number;
   listado_tier: ListadoPrecioTierId;
   listado_label: string;
@@ -59,9 +68,13 @@ type PpdPfRow = {
   shop: string;
   id_marca: number;
   marca: string;
-  caso: string;
+  caso_pl: string;
   linea: string;
   referencia: string;
+  linea_id: number | null;
+  referencia_id: number | null;
+  material_id: number | null;
+  color_id: number | null;
   material_code: string;
   material: string;
   color_code: string;
@@ -72,9 +85,26 @@ type PpdPfRow = {
   lpc02: number;
   lpc03: number;
   lpc04: number;
+  estilo_lr: string;
+  estilo_linea: string;
 };
 
-function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId): PfArticuloRow {
+function resolveCasoNorm(
+  r: PpdPfRow,
+  mapaCasoLinea: Map<string, string>,
+  casosEvento: Set<string>,
+): string {
+  return resolveCasoMotorPrecios({
+    casoPl: r.caso_pl,
+    casoPele: casoLineaFromMapa(mapaCasoLinea, r.linea),
+    estiloLr: r.estilo_lr,
+    estiloLinea: r.estilo_linea,
+    materialHint: r.material,
+    casosEvento,
+  });
+}
+
+function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId, caso: string): PfArticuloRow {
   const { precio_unit, subtotal } = subtotalSinDescuento(
     { lpn: r.lpn, lpc02: r.lpc02, lpc03: r.lpc03, lpc04: r.lpc04 },
     tier,
@@ -88,6 +118,11 @@ function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId): PfArticuloRow {
   ).filter(Boolean);
   return {
     ppd_id: r.ppd_id,
+    linea_id: r.linea_id,
+    referencia_id: r.referencia_id,
+    material_id: r.material_id,
+    color_id: r.color_id,
+    caso,
     linea: r.linea,
     referencia: r.referencia,
     material_code: r.material_code ?? "",
@@ -106,21 +141,15 @@ function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId): PfArticuloRow {
   };
 }
 
-function resolveCasoNorm(r: PpdPfRow, mapaCasoLinea: Map<string, string>): string {
-  const lineaNorm = String(Math.trunc(Number(r.linea)));
-  const casoPl = r.caso.trim();
-  const casoMatriz = mapaCasoLinea.get(lineaNorm) ?? "";
-  return (casoPl && casoPl !== "—" ? casoPl : casoMatriz).trim() || "—";
-}
-
 function ppdRowParIc(
   ic: PpIcVinculada,
   r: PpdPfRow,
   mapaCasoLinea: Map<string, string>,
+  casosEvento: Set<string>,
 ): boolean {
   if (Number(r.shop) !== ic.id_cliente) return false;
   if (r.id_marca === ic.id_marca) return true;
-  const casoNorm = resolveCasoNorm(r, mapaCasoLinea);
+  const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
   if (!casoNorm || casoNorm === "—") return false;
   return normAdminEtiqueta(ic.marca) === normAdminEtiqueta(casoNorm);
 }
@@ -129,11 +158,12 @@ function estimateIcMontoProforma(
   ic: PpIcVinculada,
   ppdRows: PpdPfRow[],
   mapaCasoLinea: Map<string, string>,
+  casosEvento: Set<string>,
 ): number {
   const tier = fiListaTier(ic.listado_precio_id ?? 1);
   let sum = 0;
   for (const r of ppdRows) {
-    if (!ppdRowParIc(ic, r, mapaCasoLinea)) continue;
+    if (!ppdRowParIc(ic, r, mapaCasoLinea, casosEvento)) continue;
     const { subtotal } = subtotalSinDescuento(
       { lpn: r.lpn, lpc02: r.lpc02, lpc03: r.lpc03, lpc04: r.lpc04 },
       tier,
@@ -157,46 +187,98 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
   ]);
 
   const eventoId = ppMeta.rows[0]?.evento_id ?? null;
-  const mapaCasoLinea = eventoId ? await loadMapaCasoPorLineaEvento(pool, eventoId) : new Map<string, string>();
+  const [mapaCasoLinea, casosEvento] = await Promise.all([
+    eventoId ? loadMapaCasoPorLineaEvento(pool, eventoId) : Promise.resolve(new Map<string, string>()),
+    eventoId ? loadCasosEventoNombres(pool, eventoId) : Promise.resolve(new Set<string>()),
+  ]);
 
   const { rows: ppdRows } = await pool.query<PpdPfRow>(
     `
     SELECT
       ppd.id AS ppd_id,
       COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '0') AS shop,
-      ppd.id_marca,
-      mv.descp_marca AS marca,
-      COALESCE(NULLIF(TRIM(pl.nombre_caso_aplicado), ''), '—') AS caso,
+      COALESCE(l_eff.marca_id, ppd.id_marca)::int AS id_marca,
+      COALESCE(mv_pilar.descp_marca, mv_excel.descp_marca, '—') AS marca,
+      COALESCE(
+        NULLIF(TRIM(pl_fk.nombre_caso_aplicado), ''),
+        NULLIF(TRIM(pec_fk.nombre_caso), ''),
+        NULLIF(TRIM(pl_cod.nombre_caso_aplicado), ''),
+        NULLIF(TRIM(pec_cod.nombre_caso), ''),
+        '—'
+      ) AS caso_pl,
       TRIM(ppd.linea) AS linea,
       TRIM(ppd.referencia) AS referencia,
+      l_eff.id AS linea_id,
+      ref_eff.id AS referencia_id,
+      m_eff.id AS material_id,
+      c_eff.id AS color_id,
       ppd.material_code,
-      COALESCE(ppd.descp_material, '') AS material,
+      COALESCE(m_eff.descripcion, ppd.descp_material, '') AS material,
       ppd.color_code,
-      COALESCE(ppd.descp_color, '') AS color,
+      COALESCE(c_eff.nombre, ppd.descp_color, '') AS color,
       ppd.grada,
       COALESCE(ppd.cantidad_pares, 0)::int AS pares,
-      COALESCE(pl.lpn, 0)::float AS lpn,
-      COALESCE(pl.lpc02, 0)::float AS lpc02,
-      COALESCE(pl.lpc03, 0)::float AS lpc03,
-      COALESCE(pl.lpc04, 0)::float AS lpc04
+      COALESCE(pl_fk.lpn, pl_cod.lpn, ppd.precio_lpn, 0)::float AS lpn,
+      COALESCE(pl_fk.lpc02, pl_cod.lpc02, ppd.precio_lpc02, 0)::float AS lpc02,
+      COALESCE(pl_fk.lpc03, pl_cod.lpc03, ppd.precio_lpc03, 0)::float AS lpc03,
+      COALESCE(pl_fk.lpc04, pl_cod.lpc04, ppd.precio_lpc04, 0)::float AS lpc04,
+      COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), NULLIF(TRIM(lr.descp_grupo_estilo), ''), '') AS estilo_lr,
+      COALESCE(NULLIF(TRIM(ge_linea.descp_grupo_estilo), ''), '') AS estilo_linea
     FROM pedido_proveedor_detalle ppd
     JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
-    JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
-    LEFT JOIN linea l
-      ON l.proveedor_id = pp.proveedor_importacion_id AND l.codigo_proveedor::text = ppd.linea
-    LEFT JOIN referencia ref
-      ON ref.linea_id = l.id AND ref.codigo_proveedor::text = ppd.referencia
-    LEFT JOIN material m
-      ON m.proveedor_id = pp.proveedor_importacion_id AND m.codigo_proveedor::text = ppd.material_code
-    LEFT JOIN precio_lista pl
-      ON pl.evento_id = $2
-     AND pl.linea_id = l.id
-     AND pl.referencia_id = ref.id
-     AND pl.material_id = m.id
+    LEFT JOIN marca_v2 mv_excel ON mv_excel.id_marca = ppd.id_marca
+    LEFT JOIN linea l ON l.id = ppd.linea_id
+    LEFT JOIN linea l_cod
+      ON l_cod.proveedor_id = pp.proveedor_importacion_id
+     AND l_cod.codigo_proveedor::text = TRIM(ppd.linea)
+     AND l.id IS NULL
+    LEFT JOIN linea l_eff ON l_eff.id = COALESCE(l.id, l_cod.id)
+    LEFT JOIN referencia ref ON ref.id = ppd.referencia_id
+    LEFT JOIN referencia ref_cod
+      ON ref_cod.linea_id = l_eff.id
+     AND ref_cod.codigo_proveedor::text = TRIM(COALESCE(ppd.referencia, '0'))
+     AND ref.id IS NULL
+    LEFT JOIN referencia ref_eff ON ref_eff.id = COALESCE(ref.id, ref_cod.id)
+    LEFT JOIN linea_referencia lr
+      ON lr.linea_id = l_eff.id
+     AND lr.referencia_id = ref_eff.id
+     AND lr.proveedor_id = pp.proveedor_importacion_id
+    LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN grupo_estilo_v2 ge_linea ON ge_linea.id_grupo_estilo = l_eff.grupo_estilo_id
+    LEFT JOIN marca_v2 mv_pilar ON mv_pilar.id_marca = l_eff.marca_id
+    LEFT JOIN material m ON m.id = ppd.id_material
+    LEFT JOIN material m_cod
+      ON m_cod.proveedor_id = pp.proveedor_importacion_id
+     AND m_cod.codigo_proveedor::text = TRIM(ppd.material_code)
+     AND m.id IS NULL
+    LEFT JOIN material m_eff ON m_eff.id = COALESCE(m.id, m_cod.id)
+    LEFT JOIN color c ON c.id = ppd.id_color
+    LEFT JOIN color c_cod
+      ON c_cod.proveedor_id = pp.proveedor_importacion_id
+     AND c_cod.codigo_proveedor::text = TRIM(ppd.color_code)
+     AND c.id IS NULL
+    LEFT JOIN color c_eff ON c_eff.id = COALESCE(c.id, c_cod.id)
+    LEFT JOIN precio_lista pl_fk
+      ON pl_fk.evento_id = $2
+     AND pl_fk.linea_id = l_eff.id
+     AND pl_fk.referencia_id = ref_eff.id
+     AND pl_fk.material_id = m_eff.id
+    LEFT JOIN precio_evento_caso pec_fk ON pec_fk.id = pl_fk.caso_id
+    LEFT JOIN LATERAL (
+      SELECT pl.nombre_caso_aplicado, pl.caso_id, pl.lpn, pl.lpc02, pl.lpc03, pl.lpc04
+      FROM precio_lista pl
+      WHERE pl.evento_id = $2
+        AND TRIM(pl.linea_codigo) = TRIM(ppd.linea)
+        AND TRIM(pl.referencia_codigo) = TRIM(ppd.referencia)
+        AND (m_eff.id IS NULL OR pl.material_id = m_eff.id)
+      ORDER BY CASE WHEN m_eff.id IS NOT NULL AND pl.material_id = m_eff.id THEN 0 ELSE 1 END, pl.id
+      LIMIT 1
+    ) pl_cod ON pl_fk.id IS NULL
+    LEFT JOIN precio_evento_caso pec_cod ON pec_cod.id = pl_cod.caso_id
     WHERE ppd.pedido_proveedor_id = $1
       AND ppd.linea IS NOT NULL
       AND TRIM(ppd.linea) <> ''
-    ORDER BY shop, mv.descp_marca, caso, ppd.id
+    ORDER BY shop, marca, caso_pl, ppd.id
     `,
     [ppId, eventoId],
   );
@@ -206,9 +288,9 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
 
   for (const r of ppdRows) {
     const idCliente = Number(r.shop) || 0;
-    const casoNorm = resolveCasoNorm(r, mapaCasoLinea);
+    const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
     const pfKey = `${idCliente}|${r.id_marca}|${casoNorm}`;
-    const art = buildArticulo(r, defaultPfTier);
+    const art = buildArticulo(r, defaultPfTier, casoNorm);
 
     const existing = pfMap.get(pfKey);
     if (existing) {
@@ -236,7 +318,7 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
     return {
       ...ic,
       monto_ic: Math.round(Number(ic.monto_bruto ?? 0)),
-      monto_proforma: estimateIcMontoProforma(ic, ppdRows, mapaCasoLinea),
+      monto_proforma: estimateIcMontoProforma(ic, ppdRows, mapaCasoLinea, casosEvento),
       listado_tier: tier,
       listado_label: labelListadoPrecio(tier),
     };

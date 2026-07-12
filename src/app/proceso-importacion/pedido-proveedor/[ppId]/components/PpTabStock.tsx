@@ -13,6 +13,7 @@ import {
 } from "@/lib/intencion-compra/quincena-arribo";
 import type { EmparejamientoShop } from "@/lib/pedido-proveedor/run-python-pp";
 import type { ProformaPrecioAuditResumen } from "@/lib/pedido-proveedor/proforma-programado-engine";
+import type { ProformaPilaresImportReport } from "@/lib/pedido-proveedor/proforma-pilares-import-report";
 import { pedidoProveedorDetalle } from "@/lib/report/routes";
 import { CATEGORIA_COMPRA_PREVIA_ID, CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import type { AlzarWebPreview } from "@/lib/pedido-proveedor/alzar-web";
@@ -25,6 +26,12 @@ import {
 
 /** Debe coincidir con PROFORMA_FI_BATCH_SIZE del engine (evitar import server-side en cliente). */
 const PROFORMA_FI_BATCH_SIZE = 12;
+
+function urlBibliotecaAsignar(bibliotecaId: number, codigos: string[]): string {
+  const params = new URLSearchParams({ abrir: "1" });
+  if (codigos.length) params.set("destacar", codigos.join(","));
+  return `/proceso-importacion/motor-precios/biblioteca/${bibliotecaId}?${params.toString()}`;
+}
 
 const QUINCENA_IDS = Object.keys(QUINCENA_ARRIBO_CATALOGO).map(Number).sort((a, b) => a - b);
 
@@ -75,6 +82,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [previewErrores, setPreviewErrores] = useState<string[]>([]);
   const [previewAvisos, setPreviewAvisos] = useState<string[]>([]);
   const [precioAudit, setPrecioAudit] = useState<ProformaPrecioAuditResumen | null>(null);
+  const [pilaresImport, setPilaresImport] = useState<ProformaPilaresImportReport | null>(null);
   const [previewPares, setPreviewPares] = useState<number | null>(null);
   const [alzarPreview, setAlzarPreview] = useState<AlzarWebPreview | null>(null);
   const [alzarLoading, setAlzarLoading] = useState(false);
@@ -235,6 +243,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     setPreviewErrores([]);
     setPreviewAvisos([]);
     setPrecioAudit(null);
+    setPilaresImport(null);
     try {
       const fd = new FormData();
       fd.append("file", proformaFile);
@@ -249,16 +258,20 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         throw new Error(data.error || "Error en preview");
       }
 
-      setPreviewRows(data.emparejamientos ?? []);
-      setPreviewOk(Boolean(data.ok));
+      const emparejamientos = (data.emparejamientos ?? []) as EmparejamientoShop[];
+      const shopMatchOk =
+        emparejamientos.length > 0 && emparejamientos.every((r) => r.match);
+      setPreviewRows(emparejamientos);
+      setPreviewOk(Boolean(data.ok) && shopMatchOk);
       setPreviewErrores(data.errores ?? []);
       setPreviewAvisos(data.avisos ?? []);
       setPrecioAudit(data.precio_audit ?? null);
+      setPilaresImport((data.pilares_import as ProformaPilaresImportReport | undefined) ?? null);
       setPreviewPares(data.total_pares ?? null);
 
       if (!data.listado_vinculado) {
         onMsg("Preview OK parcial — vinculá el listado RIMEC antes de confirmar import.");
-      } else if (data.ok) {
+      } else if (data.ok && shopMatchOk) {
         const nAvisos = data.avisos?.length ?? 0;
         const audit = data.precio_audit as ProformaPrecioAuditResumen | undefined;
         const precioWarn =
@@ -269,6 +282,11 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           nAvisos > 0
             ? `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · ${nAvisos} aviso(s) pilares/precio${precioWarn}.`
             : `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · precios OK.`,
+        );
+      } else if (data.ok && !shopMatchOk) {
+        const nBad = emparejamientos.filter((r) => !r.match).length;
+        onMsg(
+          `Preview: ${nBad} SHOP(s) con pares ≠ IC — revisá tabla abajo. Paso 2 bloqueado hasta match total.`,
         );
       } else {
         const nErr = data.errores?.length ?? 0;
@@ -399,9 +417,14 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       }
 
       let msg = `Proforma importada · ${Number(data.pares ?? 0).toLocaleString("es-PY")} pares · ${data.n_articulos ?? "?"} moléculas.`;
+      const pilaresReport = data.pilares_import as ProformaPilaresImportReport | undefined;
+      if (pilaresReport) setPilaresImport(pilaresReport);
       const importAvisos = data.import_avisos as string[] | undefined;
       if (importAvisos?.length) {
-        msg += ` ⚠ ${importAvisos.length} aviso(s) pilares/precio (ver preview).`;
+        const nBib = pilaresReport?.lineas_sin_biblioteca.length ?? 0;
+        msg += nBib > 0
+          ? ` ⚠ ${nBib} línea(s) sin caso en biblioteca — asigná en Motor.`
+          : ` ⚠ ${importAvisos.length} aviso(s) pilares/precio.`;
       }
       if (esProgramado) {
         const nFi = Number(data.n_fi ?? 0);
@@ -584,6 +607,50 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
               {" "}· límite {pp.pares_comprometidos.toLocaleString("es-PY")} pares
             </p>
           </div>
+
+          {pilaresImport && (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50/70 p-4 shadow-sm">
+              <h3 className="text-sm font-bold text-amber-900">Pilares × biblioteca (proforma)</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-950">
+                {pilaresImport.avisos.map((av) => (
+                  <li key={av}>{av}</li>
+                ))}
+              </ul>
+              {pilaresImport.biblioteca_id && pilaresImport.lineas_sin_biblioteca.length > 0 ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <p className="text-xs text-amber-900">
+                    <span className="font-mono font-semibold">
+                      {pilaresImport.lineas_sin_biblioteca.join(", ")}
+                    </span>{" "}
+                    → sin caso en «{pilaresImport.biblioteca_nombre}»
+                  </p>
+                  <Link
+                    href={urlBibliotecaAsignar(
+                      pilaresImport.biblioteca_id,
+                      pilaresImport.lineas_sin_biblioteca,
+                    )}
+                    className="rounded-lg bg-rimec-azul px-3 py-1.5 text-xs font-bold text-white hover:bg-rimec-azul-light"
+                  >
+                    Asignar en biblioteca →
+                  </Link>
+                </div>
+              ) : null}
+              {pilaresImport.lineas_en_biblioteca?.length ? (
+                <div className="mt-3 rounded-lg border border-slate-200 bg-white/80 p-3">
+                  <p className="text-[10px] font-bold uppercase text-slate-600">
+                    Ya en biblioteca (no libres — revisar caso)
+                  </p>
+                  <ul className="mt-1 max-h-32 overflow-y-auto text-xs font-mono text-slate-800">
+                    {pilaresImport.lineas_en_biblioteca.map((r) => (
+                      <li key={r.codigo}>
+                        {r.codigo} → <span className="font-semibold text-rimec-azul">{r.caso}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           <div className={sectionCls}>
             <h3 className="text-xs font-bold uppercase text-slate-500">1 · Cabecera comercial</h3>

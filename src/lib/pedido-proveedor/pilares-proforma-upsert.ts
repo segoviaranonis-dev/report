@@ -4,7 +4,10 @@ import {
   estandarToTono,
   sugerirColorEstandarFromCatalog,
 } from "@/lib/pilares/colores-estandar";
-import { parseTonoCanon } from "@/lib/pilares/color-canon";
+import { colorPredominante, normalizarEtiqueta, parseTonoCanon, tonoSolido } from "@/lib/pilares/color-canon";
+
+/** Cliente transaccional pg (PoolClient o Client). */
+export type PgQueryable = Pick<PoolClient, "query">;
 
 function parseCodigoProveedor(codigo: string): number {
   const s = String(codigo ?? "").trim();
@@ -13,7 +16,7 @@ function parseCodigoProveedor(codigo: string): number {
 }
 
 export async function upsertMaterialProforma(
-  client: PoolClient,
+  client: PgQueryable,
   codigo: string,
   proveedorId: number,
   descripcion: string | null | undefined,
@@ -40,7 +43,7 @@ function tonoSinAsignar(raw: unknown): boolean {
 }
 
 export async function upsertColorProforma(
-  client: PoolClient,
+  client: PgQueryable,
   codigo: string,
   proveedorId: number,
   nombre: string | null | undefined,
@@ -68,10 +71,14 @@ export async function upsertColorProforma(
   const tonoRaw = ins.rows[0].tono_canon;
   if (!tonoSinAsignar(tonoRaw)) return;
 
-  const sug = sugerirColorEstandarFromCatalog(nom, COLORES_ESTANDAR_DEFAULT);
-  if (!sug) return;
-
-  const tono = estandarToTono(sug);
+  const predominante = colorPredominante(nom);
+  const sug = sugerirColorEstandarFromCatalog(predominante || nom, COLORES_ESTANDAR_DEFAULT);
+  const tono = sug
+    ? estandarToTono(sug)
+    : predominante
+      ? tonoSolido(normalizarEtiqueta(predominante), "#94a3b8")
+      : null;
+  if (!tono) return;
   const hexWeb = tono.tipo === "solido" ? tono.hex : (tono.swatches[0] ?? "#64748b");
 
   await client.query(

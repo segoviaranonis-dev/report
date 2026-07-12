@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import type { BibliotecaEditorPayload } from "@/lib/motor-precios/biblioteca-editor";
@@ -12,10 +13,19 @@ import { CopiarCasosDesdeBibliotecaEditor } from "./CopiarCasosDesdeBibliotecaEd
 import { LineasLibresPanel } from "./LineasLibresPanel";
 
 export function BibliotecaEditorClient({ bibliotecaId }: { bibliotecaId: number }) {
+  const searchParams = useSearchParams();
+  const destacarCodigos = useMemo(() => {
+    const raw = searchParams.get("destacar") ?? "";
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }, [searchParams]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BibliotecaEditorPayload | null>(null);
-  const [libresOpen, setLibresOpen] = useState(false);
+  const [libresOpen, setLibresOpen] = useState(searchParams.get("abrir") === "1");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,6 +46,12 @@ export function BibliotecaEditorClient({ bibliotecaId }: { bibliotecaId: number 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (searchParams.get("abrir") === "1" && data && data.resumen.n_libres > 0) {
+      setLibresOpen(true);
+    }
+  }, [data, searchParams]);
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
@@ -104,6 +120,7 @@ export function BibliotecaEditorClient({ bibliotecaId }: { bibliotecaId: number 
               open={libresOpen}
               onClose={() => setLibresOpen(false)}
               onApplied={load}
+              destacarCodigos={destacarCodigos}
             />
 
             <div className="mt-8 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950">
