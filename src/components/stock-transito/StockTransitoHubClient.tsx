@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { StockTransitoResumen } from "@/lib/stock-transito/queries-resumen";
+import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 
 const fmtN = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
 
@@ -26,8 +27,8 @@ const CARDS = [
     lead: "Detalle de partidas vendidas · cantidad vendida por producto en pedidos proveedor compra previa.",
     badge: "VENTAS · pares_vendidos",
     icon: "📈",
-    border: "border-rose-300 hover:border-rose-600",
-    bg: "hover:bg-rose-50/80",
+    border: `${VENTA_VISUAL.hubBorder}`,
+    bg: VENTA_VISUAL.hubBg,
     kpiKey: "vendido" as const,
   },
 ] as const;
@@ -53,8 +54,8 @@ export function StockTransitoHubClient({ resumen }: Props) {
           </dd>
         </div>
         <div>
-          <dt className="text-[10px] font-bold uppercase tracking-wide text-rose-700">Vendido</dt>
-          <dd className="font-serif text-lg font-semibold tabular-nums text-rose-800">
+          <dt className={`text-[10px] font-bold uppercase tracking-wide ${VENTA_VISUAL.label}`}>Vendido</dt>
+          <dd className={`font-serif text-lg font-semibold tabular-nums ${VENTA_VISUAL.value}`}>
             {fmtN(resumen.pares_vendidos)}
           </dd>
         </div>

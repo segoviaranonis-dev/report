@@ -38,6 +38,36 @@ function moleculeKey(p: DepositoRow): string {
   );
 }
 
+function compradoresForCard(
+  items: DepositoRow[],
+  molKey: string,
+  ventasPorMol?: Map<string, VentaCompradorLinea[]> | null,
+): VentaCompradorLinea[] {
+  if (!ventasPorMol?.size) return [];
+
+  const ppIds = [...new Set(items.map((i) => i.pp_id).filter((id): id is number => id != null))];
+  const bucket = new Map<string, number>();
+
+  const addLines = (lines: VentaCompradorLinea[] | undefined) => {
+    for (const c of lines ?? []) {
+      bucket.set(c.etiqueta, (bucket.get(c.etiqueta) ?? 0) + c.pares);
+    }
+  };
+
+  if (ppIds.length === 0) {
+    addLines(ventasPorMol.get(molKey));
+  } else {
+    for (const ppId of ppIds) {
+      addLines(ventasPorMol.get(`${molKey}|${ppId}`) ?? ventasPorMol.get(molKey));
+    }
+  }
+
+  return [...bucket.entries()]
+    .map(([etiqueta, pares]) => ({ etiqueta, pares }))
+    .filter((l) => l.pares > 0)
+    .sort((a, b) => b.pares - a.pares || a.etiqueta.localeCompare(b.etiqueta, "es"));
+}
+
 function canonCurva(raw: string | null | undefined): string {
   const s = String(raw ?? "").trim();
   return s && s !== "—" ? s : "(sin grada)";
@@ -123,7 +153,7 @@ export function agruparPeImportadora(
         casoComercial:
           lookupCasoLinea(casoPorLinea, p.linea_codigo_proveedor) ?? p.caso_precio?.trim() ?? null,
         llegadaDesc: llegadaDescFromRows(items),
-        compradores: opts?.ventasPorMol?.get(molKey) ?? [],
+        compradores: compradoresForCard(items, molKey, opts?.ventasPorMol),
       };
     })
     .sort((a, b) => {

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { VENTA_VISUAL, ventaTileClass } from "@/lib/nexus/venta-visual";
 import type { EntidadActivoResumen, PanelControlResumen } from "@/lib/panel-control/queries-resumen";
 
 const fmtN = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -63,7 +64,7 @@ function PeRamoBlock({
         </div>
         <div>
           <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Vendido</dt>
-          <dd className="font-medium tabular-nums text-rose-700">{fmtN(ramo.pares_vendidos)}</dd>
+          <dd className={`font-medium tabular-nums ${VENTA_VISUAL.label}`}>{fmtN(ramo.pares_vendidos)}</dd>
         </div>
         <div>
           <dt className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Productos</dt>
@@ -82,6 +83,7 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
   const st = ENTITY_STYLE[e.entidad];
 
   const dualCp = e.entidad === "COMPRA_PREVIA";
+  const dualProg = e.entidad === "PROGRAMADO";
   const peRamos = e.entidad === "STOCK" && e.ramos;
 
   return (
@@ -120,7 +122,7 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Vendido</dt>
-              <dd className="font-medium text-rose-700">{fmtN(e.pares_vendidos)}</dd>
+              <dd className={`font-medium ${VENTA_VISUAL.label}`}>{fmtN(e.pares_vendidos)}</dd>
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Productos</dt>
@@ -153,21 +155,39 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
               </span>
               <span className="mt-2 text-[10px] font-semibold text-rimec-azul">Operativa + Artículos →</span>
             </Link>
-            <Link
-              href="/stock-transito/ventas"
-              className="flex flex-col rounded-xl border border-rose-200 bg-rose-50/80 p-3 transition hover:border-rose-400 hover:bg-rose-50"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wide text-rose-800">Ventas ejecutadas</span>
-              <span className="mt-1 font-serif text-lg font-semibold tabular-nums text-rose-900">
+            <Link href="/stock-transito/ventas" className={ventaTileClass}>
+              <span className={`text-[10px] font-bold uppercase tracking-wide ${VENTA_VISUAL.tileTitle}`}>
+                Ventas ejecutadas
+              </span>
+              <span className={`mt-1 font-serif text-lg font-semibold tabular-nums ${VENTA_VISUAL.valueStrong}`}>
                 {fmtN(e.pares_vendidos)} p
               </span>
-              <span className="mt-2 text-[10px] font-semibold text-rose-700">Detalle partidas →</span>
+              <span className={`mt-2 text-[10px] font-semibold ${VENTA_VISUAL.tileLink}`}>Detalle partidas →</span>
             </Link>
             <Link
               href={e.enlace_report}
               className="sm:col-span-2 text-center text-[10px] font-medium text-slate-500 hover:text-rimec-azul hover:underline"
             >
               Ver hub compra previa tránsito
+            </Link>
+          </div>
+        ) : dualProg ? (
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Link href="/stock-programado" className={`flex flex-col rounded-xl border p-3 transition ${st.btn}`}>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-amber-900">Operativa</span>
+              <span className="mt-1 font-serif text-lg font-semibold tabular-nums text-amber-950">
+                {fmtN(e.pares_saldo)} p saldo
+              </span>
+              <span className="mt-2 text-[10px] font-semibold text-amber-800">Grilla + Artículos →</span>
+            </Link>
+            <Link href="/stock-programado?proforma=8051" className={ventaTileClass}>
+              <span className={`text-[10px] font-bold uppercase tracking-wide ${VENTA_VISUAL.tileTitle}`}>
+                Ventas ejecutadas
+              </span>
+              <span className={`mt-1 font-serif text-lg font-semibold tabular-nums ${VENTA_VISUAL.valueStrong}`}>
+                {fmtN(e.pares_vendidos)} p
+              </span>
+              <span className={`mt-2 text-[10px] font-semibold ${VENTA_VISUAL.tileLink}`}>Proforma 8051 →</span>
             </Link>
           </div>
         ) : (

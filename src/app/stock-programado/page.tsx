@@ -12,6 +12,7 @@ const EMPTY_RESUMEN = {
   pares_vendidos: 0,
   pares_saldo: 0,
   por_quincena: [],
+  por_proforma: [],
 };
 
 export default async function StockProgramadoPage() {

@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { IcDePp } from "@/lib/digitacion/bandeja-query";
+import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { formatCategoriaPp, ppCabeceraEditable } from "./cabecera-actions";
 
 export type PpDetalleHeader = {
@@ -80,6 +81,7 @@ export type PpIcVinculada = IcDePp & {
   descuento_3: number;
   descuento_4: number;
   id_plazo: number | null;
+  plazo_nombre: string | null;
   id_marca: number;
   id_vendedor: number;
   id_proveedor: number;
@@ -113,7 +115,8 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     descuento_3: string | null;
     descuento_4: string | null;
     total_articulos: string;
-    total_vendido: string;
+    vendido_vt: string;
+    vendido_ppd: string;
     pares_ic_sum: string;
     pares_ppd_inicial: string;
     evento_id: string | null;
@@ -192,21 +195,21 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
        FROM pedido_proveedor_detalle ppd5
        WHERE ppd5.pedido_proveedor_id = pp.id AND ppd5.linea IS NOT NULL) AS total_articulos,
       (
-        SELECT GREATEST(
-          COALESCE(
-            (SELECT SUM(vt2.cantidad_vendida)
-             FROM venta_transito vt2
-             WHERE vt2.pedido_proveedor_id = pp.id),
-            0
-          ),
-          COALESCE(
-            (SELECT SUM(ppd6.pares_vendidos)
-             FROM pedido_proveedor_detalle ppd6
-             WHERE ppd6.pedido_proveedor_id = pp.id),
-            0
-          )
+        SELECT COALESCE(
+          (SELECT SUM(vt2.cantidad_vendida)
+           FROM venta_transito vt2
+           WHERE vt2.pedido_proveedor_id = pp.id),
+          0
         )::text
-      ) AS total_vendido,
+      ) AS vendido_vt,
+      (
+        SELECT COALESCE(
+          (SELECT SUM(ppd6.pares_vendidos)
+           FROM pedido_proveedor_detalle ppd6
+           WHERE ppd6.pedido_proveedor_id = pp.id),
+          0
+        )::text
+      ) AS vendido_ppd,
       (
         SELECT COALESCE(SUM(ic7.cantidad_total_pares), 0)::text
         FROM intencion_compra_pedido icp7
@@ -251,8 +254,16 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
   const paresDb = Number(r.pares_comprometidos ?? 0);
   const paresIcSum = Number(r.pares_ic_sum ?? 0);
   const paresPpdInicial = Number(r.pares_ppd_inicial ?? 0);
-  const vendido = Number(r.total_vendido ?? 0);
+  const vendidoVt = Number(r.vendido_vt ?? 0);
+  const vendidoPpd = Number(r.vendido_ppd ?? 0);
+  const nFi = Number(r.n_fi ?? 0);
   const categoriaId = r.categoria_id != null ? Number(r.categoria_id) : null;
+
+  /** PROGRAMADO sin FI: reserva stock (pares_vendidos) no cuenta — saldo = inicial. */
+  const vendido =
+    categoriaId === CATEGORIA_PROGRAMADO_ID && nFi === 0
+      ? vendidoVt
+      : Math.max(vendidoVt, vendidoPpd);
 
   /** PARES IC: cabecera BD · fallback suma ICs (programado multi-IC). */
   const paresComprometidos = Math.max(paresDb, paresIcSum);
@@ -502,6 +513,7 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     descuento_3: string | null;
     descuento_4: string | null;
     id_plazo: string | null;
+    plazo_nombre: string | null;
   }>(
     `
     SELECT ic.id AS ic_id, ic.numero_registro AS nro_ic,
@@ -522,6 +534,7 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
            COALESCE(ic.descuento_3, 0)::text AS descuento_3,
            COALESCE(ic.descuento_4, 0)::text AS descuento_4,
            ic.id_plazo::text AS id_plazo,
+           COALESCE(NULLIF(TRIM(pl.descp_plazo), ''), '—') AS plazo_nombre,
            COALESCE(cat.descp_categoria, '—') AS categoria,
            COALESCE(vd.descp_vendedor, '—') AS vendedor,
            icp.nro_pedido_fabrica,
@@ -534,6 +547,7 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     LEFT JOIN proveedor_importacion pi ON pi.id = ic.id_proveedor
     LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
     LEFT JOIN categoria_v2 cat ON cat.id_categoria = ic.categoria_id
+    LEFT JOIN plazo_v2 pl ON pl.id_plazo = ic.id_plazo
     LEFT JOIN precio_evento pe ON pe.id = icp.precio_evento_id
     WHERE icp.pedido_proveedor_id = $1
     ORDER BY ic.numero_registro
@@ -566,5 +580,6 @@ export async function listIcsVinculadasPp(pool: Pool, ppId: number): Promise<PpI
     descuento_3: Number(r.descuento_3 ?? 0),
     descuento_4: Number(r.descuento_4 ?? 0),
     id_plazo: r.id_plazo != null ? Number(r.id_plazo) : null,
+    plazo_nombre: r.plazo_nombre ?? "—",
   }));
 }

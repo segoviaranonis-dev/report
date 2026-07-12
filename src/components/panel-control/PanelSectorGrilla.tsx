@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
 import type { EntidadActivoResumen } from "@/lib/panel-control/queries-resumen";
+import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 
 const fmtN = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
 
@@ -87,7 +88,7 @@ export function PanelSectorGrilla({ entidad, showLlegada = false }: Props) {
         </div>
         <div>
           <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Vendido</p>
-          <p className="font-serif text-base font-semibold tabular-nums text-rose-700">
+          <p className={`font-serif text-base font-semibold tabular-nums ${VENTA_VISUAL.label}`}>
             {fmtN(data.pares_vendidos)}
           </p>
         </div>

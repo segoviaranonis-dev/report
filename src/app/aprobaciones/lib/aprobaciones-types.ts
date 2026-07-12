@@ -76,6 +76,8 @@ export type FiDetalle = {
   /** Candidatos bucket productos (protocolo L-R-M-C) */
   imageCandidates: string[];
   imageSearchName: string | null;
+  /** Línea creada sin LPN en listado — precio 0 hasta corregir LP. */
+  sin_lpn?: boolean;
 };
 
 export type AprobacionesData = {

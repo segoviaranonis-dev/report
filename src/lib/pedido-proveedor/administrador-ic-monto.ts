@@ -23,6 +23,113 @@ export function icParPrefactura(
   return normAdminEtiqueta(ic.marca) === normAdminEtiqueta(caso);
 }
 
+/** Estado Protocolo Chusa — 3 niveles (contadores · canon · lote). */
+export type ProtocoloChusaEstado = {
+  contadorIc: number;
+  contadorPf: number;
+  nivel1: boolean;
+  nivel2: boolean;
+  puedeLote: boolean;
+};
+
+export function evalProtocoloChusa(
+  icsVisibles: IcAdminRow[],
+  pfVisibles: PreFacturaInterna[],
+  icsAll: Pick<IcAdminRow, "id_cliente" | "marca">[],
+): ProtocoloChusaEstado {
+  const contadorIc = icsVisibles.length;
+  const contadorPf = pfVisibles.length;
+  const nivel1 = contadorIc > 0 && contadorIc === contadorPf;
+  let nivel2 = false;
+  if (nivel1) {
+    nivel2 = true;
+    for (let i = 0; i < contadorIc; i++) {
+      const marcaPf = marcaAlineacionPrefactura(pfVisibles[i], icsAll);
+      if (!tripleteColumnasExacto(icsVisibles[i], pfVisibles[i], marcaPf)) {
+        nivel2 = false;
+        break;
+      }
+    }
+  }
+  return {
+    contadorIc,
+    contadorPf,
+    nivel1,
+    nivel2,
+    puedeLote: nivel1 && nivel2,
+  };
+}
+
+/** Parejas alineadas renglón i ↔ i (solo si Nivel 2 OK). */
+export function parejasLoteAlineadas(
+  icsVisibles: IcAdminRow[],
+  pfVisibles: PreFacturaInterna[],
+): Array<{ ic: IcAdminRow; pf: PreFacturaInterna }> {
+  return icsVisibles.map((ic, i) => ({ ic, pf: pfVisibles[i] }));
+}
+
+/** IC ↔ PF: cliente + marca (columna grilla) + cantidad — sin tolerancia. */
+export function tripleteColumnasExacto(
+  ic: Pick<IcAdminRow, "id_cliente" | "marca" | "pares">,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "total_pares">,
+  marcaPf: string,
+): boolean {
+  return (
+    ic.id_cliente === pf.id_cliente &&
+    ic.pares === pf.total_pares &&
+    normAdminEtiqueta(ic.marca) === normAdminEtiqueta(marcaPf)
+  );
+}
+
+/** Desvío canon renglón i ↔ i (cliente · marca · cant.) — solo resaltar lo que difiere. */
+export type CanonDiffCelda = {
+  cliente: boolean;
+  marca: boolean;
+  cantidad: boolean;
+  sinPar: boolean;
+};
+
+export function evalCanonDiffFila(
+  ic: Pick<IcAdminRow, "id_cliente" | "marca" | "pares"> | undefined,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "total_pares"> | undefined,
+  marcaPf: string,
+): CanonDiffCelda {
+  if (!ic || !pf) {
+    return { cliente: true, marca: true, cantidad: true, sinPar: true };
+  }
+  return {
+    cliente: ic.id_cliente !== pf.id_cliente,
+    marca: normAdminEtiqueta(ic.marca) !== normAdminEtiqueta(marcaPf),
+    cantidad: ic.pares !== pf.total_pares,
+    sinPar: false,
+  };
+}
+
+export function tieneDesajusteCanon(d: CanonDiffCelda): boolean {
+  return d.sinPar || d.cliente || d.marca || d.cantidad;
+}
+
+export function canonDiffsPorIndice(
+  icsVisibles: IcAdminRow[],
+  pfVisibles: PreFacturaInterna[],
+  icsAll: Pick<IcAdminRow, "id_cliente" | "marca">[],
+): { ic: CanonDiffCelda[]; pf: CanonDiffCelda[]; desajustes: number } {
+  const maxLen = Math.max(icsVisibles.length, pfVisibles.length);
+  const icOut: CanonDiffCelda[] = [];
+  const pfOut: CanonDiffCelda[] = [];
+  let desajustes = 0;
+  for (let i = 0; i < maxLen; i++) {
+    const ic = icsVisibles[i];
+    const pf = pfVisibles[i];
+    const marcaPf = pf ? marcaAlineacionPrefactura(pf, icsAll) : "";
+    const diff = evalCanonDiffFila(ic, pf, marcaPf);
+    icOut[i] = diff;
+    pfOut[i] = diff;
+    if (tieneDesajusteCanon(diff)) desajustes++;
+  }
+  return { ic: icOut, pf: pfOut, desajustes };
+}
+
 /** IC ↔ PF: cliente + marca + cantidad idénticos. */
 export function parejaTripleteIcPf(
   ic: Pick<IcAdminRow, "id_cliente" | "id_marca" | "marca" | "pares">,
@@ -140,4 +247,79 @@ export function montoFiConDescuentosIc(
     sum += subtotal;
   }
   return Math.round(sum * 100) / 100;
+}
+
+/** Orden canon lote — misma regla UI Administrador IC. */
+export function cmpAdminFilasLote(
+  clienteA: number,
+  marcaA: string,
+  paresA: number,
+  montoA: number,
+  tieA: string,
+  clienteB: number,
+  marcaB: string,
+  paresB: number,
+  montoB: number,
+  tieB: string,
+) {
+  return (
+    clienteA - clienteB ||
+    marcaA.localeCompare(marcaB, "es") ||
+    paresA - paresB ||
+    montoA - montoB ||
+    tieA.localeCompare(tieB, "es")
+  );
+}
+
+export function ordenarUniversoLoteChusa(ics: IcAdminRow[], prefacturas: PreFacturaInterna[]) {
+  const icsOrden = [...ics].sort((a, b) =>
+    cmpAdminFilasLote(
+      a.id_cliente,
+      a.marca,
+      a.pares,
+      a.monto_ic,
+      a.nro_ic,
+      b.id_cliente,
+      b.marca,
+      b.pares,
+      b.monto_ic,
+      b.nro_ic,
+    ),
+  );
+  const pfOrden = [...prefacturas].sort((a, b) =>
+    cmpAdminFilasLote(
+      a.id_cliente,
+      marcaAlineacionPrefactura(a, ics),
+      a.total_pares,
+      a.total_monto,
+      a.caso,
+      b.id_cliente,
+      marcaAlineacionPrefactura(b, ics),
+      b.total_pares,
+      b.total_monto,
+      b.caso,
+    ),
+  );
+  return { icsOrden, pfOrden };
+}
+
+export type ParejaLoteFi = { ic_id: number; ic_nro: string; ppd_ids: number[] };
+
+export function construirParejasLoteChusa(
+  ics: IcAdminRow[],
+  prefacturas: PreFacturaInterna[],
+):
+  | { ok: true; parejas: ParejaLoteFi[]; chusa: ProtocoloChusaEstado }
+  | { ok: false; error: string; chusa: ProtocoloChusaEstado } {
+  const { icsOrden, pfOrden } = ordenarUniversoLoteChusa(ics, prefacturas);
+  const chusa = evalProtocoloChusa(icsOrden, pfOrden, ics);
+  if (!chusa.puedeLote) {
+    return { ok: false, error: "Protocolo Chusa: contadores o canon no cuadran.", chusa };
+  }
+  const parejas = parejasLoteAlineadas(icsOrden, pfOrden).map(({ ic, pf }) => ({
+    ic_id: ic.ic_id,
+    ic_nro: ic.nro_ic,
+    ppd_ids: pf.articulos.map((a) => Number(a.ppd_id)).filter((n) => Number.isFinite(n) && n > 0),
+  }));
+  return { ok: true, parejas, chusa };
 }

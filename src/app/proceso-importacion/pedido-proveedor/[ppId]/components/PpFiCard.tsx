@@ -22,7 +22,7 @@ import {
   prefetchSingleFiPdf,
   triggerBlobDownload,
 } from "@/lib/pedido-proveedor/fi-download-cache";
-import { FiProductThumb } from "./FiProductThumb";
+import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
 
 const ESTADO_STYLE: Record<string, string> = {
   RESERVADA: "bg-violet-100 text-violet-900",
@@ -81,6 +81,7 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
     fi.ic_listado_precio_id != null
     && fi.lista_precio_id != null
     && fi.ic_listado_precio_id !== fi.lista_precio_id;
+  const lineasSinLpn = detalles.filter((d) => d.sin_lpn).length;
 
   async function descargarPdf(e: React.MouseEvent) {
     e.stopPropagation();
@@ -149,6 +150,11 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
             {lpDesalineado && (
               <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                 IC {icLp} ≠ FI {fiLp}
+              </span>
+            )}
+            {lineasSinLpn > 0 && (
+              <span className="rounded border-2 border-amber-500 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-950">
+                {lineasSinLpn} sin LPN
               </span>
             )}
           </div>
@@ -233,14 +239,27 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
                       ? d.precio_unit
                       : brutoDesdeNeto(d.precio_neto, ...descuentos);
                   return (
-                    <li key={d.id} className="flex gap-3 px-3 py-2.5">
-                      <FiProductThumb
+                    <li
+                      key={d.id}
+                      className={`flex gap-3 px-3 py-2.5 ${
+                        d.sin_lpn
+                          ? "border-l-4 border-amber-500 bg-amber-50/80 ring-1 ring-inset ring-amber-300"
+                          : ""
+                      }`}
+                    >
+                      <ProductThumbFrame
                         candidates={d.imageCandidates}
                         alt={`${d.linea_codigo}-${d.ref_codigo}`}
+                        size={64}
                       />
                       <div className="min-w-0 flex-1">
                         <p className="font-mono text-xs font-bold text-rimec-azul-dark">
                           {d.linea_codigo} · {d.ref_codigo}
+                          {d.sin_lpn ? (
+                            <span className="ml-2 rounded border border-amber-600 bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-950">
+                              Sin LPN
+                            </span>
+                          ) : null}
                         </p>
                         <p className="text-xs text-slate-600">
                           {d.material_nombre || "—"} · {d.color_nombre || "—"}

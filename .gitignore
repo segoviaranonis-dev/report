@@ -37,3 +37,4 @@ yarn-error.log*
 docs/ot/evidencia/*.png
 docs/ot/evidencia/*.jpg
 .vercel
+.env*

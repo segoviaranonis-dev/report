@@ -111,3 +111,35 @@ body {
     font-weight: bold;
   }
 }
+
+@keyframes chusa-confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0.2;
+  }
+}
+
+@keyframes chusa-celebracion-bounce {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+}
+
+.chusa-confetti-piece {
+  animation: chusa-confetti-fall 2.8s ease-in forwards;
+}
+
+.chusa-celebracion-bounce {
+  animation: chusa-celebracion-bounce 0.9s ease-in-out infinite;
+}

@@ -41,8 +41,11 @@ export function moleculeKeyVentas(
   referencia: string,
   material: string,
   color: string,
+  ppId?: number | null,
 ): string {
-  return `${String(linea ?? "").trim()}-${String(referencia ?? "").trim()}-${String(material ?? "").trim()}-${String(color ?? "").trim()}`;
+  const base = `${String(linea ?? "").trim()}-${String(referencia ?? "").trim()}-${String(material ?? "").trim()}-${String(color ?? "").trim()}`;
+  if (ppId != null && Number.isFinite(ppId)) return `${base}|${ppId}`;
+  return base;
 }
 
 export function agregarVentasPorComprador(
@@ -54,12 +57,20 @@ export function agregarVentasPorComprador(
     cadena: string | null;
     cliente: string;
     pares: number;
+    pp_id?: number | null;
   }[],
+  opts?: { keyWithPp?: boolean },
 ): Map<string, VentaCompradorLinea[]> {
   const acc = new Map<string, Map<string, number>>();
 
   for (const r of rows) {
-    const mol = moleculeKeyVentas(r.linea, r.referencia, r.material_code, r.color_code);
+    const mol = moleculeKeyVentas(
+      r.linea,
+      r.referencia,
+      r.material_code,
+      r.color_code,
+      opts?.keyWithPp ? r.pp_id : undefined,
+    );
     const etiqueta = etiquetaComprador(r.cadena, r.cliente);
     const bucket = acc.get(mol) ?? new Map<string, number>();
     bucket.set(etiqueta, (bucket.get(etiqueta) ?? 0) + r.pares);

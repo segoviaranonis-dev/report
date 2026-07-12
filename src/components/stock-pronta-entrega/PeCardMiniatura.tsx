@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { PeImportadoraCard } from "@/lib/depositos/agrupar-pe-importadora";
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
+import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 import { CompradoresVentasSlot } from "./CompradoresVentasSlot";
@@ -52,7 +53,7 @@ export function PeCardMiniatura({
 
   return (
     <>
-      <article className="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <button
           type="button"
           className="relative flex aspect-square w-full shrink-0 items-center justify-center bg-slate-100"
@@ -68,7 +69,7 @@ export function PeCardMiniatura({
             size={140}
           />
           {showVentas && card.totalVendidos > 0 ? (
-            <span className="absolute left-1.5 top-1.5 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+            <span className={`absolute left-1.5 top-1.5 rounded-full ${VENTA_VISUAL.badge} px-2 py-0.5 text-[10px] font-bold ${VENTA_VISUAL.badgeFg} shadow-sm`}>
               {Math.round(card.totalVendidos)} v
             </span>
           ) : null}
@@ -89,15 +90,7 @@ export function PeCardMiniatura({
           )}
         </button>
 
-        <div
-          className={`flex min-h-0 flex-1 flex-col gap-1 p-2.5 ${
-            expanded
-              ? showVentas
-                ? "min-h-[14.5rem]"
-                : "min-h-[11.5rem]"
-              : "min-h-[6.75rem]"
-          }`}
-        >
+        <div className="flex min-h-0 flex-1 flex-col gap-1 p-2">
           <div className="flex min-h-[14px] items-start justify-between gap-1">
             <p className="min-w-0 truncate text-[10px] font-bold uppercase text-rimec-azul">{p.marca}</p>
             {showLlegada ? (
@@ -123,7 +116,7 @@ export function PeCardMiniatura({
                 `${p.material_code} / ${p.color_code}`}
             </p>
           ) : (
-            <div className="grid min-h-[5.5rem] grid-cols-2 gap-x-1 gap-y-0.5">
+            <div className="grid grid-cols-2 gap-x-1 gap-y-px">
               <Dato label="Género" value={p.genero} />
               <Dato label="Estilo" value={p.estilo} />
               <Dato label="Tipo 1" value={p.tipo_1} />
@@ -157,7 +150,7 @@ export function PeCardMiniatura({
               </div>
               <div>
                 <p className="text-[7px] font-bold uppercase tracking-wide text-slate-500">Vendido</p>
-                <p className="text-sm font-bold tabular-nums text-rose-700">
+                <p className={`text-sm font-bold tabular-nums ${VENTA_VISUAL.label}`}>
                   {Math.round(card.totalVendidos).toLocaleString("es-PY")}
                 </p>
               </div>
@@ -171,7 +164,11 @@ export function PeCardMiniatura({
           ) : null}
 
           {showVentas ? (
-            <CompradoresVentasSlot compradores={card.compradores} visible={expanded} />
+            <CompradoresVentasSlot
+              compradores={card.compradores}
+              visible={expanded}
+              resetKey={!expanded}
+            />
           ) : null}
 
           {showCasoBadge && card.casoComercial ? (
@@ -186,7 +183,7 @@ export function PeCardMiniatura({
             </p>
           ) : null}
 
-          <div className="mt-auto shrink-0">
+          <div className="mt-auto shrink-0 pt-0.5">
             <GradaImportadoraAcordeon
               gradas={card.gradas}
               cardExpanded={expanded}

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
 import { ProgramadoVentasVitales } from "@/components/stock-programado/ProgramadoVentasVitales";
+import { FiltroProformaMulti } from "@/components/stock-programado/FiltroProformaMulti";
 import { TabArticulosProgramado } from "@/components/stock-programado/TabArticulosProgramado";
 import {
   StockProgramadoProvider,
@@ -16,6 +18,8 @@ import {
   type CasoBibliotecaLite,
 } from "@/lib/depositos/caso-biblioteca";
 import { resolveProgramadoVitales } from "@/lib/stock-programado/programado-vitales-canonicos";
+import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
+import { proformaMatchesToken } from "@/lib/stock-programado/stock-programado-filters";
 import type { StockProgramadoResumen } from "@/lib/stock-programado/queries-resumen";
 
 type Props = {
@@ -36,8 +40,8 @@ function ResumenKpiBar({ resumen }: { resumen: StockProgramadoResumen }) {
         <dd className="font-serif text-lg font-semibold tabular-nums text-slate-900">{fmtN(resumen.pares_inicial)}</dd>
       </div>
       <div>
-        <dt className="text-[10px] font-bold uppercase tracking-wide text-rose-700">Vendido</dt>
-        <dd className="font-serif text-lg font-semibold tabular-nums text-rose-800">{fmtN(resumen.pares_vendidos)}</dd>
+        <dt className={`text-[10px] font-bold uppercase tracking-wide ${VENTA_VISUAL.label}`}>Vendido</dt>
+        <dd className={`font-serif text-lg font-semibold tabular-nums ${VENTA_VISUAL.value}`}>{fmtN(resumen.pares_vendidos)}</dd>
       </div>
       <div>
         <dt className="text-[10px] font-bold uppercase tracking-wide text-amber-800">Saldo</dt>
@@ -59,8 +63,22 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
     filtradas,
     quincenaIds,
     setQuincenaIds,
+    ppIds,
+    setPpIds,
     rows,
+    ventasComprador,
   } = useStockProgramado();
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const token = searchParams.get("proforma")?.trim();
+    if (!token) return;
+    const ids = resumen.por_proforma
+      .filter((p) => proformaMatchesToken(p.proforma, token))
+      .map((p) => String(p.pp_id));
+    if (ids.length) setPpIds(ids);
+  }, [searchParams, resumen.por_proforma, setPpIds]);
 
   const [bibliotecaId, setBibliotecaId] = useState<number | null>(null);
   const [casoActivo, setCasoActivo] = useState<string | null>(null);
@@ -80,12 +98,14 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
       resolveProgramadoVitales({
         resumen,
         quincenaIds,
+        ppIds,
+        porProforma: resumen.por_proforma,
         casoActivo,
         filtros,
         filtradas,
         filtradasCaso: filtradasGrid,
       }),
-    [resumen, quincenaIds, casoActivo, filtros, filtradas, filtradasGrid],
+    [resumen, quincenaIds, ppIds, casoActivo, filtros, filtradas, filtradasGrid],
   );
 
   if (!loading && rows.length === 0) {
@@ -130,14 +150,24 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
             selectedIds={quincenaIds}
             onChange={setQuincenaIds}
           />
+          <FiltroProformaMulti
+            proformas={resumen.por_proforma}
+            selectedIds={ppIds}
+            onChange={setPpIds}
+          />
         </div>
       }
       productos={filtradasGrid}
       casoPorLinea={lineaCasoMap}
-      grilla={{ showLlegada: true, showVentas: true, loteModo: "unitario" }}
+      grilla={{
+        showLlegada: true,
+        showVentas: true,
+        ventasPorMol: ventasComprador,
+        loteModo: "unitario",
+      }}
       footer={
         <p className="text-center text-[10px] text-slate-400">
-          Programado · PPD cat. 3 · filtro Llegada = FECHA DE EMBARQUE (quincena_arribo_id)
+          Programado · PPD cat. 3 · Llegada = quincena_arribo_id · Proforma = pp_id + numero_proforma
         </p>
       }
     />

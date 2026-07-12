@@ -22,15 +22,16 @@ export function ProductThumbFrame({
 }: Props) {
   const [idx, setIdx] = useState(0);
   const [failed, setFailed] = useState(false);
-  const src = candidates[idx];
+  const urls = candidates.filter(Boolean);
+  const src = urls[idx];
 
   const tryNextOrFail = useCallback(() => {
     setIdx((i) => {
-      if (i + 1 < candidates.length) return i + 1;
+      if (i + 1 < urls.length) return i + 1;
       setFailed(true);
       return i;
     });
-  }, [candidates.length]);
+  }, [urls.length]);
 
   const boxStyle = { width: size, height: size };
   const frameClass = `relative grid shrink-0 place-items-center overflow-hidden rounded-lg border border-neutral-200 bg-white p-1.5 ${className}`;

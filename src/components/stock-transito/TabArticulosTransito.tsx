@@ -6,6 +6,7 @@ import { EstiloTonoDrillSection } from "@/app/depositos-bazzar/components/Estilo
 import { FiltrosArticulosBarView } from "@/app/depositos-bazzar/components/FiltrosArticulosBar";
 import { GradaChartSection } from "@/app/depositos-bazzar/components/GradaChartSection";
 import { MarcaEstiloDrillSection } from "@/app/depositos-bazzar/components/MarcaEstiloDrillSection";
+import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -58,7 +59,7 @@ export function TabArticulosTransito() {
           {totalPares.toLocaleString("es-PY")} p saldo
         </span>
         {" · "}
-        <span className="tabular-nums text-rose-700">{totalVendidos.toLocaleString("es-PY")} p vendidos</span>
+        <span className={`tabular-nums ${VENTA_VISUAL.label}`}>{totalVendidos.toLocaleString("es-PY")} p vendidos</span>
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

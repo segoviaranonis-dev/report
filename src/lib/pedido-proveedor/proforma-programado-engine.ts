@@ -20,6 +20,7 @@ import {
   backfillPpdShopFromSnapshot,
 } from "./proforma-snapshot";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
+import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
 export type EmparejamientoShop = {
   brand: string;
   shop: string;
@@ -152,8 +153,11 @@ type FiLineItem = {
   color_id: number | null;
   linea_codigo: string;
   ref_codigo: string;
+  material_code: string;
+  color_code: string;
   material_nombre: string;
   color_nombre: string;
+  grades_json?: unknown;
   cajas: number;
   pares: number;
   precio_unit: number;
@@ -935,11 +939,15 @@ async function crearFacturaInterna(
     const values: unknown[] = [];
     const tuples = items.map((item, idx) => {
       const base = idx * 8;
-      const snap = JSON.stringify({
+      const snap = buildLineaSnapshotForFi({
         linea_codigo: item.linea_codigo,
         ref_codigo: item.ref_codigo,
+        material_code: item.material_code,
+        color_code: item.color_code,
         material_nombre: item.material_nombre,
         color_nombre: item.color_nombre,
+        grades_json: item.grades_json,
+        origen: "proforma-programado",
       });
       values.push(fiId, item.ppd_id, item.cajas, item.pares, item.precio_unit, item.subtotal, item.precio_neto, snap);
       return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}::jsonb)`;
@@ -1108,8 +1116,11 @@ function buildProgramadoFiJobs(
           color_id: sku.color_id,
           linea_codigo: r.linea_codigo_proveedor,
           ref_codigo: r.referencia_codigo_proveedor,
+          material_code: String(r.material_code ?? "").trim(),
+          color_code: String(r.color_code ?? "").trim(),
           material_nombre: r.material,
           color_nombre: r.color,
+          grades_json: r.grades_json,
           cajas: r.boxes || 1,
           pares: r.pairs,
           precio_unit,
@@ -1722,6 +1733,22 @@ export async function borrarFiReservadasProgramado(
       await client.query("ROLLBACK");
       return { ok: false, error: "Hay FI CONFIRMADA — no se puede regenerar." };
     }
+    await client.query(
+      `UPDATE pedido_proveedor_detalle ppd
+       SET pares_vendidos = GREATEST(
+         0,
+         COALESCE(ppd.pares_vendidos, 0) - COALESCE(agg.pares, 0)
+       )
+       FROM (
+         SELECT fid.ppd_id, SUM(COALESCE(fid.cantidad_pares, 0))::int AS pares
+         FROM factura_interna_detalle fid
+         INNER JOIN factura_interna fi ON fi.id = fid.factura_id
+         WHERE fi.pp_id = $1
+         GROUP BY fid.ppd_id
+       ) agg
+       WHERE ppd.id = agg.ppd_id AND ppd.pedido_proveedor_id = $1`,
+      [ppId],
+    );
     await client.query(
       `DELETE FROM factura_interna_detalle fid
        USING factura_interna fi

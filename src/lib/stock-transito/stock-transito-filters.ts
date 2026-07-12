@@ -31,6 +31,7 @@ export function applyStockTransitoFilters(
   rows: DepositoRow[],
   filtros: OperativaFilterState,
   quincenaIds: string[],
+  operativaOpts?: { incluirVendidoSinSaldo?: boolean },
 ): DepositoRow[] {
   let out = filterByQuincenas(rows, quincenaIds);
   const peel: OperativaFilterState = {
@@ -39,13 +40,18 @@ export function applyStockTransitoFilters(
     cantidadOp: null,
     cantidadValor: null,
   };
-  out = applyOperativaFilters(out, peel);
+  out = applyOperativaFilters(out, peel, undefined, operativaOpts);
   if (filtros.cantidadOp != null && filtros.cantidadValor != null) {
-    out = applyOperativaFilters(out, {
-      ...peel,
-      cantidadOp: filtros.cantidadOp,
-      cantidadValor: filtros.cantidadValor,
-    });
+    out = applyOperativaFilters(
+      out,
+      {
+        ...peel,
+        cantidadOp: filtros.cantidadOp,
+        cantidadValor: filtros.cantidadValor,
+      },
+      undefined,
+      operativaOpts,
+    );
   }
   return out;
 }

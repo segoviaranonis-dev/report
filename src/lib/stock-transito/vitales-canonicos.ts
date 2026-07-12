@@ -47,14 +47,29 @@ function sumFromRows(rows: DepositoRow[]): Omit<TransitoVitales, "modo"> {
 export function resolveTransitoVitales(opts: {
   resumen: StockTransitoResumen;
   quincenaIds: string[];
+  ppIds?: string[];
+  porProforma?: { pp_id: number; pares_inicial: number; pares_vendidos: number; pares_saldo: number }[];
   casoActivo: string | null;
   filtros: OperativaFilterState;
   filtradas: DepositoRow[];
   filtradasCaso: DepositoRow[];
 }): TransitoVitales {
-  const { resumen, quincenaIds, casoActivo, filtros, filtradas, filtradasCaso } = opts;
+  const { resumen, quincenaIds, ppIds = [], porProforma = [], casoActivo, filtros, filtradas, filtradasCaso } =
+    opts;
 
   if (!casoActivo && !operativaFiltersActive(filtros)) {
+    if (ppIds.length > 0 && porProforma.length > 0) {
+      const set = new Set(ppIds);
+      const selected = porProforma.filter((p) => set.has(String(p.pp_id)));
+      if (selected.length) {
+        return {
+          inicial: selected.reduce((s, q) => s + q.pares_inicial, 0),
+          vendidos: selected.reduce((s, q) => s + q.pares_vendidos, 0),
+          saldo: selected.reduce((s, q) => s + q.pares_saldo, 0),
+          modo: "canonico",
+        };
+      }
+    }
     if (quincenaIds.length > 0) {
       const set = new Set(quincenaIds);
       const selected = resumen.por_quincena.filter((q) => set.has(String(q.quincena_arribo_id)));

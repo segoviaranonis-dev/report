@@ -5,6 +5,7 @@ import { listIcsVinculadasPp } from "@/lib/pedido-proveedor/detail-query";
 import { labelListadoPrecio, type ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
 import { normAdminEtiqueta, subtotalSinDescuento } from "@/lib/pedido-proveedor/administrador-ic-monto";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
+import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 
 export type PfArticuloRow = {
   ppd_id: number;
@@ -22,6 +23,8 @@ export type PfArticuloRow = {
   lpc04: number;
   precio_unit: number;
   subtotal: number;
+  /** URLs Storage sm/md/lg — resueltas server-side (protocolo imagen). */
+  imageCandidates: string[];
 };
 
 export type PreFacturaInterna = {
@@ -77,6 +80,12 @@ function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId): PfArticuloRow {
     tier,
     r.pares,
   );
+  const imageCandidates = productImageCandidatesForRow(
+    r.linea,
+    r.referencia,
+    r.material_code ?? "",
+    r.color_code ?? "",
+  ).filter(Boolean);
   return {
     ppd_id: r.ppd_id,
     linea: r.linea,
@@ -93,6 +102,7 @@ function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId): PfArticuloRow {
     lpc04: r.lpc04,
     precio_unit,
     subtotal,
+    imageCandidates,
   };
 }
 

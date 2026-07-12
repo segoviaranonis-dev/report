@@ -6,6 +6,7 @@ import type {
   PedidoPendiente,
 } from "./aprobaciones-types";
 import { parseLineaSnapshotForDisplay, gradasDisplayFromSnapshot } from "./linea-snapshot-display";
+import { enrichLineaSnapshotFromPpd } from "@/lib/pedido-proveedor/linea-snapshot-fi";
 
 function num(v: unknown): number {
   const n = Number(v);
@@ -247,7 +248,14 @@ export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
 }
 
 function mapDetalleRow(r: Record<string, unknown>): FiDetalle {
-  const snap = parseLineaSnapshotForDisplay(r.linea_snapshot);
+  const snapRaw = enrichLineaSnapshotFromPpd(r.linea_snapshot, {
+    linea: r.ppd_linea != null ? String(r.ppd_linea) : null,
+    referencia: r.ppd_referencia != null ? String(r.ppd_referencia) : null,
+    material_code: r.ppd_material_code != null ? String(r.ppd_material_code) : null,
+    color_code: r.ppd_color_code != null ? String(r.ppd_color_code) : null,
+    grades_json: r.grades_json,
+  });
+  const snap = parseLineaSnapshotForDisplay(snapRaw);
   let gradas_display = snap.gradas_display;
   if (!gradas_display.trim()) {
     gradas_display =
@@ -266,8 +274,9 @@ function mapDetalleRow(r: Record<string, unknown>): FiDetalle {
     color_nombre: snap.color_nombre,
     material_nombre: snap.material_nombre,
     gradas_display,
-    imageCandidates: snap.imageCandidates,
+    imageCandidates: snap.imageCandidates.filter(Boolean),
     imageSearchName: snap.imageSearchName,
+    sin_lpn: snap.sin_lpn,
   };
 }
 
@@ -281,6 +290,10 @@ const FI_DETALLE_SELECT = `
     fid.precio_neto,
     fid.subtotal,
     fid.linea_snapshot,
+    ppd.linea AS ppd_linea,
+    ppd.referencia AS ppd_referencia,
+    ppd.material_code AS ppd_material_code,
+    ppd.color_code AS ppd_color_code,
     ppd.grades_json
   FROM public.factura_interna_detalle fid
   LEFT JOIN public.pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id

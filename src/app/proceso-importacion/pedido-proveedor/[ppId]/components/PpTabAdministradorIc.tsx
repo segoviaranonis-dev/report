@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PpDetalleHeader } from "@/lib/pedido-proveedor/detail-query";
 import type {
   IcAdminRow,
@@ -8,72 +10,41 @@ import type {
   PreFacturaInterna,
 } from "@/lib/pedido-proveedor/administrador-ic-query";
 import {
-  evaluateParejaMatch,
-  icParPrefactura,
+  evalProtocoloChusa,
   marcaAlineacionPrefactura,
   montoFiConDescuentosIc,
   parejaTripleteIcPf,
   recalcPfConTier,
-  type ParejaMatchNivel,
+  canonDiffsPorIndice,
+  cmpAdminFilasLote,
+  tieneDesajusteCanon,
+  type CanonDiffCelda,
 } from "@/lib/pedido-proveedor/administrador-ic-monto";
+import { fiListaTier } from "@/lib/pedido-proveedor/aritmetica-programado";
 import {
   LISTADO_PRECIO_TIERS,
   type ListadoPrecioTierId,
 } from "@/lib/intencion-compra/listado-precio-tiers";
-import { fiListaTier } from "@/lib/pedido-proveedor/aritmetica-programado";
-
-type DragPayload =
-  | { kind: "ic"; ic_id: number; label: string }
-  | { kind: "pf"; pf_key: string; label: string }
-  | { kind: "articulo"; ppd_id: number; pf_key: string; label: string };
-
-type ParejaFormada = {
-  id: string;
-  icLabel: string;
-  pfLabel: string;
-  modo: "cabecera" | "articulo";
-  fi_nro?: string;
-  match?: ParejaMatchNivel;
-};
-
-const MATCH_CLS: Record<ParejaMatchNivel, string> = {
-  exacto: "ring-2 ring-emerald-500",
-  cercano: "ring-2 ring-lime-400",
-  referencia: "ring-2 ring-amber-400",
-  lejos: "",
-};
+import { pedidoProveedorDetalle } from "@/lib/report/routes";
+import { ProcesoImportacionWaitOverlay } from "@/components/report/ProcesoImportacionWaitOverlay";
+import { ChusaLoteCelebracionOverlay } from "@/components/report/ChusaLoteCelebracionOverlay";
+import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
 
 type Props = {
   pp: PpDetalleHeader;
   ppId: string;
   onMsg: (msg: string) => void;
+  onReload?: () => void | Promise<void>;
 };
 
-const DND = "application/x-nexus-admin-ic";
-
-/** Cliente · IC Nº/Caso · Marca · Cant · Monto · LP — columnas alineadas IC ↔ PF. */
 const CABECERA_GRID =
   "grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,1fr)_2rem_minmax(0,1fr)_2.5rem_0.9rem_1.1rem]";
 
-function cmpAdminFilas(
-  clienteA: number,
-  marcaA: string,
-  paresA: number,
-  montoA: number,
-  tieA: string,
-  clienteB: number,
-  marcaB: string,
-  paresB: number,
-  montoB: number,
-  tieB: string,
-) {
-  return (
-    clienteA - clienteB ||
-    marcaA.localeCompare(marcaB, "es") ||
-    paresA - paresB ||
-    montoA - montoB ||
-    tieA.localeCompare(tieB, "es")
-  );
+const CANON_ERR =
+  "rounded bg-red-200 font-bold text-red-950 ring-2 ring-red-500 shadow-sm animate-pulse";
+
+function clsCanon(ok: boolean | undefined) {
+  return ok ? CANON_ERR : "";
 }
 
 function fmtMonto(n: number) {
@@ -89,11 +60,8 @@ function CabeceraFila({
   monto,
   montoSecundario,
   pares,
-  matchNivel,
-  selected,
-  draggable,
-  onDragStart,
-  onClick,
+  canonDiff,
+  canonHint,
   expanded,
   onToggleExpand,
   expandable,
@@ -110,11 +78,9 @@ function CabeceraFila({
   monto: number;
   montoSecundario?: number | null;
   pares: number;
-  matchNivel?: ParejaMatchNivel | null;
-  selected?: boolean;
-  draggable?: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
-  onClick?: () => void;
+  canonDiff?: CanonDiffCelda | null;
+  /** Valor canon del otro panel (tooltip al corregir IC). */
+  canonHint?: { cliente?: string | number; marca?: string; cantidad?: number };
   expanded?: boolean;
   onToggleExpand?: () => void;
   expandable?: boolean;
@@ -125,29 +91,46 @@ function CabeceraFila({
 }) {
   const bg =
     tone === "ic"
-      ? selected
-        ? "border-violet-500 bg-violet-100"
+      ? canonDiff && tieneDesajusteCanon(canonDiff)
+        ? "border-red-400 bg-red-50/80"
         : "border-slate-300 bg-slate-100"
-      : selected
-        ? "border-orange-500 bg-orange-100"
+      : canonDiff && tieneDesajusteCanon(canonDiff)
+        ? "border-red-400 bg-red-50/80"
         : "border-orange-300 bg-orange-50";
+
+  const rowTitle =
+    canonDiff && tieneDesajusteCanon(canonDiff)
+      ? tone === "ic"
+        ? `Canon ≠ proforma — corregí esta IC (cliente · marca · cant.)${canonHint ? ` · PF: ${canonHint.cliente ?? "?"} · ${canonHint.marca ?? "?"} · ${canonHint.cantidad ?? "?"}p` : ""}`
+        : `Canon ≠ IC en esta fila — la proforma no se edita`
+      : "Fila alineada · Protocolo Chusa";
 
   return (
     <div
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onClick={onClick}
-      className={`grid h-9 w-full min-w-0 cursor-grab ${CABECERA_GRID} items-center gap-1 border px-1 text-[10px] leading-tight active:cursor-grabbing sm:h-10 sm:text-[11px] ${bg} ${matchNivel ? MATCH_CLS[matchNivel] : ""}`}
-      title="Arrastrá al panel central · montos sin descuento en esta fase"
+      className={`grid h-9 w-full min-w-0 ${CABECERA_GRID} items-center gap-1 border px-1 text-[10px] leading-tight sm:h-10 sm:text-[11px] ${bg}`}
+      title={rowTitle}
     >
-      <span className="truncate font-mono font-bold">{codCliente}</span>
+      <span
+        className={`truncate font-mono font-bold ${clsCanon(canonDiff?.sinPar || canonDiff?.cliente)}`}
+        title={canonHint?.cliente != null ? `Proforma/IC esperado: ${canonHint.cliente}` : undefined}
+      >
+        {codCliente}
+      </span>
       <span className="truncate text-[9px] font-semibold text-slate-700" title={colRef}>
         {colRef}
       </span>
-      <span className="truncate font-semibold" title={marca}>
+      <span
+        className={`truncate font-semibold ${clsCanon(canonDiff?.sinPar || canonDiff?.marca)}`}
+        title={canonHint?.marca ? `Canon proforma: ${canonHint.marca}` : marca}
+      >
         {marca}
       </span>
-      <span className="truncate text-right tabular-nums font-bold">{pares}</span>
+      <span
+        className={`truncate text-right tabular-nums font-bold ${clsCanon(canonDiff?.sinPar || canonDiff?.cantidad)}`}
+        title={canonHint?.cantidad != null ? `Canon proforma: ${canonHint.cantidad} pares` : undefined}
+      >
+        {pares}
+      </span>
       <span
         className="truncate text-right tabular-nums"
         title={
@@ -189,7 +172,7 @@ function CabeceraFila({
             onToggleExpand?.();
           }}
           className="rounded px-1 text-xs font-bold text-orange-900 hover:bg-orange-200"
-          title="Expandir artículos — arrastrar uno a uno"
+          title="Ver artículos de la proforma"
         >
           {expanded ? "▾" : "▸"}
         </button>
@@ -200,25 +183,17 @@ function CabeceraFila({
   );
 }
 
-function ArticuloFila({
-  art,
-  pfKey,
-  onDragStart,
-}: {
-  art: PfArticuloRow;
-  pfKey: string;
-  onDragStart: (e: React.DragEvent) => void;
-}) {
+function ArticuloFila({ art }: { art: PfArticuloRow }) {
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
-      className="ml-2 grid cursor-grab grid-cols-[4rem_minmax(0,1fr)] gap-2 border border-dashed border-orange-300 bg-white px-2 py-1 text-[10px] active:cursor-grabbing"
-      title="Arrastrá artículo suelto al centro"
+      className="ml-2 grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-2 border border-dashed border-orange-300 bg-white px-2 py-1 text-[10px]"
+      title="Detalle artículo proforma"
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded border border-slate-200 bg-slate-50 text-[8px] font-bold uppercase text-slate-400">
-        IMG
-      </div>
+      <ProductThumbFrame
+        alt={`${art.linea}-${art.referencia}-${art.material_code}-${art.color_code}`}
+        candidates={art.imageCandidates}
+        size={40}
+      />
       <div className="grid grid-cols-5 gap-1">
         <span className="truncate" title="Línea">
           <strong>L</strong> {art.linea}
@@ -240,19 +215,17 @@ function ArticuloFila({
   );
 }
 
-export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
+export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [ics, setIcs] = useState<IcAdminRow[]>([]);
   const [prefacturas, setPrefacturas] = useState<PreFacturaInterna[]>([]);
   const [expandedPf, setExpandedPf] = useState<Set<string>>(new Set());
-  const [slotIc, setSlotIc] = useState<DragPayload | null>(null);
-  const [slotPf, setSlotPf] = useState<DragPayload | null>(null);
-  const [parejas, setParejas] = useState<ParejaFormada[]>([]);
   const [filtroCliente, setFiltroCliente] = useState<string>("");
   const [pfTierOverrides, setPfTierOverrides] = useState<Record<string, ListadoPrecioTierId>>({});
-  const [generandoFi, setGenerandoFi] = useState(false);
-  const [slotIcId, setSlotIcId] = useState<number | null>(null);
-  const [slotPpdIds, setSlotPpdIds] = useState<number[]>([]);
+  const [generandoFiKey, setGenerandoFiKey] = useState<string | null>(null);
+  const [celebracion, setCelebracion] = useState<{ total: number } | null>(null);
+  const [nFiServidor, setNFiServidor] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,6 +248,17 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/completar-fi`, {
+      credentials: "same-origin",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setNFiServidor(Number(d.n_fi ?? 0));
+      })
+      .catch(() => setNFiServidor(null));
+  }, [ppId, pp.n_facturas_internas, generandoFiKey]);
+
   const clientes = useMemo(() => {
     const set = new Set<number>();
     for (const ic of ics) set.add(ic.id_cliente);
@@ -287,7 +271,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
       ? ics.filter((i) => i.id_cliente === Number(filtroCliente))
       : [...ics];
     return list.sort((a, b) =>
-      cmpAdminFilas(
+      cmpAdminFilasLote(
         a.id_cliente,
         a.marca,
         a.pares,
@@ -329,7 +313,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
       ? pfConTier.filter((p) => p.id_cliente === Number(filtroCliente))
       : [...pfConTier];
     return list.sort((a, b) =>
-      cmpAdminFilas(
+      cmpAdminFilasLote(
         a.id_cliente,
         marcaAlineacionPrefactura(a, ics),
         a.total_pares,
@@ -344,26 +328,46 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
     );
   }, [pfConTier, filtroCliente, ics]);
 
-  const matchPorPf = useMemo(() => {
-    const out = new Map<string, ParejaMatchNivel>();
-    for (const pf of pfConTier) {
-      const icCand = ics.find((ic) => parejaTripleteIcPf(ic, pf));
-      if (!icCand) continue;
-      const hint = evaluateParejaMatch(icCand.monto_ic, pf.total_monto, icCand.pares, pf.total_pares);
-      if (hint.nivel !== "lejos") out.set(pf.pf_key, hint.nivel);
-    }
-    return out;
-  }, [ics, pfConTier]);
+  const generandoFi = generandoFiKey != null;
 
-  const slotMatch = useMemo(() => {
-    if (!slotIcId || !slotPpdIds.length) return null;
-    const ic = ics.find((i) => i.ic_id === slotIcId);
-    if (!ic) return null;
-    const arts = pfConTier.flatMap((p) => p.articulos).filter((a) => slotPpdIds.includes(a.ppd_id));
-    const montoPf = arts.reduce((s, a) => s + a.subtotal, 0);
-    const paresPf = arts.reduce((s, a) => s + a.pares, 0);
-    return evaluateParejaMatch(ic.monto_ic, montoPf, ic.pares, paresPf);
-  }, [ics, pfConTier, slotIcId, slotPpdIds]);
+  const protocoloChusa = useMemo(
+    () => evalProtocoloChusa(icsVisibles, pfVisibles, ics),
+    [icsVisibles, pfVisibles, ics],
+  );
+
+  const nFiEfectivo = Math.max(pp.n_facturas_internas, nFiServidor ?? 0);
+  const fiEsperadas = protocoloChusa.contadorIc;
+
+  const loteExacto = useMemo(
+    () => protocoloChusa.nivel1 && fiEsperadas > 0 && nFiEfectivo === fiEsperadas,
+    [protocoloChusa.nivel1, fiEsperadas, nFiEfectivo],
+  );
+
+  const fiExceso = useMemo(
+    () => fiEsperadas > 0 && nFiEfectivo > fiEsperadas,
+    [fiEsperadas, nFiEfectivo],
+  );
+
+  const fiPendientes = useMemo(
+    () => fiEsperadas > 0 && nFiEfectivo < fiEsperadas,
+    [fiEsperadas, nFiEfectivo],
+  );
+
+  const canonDiffs = useMemo(
+    () => canonDiffsPorIndice(icsVisibles, pfVisibles, ics),
+    [icsVisibles, pfVisibles, ics],
+  );
+
+  async function irAFi() {
+    setCelebracion(null);
+    await onReload?.();
+    router.push(pedidoProveedorDetalle(ppId, "fi"));
+  }
+
+  function mostrarCelebracionCompleta() {
+    if (!loteExacto) return;
+    setCelebracion({ total: nFiEfectivo });
+  }
 
   async function patchIcListado(icId: number, tier: ListadoPrecioTierId) {
     try {
@@ -382,97 +386,65 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
     }
   }
 
-  function writeDrag(e: React.DragEvent, payload: DragPayload) {
-    e.dataTransfer.setData(DND, JSON.stringify(payload));
-    e.dataTransfer.effectAllowed = "move";
-  }
-
-  function readDrag(e: React.DragEvent): DragPayload | null {
-    try {
-      const raw = e.dataTransfer.getData(DND);
-      if (!raw) return null;
-      return JSON.parse(raw) as DragPayload;
-    } catch {
-      return null;
-    }
-  }
-
-  function onDropIc(e: React.DragEvent) {
-    e.preventDefault();
-    const p = readDrag(e);
-    if (p?.kind === "ic") {
-      setSlotIc(p);
-      setSlotIcId(p.ic_id);
-    }
-  }
-
-  function onDropPf(e: React.DragEvent) {
-    e.preventDefault();
-    const p = readDrag(e);
-    if (p?.kind === "pf") {
-      setSlotPf(p);
-      const pf = pfConTier.find((x) => x.pf_key === p.pf_key);
-      setSlotPpdIds(pf?.articulos.map((a) => a.ppd_id) ?? []);
-    } else if (p?.kind === "articulo") {
-      setSlotPf(p);
-      setSlotPpdIds([p.ppd_id]);
-    }
-  }
-
-  async function generarFi() {
-    if (!slotIc || slotIc.kind !== "ic" || !slotPpdIds.length) {
-      onMsg("Arrastrá IC + Pre-Factura (o artículo) al centro.");
+  async function generarFiLote() {
+    if (loteExacto) {
+      mostrarCelebracionCompleta();
       return;
     }
-    const ic = ics.find((i) => i.ic_id === slotIc.ic_id);
-    if (!ic) return;
-
-    setGenerandoFi(true);
+    if (fiExceso) {
+      onMsg(
+        `Hay ${nFiEfectivo - fiEsperadas} FI de más (${nFiEfectivo} vs ${fiEsperadas} IC). Tab Facturas Internas → regenerar.`,
+      );
+      return;
+    }
+    if (!protocoloChusa.puedeLote) {
+      onMsg("Protocolo Chusa: contadores o canon no cuadran.");
+      return;
+    }
+    setGenerandoFiKey("lote");
     try {
       const res = await fetch(
-        `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/generar-fi`,
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/generar-fi-lote`,
         {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ic_id: ic.ic_id, ppd_ids: slotPpdIds }),
+          body: JSON.stringify({}),
         },
       );
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo generar FI");
+      if (!res.ok || !data.ok) {
+        if (data.fi_exceso) {
+          throw new Error(data.error || `FI de más (${data.n_fi} vs ${data.n_esperadas} IC)`);
+        }
+        const icHint = data.fallo_ic_nro
+          ? ` · ${data.fallo_ic_nro}`
+          : data.fallo_ic_id != null
+            ? ` · IC id ${data.fallo_ic_id}`
+            : "";
+        const parcial =
+          Array.isArray(data.generadas) && data.generadas.length
+            ? ` · ${data.generadas.length} FI parciales antes del fallo`
+            : "";
+        throw new Error((data.error || "Error en lote FI") + icHint + parcial);
+      }
 
-      const arts = pfConTier.flatMap((p) => p.articulos).filter((a) => slotPpdIds.includes(a.ppd_id));
-      const hint = evaluateParejaMatch(
-        ic.monto_ic,
-        arts.reduce((s, a) => s + a.subtotal, 0),
-        ic.pares,
-        arts.reduce((s, a) => s + a.pares, 0),
-      );
-
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const modo = slotPf?.kind === "articulo" ? "articulo" : "cabecera";
-      setParejas((prev) => [
-        {
-          id,
-          icLabel: slotIc.label,
-          pfLabel: slotPf?.label ?? "—",
-          modo,
-          fi_nro: data.fi_nro,
-          match: hint.nivel,
-        },
-        ...prev,
-      ]);
-      onMsg(
-        `✓ FI ${data.fi_nro} · ${data.total_pares}p · Gs. ${Number(data.total_monto).toLocaleString("es-PY")} (con desc. IC) · cabecera ${ic.nro_ic}`,
-      );
-      setSlotIc(null);
-      setSlotPf(null);
-      setSlotIcId(null);
-      setSlotPpdIds([]);
+      const total = Number(data.total ?? data.generadas?.length ?? protocoloChusa.contadorIc);
+      if (data.already_done && total === fiEsperadas) {
+        onMsg(`✓ Lote completo: ${total} FI = ${fiEsperadas} IC`);
+      }
+      await load();
+      await onReload?.();
+      setNFiServidor(total);
+      if (total === fiEsperadas) {
+        setCelebracion({ total });
+      } else if (total > fiEsperadas) {
+        onMsg(`Atención: ${total} FI vs ${fiEsperadas} IC — revisá duplicados en tab FI.`);
+      }
     } catch (e) {
-      onMsg(e instanceof Error ? e.message : "Error generando FI");
+      onMsg(e instanceof Error ? e.message : "Error generando lote");
     } finally {
-      setGenerandoFi(false);
+      setGenerandoFiKey(null);
     }
   }
 
@@ -494,13 +466,40 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
 
   return (
     <section className="mt-4 space-y-3 overflow-x-hidden">
+      <ProcesoImportacionWaitOverlay
+        open={generandoFiKey === "lote"}
+        title={`Generando ${protocoloChusa.contadorIc} facturas internas`}
+        detail={`${pp.numero_registro} · Protocolo Chusa · IC = Proforma`}
+        hint="~2 minutos · no cierres la pestaña"
+      />
+      <ChusaLoteCelebracionOverlay
+        open={celebracion != null}
+        total={celebracion?.total ?? 0}
+        ppLabel={pp.numero_registro}
+        onVerFi={irAFi}
+      />
+
       <div className="rounded-xl border-2 border-yellow-400 bg-yellow-50 px-4 py-2">
-        <h2 className="text-sm font-bold text-yellow-950">⚖ Administrador de IC · Vinculación</h2>
+        <h2 className="text-sm font-bold text-yellow-950">⚖ Administrador de IC · Protocolo Chusa</h2>
         <p className="mt-1 text-xs text-yellow-900">
-          Pareja automática cuando coinciden <strong>cliente · marca · cantidad</strong>: la PF hereda{" "}
-          <strong>LP de la IC</strong> y recalcula monto (IC manda). Al generar FI → cabecera completa IC
-          (vendedor, plazo, descuentos, listado).
+          <strong>Cabecera:</strong> IC = PF = FI (115 filas · cliente · marca · pares por fila).{" "}
+          <strong>Molécula:</strong> Saldo = pares F9 sin asignar a FI ({pp.pares_comprometidos.toLocaleString("es-PY")} pares IC · {pp.total_articulos} artículos).{" "}
+          <strong className="text-red-800">Rojo pulsante = corregí la IC</strong> en ICs Asignadas.
         </p>
+        {canonDiffs.desajustes > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border-2 border-red-500 bg-red-100 px-3 py-2 text-xs text-red-950">
+            <span className="font-bold">
+              {canonDiffs.desajustes} fila{canonDiffs.desajustes === 1 ? "" : "s"} con canon ≠ — error
+              vendedor · subsaná editando la IC
+            </span>
+            <Link
+              href={`/proceso-importacion/pedido-proveedor/${ppId}?tab=ics`}
+              className="rounded bg-white px-2 py-1 font-bold text-rimec-azul underline hover:bg-red-50"
+            >
+              Ir a ICs Asignadas →
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -517,16 +516,124 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
             </option>
           ))}
         </select>
-        <span className="text-slate-500">
-          {icsVisibles.length} IC · {pfVisibles.length} Pre-FI
-        </span>
       </div>
 
-      <div className="grid min-h-[560px] grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)_minmax(0,1fr)] lg:gap-3">
+      {/* Acción única — lote Chusa */}
+      <div className="flex justify-center">
+        <div
+          className={`w-full max-w-xl rounded-xl border-4 px-6 py-5 text-center shadow-lg ${
+            fiExceso
+              ? "border-amber-500 bg-amber-50"
+              : loteExacto
+                ? "border-emerald-500 bg-emerald-50"
+                : protocoloChusa.puedeLote
+                  ? "border-emerald-500 bg-gradient-to-b from-emerald-50 to-white"
+                  : "border-slate-300 bg-slate-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="rounded-lg border-2 border-red-500 bg-white px-4 py-2 text-lg font-bold tabular-nums text-red-900">
+              IC {protocoloChusa.contadorIc}
+            </span>
+            <span className="text-2xl text-emerald-700">=</span>
+            <span className="rounded-lg border-2 border-red-500 bg-white px-4 py-2 text-lg font-bold tabular-nums text-red-900">
+              PF {protocoloChusa.contadorPf}
+            </span>
+            {fiEsperadas > 0 && (
+              <>
+                <span className="text-xl text-slate-400">→</span>
+                <span
+                  className={`rounded-lg border-2 px-4 py-2 text-lg font-bold tabular-nums ${
+                    fiExceso
+                      ? "border-amber-600 bg-amber-100 text-amber-950"
+                      : loteExacto
+                        ? "border-emerald-600 bg-emerald-100 text-emerald-950"
+                        : fiPendientes
+                          ? "border-amber-400 bg-white text-amber-900"
+                          : "border-slate-300 bg-white text-slate-700"
+                  }`}
+                >
+                  FI {nFiEfectivo}
+                  {fiExceso ? ` (+${nFiEfectivo - fiEsperadas})` : fiPendientes ? ` / ${fiEsperadas}` : ""}
+                </span>
+              </>
+            )}
+          </div>
+
+          {fiExceso ? (
+            <>
+              <p className="mt-4 text-sm font-bold text-amber-950">
+                ⚠ {nFiEfectivo - fiEsperadas} factura{nFiEfectivo - fiEsperadas === 1 ? "" : "s"} de más — re-ejecutaste el lote
+              </p>
+              <p className="mt-1 text-xs text-amber-900">
+                IC=PF=115 pero hay {nFiEfectivo} FI. Regenerá desde tab Facturas Internas.
+              </p>
+              <button
+                type="button"
+                onClick={() => void irAFi()}
+                className="mt-4 w-full rounded-xl bg-amber-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow hover:bg-amber-700"
+              >
+                Ir a Facturas Internas →
+              </button>
+            </>
+          ) : loteExacto ? (
+            <>
+              <p className="mt-4 text-sm font-bold text-emerald-900">
+                ✓ {nFiEfectivo} FI = {fiEsperadas} IC · cabecera cerrada
+              </p>
+              {pp.saldo > 0 ? (
+                <p className="mt-2 rounded-lg border-2 border-amber-500 bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950">
+                  Saldo {pp.saldo.toLocaleString("es-PY")} pares sin reservar — tras el lote debería quedar 0. Líneas sin LPN van en FI con borde ámbar.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-emerald-800">Saldo 0 · todos los pares F9 en FI</p>
+              )}
+              <button
+                type="button"
+                onClick={mostrarCelebracionCompleta}
+                className="mt-4 w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow hover:bg-emerald-700"
+              >
+                Ver resultado · facturas internas →
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={!protocoloChusa.puedeLote || generandoFi}
+                onClick={() => void generarFiLote()}
+                className="mt-5 w-full rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-emerald-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {generandoFiKey === "lote"
+                  ? "Generando… (~2 min)"
+                  : protocoloChusa.puedeLote
+                    ? fiPendientes && nFiEfectivo > 0
+                      ? `Completar lote · faltan ${fiEsperadas - nFiEfectivo} FI`
+                      : `Generar ${protocoloChusa.contadorIc} facturas · un clic`
+                    : "Generar factura interna por lote"}
+              </button>
+              {!protocoloChusa.nivel1 ? (
+                <p className="mt-3 text-xs text-slate-600">Nivel 1: contadores IC ≠ PF</p>
+              ) : !protocoloChusa.nivel2 ? (
+                <p className="mt-3 text-xs text-amber-800">Nivel 2: canon no cuadra — corregí ICs</p>
+              ) : (
+                <p className="mt-3 text-xs font-semibold text-emerald-800">
+                  Nivel 3 · listo — un clic y terminás
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="grid min-h-[560px] grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Panel IC */}
         <div className="flex min-w-0 flex-col overflow-hidden border border-slate-300 bg-slate-50">
-          <div className="border-b border-slate-300 bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase">
-            IC · cabecera
+          <div className="flex items-center justify-between border-b border-slate-300 bg-slate-200 px-2 py-1">
+            <span className="text-[10px] font-bold uppercase">IC · cabecera</span>
+            <span className="rounded border-2 border-red-500 bg-white px-2 py-0.5 text-[10px] font-bold tabular-nums text-red-900">
+              {protocoloChusa.contadorIc}
+            </span>
           </div>
           <div className={`grid w-full ${CABECERA_GRID} gap-1 border-b border-slate-200 px-1 py-0.5 text-[9px] font-bold uppercase text-slate-500 sm:text-[10px]`}>
             <span>Cliente</span>
@@ -538,9 +645,10 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
             <span />
           </div>
           <div className="max-h-[520px] space-y-0.5 overflow-y-auto overflow-x-hidden p-1">
-            {icsVisibles.map((ic) => {
-              const pfSug = pfConTier.find((p) => parejaTripleteIcPf(ic, p));
-              const matchNivel = pfSug ? matchPorPf.get(pfSug.pf_key) : null;
+            {icsVisibles.map((ic, idx) => {
+              const pfPar = pfVisibles[idx];
+              const marcaPf = pfPar ? marcaAlineacionPrefactura(pfPar, ics) : undefined;
+              const canonDiff = canonDiffs.ic[idx] ?? null;
               return (
                 <CabeceraFila
                   key={ic.ic_id}
@@ -555,14 +663,15 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
                   monto={ic.monto_ic}
                   montoSecundario={ic.monto_proforma}
                   pares={ic.pares}
-                  matchNivel={matchNivel}
-                  draggable
-                  onDragStart={(e) =>
-                    writeDrag(e, {
-                      kind: "ic",
-                      ic_id: ic.ic_id,
-                      label: `${ic.nro_ic} · ${ic.marca} · ${ic.pares}p · Gs.${fmtMonto(ic.monto_ic)}`,
-                    })
+                  canonDiff={canonDiff}
+                  canonHint={
+                    pfPar
+                      ? {
+                          cliente: pfPar.id_cliente,
+                          marca: marcaPf,
+                          cantidad: pfPar.total_pares,
+                        }
+                      : undefined
                   }
                 />
               );
@@ -570,114 +679,13 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
           </div>
         </div>
 
-        {/* Panel central — vinculación */}
-        <div className="flex min-w-0 flex-col overflow-hidden border-2 border-slate-400 bg-white">
-          <div className="border-b border-slate-300 bg-slate-100 px-2 py-1 text-center text-xs font-bold uppercase">
-            Vinculación
-          </div>
-          <div className="flex flex-1 flex-col gap-4 p-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={onDropIc}
-                className={`min-h-[88px] rounded-lg border-2 border-dashed p-3 ${
-                  slotIc ? "border-violet-500 bg-violet-50" : "border-violet-300 bg-violet-50/40"
-                }`}
-              >
-                <p className="text-[10px] font-bold uppercase text-violet-800">IC</p>
-                <p className="mt-2 text-xs text-violet-950">{slotIc?.label ?? "Soltá acá la IC"}</p>
-              </div>
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={onDropPf}
-                className={`min-h-[88px] rounded-lg border-2 border-dashed p-3 ${
-                  slotPf ? "border-orange-500 bg-orange-50" : "border-orange-300 bg-orange-50/40"
-                }`}
-              >
-                <p className="text-[10px] font-bold uppercase text-orange-800">Pre-Factura</p>
-                <p className="mt-2 text-xs text-orange-950">{slotPf?.label ?? "Soltá PF o artículo"}</p>
-              </div>
-            </div>
-            {slotMatch && slotIcId ? (
-              <div
-                className={`rounded-lg px-3 py-2 text-center text-xs ${
-                  slotMatch.nivel === "exacto"
-                    ? "bg-emerald-100 text-emerald-900"
-                    : slotMatch.nivel === "cercano"
-                      ? "bg-lime-100 text-lime-900"
-                      : slotMatch.nivel === "referencia"
-                        ? "bg-amber-100 text-amber-950"
-                        : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                Δ monto {slotMatch.delta_monto >= 0 ? "+" : ""}
-                {fmtMonto(slotMatch.delta_monto)} · Δ pares {slotMatch.delta_pares >= 0 ? "+" : ""}
-                {slotMatch.delta_pares} ·{" "}
-                {slotMatch.nivel === "exacto"
-                  ? "✓ cuadra al centavo"
-                  : slotMatch.nivel === "cercano"
-                    ? "~ cercano"
-                    : slotMatch.nivel === "referencia"
-                      ? "pares OK · monto referencia"
-                      : "revisar pareja"}
-                {(() => {
-                  const ic = ics.find((i) => i.ic_id === slotIcId);
-                  const arts = pfConTier
-                    .flatMap((p) => p.articulos)
-                    .filter((a) => slotPpdIds.includes(a.ppd_id));
-                  if (!ic || !arts.length) return null;
-                  const fiNeto = montoFiConDescuentosIc(
-                    arts,
-                    fiListaTier(ic.listado_precio_id),
-                    ic.descuento_1,
-                    ic.descuento_2,
-                    ic.descuento_3,
-                    ic.descuento_4,
-                  );
-                  return (
-                    <span className="block text-[10px] opacity-90">
-                      FI con desc. IC: Gs. {fmtMonto(fiNeto)}
-                    </span>
-                  );
-                })()}
-              </div>
-            ) : null}
-            <button
-              type="button"
-              disabled={generandoFi || !slotIc || !slotPpdIds.length}
-              onClick={() => void generarFi()}
-              className="mx-auto rounded-lg bg-emerald-500 px-6 py-2 text-sm font-bold text-white shadow hover:bg-emerald-600 disabled:opacity-50"
-            >
-              {generandoFi ? "Generando…" : "GENERAR F.I."}
-            </button>
-            {parejas.length > 0 && (
-              <div className="mt-2 max-h-40 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-2 text-[11px]">
-                <p className="mb-1 font-bold text-slate-700">Parejas / FI ({parejas.length})</p>
-                <ul className="space-y-1">
-                  {parejas.map((p) => (
-                    <li key={p.id} className="rounded bg-white px-2 py-1 shadow-sm">
-                      <span className="font-mono text-violet-800">{p.icLabel}</span>
-                      <span className="mx-1 text-slate-400">↔</span>
-                      <span className="font-mono text-orange-800">{p.pfLabel}</span>
-                      {p.fi_nro ? (
-                        <span className="ml-1 font-bold text-emerald-700">→ {p.fi_nro}</span>
-                      ) : null}
-                      <span className="ml-1 text-slate-500">
-                        ({p.modo}
-                        {p.match ? ` · ${p.match}` : ""})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Panel Pre-FI — derecha */}
         <div className="flex min-w-0 flex-col overflow-hidden border border-orange-300 bg-orange-50/50">
-          <div className="border-b border-orange-300 bg-orange-200 px-2 py-1 text-[10px] font-bold uppercase">
-            Pre-Factura interna · proforma
+          <div className="flex items-center justify-between border-b border-orange-300 bg-orange-200 px-2 py-1">
+            <span className="text-[10px] font-bold uppercase">Pre-Factura interna · proforma</span>
+            <span className="rounded border-2 border-red-500 bg-white px-2 py-0.5 text-[10px] font-bold tabular-nums text-red-900">
+              {protocoloChusa.contadorPf}
+            </span>
           </div>
           <div className={`grid w-full ${CABECERA_GRID} gap-1 border-b border-orange-200 px-1 py-0.5 text-[9px] font-bold uppercase text-orange-800 sm:text-[10px]`}>
             <span>Cliente</span>
@@ -689,9 +697,10 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
             <span />
           </div>
           <div className="max-h-[520px] space-y-0.5 overflow-y-auto overflow-x-hidden p-1">
-            {pfVisibles.map((pf) => {
+            {pfVisibles.map((pf, idx) => {
               const open = expandedPf.has(pf.pf_key);
               const icVinculada = pfTierAutoIc.icPorPf.get(pf.pf_key);
+              const icPar = icsVisibles[idx];
               const lpLocked = Boolean(icVinculada);
               const tier =
                 pfTierAutoIc.tiers[pf.pf_key] ?? pfTierOverrides[pf.pf_key] ?? pf.listado_tier;
@@ -699,6 +708,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
                 ? pf
                 : recalcPfConTier(pf, tier);
               const marcaCol = marcaAlineacionPrefactura(pfDisplay, ics);
+              const canonDiff = canonDiffs.pf[idx] ?? null;
               const montoConDescIc =
                 icVinculada != null
                   ? montoFiConDescuentosIc(
@@ -727,7 +737,16 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
                     monto={pfDisplay.total_monto}
                     montoSecundario={montoConDescIc}
                     pares={pfDisplay.total_pares}
-                    matchNivel={matchPorPf.get(pf.pf_key)}
+                    canonDiff={canonDiff}
+                    canonHint={
+                      icPar
+                        ? {
+                            cliente: icPar.id_cliente,
+                            marca: icPar.marca,
+                            cantidad: icPar.pares,
+                          }
+                        : undefined
+                    }
                     expandable
                     expanded={open}
                     onToggleExpand={() =>
@@ -738,34 +757,14 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg }: Props) {
                         return next;
                       })
                     }
-                    draggable={!open}
-                    onDragStart={(e) =>
-                      writeDrag(e, {
-                        kind: "pf",
-                        pf_key: pf.pf_key,
-                        label: `${pfDisplay.id_cliente} · ${marcaCol} · ${pfDisplay.total_pares}p · Gs.${fmtMonto(pfDisplay.total_monto)}`,
-                      })
-                    }
                   />
                   {open && (
                     <div className="space-y-1 border-l-2 border-orange-400 py-1 pl-1">
                       <p className="px-1 text-[9px] font-bold uppercase text-orange-800">
-                        Expandir = algo no cierra · arrastrá artículos sueltos
+                        Detalle artículos proforma
                       </p>
                       {pfDisplay.articulos.map((art) => (
-                        <ArticuloFila
-                          key={art.ppd_id}
-                          art={art}
-                          pfKey={pf.pf_key}
-                          onDragStart={(e) =>
-                            writeDrag(e, {
-                              kind: "articulo",
-                              ppd_id: art.ppd_id,
-                              pf_key: pf.pf_key,
-                              label: `${art.linea}.${art.referencia} · ${art.pares}p · Gs.${fmtMonto(art.subtotal)}`,
-                            })
-                          }
-                        />
+                        <ArticuloFila key={art.ppd_id} art={art} />
                       ))}
                     </div>
                   )}

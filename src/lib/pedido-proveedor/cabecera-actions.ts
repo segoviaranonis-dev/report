@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
 import { quincenaDbValue } from "@/lib/intencion-compra/quincena-arribo";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
@@ -130,6 +131,8 @@ export type UpdateIcVinculadaInput = {
   categoria_id?: number | null;
   precio_evento_id?: number | null;
   listado_precio_id?: number | null;
+  monto_bruto?: number;
+  id_plazo?: number | null;
 };
 
 export async function updateIcVinculadaPp(
@@ -145,6 +148,9 @@ export async function updateIcVinculadaPp(
   if (fields.cantidad_total_pares !== undefined && fields.cantidad_total_pares <= 0) {
     return { ok: false, error: "Pares debe ser mayor a 0." };
   }
+  if (fields.monto_bruto !== undefined && (!Number.isFinite(fields.monto_bruto) || fields.monto_bruto < 0)) {
+    return { ok: false, error: "Monto bruto inválido." };
+  }
 
   const client = await pool.connect();
   try {
@@ -155,8 +161,18 @@ export async function updateIcVinculadaPp(
       return { ok: false, error: err };
     }
 
-    const link = await client.query<{ pares: string }>(
-      `SELECT ic.cantidad_total_pares::text AS pares
+    const link = await client.query<{
+      pares: string;
+      descuento_1: string;
+      descuento_2: string;
+      descuento_3: string;
+      descuento_4: string;
+    }>(
+      `SELECT ic.cantidad_total_pares::text AS pares,
+              COALESCE(ic.descuento_1, 0)::text AS descuento_1,
+              COALESCE(ic.descuento_2, 0)::text AS descuento_2,
+              COALESCE(ic.descuento_3, 0)::text AS descuento_3,
+              COALESCE(ic.descuento_4, 0)::text AS descuento_4
        FROM intencion_compra ic
        JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id
        WHERE ic.id = $1 AND icp.pedido_proveedor_id = $2
@@ -208,6 +224,18 @@ export async function updateIcVinculadaPp(
       await client.query("ROLLBACK");
       return { ok: false, error: "Política LP inválida (use 1–4)." };
     }
+    if (fields.id_plazo !== undefined && fields.id_plazo != null) {
+      const pl = await client.query(`SELECT 1 FROM plazo_v2 WHERE id_plazo = $1`, [fields.id_plazo]);
+      if (!pl.rowCount) {
+        await client.query("ROLLBACK");
+        return { ok: false, error: "Plazo inválido." };
+      }
+    }
+
+    const d1 = Number(link.rows[0]?.descuento_1 ?? 0);
+    const d2 = Number(link.rows[0]?.descuento_2 ?? 0);
+    const d3 = Number(link.rows[0]?.descuento_3 ?? 0);
+    const d4 = Number(link.rows[0]?.descuento_4 ?? 0);
 
     const catRes = await client.query<{ categoria_id: string | null }>(
       `SELECT categoria_id::text FROM intencion_compra WHERE id = $1`,
@@ -253,6 +281,18 @@ export async function updateIcVinculadaPp(
     if (fields.listado_precio_id !== undefined) {
       icSets.push(`listado_precio_id = $${i++}`);
       icVals.push(fields.listado_precio_id);
+    }
+    if (fields.monto_bruto !== undefined) {
+      const bruto = Math.round(Math.max(0, fields.monto_bruto));
+      const neto = calcularNeto(bruto, d1, d2, d3, d4);
+      icSets.push(`monto_bruto = $${i++}`);
+      icVals.push(bruto);
+      icSets.push(`monto_neto = $${i++}`);
+      icVals.push(neto);
+    }
+    if (fields.id_plazo !== undefined) {
+      icSets.push(`id_plazo = $${i++}`);
+      icVals.push(fields.id_plazo);
     }
 
     if (icSets.length) {

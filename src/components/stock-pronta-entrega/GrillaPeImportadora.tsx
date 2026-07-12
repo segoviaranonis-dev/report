@@ -71,7 +71,7 @@ export function GrillaPeImportadora({
         </button>
       </div>
 
-      <div className="grid auto-rows-fr grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="grid auto-rows-min grid-cols-2 items-start gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {visibleCards.map((card) => (
           <PeCardMiniatura
             key={card.key}

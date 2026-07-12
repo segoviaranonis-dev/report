@@ -12,6 +12,11 @@ import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonic
 import { legacyImageCandidates } from "@/lib/ventas-fotos/image";
 import { parseImagenMolecula } from "@/lib/ventas-fotos/parse-imagen";
 
+export {
+  buildLineaSnapshotForFi,
+  enrichLineaSnapshotFromPpd,
+} from "@/lib/pedido-proveedor/linea-snapshot-fi";
+
 export type LineaSnapshotParsed = {
   linea_codigo: string;
   ref_codigo: string;
@@ -22,6 +27,7 @@ export type LineaSnapshotParsed = {
   gradas_display: string;
   imageCandidates: string[];
   imageSearchName: string | null;
+  sin_lpn: boolean;
 };
 
 function str(v: unknown): string {
@@ -223,5 +229,6 @@ export function parseLineaSnapshotForDisplay(raw: unknown): LineaSnapshotParsed 
     gradas_display: gradasDisplayFromSnapshot(snap),
     imageCandidates: candidates,
     imageSearchName: searchName,
+    sin_lpn: snap.sin_lpn === true || snap.sin_lpn === "true",
   };
 }

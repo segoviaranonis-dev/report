@@ -172,12 +172,15 @@ export function applyOperativaFilters(
   rows: DepositoRow[],
   f: OperativaFilterState,
   excluir?: ExcluirDimension,
+  opts?: { incluirVendidoSinSaldo?: boolean },
 ): DepositoRow[] {
   const eff: OperativaFilterState = excluir
     ? { ...f, [excluir]: emptyForExcluir(excluir) }
     : f;
 
-  let out = rows.filter((r) => r.cantidad > 0);
+  let out = opts?.incluirVendidoSinSaldo
+    ? rows.filter((r) => r.cantidad > 0 || (r.pares_vendidos ?? 0) > 0)
+    : rows.filter((r) => r.cantidad > 0);
 
   if (eff.generoIds.length) {
     out = out.filter((r) => matchFk(r.genero_id, eff.generoIds));
@@ -224,6 +227,8 @@ export function applyOperativaFilters(
         r.tipo_v2,
         r.genero,
         r.tipo_1,
+        r.proforma,
+        r.pp_nro,
       ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
+import { VENTA_VISUAL, ventaChipClass } from "@/lib/nexus/venta-visual";
 
 type Props = {
   paresInicial: number;
@@ -29,16 +30,16 @@ export function TransitoVentasVitales({
   return (
     <>
       {(destaque === "ambos" || destaque === "vendido") && (
-      <span className="rounded-lg border-2 border-rose-300 bg-rose-50 px-3 py-1.5">
-        <span className="block text-[9px] font-bold uppercase tracking-wider text-rose-700">
+      <span className={ventaChipClass}>
+        <span className={`block text-[9px] font-bold uppercase tracking-wider ${VENTA_VISUAL.label}`}>
           Vendido · tránsito
         </span>
-        <span className="block font-black tabular-nums text-rose-900">
+        <span className={`block font-black tabular-nums ${VENTA_VISUAL.valueStrong}`}>
           {Math.round(paresVendidos).toLocaleString("es-PY")}{" "}
           <span className="text-[10px] font-bold uppercase">pares</span>
         </span>
         {vendidoGs > 0 ? (
-          <span className="block text-[10px] font-semibold tabular-nums text-rose-800/80">
+          <span className={`block text-[10px] font-semibold tabular-nums ${VENTA_VISUAL.valueMuted}`}>
             {formatPrecioGs(vendidoGs)} · {pct}%
           </span>
         ) : null}

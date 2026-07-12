@@ -3,10 +3,24 @@ import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { SQL_PP_CATEGORIA_CTE } from "@/lib/stock-programado/pp-categoria-sql";
 import type { StockTransitoResumen, TransitoResumenQuincena } from "@/lib/stock-transito/queries-resumen";
 
-export type StockProgramadoResumen = StockTransitoResumen;
+export type ProgramadoResumenProforma = {
+  pp_id: number;
+  pp_nro: string;
+  proforma: string;
+  label: string;
+  pares_inicial: number;
+  pares_vendidos: number;
+  pares_saldo: number;
+  /** FI RESERVADA+CONFIRMADA — lote Chusa completo. */
+  n_fi: number;
+};
+
+export type StockProgramadoResumen = StockTransitoResumen & {
+  por_proforma: ProgramadoResumenProforma[];
+};
 
 export async function getStockProgramadoResumen(pool: Pool): Promise<StockProgramadoResumen> {
-  const [kpiQ, quincenasQ] = await Promise.all([
+  const [kpiQ, quincenasQ, proformasQ] = await Promise.all([
     pool.query<{
       pedidos: string;
       moleculas: string;
@@ -81,6 +95,46 @@ export async function getStockProgramadoResumen(pool: Pool): Promise<StockProgra
       `,
       [CATEGORIA_PROGRAMADO_ID],
     ),
+    pool.query<{
+      pp_id: string;
+      pp_nro: string;
+      proforma: string;
+      n_fi: string;
+      inicial: string;
+      vendido: string;
+      saldo: string;
+    }>(
+      `
+      WITH ${SQL_PP_CATEGORIA_CTE},
+      mol AS (
+        SELECT
+          ppd.pedido_proveedor_id AS pp_id,
+          SUM(COALESCE(ppd.cantidad_pares, 0))::float AS inicial,
+          SUM(COALESCE(ppd.pares_vendidos, 0))::float AS vendido
+        FROM pedido_proveedor_detalle ppd
+        JOIN pp_cat pc ON pc.pp_id = ppd.pedido_proveedor_id AND pc.categoria_id = $1
+        WHERE ppd.referencia IS NOT NULL
+        GROUP BY ppd.pedido_proveedor_id,
+          COALESCE(ppd.linea::text, ''), COALESCE(ppd.referencia::text, ''),
+          COALESCE(ppd.material_code::text, ''), COALESCE(ppd.color_code::text, ''),
+          COALESCE(ppd.grada::text, '')
+      )
+      SELECT
+        m.pp_id::text,
+        COALESCE(pp.numero_registro, '—') AS pp_nro,
+        COALESCE(NULLIF(TRIM(pp.numero_proforma), ''), 'Sin proforma') AS proforma,
+        (SELECT COUNT(*)::int FROM factura_interna fi
+         WHERE fi.pp_id = m.pp_id AND fi.estado IN ('RESERVADA', 'CONFIRMADA')) AS n_fi,
+        COALESCE(SUM(m.inicial), 0)::text AS inicial,
+        COALESCE(SUM(m.vendido), 0)::text AS vendido,
+        COALESCE(SUM(m.inicial - m.vendido), 0)::text AS saldo
+      FROM mol m
+      JOIN pedido_proveedor pp ON pp.id = m.pp_id
+      GROUP BY m.pp_id, pp.numero_registro, pp.numero_proforma
+      ORDER BY pp.numero_registro DESC NULLS LAST
+      `,
+      [CATEGORIA_PROGRAMADO_ID],
+    ),
   ]);
 
   const kpi = kpiQ.rows[0];
@@ -103,5 +157,17 @@ export async function getStockProgramadoResumen(pool: Pool): Promise<StockProgra
         pares_saldo: Number(r.saldo),
       }),
     ),
+    por_proforma: proformasQ.rows
+      .map((r) => ({
+        pp_id: Number(r.pp_id),
+        pp_nro: r.pp_nro,
+        proforma: r.proforma,
+        label: `${r.proforma} · ${r.pp_nro}`,
+        pares_inicial: Number(r.inicial),
+        pares_vendidos: Number(r.vendido),
+        pares_saldo: Number(r.saldo),
+        n_fi: Number(r.n_fi),
+      }))
+      .sort((a, b) => b.n_fi - a.n_fi || b.pares_vendidos - a.pares_vendidos),
   };
 }

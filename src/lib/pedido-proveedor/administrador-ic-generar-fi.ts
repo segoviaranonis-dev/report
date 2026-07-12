@@ -4,6 +4,7 @@ import {
   fiListaTier,
 } from "@/lib/pedido-proveedor/aritmetica-programado";
 import type { ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
+import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
 
 type SkuFi = {
   ppd_id: number;
@@ -71,6 +72,9 @@ async function loadSkusPpd(
       referencia: string;
       descp_material: string;
       descp_color: string;
+      material_code: string;
+      color_code: string;
+      grades_json: unknown;
       cantidad_cajas: number;
       cantidad_pares: number;
     }
@@ -82,17 +86,23 @@ async function loadSkusPpd(
       referencia: string;
       descp_material: string;
       descp_color: string;
+      material_code: string;
+      color_code: string;
+      grades_json: unknown;
       cantidad_cajas: number;
       cantidad_pares: number;
     }
   >(
     `SELECT ppd.id AS ppd_id, l.id AS linea_id, ref.id AS referencia_id,
             m.id AS material_id, c.id AS color_id,
-            COALESCE(pl.lpn, 0)::float AS lpn,
-            COALESCE(pl.lpc02, 0)::float AS lpc02,
-            COALESCE(pl.lpc03, 0)::float AS lpc03,
-            COALESCE(pl.lpc04, 0)::float AS lpc04,
-            ppd.linea, ppd.referencia, ppd.material_code,
+            COALESCE(pl_fk.lpn, pl_cod.lpn, ppd.precio_lpn, 0)::float AS lpn,
+            COALESCE(pl_fk.lpc02, pl_cod.lpc02, ppd.precio_lpc02, 0)::float AS lpc02,
+            COALESCE(pl_fk.lpc03, pl_cod.lpc03, ppd.precio_lpc03, 0)::float AS lpc03,
+            COALESCE(pl_fk.lpc04, pl_cod.lpc04, ppd.precio_lpc04, 0)::float AS lpc04,
+            ppd.linea, ppd.referencia,
+            COALESCE(ppd.material_code, '') AS material_code,
+            COALESCE(ppd.color_code, '') AS color_code,
+            ppd.grades_json,
             COALESCE(ppd.descp_material, '') AS descp_material,
             COALESCE(ppd.descp_color, '') AS descp_color,
             COALESCE(ppd.cantidad_cajas, 1)::int AS cantidad_cajas,
@@ -103,16 +113,56 @@ async function loadSkusPpd(
      LEFT JOIN referencia ref ON ref.linea_id = l.id AND ref.codigo_proveedor::text = ppd.referencia
      LEFT JOIN material m ON m.proveedor_id = pp.proveedor_importacion_id AND m.codigo_proveedor::text = ppd.material_code
      LEFT JOIN color c ON c.codigo_proveedor::text = ppd.color_code
-     LEFT JOIN precio_lista pl ON pl.evento_id = $3 AND pl.linea_id = l.id
-                               AND pl.referencia_id = ref.id AND pl.material_id = m.id
+     LEFT JOIN precio_lista pl_fk ON pl_fk.evento_id = $3 AND pl_fk.linea_id = l.id
+                               AND pl_fk.referencia_id = ref.id AND pl_fk.material_id = m.id
+     LEFT JOIN LATERAL (
+       SELECT pl.lpn, pl.lpc02, pl.lpc03, pl.lpc04
+       FROM precio_lista pl
+       WHERE pl.evento_id = $3
+         AND TRIM(pl.linea_codigo) = TRIM(ppd.linea)
+         AND TRIM(pl.referencia_codigo) = TRIM(ppd.referencia)
+         AND (m.id IS NULL OR pl.material_id = m.id)
+       ORDER BY CASE WHEN m.id IS NOT NULL AND pl.material_id = m.id THEN 0 ELSE 1 END, pl.id
+       LIMIT 1
+     ) pl_cod ON TRUE
      WHERE ppd.pedido_proveedor_id = $1 AND ppd.id = ANY($2::int[])`,
     [ppId, ppdIds, eventoId],
   );
-  const map = new Map<number, (typeof rows)[0]>();
+  const map = new Map<number, (typeof rows)[0] & { sin_lpn?: boolean }>();
   for (const r of rows) {
-    if (r.linea_id && r.referencia_id && r.material_id) map.set(r.ppd_id, r);
+    const id = Number(r.ppd_id);
+    const hasPrice = r.lpn > 0 || r.lpc02 > 0 || r.lpc03 > 0 || r.lpc04 > 0;
+    if (Number.isFinite(id) && id > 0) {
+      map.set(id, { ...r, ppd_id: id, sin_lpn: !hasPrice });
+    }
   }
   return map;
+}
+
+async function resolveEventoIdIc(
+  pool: Pool,
+  ppId: number,
+  icId: number,
+): Promise<number | null> {
+  const { rows } = await pool.query<{ evento_id: number | null }>(
+    `SELECT COALESCE(
+       icp.precio_evento_id,
+       ic.precio_evento_id,
+       (
+         SELECT icp2.precio_evento_id
+         FROM intencion_compra_pedido icp2
+         WHERE icp2.pedido_proveedor_id = $1 AND icp2.precio_evento_id IS NOT NULL
+         ORDER BY icp2.id
+         LIMIT 1
+       )
+     )::int AS evento_id
+     FROM intencion_compra ic
+     JOIN intencion_compra_pedido icp
+       ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1
+     WHERE ic.id = $2`,
+    [ppId, icId],
+  );
+  return rows[0]?.evento_id ?? null;
 }
 
 export type GenerarFiAdminResult =
@@ -141,13 +191,7 @@ export async function generarFiDesdeAdministradorIc(
   const ic = await loadIcCabecera(pool, icId, ppId);
   if (!ic) return { ok: false, error: "IC no vinculada a este PP." };
 
-  const eventoRes = await pool.query<{ evento_id: number | null }>(
-    `SELECT icp.precio_evento_id::int AS evento_id
-     FROM intencion_compra_pedido icp
-     WHERE icp.pedido_proveedor_id = $1 AND icp.intencion_compra_id = $2`,
-    [ppId, icId],
-  );
-  const eventoId = eventoRes.rows[0]?.evento_id;
+  const eventoId = await resolveEventoIdIc(pool, ppId, icId);
   if (!eventoId) return { ok: false, error: "IC sin evento de precios vinculado." };
 
   const client = await pool.connect();
@@ -169,30 +213,41 @@ export async function generarFiDesdeAdministradorIc(
       subtotal: number;
       linea_codigo: string;
       ref_codigo: string;
+      material_code: string;
+      color_code: string;
       material_nombre: string;
       color_nombre: string;
+      grades_json: unknown;
+      sin_lpn: boolean;
     };
 
     const items: LineItem[] = [];
     let montoSinDesc = 0;
+    let lineasSinLpn = 0;
 
     for (const ppdId of ppdIds) {
-      const row = skuMap.get(ppdId);
+      const row = skuMap.get(Number(ppdId));
       if (!row) {
-        avisos.push(`PPD ${ppdId}: sin pilares/LPN en listado — omitido.`);
+        avisos.push(`PPD ${ppdId}: no encontrado en stock PP.`);
         continue;
       }
+      const sinLpn = Boolean((row as { sin_lpn?: boolean }).sin_lpn);
       const pares = row.cantidad_pares;
-      const { precio_unit, precio_neto, subtotal } = calcLineaFiPrecio(
-        row,
-        tier,
-        d1,
-        d2,
-        d3,
-        d4,
-        pares,
-      );
-      montoSinDesc += Math.round(precio_unit * pares);
+      if (sinLpn) lineasSinLpn += 1;
+
+      let precio_unit = 0;
+      let precio_neto = 0;
+      let subtotal = 0;
+      if (!sinLpn) {
+        const calc = calcLineaFiPrecio(row, tier, d1, d2, d3, d4, pares);
+        precio_unit = calc.precio_unit;
+        precio_neto = calc.precio_neto;
+        subtotal = calc.subtotal;
+        montoSinDesc += Math.round(precio_unit * pares);
+      } else {
+        avisos.push(`PPD ${ppdId}: sin LPN — línea en FI con precio 0 (revisar listado).`);
+      }
+
       items.push({
         ppd_id: ppdId,
         cajas: row.cantidad_cajas || 1,
@@ -202,13 +257,21 @@ export async function generarFiDesdeAdministradorIc(
         subtotal,
         linea_codigo: row.linea,
         ref_codigo: row.referencia,
+        material_code: row.material_code,
+        color_code: row.color_code,
         material_nombre: row.descp_material,
         color_nombre: row.descp_color,
+        grades_json: row.grades_json,
+        sin_lpn: sinLpn,
       });
     }
 
     if (!items.length) {
-      return { ok: false, error: "Ninguna línea con LPN/pilares válidos.", avisos };
+      return {
+        ok: false,
+        error: `Ninguna línea con precio válido (${ppdIds.length} PPD · revisá listado o snapshot PPD).`,
+        avisos,
+      };
     }
 
     await client.query("BEGIN");
@@ -243,13 +306,17 @@ export async function generarFiDesdeAdministradorIc(
     const values: unknown[] = [];
     const tuples = items.map((item, idx) => {
       const base = idx * 8;
-      const snap = JSON.stringify({
+      const snap = buildLineaSnapshotForFi({
         linea_codigo: item.linea_codigo,
         ref_codigo: item.ref_codigo,
+        material_code: item.material_code,
+        color_code: item.color_code,
         material_nombre: item.material_nombre,
         color_nombre: item.color_nombre,
+        grades_json: item.grades_json,
         ic_id: ic.ic_id,
         origen: "administrador-ic",
+        sin_lpn: item.sin_lpn,
       });
       values.push(
         fiId,

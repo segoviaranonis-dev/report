@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
+import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 
 const STORAGE_PREFIX = "pe-ventas-demo";
 
@@ -84,7 +85,7 @@ export function PeVentasRegistroBar({
   };
 
   const ramos: { key: Ramo; icon: string; label: string; accent: string }[] = [
-    { key: "calzado", icon: "👟", label: "Calzado", accent: "border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-900" },
+    { key: "calzado", icon: "👟", label: "Calzado", accent: `${VENTA_VISUAL.chipBorder} ${VENTA_VISUAL.chipBg} hover:bg-emerald-100 ${VENTA_VISUAL.valueStrong}` },
     {
       key: "confecciones",
       icon: "👕",

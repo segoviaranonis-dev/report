@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
+import type { VentaCompradorLinea } from "@/lib/clientes/etiqueta-comprador";
 import {
   buildEstiloMarcaDrillFromRows,
   buildEstiloTonoDrillFromRows,
@@ -47,6 +48,8 @@ type StockProgramadoContextValue = {
   setFiltros: Dispatch<SetStateAction<OperativaFilterState>>;
   quincenaIds: string[];
   setQuincenaIds: Dispatch<SetStateAction<string[]>>;
+  ppIds: string[];
+  setPpIds: Dispatch<SetStateAction<string[]>>;
   filtradas: DepositoRow[];
   opciones: OperativaOpciones;
   drill: EstiloDrill[];
@@ -60,6 +63,7 @@ type StockProgramadoContextValue = {
   totalInicial: number;
   totalVendidos: number;
   valorInventario: number;
+  ventasComprador: Map<string, VentaCompradorLinea[]>;
 };
 
 const StockProgramadoContext = createContext<StockProgramadoContextValue | null>(null);
@@ -76,7 +80,11 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [quincenaIds, setQuincenaIds] = useState<string[]>([]);
+  const [ppIds, setPpIds] = useState<string[]>([]);
   const [filtros, setFiltros] = useState(EMPTY_OPERATIVA_FILTERS);
+  const [ventasComprador, setVentasComprador] = useState<Map<string, VentaCompradorLinea[]>>(
+    () => new Map(),
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -88,6 +96,9 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
       .then(async ([j, tonoRes]) => {
         const tonoData = await tonoRes.json().catch(() => null);
         setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
+        const raw = ((j as { ventasComprador?: Record<string, VentaCompradorLinea[]> }).ventasComprador ??
+          {}) as Record<string, VentaCompradorLinea[]>;
+        setVentasComprador(new Map(Object.entries(raw)));
         if (tonoData?.estandar?.length) setTonoCatalog(tonoData.estandar);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Error"))
@@ -95,12 +106,12 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const filtradas = useMemo(
-    () => applyStockProgramadoFilters(rows, filtros, quincenaIds),
-    [rows, filtros, quincenaIds],
+    () => applyStockProgramadoFilters(rows, filtros, quincenaIds, ppIds),
+    [rows, filtros, quincenaIds, ppIds],
   );
   const opciones = useMemo(
-    () => buildStockProgramadoOpciones(rows, filtros, quincenaIds),
-    [rows, filtros, quincenaIds],
+    () => buildStockProgramadoOpciones(rows, filtros, quincenaIds, ppIds),
+    [rows, filtros, quincenaIds, ppIds],
   );
   const drill = useMemo(() => buildEstiloTonoDrillFromRows(filtradas), [filtradas]);
   const estiloMarcaDrill = useMemo(() => buildEstiloMarcaDrillFromRows(filtradas), [filtradas]);
@@ -136,6 +147,8 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
       setFiltros,
       quincenaIds,
       setQuincenaIds,
+      ppIds,
+      setPpIds,
       filtradas,
       opciones,
       drill,
@@ -149,6 +162,7 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
       totalInicial,
       totalVendidos,
       valorInventario,
+      ventasComprador,
     }),
     [
       rows,
@@ -157,6 +171,7 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
       tonoCatalog,
       filtros,
       quincenaIds,
+      ppIds,
       filtradas,
       opciones,
       drill,
@@ -170,6 +185,7 @@ export function StockProgramadoProvider({ children }: { children: ReactNode }) {
       totalInicial,
       totalVendidos,
       valorInventario,
+      ventasComprador,
     ],
   );
 

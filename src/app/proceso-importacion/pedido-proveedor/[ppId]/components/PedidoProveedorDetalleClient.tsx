@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
@@ -61,6 +62,8 @@ type Props = { ppId: string };
 type IcFormDraft = {
   nro_pedido_fabrica: string;
   pares: number;
+  monto_bruto: number;
+  id_plazo: number | null;
   id_marca: number;
   id_vendedor: number;
   id_proveedor: number;
@@ -69,10 +72,22 @@ type IcFormDraft = {
   listado_precio_id: ListadoPrecioTierId | null;
 };
 
+function fmtGs(n: number) {
+  return n.toLocaleString("es-PY", { maximumFractionDigits: 0 });
+}
+
+function parseMontoGsInput(raw: string): number {
+  const cleaned = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
+}
+
 function icToDraft(ic: PpIcVinculada): IcFormDraft {
   return {
     nro_pedido_fabrica: ic.nro_pedido_fabrica ?? "",
     pares: ic.pares,
+    monto_bruto: Math.round(Number(ic.monto_bruto ?? 0)),
+    id_plazo: ic.id_plazo,
     id_marca: ic.id_marca,
     id_vendedor: ic.id_vendedor,
     id_proveedor: ic.id_proveedor,
@@ -249,6 +264,8 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
           body: JSON.stringify({
             nro_pedido_fabrica: draft.nro_pedido_fabrica,
             cantidad_total_pares: draft.pares,
+            monto_bruto: draft.monto_bruto,
+            id_plazo: draft.id_plazo,
             id_marca: draft.id_marca,
             id_vendedor: draft.id_vendedor,
             id_proveedor: draft.id_proveedor,
@@ -759,6 +776,59 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                 />
                               </label>
                               <label className="text-xs">
+                                <span className="font-semibold text-slate-500">
+                                  {draft.categoria_id === CATEGORIA_PROGRAMADO_ID
+                                    ? "Monto bruto (Gs.) · ref. Admin IC"
+                                    : "Monto bruto (Gs.)"}
+                                </span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  className={`${inputCls} font-mono tabular-nums`}
+                                  value={draft.monto_bruto ? fmtGs(draft.monto_bruto) : ""}
+                                  placeholder="0"
+                                  onChange={(e) =>
+                                    patchIcDraft(ic.ic_id, {
+                                      monto_bruto: parseMontoGsInput(e.target.value),
+                                    })
+                                  }
+                                />
+                                <span className="mt-0.5 block text-[10px] text-slate-500">
+                                  Neto calc.: Gs.{" "}
+                                  {fmtGs(
+                                    calcularNeto(
+                                      draft.monto_bruto,
+                                      ic.descuento_1,
+                                      ic.descuento_2,
+                                      ic.descuento_3,
+                                      ic.descuento_4,
+                                    ),
+                                  )}
+                                </span>
+                              </label>
+                              <label className="text-xs">
+                                <span className="font-semibold text-slate-500">
+                                  {draft.categoria_id === CATEGORIA_PROGRAMADO_ID
+                                    ? "Plazo → CSV"
+                                    : "Plazo"}
+                                </span>
+                                <select
+                                  className={selectCls}
+                                  value={draft.id_plazo ?? ""}
+                                  onChange={(e) =>
+                                    patchIcDraft(ic.ic_id, {
+                                      id_plazo: e.target.value ? Number(e.target.value) : null,
+                                    })
+                                  }
+                                >
+                                  {catalogos!.plazos.map((p) => (
+                                    <option key={String(p.id)} value={p.id ?? ""}>
+                                      {p.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="text-xs">
                                 <span className="font-semibold text-slate-500">Nro. pedido fábrica</span>
                                 <input
                                   type="text"
@@ -792,6 +862,13 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                 {ic.marca} · {ic.vendedor} · {ic.proveedor}
                               </p>
                               <p>{ic.pares.toLocaleString("es-PY")} pares · {ic.categoria}</p>
+                              <p className="font-mono font-semibold text-slate-800">
+                                Gs. {fmtGs(ic.monto_bruto)} bruto · Gs. {fmtGs(ic.monto_neto)} neto
+                              </p>
+                              <p>
+                                Plazo:{" "}
+                                <span className="font-semibold">{ic.plazo_nombre?.trim() || "—"}</span>
+                              </p>
                               {ic.categoria_id === CATEGORIA_PROGRAMADO_ID && (
                                 <>
                                   <p className="font-mono font-semibold text-rimec-azul">
@@ -843,7 +920,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             )}
 
             {tab === "admin-ic" && pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
-              <PpTabAdministradorIc pp={pp} ppId={ppId} onMsg={setMsg} />
+              <PpTabAdministradorIc pp={pp} ppId={ppId} onMsg={setMsg} onReload={load} />
             )}
 
             {tab === "stock" && (
