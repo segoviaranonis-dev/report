@@ -395,12 +395,13 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
     }
   }
 
-  async function generarFiLote() {
-    if (loteExacto) {
+  async function generarFiLote(opts?: { regenerar?: boolean }) {
+    const regenerar = opts?.regenerar === true || nFiEfectivo > 0;
+    if (loteExacto && !regenerar) {
       mostrarCelebracionCompleta();
       return;
     }
-    if (fiExceso) {
+    if (fiExceso && !regenerar) {
       onMsg(
         `Hay ${nFiEfectivo - fiEsperadas} FI de más (${nFiEfectivo} vs ${fiEsperadas} IC). Tab Facturas Internas → regenerar.`,
       );
@@ -418,7 +419,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ regenerar }),
         },
       );
       const data = await res.json();
@@ -439,8 +440,10 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
       }
 
       const total = Number(data.total ?? data.generadas?.length ?? protocoloChusa.contadorIc);
-      if (data.already_done && total === fiEsperadas) {
+      if (data.already_done && total === fiEsperadas && !regenerar) {
         onMsg(`✓ Lote completo: ${total} FI = ${fiEsperadas} IC`);
+      } else if (data.regenerado) {
+        onMsg(`✓ Regeneradas ${data.generadas_en_lote ?? total} FI desde prefactura actual`);
       }
       await load();
       await onReload?.();
@@ -588,7 +591,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
           ) : loteExacto ? (
             <>
               <p className="mt-4 text-sm font-bold text-emerald-900">
-                ✓ {nFiEfectivo} FI = {fiEsperadas} IC · cabecera cerrada
+                ✓ {nFiEfectivo} FI = {fiEsperadas} IC · revisá montos vs prefactura
               </p>
               {pp.saldo > 0 ? (
                 <p className="mt-2 rounded-lg border-2 border-amber-500 bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950">
@@ -599,10 +602,20 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
               )}
               <button
                 type="button"
-                onClick={mostrarCelebracionCompleta}
-                className="mt-4 w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow hover:bg-emerald-700"
+                disabled={!protocoloChusa.puedeLote || generandoFi}
+                onClick={() => void generarFiLote({ regenerar: true })}
+                className="mt-4 w-full rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Ver resultado · facturas internas →
+                {generandoFiKey === "lote"
+                  ? "Recalculando… (~2 min)"
+                  : `Recalcular ${nFiEfectivo} facturas desde proforma`}
+              </button>
+              <button
+                type="button"
+                onClick={mostrarCelebracionCompleta}
+                className="mt-2 w-full rounded-lg border border-emerald-600 bg-white px-4 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+              >
+                Ver tab Facturas Internas →
               </button>
             </>
           ) : (
@@ -610,7 +623,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
               <button
                 type="button"
                 disabled={!protocoloChusa.puedeLote || generandoFi}
-                onClick={() => void generarFiLote()}
+                onClick={() => void generarFiLote({ regenerar: nFiEfectivo > 0 })}
                 className="mt-5 w-full rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-emerald-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {generandoFiKey === "lote"

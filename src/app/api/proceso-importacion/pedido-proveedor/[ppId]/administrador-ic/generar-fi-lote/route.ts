@@ -3,6 +3,7 @@ import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { construirParejasLoteChusa } from "@/lib/pedido-proveedor/administrador-ic-monto";
 import { loadAdministradorIcPp } from "@/lib/pedido-proveedor/administrador-ic-query";
 import { generarFiDesdeAdministradorIc } from "@/lib/pedido-proveedor/administrador-ic-generar-fi";
+import { borrarFiReservadasProgramado } from "@/lib/pedido-proveedor/proforma-programado-engine";
 import { getPpDetalle } from "@/lib/pedido-proveedor/detail-query";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
@@ -10,7 +11,7 @@ import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 type Params = { params: Promise<{ ppId: string }> };
 
 /** Protocolo Chusa · genera N FI en secuencia (1 IC ↔ 1 PF por pareja). */
-export async function POST(_req: Request, { params }: Params) {
+export async function POST(req: Request, { params }: Params) {
   const gate = await requireMotorPreciosAdmin();
   if (gate.error) return gate.error;
   if (!isRimecDatabaseConfigured()) {
@@ -20,6 +21,14 @@ export async function POST(_req: Request, { params }: Params) {
   const ppId = Number((await params).ppId);
   if (!Number.isFinite(ppId)) {
     return NextResponse.json({ ok: false, error: "PP inválido" }, { status: 400 });
+  }
+
+  let regenerar = false;
+  try {
+    const body = (await req.json()) as { regenerar?: boolean };
+    regenerar = body?.regenerar === true;
+  } catch {
+    /* body vacío = crear faltantes */
   }
 
   const pool = getRimecPool();
@@ -45,14 +54,25 @@ export async function POST(_req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Sin parejas IC↔PF para lote." }, { status: 400 });
   }
 
+  const nEsperadas = parejas.length;
+
+  if (regenerar) {
+    const del = await borrarFiReservadasProgramado(ppId);
+    if (!del.ok) {
+      return NextResponse.json(
+        { ok: false, error: del.error ?? "No se pudieron borrar FI RESERVADA para regenerar." },
+        { status: 409 },
+      );
+    }
+  }
+
   const { rows: fiExistRows } = await pool.query<{ c: number }>(
     "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
     [ppId],
   );
   const nFiExistentes = fiExistRows[0]?.c ?? 0;
-  const nEsperadas = parejas.length;
 
-  if (nFiExistentes > nEsperadas) {
+  if (!regenerar && nFiExistentes > nEsperadas) {
     return NextResponse.json(
       {
         ok: false,
@@ -65,7 +85,7 @@ export async function POST(_req: Request, { params }: Params) {
     );
   }
 
-  if (nFiExistentes === nEsperadas) {
+  if (!regenerar && nFiExistentes === nEsperadas) {
     return NextResponse.json({
       ok: true,
       already_done: true,
@@ -83,20 +103,24 @@ export async function POST(_req: Request, { params }: Params) {
     total_pares: number;
     total_monto: number;
   }> = [];
-  const avisos: string[] = [];
+  const avisos: string[] = regenerar
+    ? [`Regeneración: ${nEsperadas} FI desde prefactura actual.`]
+    : [];
   let omitidas = 0;
 
   for (const p of parejas) {
-    const { rows: fiIcRows } = await pool.query<{ c: number }>(
-      `SELECT COUNT(*)::int AS c
-       FROM factura_interna fi
-       JOIN intencion_compra ic ON TRIM(fi.notas) = TRIM(ic.numero_registro)
-       WHERE fi.pp_id = $1 AND ic.id = $2`,
-      [ppId, p.ic_id],
-    );
-    if ((fiIcRows[0]?.c ?? 0) > 0) {
-      omitidas++;
-      continue;
+    if (!regenerar) {
+      const { rows: fiIcRows } = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c
+         FROM factura_interna fi
+         JOIN intencion_compra ic ON TRIM(fi.notas) = TRIM(ic.numero_registro)
+         WHERE fi.pp_id = $1 AND ic.id = $2`,
+        [ppId, p.ic_id],
+      );
+      if ((fiIcRows[0]?.c ?? 0) > 0) {
+        omitidas++;
+        continue;
+      }
     }
 
     const result = await generarFiDesdeAdministradorIc(pool, ppId, p.ic_id, p.ppd_ids);
@@ -126,7 +150,8 @@ export async function POST(_req: Request, { params }: Params) {
 
   return NextResponse.json({
     ok: true,
-    total: nFiExistentes + generadas.length,
+    regenerado: regenerar,
+    total: regenerar ? generadas.length : nFiExistentes + generadas.length,
     generadas_en_lote: generadas.length,
     omitidas_ic_con_fi: omitidas,
     n_esperadas: nEsperadas,
