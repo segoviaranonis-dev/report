@@ -362,6 +362,11 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
     [fiEsperadas, nFiEfectivo],
   );
 
+  /** IC=PF alineados (Chusa N1+N2) — botón maestro verde manda sobre FI obsoletas. */
+  const chusaListo = protocoloChusa.puedeLote;
+  const fiDesincronizado = fiExceso || fiPendientes;
+  const botonMaestroVerde = chusaListo && (fiDesincronizado || loteExacto);
+
   const canonDiffs = useMemo(
     () => canonDiffsPorIndice(icsVisibles, pfVisibles, ics),
     [icsVisibles, pfVisibles, ics],
@@ -399,12 +404,6 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
     const regenerar = opts?.regenerar === true || nFiEfectivo > 0;
     if (loteExacto && !regenerar) {
       mostrarCelebracionCompleta();
-      return;
-    }
-    if (fiExceso && !regenerar) {
-      onMsg(
-        `Hay ${nFiEfectivo - fiEsperadas} FI de más (${nFiEfectivo} vs ${fiEsperadas} IC). Tab Facturas Internas → regenerar.`,
-      );
       return;
     }
     if (!protocoloChusa.puedeLote) {
@@ -534,13 +533,15 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
       <div className="flex justify-center">
         <div
           className={`w-full max-w-xl rounded-xl border-4 px-6 py-5 text-center shadow-lg ${
-            fiExceso
-              ? "border-amber-500 bg-amber-50"
-              : loteExacto
-                ? "border-emerald-500 bg-emerald-50"
-                : protocoloChusa.puedeLote
-                  ? "border-emerald-500 bg-gradient-to-b from-emerald-50 to-white"
-                  : "border-slate-300 bg-slate-50"
+            botonMaestroVerde || (chusaListo && nFiEfectivo === 0)
+              ? "border-emerald-500 bg-gradient-to-b from-emerald-50 to-white"
+              : fiExceso
+                ? "border-amber-500 bg-amber-50"
+                : loteExacto
+                  ? "border-emerald-500 bg-emerald-50"
+                  : chusaListo
+                    ? "border-emerald-500 bg-gradient-to-b from-emerald-50 to-white"
+                    : "border-slate-300 bg-slate-50"
           }`}
         >
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -572,13 +573,61 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
             )}
           </div>
 
-          {fiExceso ? (
+          {botonMaestroVerde ? (
+            <>
+              {fiExceso ? (
+                <p className="mt-4 text-sm font-bold text-emerald-900">
+                  IC=PF={fiEsperadas} · hay {nFiEfectivo} FI ({nFiEfectivo - fiEsperadas} de más) — un clic
+                  borra RESERVADA y rehace el lote
+                </p>
+              ) : fiPendientes ? (
+                <p className="mt-4 text-sm font-bold text-emerald-900">
+                  Faltan {fiEsperadas - nFiEfectivo} FI · IC=PF alineados — regenerá el lote completo
+                </p>
+              ) : (
+                <p className="mt-4 text-sm font-bold text-emerald-900">
+                  ✓ {nFiEfectivo} FI = {fiEsperadas} IC · revisá montos vs prefactura
+                </p>
+              )}
+              {pp.saldo > 0 && loteExacto ? (
+                <p className="mt-2 rounded-lg border-2 border-amber-500 bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950">
+                  Saldo {pp.saldo.toLocaleString("es-PY")} pares sin reservar — tras el lote debería quedar 0.
+                </p>
+              ) : null}
+              <button
+                type="button"
+                disabled={generandoFi}
+                onClick={() =>
+                  void generarFiLote({ regenerar: fiExceso || fiPendientes || nFiEfectivo > 0 })
+                }
+                className="mt-4 w-full rounded-xl bg-emerald-600 px-6 py-4 text-sm font-bold uppercase tracking-wide text-white shadow-lg hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {generandoFiKey === "lote"
+                  ? "Regenerando… (~2 min)"
+                  : fiExceso
+                    ? `Regenerar ${fiEsperadas} facturas · borrar ${nFiEfectivo - fiEsperadas} de más`
+                    : fiPendientes
+                      ? `Regenerar ${fiEsperadas} facturas · un clic`
+                      : `Recalcular ${nFiEfectivo} facturas desde proforma`}
+              </button>
+              {loteExacto ? (
+                <button
+                  type="button"
+                  onClick={mostrarCelebracionCompleta}
+                  className="mt-2 w-full rounded-lg border border-emerald-600 bg-white px-4 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                >
+                  Ver tab Facturas Internas →
+                </button>
+              ) : null}
+            </>
+          ) : fiExceso ? (
             <>
               <p className="mt-4 text-sm font-bold text-amber-950">
-                ⚠ {nFiEfectivo - fiEsperadas} factura{nFiEfectivo - fiEsperadas === 1 ? "" : "s"} de más — re-ejecutaste el lote
+                ⚠ {nFiEfectivo - fiEsperadas} factura{nFiEfectivo - fiEsperadas === 1 ? "" : "s"} de más
               </p>
               <p className="mt-1 text-xs text-amber-900">
-                IC=PF=115 pero hay {nFiEfectivo} FI. Regenerá desde tab Facturas Internas.
+                IC={protocoloChusa.contadorIc} · PF={protocoloChusa.contadorPf} · FI={nFiEfectivo} — corregí IC/PF
+                en paneles antes de regenerar.
               </p>
               <button
                 type="button"
