@@ -15,14 +15,19 @@ const EMPTY_RESUMEN = {
   por_proforma: [],
 };
 
-export default async function StockProgramadoPage() {
+export default async function StockProgramadoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ proforma?: string }>;
+}) {
+  const { proforma } = await searchParams;
   const resumen = isRimecDatabaseConfigured()
     ? await getStockProgramadoResumen(getRimecPool())
     : EMPTY_RESUMEN;
 
   return (
     <DepositoRimecShell footer="Stock Programado · categoría 3 · Alejandro Magno">
-      <StockProgramadoClient resumenInicial={resumen} />
+      <StockProgramadoClient resumenInicial={resumen} proformaInicial={proforma ?? null} />
     </DepositoRimecShell>
   );
 }

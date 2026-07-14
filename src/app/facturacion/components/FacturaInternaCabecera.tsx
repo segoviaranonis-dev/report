@@ -14,6 +14,10 @@ import type { OrigenFacturacion } from "@/lib/facturacion/filters";
 type Props = {
   f: FacturaListItem;
   origen: OrigenFacturacion;
+  /** Nivel Dios — anular FI entera + reintegrar stock (2.3.1.9.C) */
+  puedeAnularReintegrar?: boolean;
+  anulando?: boolean;
+  onAnularReintegrar?: () => void;
 };
 
 function fmtFecha(fecha: string | null | undefined): string {
@@ -37,7 +41,13 @@ function cel(label: string, value: string, emphasis = false) {
   );
 }
 
-export function FacturaInternaCabecera({ f, origen }: Props) {
+export function FacturaInternaCabecera({
+  f,
+  origen,
+  puedeAnularReintegrar = false,
+  anulando = false,
+  onAnularReintegrar,
+}: Props) {
   const esPe = origen === "pronta-entrega";
   const displayId = fiDisplayId({ pv_global: f.pv_global, nro_factura: f.factura_legacy });
   const legacy = f.factura_legacy;
@@ -54,6 +64,15 @@ export function FacturaInternaCabecera({ f, origen }: Props) {
       : f.fi_estado === "CONFIRMADA"
         ? { bg: "#15803D", fg: "#fff", label: "CONFIRMADA" }
         : null;
+  const traspasoUpper = (f.traspaso_estado || "").toUpperCase();
+  const traspasoBloquea =
+    traspasoUpper === "ENVIADO" || traspasoUpper === "CONFIRMADO";
+  const showAnularDios =
+    puedeAnularReintegrar &&
+    onAnularReintegrar &&
+    f.fi_id != null &&
+    (f.fi_estado === "RESERVADA" || f.fi_estado === "CONFIRMADA") &&
+    !traspasoBloquea;
 
   const descuentos = descuentosLabel({
     descuento_1: f.descuento_1,
@@ -84,28 +103,41 @@ export function FacturaInternaCabecera({ f, origen }: Props) {
         {cel("Fecha", fmtFecha(f.fecha))}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-rimec-azul/10 pt-3">
-        <span className="rounded-lg border-2 border-neutral-300 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-800">
-          {ppLabel}
-        </span>
-        {esPe && (
-          <span className="rounded-md bg-orange-700 px-2 py-0.5 text-[10px] font-black tracking-wide text-white">
-            PRONTA ENTREGA
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-rimec-azul/10 pt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-lg border-2 border-neutral-300 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-800">
+            {ppLabel}
           </span>
-        )}
-        {fiBadge && (
-          <span
-            className="rounded-md px-2 py-0.5 text-[10px] font-bold"
-            style={{ backgroundColor: fiBadge.bg, color: fiBadge.fg }}
+          {esPe && (
+            <span className="rounded-md bg-orange-700 px-2 py-0.5 text-[10px] font-black tracking-wide text-white">
+              PRONTA ENTREGA
+            </span>
+          )}
+          {fiBadge && (
+            <span
+              className="rounded-md px-2 py-0.5 text-[10px] font-bold"
+              style={{ backgroundColor: fiBadge.bg, color: fiBadge.fg }}
+            >
+              {fiBadge.label}
+            </span>
+          )}
+          {f.total_monto != null && f.total_monto > 0 && (
+            <span className="text-sm font-bold tabular-nums text-neutral-800">{fmtGs(f.total_monto)}</span>
+          )}
+          {!esPe && f.compra !== "—" && (
+            <span className="text-xs text-neutral-600">CL {f.compra}</span>
+          )}
+        </div>
+        {showAnularDios && (
+          <button
+            type="button"
+            disabled={anulando}
+            onClick={onAnularReintegrar}
+            title="Nivel Dios · anula FI entera · reintegra stock · Anulaciones"
+            className="rounded-lg bg-red-800 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-white shadow-sm hover:bg-red-900 disabled:opacity-50"
           >
-            {fiBadge.label}
-          </span>
-        )}
-        {f.total_monto != null && f.total_monto > 0 && (
-          <span className="text-sm font-bold tabular-nums text-neutral-800">{fmtGs(f.total_monto)}</span>
-        )}
-        {!esPe && f.compra !== "—" && (
-          <span className="text-xs text-neutral-600">CL {f.compra}</span>
+            {anulando ? "Anulando…" : "Anular FI y reintegrar stock"}
+          </button>
         )}
       </div>
     </header>

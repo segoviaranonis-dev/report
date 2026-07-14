@@ -36,13 +36,21 @@ export async function POST(req: Request, { params }: Params) {
 
     const parsed = parseProforma(buffer);
     if (!parsed.error && parsed.rows.length && result.ok) {
-      const pool = getRimecPool();
-      await saveProformaFilas(pool, ppId, parsed.rows);
-      const client = await pool.connect();
       try {
-        await backfillPpdShopFromSnapshot(client, ppId);
-      } finally {
-        client.release();
+        const pool = getRimecPool();
+        await saveProformaFilas(pool, ppId, parsed.rows);
+        const client = await pool.connect();
+        try {
+          await backfillPpdShopFromSnapshot(client, ppId);
+        } finally {
+          client.release();
+        }
+      } catch (snapErr) {
+        // Snapshot no debe tumbar el preview ni dejar paso 2 bloqueado.
+        const msg = snapErr instanceof Error ? snapErr.message : "snapshot falló";
+        const avisos = Array.isArray(result.avisos) ? [...result.avisos] : [];
+        avisos.push(`ℹ Snapshot proforma no guardado: ${msg}`);
+        return NextResponse.json({ ...result, avisos });
       }
     }
 

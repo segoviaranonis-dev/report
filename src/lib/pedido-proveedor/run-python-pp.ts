@@ -126,20 +126,17 @@ export async function runProformaPreviewPython(
   fileBuffer: Buffer,
   originalName: string,
 ): Promise<ProformaPreviewResult> {
+  const categoria = await loadPpCategoria(ppId);
+  // PROGRAMADO: siempre motor TS (pilares×BCL + SHOP×BRAND). Python local devolvía 500 y bloqueaba paso 2.
+  if (isProgramadoCategoria(categoria)) {
+    return previewImportProformaProgramadoTs(ppId, fileBuffer);
+  }
   if (shouldUseTsEngine()) {
-    const categoria = await loadPpCategoria(ppId);
-    if (isProgramadoCategoria(categoria)) {
-      return previewImportProformaProgramadoTs(ppId, fileBuffer);
-    }
     return previewProformaSimpleTs(fileBuffer);
   }
 
   const raw = await runPythonScript(ppId, fileBuffer, originalName, { preview: true });
   if (raw.ok === false && !raw.emparejamientos && !raw.errores) {
-    const categoria = await loadPpCategoria(ppId);
-    if (isProgramadoCategoria(categoria)) {
-      return previewImportProformaProgramadoTs(ppId, fileBuffer);
-    }
     return previewProformaSimpleTs(fileBuffer);
   }
   return raw as ProformaPreviewResult;
@@ -157,15 +154,15 @@ export async function runProformaImportPython(
     fiBatchSize?: number;
   },
 ): Promise<ProformaImportPhaseResult> {
+  const categoria = await loadPpCategoria(ppId);
+  if (isProgramadoCategoria(categoria)) {
+    return importProformaProgramadoTs(ppId, fileBuffer, opts.proforma, {
+      phase: opts.phase,
+      fiOffset: opts.fiOffset,
+      fiBatchSize: opts.fiBatchSize,
+    });
+  }
   if (shouldUseTsEngine()) {
-    const categoria = await loadPpCategoria(ppId);
-    if (isProgramadoCategoria(categoria)) {
-      return importProformaProgramadoTs(ppId, fileBuffer, opts.proforma, {
-        phase: opts.phase,
-        fiOffset: opts.fiOffset,
-        fiBatchSize: opts.fiBatchSize,
-      });
-    }
     return importProformaCompraPreviaTs(ppId, fileBuffer, opts.proforma);
   }
 
@@ -174,10 +171,6 @@ export async function runProformaImportPython(
     borrarImport: opts.borrarImport,
   });
   if (raw.ok === false && String(raw.error ?? "").includes("script")) {
-    const categoria = await loadPpCategoria(ppId);
-    if (isProgramadoCategoria(categoria)) {
-      return importProformaProgramadoTs(ppId, fileBuffer, opts.proforma);
-    }
     return importProformaCompraPreviaTs(ppId, fileBuffer, opts.proforma);
   }
   return raw as ProformaImportResult;

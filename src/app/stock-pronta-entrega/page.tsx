@@ -14,7 +14,7 @@ export default async function StockProntaEntregaPage() {
     : EMPTY_STOCK_PE_RESUMEN;
 
   return (
-    <DepositoRimecShell footer="Stock Pronta Entrega · sdrm0831 · Operativo Alejandro Magno · Cabeza 1">
+    <DepositoRimecShell footer={`Stock Pronta Entrega · batch ${resumen.batch_label} · Alejandro Magno`}>
       <StockProntaEntregaClient resumenInicial={resumen} />
     </DepositoRimecShell>
   );

@@ -35,6 +35,114 @@ function fmtPct(n: number) {
   return n.toLocaleString("es-PY", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
+function parseIcList(ics: string): string[] {
+  if (!ics || ics.trim() === "" || ics.trim() === "—") return [];
+  return ics
+    .split(/,\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Columna Cliente · IC: lista larga dentro de acordeón (Track 2 · hub PP). */
+function IcListaAcordeon({
+  ics,
+  ppId,
+  nroFabrica,
+}: {
+  ics: string;
+  ppId: number;
+  nroFabrica: string;
+}) {
+  const list = useMemo(() => parseIcList(ics), [ics]);
+  const [open, setOpen] = useState(false);
+
+  if (list.length === 0) {
+    return <p className="mt-1 font-mono text-[11px] text-slate-400">Sin IC asignada</p>;
+  }
+
+  if (list.length === 1) {
+    return (
+      <div className="mt-1">
+        <p className="font-mono text-[11px] font-semibold text-slate-700">{list[0]}</p>
+        {nroFabrica !== "—" && (
+          <p className="mt-0.5 font-mono text-[10px] text-slate-500">Fábrica: {nroFabrica}</p>
+        )}
+      </div>
+    );
+  }
+
+  const firstNum = /^(IC-\d{4}-)(\d+)$/i.exec(list[0])?.[2] ?? list[0];
+  const lastNum = /^(IC-\d{4}-)(\d+)$/i.exec(list[list.length - 1])?.[2] ?? list[list.length - 1];
+  const preview = `${list[0]} → ${list[list.length - 1]}`;
+
+  return (
+    <div className="mt-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full max-w-full items-center gap-2 rounded-lg border border-amber-200/80 bg-amber-50/60 px-2 py-1.5 text-left transition hover:border-amber-300 hover:bg-amber-50"
+      >
+        <span className="shrink-0 rounded-md bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-amber-950">
+          {list.length} IC
+        </span>
+        <span className="min-w-0 flex-1 font-mono text-[11px] text-slate-700" title={preview}>
+          <span className="font-extrabold tabular-nums">{firstNum}</span>
+          <span className="text-slate-400"> → </span>
+          <span className="font-extrabold tabular-nums">{lastNum}</span>
+        </span>
+        <span className="shrink-0 text-[10px] text-slate-400" aria-hidden>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="max-h-52 overflow-y-auto p-2">
+            <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4">
+              {list.map((ic) => {
+                const m = /^(IC-\d{4}-)(\d+)$/i.exec(ic);
+                const pref = m?.[1] ?? "";
+                const num = m?.[2] ?? ic;
+                return (
+                  <li
+                    key={ic}
+                    className="rounded border border-slate-100 bg-slate-50 px-1.5 py-1 font-mono text-[11px] leading-none text-slate-800"
+                    title={ic}
+                  >
+                    {pref ? (
+                      <>
+                        <span className="text-[9px] text-slate-400">{pref}</span>
+                        <span className="font-extrabold tabular-nums tracking-tight">{num}</span>
+                      </>
+                    ) : (
+                      <span className="font-extrabold">{ic}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-2 py-1.5">
+            <span className="text-[10px] text-slate-500">{list.length} intenciones · orden alfabético</span>
+            <Link
+              href={pedidoProveedorDetalle(ppId, "ics")}
+              className="text-[10px] font-bold text-rimec-azul hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Abrir ICs →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {nroFabrica !== "—" && (
+        <p className="mt-1 font-mono text-[10px] text-slate-500">Fábrica: {nroFabrica}</p>
+      )}
+    </div>
+  );
+}
+
 function AccesoRapidoPp({ p }: { p: PpListaRow }) {
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
@@ -238,7 +346,7 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
 
   return (
     <div
-      className={`border-t border-slate-100 px-4 py-3 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_auto_auto_minmax(7.5rem,auto)] md:items-center md:gap-3 ${
+      className={`border-t border-slate-100 px-4 py-3 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_auto_auto_minmax(7.5rem,auto)] md:items-start md:gap-3 ${
         highlighted ? "bg-emerald-50/80 ring-1 ring-inset ring-emerald-300" : "hover:bg-slate-50/60"
       }`}
     >
@@ -250,13 +358,10 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
         <p className="mt-0.5 text-xs text-slate-600">{p.marcas}</p>
         <p className="text-xs text-slate-500">{p.proveedor}</p>
       </div>
-      <div className="mt-2 text-xs md:mt-0">
+      <div className="mt-2 min-w-0 text-xs md:mt-0">
         <p className="font-medium text-amber-900">{p.cliente}</p>
         <p className="text-slate-500">{p.vendedor}</p>
-        <p className="mt-1 font-mono text-slate-600">{p.ics}</p>
-        {p.nro_fabrica !== "—" && (
-          <p className="font-mono text-slate-500">Fábrica: {p.nro_fabrica}</p>
-        )}
+        <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica={p.nro_fabrica} />
       </div>
       <div className="mt-2 text-right md:mt-0">
         <p className="font-mono text-sm font-bold tabular-nums">{p.pares_comprometidos.toLocaleString("es-PY")}</p>

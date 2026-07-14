@@ -259,10 +259,12 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       }
 
       const emparejamientos = (data.emparejamientos ?? []) as EmparejamientoShop[];
-      const shopMatchOk =
-        emparejamientos.length > 0 && emparejamientos.every((r) => r.match);
+      // Canon: Δ pares = aviso; bloquea solo si falta IC (ic_id=0) o error fatal.
+      const shopLinkedOk =
+        emparejamientos.length > 0 && emparejamientos.every((r) => Number(r.ic_id) > 0);
+      const nDeltaPares = emparejamientos.filter((r) => Number(r.ic_id) > 0 && !r.match).length;
       setPreviewRows(emparejamientos);
-      setPreviewOk(Boolean(data.ok) && shopMatchOk);
+      setPreviewOk(Boolean(data.ok) && shopLinkedOk);
       setPreviewErrores(data.errores ?? []);
       setPreviewAvisos(data.avisos ?? []);
       setPrecioAudit(data.precio_audit ?? null);
@@ -271,27 +273,29 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
 
       if (!data.listado_vinculado) {
         onMsg("Preview OK parcial — vinculá el listado RIMEC antes de confirmar import.");
-      } else if (data.ok && shopMatchOk) {
+      } else if (data.ok && shopLinkedOk) {
         const nAvisos = data.avisos?.length ?? 0;
         const audit = data.precio_audit as ProformaPrecioAuditResumen | undefined;
         const precioWarn =
           audit && (audit.n_sin_precio > 0 || audit.n_sin_caso > 0 || audit.n_pilares_faltantes > 0)
             ? ` · ${audit.n_sin_precio} sin LPN · ${audit.n_sin_caso} sin caso · ${audit.n_pilares_faltantes} pilares`
             : "";
+        const deltaWarn =
+          nDeltaPares > 0 ? ` · ${nDeltaPares} SHOP con Δ pares (aviso — no bloquea)` : "";
         onMsg(
-          nAvisos > 0
-            ? `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · ${nAvisos} aviso(s) pilares/precio${precioWarn}.`
-            : `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · precios OK.`,
+          nAvisos > 0 || nDeltaPares > 0
+            ? `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares${deltaWarn} · ${nAvisos} aviso(s) pilares/precio${precioWarn}. Paso 2 habilitado.`
+            : `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · precios OK. Paso 2 habilitado.`,
         );
-      } else if (data.ok && !shopMatchOk) {
-        const nBad = emparejamientos.filter((r) => !r.match).length;
+      } else if (data.ok && !shopLinkedOk) {
+        const nBad = emparejamientos.filter((r) => Number(r.ic_id) <= 0).length;
         onMsg(
-          `Preview: ${nBad} SHOP(s) con pares ≠ IC — revisá tabla abajo. Paso 2 bloqueado hasta match total.`,
+          `Preview: ${nBad} SHOP(s) sin IC (cliente×marca) — paso 2 bloqueado. Revisá tabla abajo.`,
         );
       } else {
         const nErr = data.errores?.length ?? 0;
         onMsg(
-          `Preview con ${nErr} error(es) SHOP↔IC — corregí Excel o ICs. Paso 2 bloqueado hasta match total.`,
+          `Preview falló (${nErr} error(es) o HTTP ${res.status}): ${data.error ?? "corregí Excel/ICs"}. Paso 2 bloqueado.`,
         );
       }
     } catch (e) {
@@ -482,7 +486,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     setVincularConfirm(Number(eventoSel));
   }
 
-  async function confirmarVincularListado() {
+  async function confirmarVincularListado(incluirVendidos: boolean) {
     if (vincularConfirm == null) return;
     setBusy(true);
     onMsg(null);
@@ -495,25 +499,29 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           evento_id: vincularConfirm,
           recalcular_fi: recalcFi,
           incluir_confirmadas: incluirFiConfirmadas,
+          incluir_vendidos: incluirVendidos,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al vincular");
       const snap = data.stats?.snapshot;
-      const fi = data.stats;
       onMsg(
         [
           data.message ?? "Listado vinculado.",
+          incluirVendidos ? "Modo TODOS (incl. vendidos)" : "Modo solo tránsito",
           data.stats?.delta_monto_fi != null
             ? `Δ FI: Gs. ${Number(data.stats.delta_monto_fi).toLocaleString("es-PY")} (${Number(data.stats.monto_fi_antes ?? 0).toLocaleString("es-PY")} → ${Number(data.stats.monto_fi_despues ?? 0).toLocaleString("es-PY")})`
             : null,
           data.stats?.lineas_actualizadas != null
             ? `${data.stats.lineas_actualizadas} líneas FI con precio nuevo`
             : null,
-          data.stats?.lineas_congeladas_venta
+          !incluirVendidos && data.stats?.lineas_congeladas_venta
             ? `${data.stats.lineas_congeladas_venta} líneas vendidas congeladas`
             : null,
-          snap?.actualizados != null ? `${snap.actualizados} PPD con saldo actualizados` : null,
+          incluirVendidos && (snap?.filas_vendidas_forzadas ?? data.stats?.lineas_vendidas_forzadas)
+            ? `${snap?.filas_vendidas_forzadas ?? data.stats?.lineas_vendidas_forzadas} PPD vendidas forzadas`
+            : null,
+          snap?.actualizados != null ? `${snap.actualizados} PPD actualizados` : null,
           data.stats?.lineas_sin_precio
             ? `${data.stats.lineas_sin_precio} líneas con saldo sin LPN en evento`
             : null,
@@ -777,7 +785,11 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     onClick={importarProforma}
                     className="rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800 disabled:opacity-50"
                   >
-                    {busy ? "Importando…" : "2 · Confirmar import programado →"}
+                    {busy
+                      ? waitPhase === "preview"
+                        ? "Validando…"
+                        : "Importando…"
+                      : "2 · Confirmar import programado →"}
                   </button>
                 </div>
                 {esProgramado && (
@@ -785,7 +797,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     <li>{proformaFile ? "✅" : "⬜"} Archivo Excel seleccionado</li>
                     <li>{draft.numero_proforma.trim() ? "✅" : "⬜"} Nro proforma en cabecera</li>
                     <li>{draft.quincena_arribo_id > 0 ? "✅" : "⬜"} Fecha de embarque (quincena)</li>
-                    <li>{previewOk ? "✅" : "⬜"} Preview SHOP↔IC sin errores (paso 1)</li>
+                    <li>
+                      {previewOk ? "✅" : "⬜"} Preview SHOP↔IC con IC vinculada (Δ pares = aviso)
+                    </li>
                   </ul>
                 )}
                 {(previewRows || previewErrores.length > 0 || previewAvisos.length > 0) && (
@@ -1230,17 +1244,27 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                   {recalcFi ? " Se recalcularán las FI abiertas." : ""}
                   {incluirFiConfirmadas && recalcFi ? " Incluye CONFIRMADA." : ""}
                 </p>
-                <p className="mt-1 text-slate-600">
-                  Filas PPD 100 % vendidas conservan su LP; solo se actualiza stock con saldo disponible.
+                <p className="mt-1 text-slate-700">
+                  Elegí el alcance. Mientras la mercadería no llegue al país, podés corregir LP incluso en filas ya vendidas.
                 </p>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={confirmarVincularListado}
+                    onClick={() => confirmarVincularListado(false)}
                     className="rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    title="Solo PPD con saldo &gt; 0 (tránsito editable)"
                   >
-                    Sí, vincular
+                    Actualizar precios solo tránsito
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => confirmarVincularListado(true)}
+                    className="rounded-lg bg-red-700 px-3 py-1.5 font-bold text-white hover:bg-red-800 disabled:opacity-50"
+                    title="Pisa LP en TODAS las filas PPD (incl. 100% vendidas) + FI según checks"
+                  >
+                    Actualizar precios de venta Todos!!!
                   </button>
                   <button
                     type="button"

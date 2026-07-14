@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       origen_stock: "pedido_proveedor_detalle",
       destino_catalogo: "v_stock_rimec",
       ...body,
-      batch: sp.get("batch") ?? body.batch ?? "sdrm0831",
+      batch: sp.get("batch") ?? body.batch ?? undefined,
     });
   } catch (e) {
     return NextResponse.json(

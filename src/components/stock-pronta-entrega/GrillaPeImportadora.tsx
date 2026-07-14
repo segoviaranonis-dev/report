@@ -56,18 +56,21 @@ export function GrillaPeImportadora({
           {visibleCount < totalProductos
             ? ` · mostrando ${visibleCount.toLocaleString("es-PY")}`
             : null}
+          {" · "}
+          {expandAll ? "tarjetas extendidas" : "tarjetas compactas"}
         </p>
         <button
           type="button"
           onClick={() => setExpandAll((v) => !v)}
           aria-pressed={expandAll}
+          aria-label={expandAll ? "Compactar todas las tarjetas" : "Extender todos los datos"}
           className={`min-h-[40px] rounded-xl border px-4 text-xs font-bold transition ${
             expandAll
               ? "border-bazzar-naranja bg-bazzar-naranja text-white"
               : "border-bazzar-naranja/40 bg-white text-bazzar-naranja-dark hover:bg-orange-50"
           }`}
         >
-          {expandAll ? "Compactar tarjetas" : "Extender todos los datos"}
+          {expandAll ? "▾ Compactar tarjetas" : "▸ Extender todos los datos"}
         </button>
       </div>
 

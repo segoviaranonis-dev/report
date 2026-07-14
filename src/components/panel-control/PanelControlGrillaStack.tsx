@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { BibliotecaCasoBar } from "@/app/depositos-bazzar/components/operativa/BibliotecaCasoBar";
 import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
@@ -11,7 +11,9 @@ import type {
   OperativaOpciones,
 } from "@/lib/depositos/operativa-filters";
 import type { GrillaLoteModo } from "@/lib/panel-control/grilla-carga-lotes";
+import { moleculeKeyImagen } from "@/lib/retail/product-image-presence";
 import { PanelControlTrianguloHeader } from "./PanelControlTrianguloHeader";
+import { SinImagenCabeceraChip } from "./SinImagenCabeceraChip";
 
 type GrillaOpts = {
   showLlegada?: boolean;
@@ -69,6 +71,41 @@ export function PanelControlGrillaStack({
     loteModo = "unitario",
   } = grilla;
 
+  const [soloSinImagen, setSoloSinImagen] = useState(false);
+  const [faltantes, setFaltantes] = useState<Set<string>>(() => new Set());
+
+  const onFaltantesChange = useCallback((keys: Set<string>) => {
+    setFaltantes(keys);
+    if (keys.size === 0) setSoloSinImagen(false);
+  }, []);
+
+  const productosVista = useMemo(() => {
+    if (!soloSinImagen || faltantes.size === 0) return productos;
+    return productos.filter((p) =>
+      faltantes.has(
+        moleculeKeyImagen({
+          linea: p.linea_codigo_proveedor,
+          referencia: p.referencia_codigo_proveedor,
+          material: p.material_code,
+          color: p.color_code,
+          tipo_v2_id: p.tipo_v2_id,
+        }),
+      ),
+    );
+  }, [productos, soloSinImagen, faltantes]);
+
+  const trailing = (
+    <>
+      <SinImagenCabeceraChip
+        productos={productos}
+        soloSinImagen={soloSinImagen}
+        onSoloSinImagenChange={setSoloSinImagen}
+        onFaltantesChange={onFaltantesChange}
+      />
+      {summaryTrailing}
+    </>
+  );
+
   return (
     <div className="space-y-3">
       <BibliotecaCasoBar
@@ -86,11 +123,11 @@ export function PanelControlGrillaStack({
         totalProductos={cardsCount}
         totalPares={totalPares}
         valorInventario={valorInventario}
-        summaryTrailing={summaryTrailing}
+        summaryTrailing={trailing}
         extraFilters={extraFilters}
       />
       <GrillaPeImportadora
-        productos={productos}
+        productos={productosVista}
         casoPorLinea={casoPorLinea}
         showLlegada={showLlegada}
         showVentas={showVentas}

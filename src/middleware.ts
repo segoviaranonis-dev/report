@@ -27,7 +27,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
   3: ['/ventas-fotos'],
 }
@@ -256,5 +256,9 @@ export const config = {
     '/api/tablet-bazzar/:path*',
     '/api/bazzar-web/:path*',
     '/api/rrhh/:path*',
+    '/herramienta-reposicion',
+    '/herramienta-reposicion/:path*',
+    '/api/herramienta-reposicion',
+    '/api/herramienta-reposicion/:path*',
   ],
 }

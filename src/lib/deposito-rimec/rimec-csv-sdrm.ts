@@ -23,6 +23,11 @@ export const RIMEC_SDRM_DEPOSIT_MAP: {
 
 export const SDRM_FILENAME_REGEX = /^sdrm(\d+)\.(csv|txt|xlsx)$/i;
 
+export function batchLabelFromFilename(name: string): string {
+  const m = name.match(SDRM_FILENAME_REGEX);
+  return m ? `sdrm${m[1]}` : name.replace(/\.[^.]+$/, "").toLowerCase();
+}
+
 export type RimecCsvSdrmRow = {
   codigo_barras: string;
   cod_art_proveedor: string;

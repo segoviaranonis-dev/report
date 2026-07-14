@@ -1,4 +1,5 @@
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { anularYReintegrarFi } from "@/lib/facturacion/anular-reintegrar-fi";
 import { listaPrecioLabel, precioNetoCascada } from "./aprobaciones-utils";
 import {
   sumFiTotalesDesdeDetalle,
@@ -82,33 +83,13 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
   }
 }
 
-/** anular_fi() — logic.py */
+/** anular_fi — canon 2.3.1.9.C (solo RESERVADA en Aprobaciones). */
 export async function anularFi(fiId: number, motivo: string): Promise<MutationResult> {
-  if (!isRimecDatabaseConfigured()) {
-    return { ok: false, msg: "DATABASE_URL no configurada." };
-  }
-
-  const pool = getRimecPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(`SELECT revertir_stock_fi($1)`, [fiId]);
-    const result = await client.query(
-      `UPDATE factura_interna SET estado = 'ANULADA', notas = $2 WHERE id = $1 AND estado = 'RESERVADA'`,
-      [fiId, (motivo || "").trim() || "Sin motivo"]
-    );
-    if ((result.rowCount ?? 0) === 0) {
-      await client.query("ROLLBACK");
-      return { ok: false, msg: "FI no encontrada o ya no está en estado RESERVADA." };
-    }
-    await client.query("COMMIT");
-    return { ok: true, msg: "FI anulada y stock revertido." };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    return { ok: false, msg: e instanceof Error ? e.message : String(e) };
-  } finally {
-    client.release();
-  }
+  const result = await anularYReintegrarFi(fiId, {
+    permitirConfirmada: false,
+    motivo: (motivo || "").trim() || "Sin motivo",
+  });
+  return { ok: result.ok, msg: result.msg };
 }
 
 /** rechazar_pedido() — logic.py (anula FIs RESERVADA + marca pedido RECHAZADO) */

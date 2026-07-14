@@ -59,6 +59,13 @@ export function FacturacionBandejaClient({
   const [descargandoCsv, setDescargandoCsv] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [esNivelDios, setEsNivelDios] = useState(false);
+  const [anulando, setAnulando] = useState<string | null>(null);
+  const [modalAnular, setModalAnular] = useState<{
+    nro: string;
+    display: string;
+    motivo: string;
+  } | null>(null);
   const [fiDetail, setFiDetail] = useState<{
     fi: FiRegistroRow;
     detalles: FiDetalleCanonico[];
@@ -90,6 +97,19 @@ export function FacturacionBandejaClient({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((data) => {
+        const rol = Number(data?.user?.rol_id);
+        const cat = String(data?.user?.categoria || data?.user?.role || "")
+          .toUpperCase()
+          .trim();
+        setEsNivelDios(rol === 1 && cat === "DIOS");
+      })
+      .catch(() => setEsNivelDios(false));
+  }, []);
 
   const grupos = useMemo(
     () => (groupByDate ? agruparFacturasPorFecha(facturas) : [{ fecha: "", facturas }]),
@@ -146,13 +166,54 @@ export function FacturacionBandejaClient({
   const puedeCsv = (f: FacturaListItem) =>
     f.fi_id != null && (f.fi_estado === "CONFIRMADA" || f.fi_estado === "RESERVADA");
 
+  async function confirmarAnularReintegrar() {
+    if (!modalAnular) return;
+    const motivo = modalAnular.motivo.trim();
+    if (!motivo) {
+      setError("Motivo obligatorio para anular.");
+      return;
+    }
+    setAnulando(modalAnular.nro);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(
+        `/api/facturacion/${encodeURIComponent(modalAnular.nro)}/anular-reintegrar`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ motivo }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al anular");
+      setSuccess(data.message ?? "FI anulada y stock reintegrado.");
+      setModalAnular(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setAnulando(null);
+    }
+  }
+
   function renderFacturaRow(f: FacturaListItem) {
     const badge = TRP_ESTADO_COLOR[f.traspaso_estado] ?? TRP_ESTADO_COLOR.SIN_TRASPASO;
     const isOpen = expanded === f.factura_legacy;
+    const displayId = fiDisplayId({ pv_global: f.pv_global, nro_factura: f.factura_legacy });
 
     return (
       <article key={`${f.factura}-${f.pedido}`} className="overflow-hidden rounded-xl border-2 border-neutral-300 bg-card-bg shadow-sm">
-        <FacturaInternaCabecera f={f} origen={origen} />
+        <FacturaInternaCabecera
+          f={f}
+          origen={origen}
+          puedeAnularReintegrar={esNivelDios}
+          anulando={anulando === f.factura_legacy}
+          onAnularReintegrar={() =>
+            setModalAnular({ nro: f.factura_legacy, display: displayId, motivo: "" })
+          }
+        />
         <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 sm:px-5">
           <span
             className="rounded-full px-3 py-1 text-xs font-bold"
@@ -285,6 +346,53 @@ export function FacturacionBandejaClient({
           </div>
         )}
       </main>
+      {modalAnular && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl border-2 border-red-800 bg-white p-5 shadow-xl">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-800">
+              Nivel Dios · 2.3.1.9.C
+            </p>
+            <h3 className="mt-1 font-serif text-xl text-neutral-900">
+              Anular FI y reintegrar stock
+            </h3>
+            <p className="mt-2 text-sm text-neutral-700">
+              Se anulará la factura entera <strong>{modalAnular.display}</strong> y se
+              devolverán los pares al stock disponible (tránsito o PE). Quedará en{" "}
+              <strong>Anulaciones</strong>. No consulta el Excel del día.
+            </p>
+            <label className="mt-4 block text-xs font-semibold text-neutral-600">
+              Motivo (obligatorio)
+              <textarea
+                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                rows={3}
+                value={modalAnular.motivo}
+                onChange={(e) =>
+                  setModalAnular((prev) => (prev ? { ...prev, motivo: e.target.value } : null))
+                }
+                placeholder="Ej. listado equivocado · prueba DIOS · reintegrar a disponible"
+              />
+            </label>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={anulando != null}
+                onClick={() => setModalAnular(null)}
+                className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={anulando != null || !modalAnular.motivo.trim()}
+                onClick={confirmarAnularReintegrar}
+                className="rounded-lg bg-red-800 px-4 py-2 text-xs font-bold text-white hover:bg-red-900 disabled:opacity-50"
+              >
+                {anulando ? "Anulando…" : "Sí, anular y reintegrar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <ReportFooter note={footerNote} />
     </div>
   );

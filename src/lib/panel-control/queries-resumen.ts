@@ -10,6 +10,7 @@ export type EntidadActivoResumen = {
   pares_inicial: number;
   pares_vendidos: number;
   pares_saldo: number;
+  pct_ejecucion?: number | null;
   monto_gs: number | null;
   rimec_web: boolean;
   enlace_report: string;

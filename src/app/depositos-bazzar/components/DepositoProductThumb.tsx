@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { productImageCandidatesForRow } from "@/lib/retail/product-image";
+import {
+  productImageCandidatesForRow,
+  type ProductImageContext,
+} from "@/lib/retail/product-image";
 
 type Props = {
   linea: string;
@@ -10,6 +13,8 @@ type Props = {
   color: string;
   imagenNombre?: string | null;
   size?: number;
+  /** Protocolo 654|638 vía tipo_v2 / proveedor (FK). */
+  imageCtx?: ProductImageContext;
 };
 
 export function DepositoProductThumb({
@@ -19,6 +24,7 @@ export function DepositoProductThumb({
   color,
   imagenNombre,
   size = 40,
+  imageCtx,
 }: Props) {
   const candidates = productImageCandidatesForRow(
     linea,
@@ -26,6 +32,8 @@ export function DepositoProductThumb({
     material,
     color,
     imagenNombre,
+    "thumb",
+    imageCtx,
   );
   const [idx, setIdx] = useState(0);
   const src = candidates[idx];

@@ -106,7 +106,8 @@ export async function vincularListadoAPp(
   ppId: number,
   eventoId: number,
   usuarioId: number | null,
-): Promise<{ ok: true; actualizados?: number } | { ok: false; error: string }> {
+  incluirVendidos = false,
+): Promise<{ ok: true; actualizados?: number; detalle?: Record<string, unknown> } | { ok: false; error: string }> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -122,10 +123,21 @@ export async function vincularListadoAPp(
       [ppId, eventoId],
     );
 
-    const fn = await client.query<{ result: { success?: boolean; error?: string; actualizados?: number } }>(
-      `SELECT vincular_listado_a_pp($1, $2, $3) AS result`,
-      [ppId, eventoId, usuarioId],
-    );
+    const fn = await client.query<{
+      result: {
+        success?: boolean;
+        error?: string;
+        actualizados?: number;
+        filas_congeladas_venta?: number;
+        filas_vendidas_forzadas?: number;
+        detail?: string;
+      };
+    }>(`SELECT vincular_listado_a_pp($1, $2, $3, $4) AS result`, [
+      ppId,
+      eventoId,
+      usuarioId,
+      incluirVendidos,
+    ]);
     const result = fn.rows[0]?.result;
     if (!result?.success) {
       await client.query("ROLLBACK");
@@ -133,12 +145,12 @@ export async function vincularListadoAPp(
     }
 
     await client.query("COMMIT");
-    return { ok: true, actualizados: result.actualizados };
+    return { ok: true, actualizados: result.actualizados, detalle: result };
   } catch (e) {
     await client.query("ROLLBACK");
     const msg = e instanceof Error ? e.message : "Error al vincular";
     if (msg.includes("vincular_listado_a_pp")) {
-      return { ok: false, error: "Función vincular_listado_a_pp no existe en BD — aplicar migración 074." };
+      return { ok: false, error: "Función vincular_listado_a_pp no existe en BD — aplicar MIG-150." };
     }
     return { ok: false, error: msg };
   } finally {

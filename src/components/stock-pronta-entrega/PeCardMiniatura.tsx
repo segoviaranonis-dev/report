@@ -39,6 +39,11 @@ export function PeCardMiniatura({
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const p = card.producto;
 
+  const imageCtx = useMemo(
+    () => ({ tipoV2Id: p.tipo_v2_id }),
+    [p.tipo_v2_id],
+  );
+
   const imgCandidates = useMemo(
     () =>
       productImageCandidatesForRow(
@@ -47,8 +52,10 @@ export function PeCardMiniatura({
         p.material_code,
         p.color_code,
         p.imagen_nombre,
+        "thumb",
+        imageCtx,
       ),
-    [p],
+    [p, imageCtx],
   );
 
   return (
@@ -67,6 +74,7 @@ export function PeCardMiniatura({
             color={p.color_code}
             imagenNombre={p.imagen_nombre}
             size={140}
+            imageCtx={imageCtx}
           />
           {showVentas && card.totalVendidos > 0 ? (
             <span className={`absolute left-1.5 top-1.5 rounded-full ${VENTA_VISUAL.badge} px-2 py-0.5 text-[10px] font-bold ${VENTA_VISUAL.badgeFg} shadow-sm`}>

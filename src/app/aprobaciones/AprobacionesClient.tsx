@@ -358,9 +358,9 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
           setModalAnular((prev) => (prev ? { ...prev, motivo } : null))
         }
         loading={procesandoFi === modalAnular?.fiId}
-        titulo="Anular factura interna"
-        confirmLabel="Confirmar anulación"
-        placeholder="Motivo de anulación…"
+        titulo="Anular FI y reintegrar stock"
+        confirmLabel="Sí, anular y reintegrar"
+        placeholder="Motivo (obligatorio) — queda en Anulaciones…"
         minLength={1}
       />
     </>

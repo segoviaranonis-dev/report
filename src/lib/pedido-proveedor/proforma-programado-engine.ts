@@ -701,20 +701,52 @@ export async function previewImportProformaProgramadoTs(
   let precioAuditMuestra: ProformaPrecioAuditFila[] | undefined;
 
   if (listadoOk) {
-    const audit = await auditProformaVsPrecioLista(pool, eventoId, provId, parsed.rows);
-    avisosPrecio = audit.avisos;
-    precioAudit = audit.resumen;
-    precioAuditMuestra = audit.muestra.slice(0, 30);
+    try {
+      const audit = await auditProformaVsPrecioLista(pool, eventoId, provId, parsed.rows);
+      avisosPrecio = audit.avisos;
+      precioAudit = audit.resumen;
+      precioAuditMuestra = audit.muestra.slice(0, 30);
+    } catch (e) {
+      avisosPrecio = [
+        `Auditoría precio_lista falló (no bloquea): ${e instanceof Error ? e.message : "error"}`,
+      ];
+    }
   } else {
     avisosPrecio = ["Listado vinculado sin filas en precio_lista — no se pudo auditar pilares × precios."];
   }
 
-  const pilaresPreview = await buildProformaPilaresImportReport(pool, {
-    rows: parsed.rows,
-    proveedorId: provId,
-    eventoId,
-    preview: true,
-  });
+  let pilaresPreview: ProformaPilaresImportReport;
+  try {
+    pilaresPreview = await buildProformaPilaresImportReport(pool, {
+      rows: parsed.rows,
+      proveedorId: provId,
+      eventoId,
+      preview: true,
+    });
+  } catch (e) {
+    pilaresPreview = {
+      stats: {
+        lineas_nuevas: 0,
+        lineas_nuevas_codigos: [],
+        lineas_enriquecidas: 0,
+        referencias_nuevas: 0,
+        linea_referencia_nuevas: 0,
+        materiales_tocados: 0,
+        colores_tocados: 0,
+        tonos_asignados: 0,
+        duracion_ms: 0,
+      },
+      lineas_proforma: [],
+      lineas_sin_pilar: [],
+      lineas_sin_biblioteca: [],
+      lineas_en_biblioteca: [],
+      biblioteca_id: null,
+      biblioteca_nombre: null,
+      avisos: [
+        `Reporte pilares falló (no bloquea SHOP↔IC): ${e instanceof Error ? e.message : "error"}`,
+      ],
+    };
+  }
 
   return {
     ok: errores.length === 0,

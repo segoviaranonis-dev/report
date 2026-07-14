@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
+import { PeImportSdrmButton } from "@/components/stock-pronta-entrega/PeImportSdrmButton";
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
@@ -125,8 +127,12 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
 }
 
 function StockPeShell({ resumenInicial }: Props) {
+  const router = useRouter();
   const [tab, setTab] = useState<"operativa" | "articulos">("operativa");
   const { loading, err } = useStockPe();
+  const onImportDone = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   return (
     <div className="pb-8">
@@ -139,6 +145,7 @@ function StockPeShell({ resumenInicial }: Props) {
             <h1 className="font-serif text-lg font-semibold text-slate-900">Stock Pronta Entrega</h1>
             <span className="text-xs text-slate-500">batch {resumenInicial.batch_label}</span>
           </div>
+          <PeImportSdrmButton onDone={onImportDone} />
         </div>
         <div className="mx-auto flex max-w-7xl gap-2 border-t border-slate-100 px-4">
           {(["operativa", "articulos"] as const).map((t) => (

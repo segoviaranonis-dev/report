@@ -285,9 +285,10 @@ export function FiCard({
                   variant="secondary"
                   disabled={procesando}
                   onClick={() => onAnular!(fi.id)}
-                  className="border-semantic-error text-semantic-error"
+                  className="border-red-800 bg-red-50 font-bold text-red-800 hover:bg-red-100"
+                  title="DIOS · anula FI entera · reintegra stock · Anulaciones"
                 >
-                  Anular
+                  Anular FI y reintegrar stock
                 </Button>
               )}
             </div>

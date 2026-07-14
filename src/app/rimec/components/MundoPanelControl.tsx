@@ -140,6 +140,12 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
                 <dd className="font-medium text-neutral-ink">{fmtN(e.pedidos_abiertos)}</dd>
               </div>
             ) : null}
+            {"pct_ejecucion" in e && e.pct_ejecucion != null ? (
+              <div>
+                <dt className="text-[10px] uppercase tracking-wider text-neutral-ink-muted">Ejecución</dt>
+                <dd className="font-medium text-neutral-ink">{e.pct_ejecucion.toFixed(1)}%</dd>
+              </div>
+            ) : null}
           </dl>
         )}
 
@@ -241,6 +247,15 @@ export function MundoPanelControl() {
         <p className="mt-2 max-w-2xl text-sm text-neutral-ink-muted">
           Activos del holding por entidad comercial — STOCK · COMPRA PREVIA · PROGRAMADO. Sales Report sigue blindado
           como cabo al Excel.
+        </p>
+        <Link
+          href="/herramienta-reposicion"
+          className="mt-5 inline-flex items-center rounded-xl border-2 border-rimec-azul bg-rimec-azul px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-rimec-azul-dark"
+        >
+          Herramienta de reposición!!! →
+        </Link>
+        <p className="mt-1.5 text-[11px] text-neutral-500">
+          Culminación AM · una grilla · PE + CP (disp/vend) + PROGRAMADO
         </p>
       </header>
 

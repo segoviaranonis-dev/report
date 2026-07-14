@@ -19,8 +19,14 @@ export type VincularListadoResult = {
     snapshot?: {
       actualizados?: number;
       filas_congeladas_venta?: number;
+      filas_vendidas_forzadas?: number;
       filas_sin_match?: number;
     };
+    lineas_congeladas_venta?: number;
+    lineas_vendidas_forzadas?: number;
+    delta_monto_fi?: number;
+    monto_fi_antes?: number;
+    monto_fi_despues?: number;
   };
   solo_recalc?: boolean;
 };
@@ -30,6 +36,7 @@ type ListadoOpts = {
   soloRecalc?: boolean;
   recalcularFi?: boolean;
   incluirConfirmadas?: boolean;
+  incluirVendidos?: boolean;
 };
 
 async function runListadoPython(ppId: number, opts: ListadoOpts): Promise<VincularListadoResult> {
@@ -45,6 +52,7 @@ async function runListadoPython(ppId: number, opts: ListadoOpts): Promise<Vincul
   }
   if (opts.recalcularFi === false) args.push("--no-recalc-fi");
   if (opts.incluirConfirmadas) args.push("--incluir-confirmadas");
+  if (opts.incluirVendidos) args.push("--incluir-vendidos");
 
   try {
     const python = process.env.PYTHON_PATH || "python";
@@ -52,7 +60,7 @@ async function runListadoPython(ppId: number, opts: ListadoOpts): Promise<Vincul
       cwd: CONTROL_CENTRAL,
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
       maxBuffer: 4 * 1024 * 1024,
-      timeout: 120_000,
+      timeout: 180_000,
     });
     const line = stdout.trim().split("\n").filter(Boolean).pop() ?? "";
     return JSON.parse(line) as VincularListadoResult;
@@ -76,18 +84,20 @@ async function runListadoPython(ppId: number, opts: ListadoOpts): Promise<Vincul
 export function runVincularListadoPython(
   ppId: number,
   eventoId: number,
-  opts: { recalcularFi?: boolean; incluirConfirmadas?: boolean },
+  opts: { recalcularFi?: boolean; incluirConfirmadas?: boolean; incluirVendidos?: boolean },
 ): Promise<VincularListadoResult> {
   return runListadoPython(ppId, {
     eventoId,
     recalcularFi: opts.recalcularFi ?? true,
     incluirConfirmadas: opts.incluirConfirmadas ?? false,
+    incluirVendidos: opts.incluirVendidos ?? false,
   });
 }
 
 export function runRecalcularFiPython(
   ppId: number,
   incluirConfirmadas: boolean,
+  incluirVendidos = false,
 ): Promise<VincularListadoResult> {
-  return runListadoPython(ppId, { soloRecalc: true, incluirConfirmadas });
+  return runListadoPython(ppId, { soloRecalc: true, incluirConfirmadas, incluirVendidos });
 }

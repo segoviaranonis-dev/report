@@ -1,4 +1,24 @@
 import { publicStorageObjectUrl } from "@/lib/storage-public-url";
+import {
+  productImagePrimaryStem,
+  resolveProductImageProtocol,
+  stems638,
+  stem654,
+  type ProductImageProtocol,
+} from "@/lib/retail/product-image-protocol";
+
+export type ProductImageContext = {
+  proveedorImportacionId?: number | null;
+  tipoV2Id?: number | null;
+  protocol?: ProductImageProtocol;
+};
+
+export {
+  PROVEEDOR_CALZADO,
+  PROVEEDOR_CONFECCIONES_KYLY,
+  resolveProductImageProtocol,
+  type ProductImageProtocol,
+} from "@/lib/retail/product-image-protocol";
 
 /** Debe coincidir con migrations/033_retail_staging_fk_dims.sql (material/color sentinela). */
 const STAGING_SENTINEL_CODIGO_ABS = 999001;
@@ -89,9 +109,12 @@ function stemCandidates(stem: string, variant: ImageVariant = "thumb"): string[]
   return urls;
 }
 
+function resolveCtxProtocol(input: ProductImageContext & { imagenNombre?: string | null }): ProductImageProtocol {
+  return input.protocol ?? resolveProductImageProtocol(input);
+}
+
 /**
- * Misma convención que rimec-web / bazzar-web:
- * productos/{linea}-{ref}-{material_code}-{color_code}.jpg
+ * Convención Nexus — rama 654 (L-R-M-C) o 638 (L_C) según proveedor.
  */
 export function productImageCandidates(
   lineaCodigo: string,
@@ -99,7 +122,18 @@ export function productImageCandidates(
   materialCode: string | number,
   colorCode: string | number,
   variant: ImageVariant = "thumb",
+  ctx?: ProductImageContext & { imagenNombre?: string | null },
 ): string[] {
+  const protocol = ctx ? resolveCtxProtocol({ ...ctx, imagenNombre: ctx.imagenNombre }) : "654";
+
+  if (protocol === "638") {
+    const urls: string[] = [];
+    for (const stem of stems638(lineaCodigo, colorCode)) {
+      for (const u of stemCandidates(stem, variant)) pushUnique(urls, u);
+    }
+    return urls;
+  }
+
   const L = normPillarSegment(lineaCodigo);
   const R = normPillarSegment(referenciaCodigo);
   const M = normPillarSegment(materialCode);
@@ -138,13 +172,15 @@ export function productImagePrimaryFileName(
   referenciaCodigo: string,
   materialCode: string | number,
   colorCode: string | number,
+  ctx?: ProductImageContext & { imagenNombre?: string | null },
 ): string | null {
-  const L = normPillarSegment(lineaCodigo);
-  const R = normPillarSegment(referenciaCodigo);
-  const M = normPillarSegment(materialCode);
-  const C = normPillarSegment(colorCode);
-  if (!L || !R) return null;
-  const stem = joinPillarStem([L, R, M, C]);
+  const stem = productImagePrimaryStem({
+    ...ctx,
+    linea: lineaCodigo,
+    referencia: referenciaCodigo,
+    material: materialCode,
+    color: colorCode,
+  });
   if (!stem) return null;
   return `${stem}.jpg`;
 }
@@ -178,6 +214,7 @@ export function productImageCandidatesForRow(
   colorCode: string | number,
   imagenNombre?: string | null,
   variant: ImageVariant = "thumb",
+  ctx?: ProductImageContext,
 ): string[] {
   const fromExcel = imagenNombreToCandidates(imagenNombre, variant);
   const fromMolecule = productImageCandidates(
@@ -186,6 +223,7 @@ export function productImageCandidatesForRow(
     materialCode,
     colorCode,
     variant,
+    { ...ctx, imagenNombre },
   );
   const out = [...fromExcel];
   for (const u of fromMolecule) {
@@ -201,7 +239,7 @@ export function resolveFlatImageUrl(input: {
   material: string | number;
   color: string | number;
   imagenNombre?: string | null;
-}): string | null {
+} & ProductImageContext): string | null {
   const excel = String(input.imagenNombre ?? "").trim();
   if (excel) {
     const file = normalizeImageFileName(excel);
@@ -209,15 +247,15 @@ export function resolveFlatImageUrl(input: {
     return publicStorageObjectUrl("productos", file);
   }
 
-  const L = normPillarSegment(input.linea);
-  const R = normPillarSegment(input.referencia);
-  if (!L || !R) return null;
+  const protocol = resolveCtxProtocol(input);
+  if (protocol === "638") {
+    const stem = stems638(input.linea, input.color)[0];
+    if (!stem) return null;
+    return publicStorageObjectUrl("productos", `${stem}.jpg`);
+  }
 
-  const M = normPillarSegment(input.material);
-  const C = normPillarSegment(input.color);
-  const stem = joinPillarStem([L, R, M, C]) || joinPillarStem([L, R]);
+  const stem = stem654(input.linea, input.referencia, input.material, input.color);
   if (!stem) return null;
-
   return publicStorageObjectUrl("productos", `${stem}.jpg`);
 }
 
@@ -229,7 +267,7 @@ export function resolveCanonicalImageUrl(input: {
   color: string | number;
   imagenNombre?: string | null;
   variant: ImageVariant;
-}): string | null {
+} & ProductImageContext): string | null {
   const size: ImageSize = input.variant === "hero" ? "lg" : "sm";
   const excel = String(input.imagenNombre ?? "").trim();
   if (excel) {
@@ -237,13 +275,11 @@ export function resolveCanonicalImageUrl(input: {
     return url || null;
   }
 
-  const L = normPillarSegment(input.linea);
-  const R = normPillarSegment(input.referencia);
-  if (!L || !R) return null;
-
-  const M = normPillarSegment(input.material);
-  const C = normPillarSegment(input.color);
-  const stem = joinPillarStem([L, R, M, C]) || joinPillarStem([L, R]);
+  const protocol = resolveCtxProtocol(input);
+  const stem =
+    protocol === "638"
+      ? stems638(input.linea, input.color)[0]
+      : stem654(input.linea, input.referencia, input.material, input.color);
   if (!stem) return null;
 
   return publicStorageObjectUrl("productos", `${size}/${stem}.jpg`) || null;
@@ -256,6 +292,7 @@ export function productImageHeroCandidates(
   materialCode: string | number,
   colorCode: string | number,
   imagenNombre?: string | null,
+  ctx?: ProductImageContext,
 ): string[] {
   return productImageCandidatesForRow(
     lineaCodigo,
@@ -264,5 +301,6 @@ export function productImageHeroCandidates(
     colorCode,
     imagenNombre,
     "hero",
+    ctx,
   );
 }

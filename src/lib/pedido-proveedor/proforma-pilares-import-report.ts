@@ -162,13 +162,26 @@ export function buildPilaresImportAvisos(opts: {
         ? `📥 ${opts.sinPilar.length} línea(s) del Excel se insertarán en pilares al confirmar: ${fmtCodigos(opts.sinPilar)}.`
         : `⚠ ${opts.sinPilar.length} línea(s) aún sin pilar tras import — revisar: ${fmtCodigos(opts.sinPilar)}.`,
     );
+    // Preview: líneas que aún no existen en pilar tampoco están en BCL — avisar antes de confirmar.
+    if (opts.preview && opts.bibliotecaId) {
+      const bib = opts.bibliotecaNombre ?? `bib. ${opts.bibliotecaId}`;
+      avisos.push(
+        `⛔ ${opts.sinPilar.length} línea(s) en registro (nueva en pilares → ref → L·R) sin caso en biblioteca «${bib}»: ${fmtCodigos(opts.sinPilar)} — tras import asigná en Motor → líneas libres.`,
+      );
+    }
   }
 
   if (opts.sinBiblioteca.length && opts.bibliotecaId) {
     const bib = opts.bibliotecaNombre ?? `bib. ${opts.bibliotecaId}`;
-    avisos.push(
-      `⛔ ${opts.sinBiblioteca.length} línea(s) sin caso en biblioteca «${bib}»: ${fmtCodigos(opts.sinBiblioteca)} — asigná en Motor → biblioteca (panel líneas libres).`,
-    );
+    // En preview, las sin pilar ya se avisaron arriba; acá solo líneas existentes sin BCL.
+    const yaAvisadas =
+      opts.preview && opts.sinPilar.length ? new Set(opts.sinPilar) : new Set<string>();
+    const libres = opts.sinBiblioteca.filter((c) => !yaAvisadas.has(c));
+    if (libres.length) {
+      avisos.push(
+        `⛔ ${libres.length} línea(s) sin caso en biblioteca «${bib}»: ${fmtCodigos(libres)} — asigná en Motor → biblioteca (panel líneas libres).`,
+      );
+    }
   } else if (opts.enBiblioteca.length && opts.bibliotecaId) {
     const bib = opts.bibliotecaNombre ?? `bib. ${opts.bibliotecaId}`;
     const porCaso = new Map<string, string[]>();

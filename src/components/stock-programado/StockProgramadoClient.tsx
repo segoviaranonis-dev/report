@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
 import { ProgramadoVentasVitales } from "@/components/stock-programado/ProgramadoVentasVitales";
@@ -24,6 +23,8 @@ import type { StockProgramadoResumen } from "@/lib/stock-programado/queries-resu
 
 type Props = {
   resumenInicial: StockProgramadoResumen;
+  /** Desde ?proforma= — evita useSearchParams (webpack/HMR). */
+  proformaInicial?: string | null;
 };
 
 const fmtN = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -51,7 +52,13 @@ function ResumenKpiBar({ resumen }: { resumen: StockProgramadoResumen }) {
   );
 }
 
-function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResumen }) {
+function StockProgramadoOperativaTab({
+  resumen,
+  proformaInicial,
+}: {
+  resumen: StockProgramadoResumen;
+  proformaInicial?: string | null;
+}) {
   const {
     loading,
     filtros,
@@ -69,16 +76,14 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
     ventasComprador,
   } = useStockProgramado();
 
-  const searchParams = useSearchParams();
-
   useEffect(() => {
-    const token = searchParams.get("proforma")?.trim();
+    const token = proformaInicial?.trim();
     if (!token) return;
     const ids = resumen.por_proforma
       .filter((p) => proformaMatchesToken(p.proforma, token))
       .map((p) => String(p.pp_id));
     if (ids.length) setPpIds(ids);
-  }, [searchParams, resumen.por_proforma, setPpIds]);
+  }, [proformaInicial, resumen.por_proforma, setPpIds]);
 
   const [bibliotecaId, setBibliotecaId] = useState<number | null>(null);
   const [casoActivo, setCasoActivo] = useState<string | null>(null);
@@ -174,7 +179,7 @@ function StockProgramadoOperativaTab({ resumen }: { resumen: StockProgramadoResu
   );
 }
 
-function StockProgramadoShell({ resumenInicial }: Props) {
+function StockProgramadoShell({ resumenInicial, proformaInicial }: Props) {
   const [tab, setTab] = useState<"operativa" | "articulos">("operativa");
   const { loading, err } = useStockProgramado();
 
@@ -229,7 +234,7 @@ function StockProgramadoShell({ resumenInicial }: Props) {
         ) : (
           <>
             <div className={tab !== "operativa" ? "hidden" : undefined} aria-hidden={tab !== "operativa"}>
-              <StockProgramadoOperativaTab resumen={resumenInicial} />
+              <StockProgramadoOperativaTab resumen={resumenInicial} proformaInicial={proformaInicial} />
             </div>
             <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
               <TabArticulosProgramado />
@@ -241,10 +246,10 @@ function StockProgramadoShell({ resumenInicial }: Props) {
   );
 }
 
-export function StockProgramadoClient({ resumenInicial }: Props) {
+export function StockProgramadoClient({ resumenInicial, proformaInicial }: Props) {
   return (
     <StockProgramadoProvider>
-      <StockProgramadoShell resumenInicial={resumenInicial} />
+      <StockProgramadoShell resumenInicial={resumenInicial} proformaInicial={proformaInicial} />
     </StockProgramadoProvider>
   );
 }
