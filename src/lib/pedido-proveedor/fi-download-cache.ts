@@ -45,11 +45,27 @@ export async function fetchPdfBlob(ppId: number, fiId: number): Promise<Blob | n
       `/api/proceso-importacion/pedido-proveedor/${ppId}/fi/${fiId}/pdf`,
       { credentials: "same-origin" },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      let msg = `Error ${res.status} al generar PDF`;
+      try {
+        const ct = res.headers.get("content-type") ?? "";
+        if (ct.includes("application/json")) {
+          const data = (await res.json()) as { error?: string };
+          if (data.error) msg = data.error;
+        }
+      } catch {
+        /* ignore parse */
+      }
+      throw new Error(msg);
+    }
     const blob = await res.blob();
+    if (blob.type && !blob.type.includes("pdf") && blob.size < 512) {
+      throw new Error("Respuesta inválida del servidor (no es PDF)");
+    }
     setCachedPdf(ppId, fiId, blob);
     return blob;
-  } catch {
+  } catch (e) {
+    if (e instanceof Error) throw e;
     return null;
   } finally {
     inflightPdf.delete(key);
@@ -85,7 +101,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Prefetch de un PDF (p. ej. al abrir acordeón FI). */
 export function prefetchSingleFiPdf(ppId: number, fiId: number) {
   if (getCachedPdf(ppId, fiId)) return;
-  void fetchPdfBlob(ppId, fiId);
+  void fetchPdfBlob(ppId, fiId).catch(() => {
+    /* prefetch best-effort */
+  });
 }
 
 /** Prefetch CSV + PDFs visibles primero; resto en background controlado. */

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
-import { runFiPdfPython } from "@/lib/pedido-proveedor/run-python-fi-pdf";
+import { runFiPdf } from "@/lib/pedido-proveedor/run-fi-pdf";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 type Params = { params: Promise<{ ppId: string; fiId: string }> };
@@ -29,7 +29,7 @@ export async function GET(_req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "FI no pertenece a este PP" }, { status: 404 });
   }
 
-  const result = await runFiPdfPython(fiId, row.nro_factura);
+  const result = await runFiPdf(fiId, row.nro_factura);
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
   }
