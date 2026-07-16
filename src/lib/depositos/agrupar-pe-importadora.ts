@@ -3,13 +3,22 @@ import type { VentaCompradorLinea } from "@/lib/clientes/etiqueta-comprador";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import { lookupCasoLinea } from "@/lib/depositos/caso-biblioteca";
 import { resolvePrecioGrupoLRM } from "@/lib/depositos/precio-venta";
+import {
+  claveGradaEnTarjeta,
+  isConfecciones638,
+  parseGradaAbierta638,
+} from "@/lib/deposito-rimec/grada-abierta-638";
 
 export type GradaImportadoraLine = {
   curva: string;
-  /** Saldo actual (pares disponibles). */
+  /** Saldo actual (pares o prendas según ramo). */
   pares: number;
-  /** Pares vendidos en la curva. */
+  /** Vendidos en la línea. */
   vendidos: number;
+  /** Kyly 638 — LPN / precio lista de la fila. */
+  lpn?: number | null;
+  /** Talle normalizado 638. */
+  talle?: string | null;
 };
 
 export type PeImportadoraCard = {
@@ -111,25 +120,40 @@ export function agruparPeImportadora(
 
   return Array.from(map.entries())
     .map(([key, items]) => {
-      const gradaMap = new Map<string, { pares: number; vendidos: number }>();
+      const gradaMap = new Map<
+        string,
+        { pares: number; vendidos: number; lpn: number | null; talle: string | null }
+      >();
       let totalInicial = 0;
       let totalVendidos = 0;
 
       for (const item of items) {
         const curva = canonCurva(item.grada);
-        const prev = gradaMap.get(curva) ?? { pares: 0, vendidos: 0 };
+        const gKey = claveGradaEnTarjeta(curva, item.precio_unitario, item.tipo_v2_id);
+        const prev = gradaMap.get(gKey) ?? { pares: 0, vendidos: 0, lpn: null as number | null, talle: null as string | null };
         const vend = item.pares_vendidos ?? 0;
         const ini = item.cantidad_inicial ?? item.cantidad + vend;
-        gradaMap.set(curva, {
+        const parsed = isConfecciones638(item.tipo_v2_id)
+          ? parseGradaAbierta638(item.grada, item.cantidad)
+          : null;
+        gradaMap.set(gKey, {
           pares: prev.pares + item.cantidad,
           vendidos: prev.vendidos + vend,
+          lpn: item.precio_unitario ?? prev.lpn,
+          talle: parsed?.talle ?? prev.talle,
         });
         totalInicial += ini;
         totalVendidos += vend;
       }
 
       const gradas = Array.from(gradaMap.entries())
-        .map(([curva, g]) => ({ curva, pares: g.pares, vendidos: g.vendidos }))
+        .map(([curva, g]) => ({
+          curva: curva.includes("|LPN:") ? curva.split("|LPN:")[0] : curva,
+          pares: g.pares,
+          vendidos: g.vendidos,
+          lpn: g.lpn,
+          talle: g.talle,
+        }))
         .filter((g) => g.pares > 0 || g.vendidos > 0)
         .sort(
           (a, b) =>
