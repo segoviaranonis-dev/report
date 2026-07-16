@@ -2,6 +2,7 @@ import Link from "next/link";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { EjecutarProtocoloImportacionPreciosButton } from "@/components/motor-precios/EjecutarProtocoloImportacionPreciosButton";
+import { UI_NIVEL_SUPERIOR } from "@/lib/auth/nivel-dios";
 import { IMPORTACION_PRECIOS_HISTORIAL, MOTOR_PRECIOS } from "@/lib/report/routes";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default function ImportacionPreciosHubPage() {
           cerrar.
         </p>
         <p className="mt-3 text-xs font-semibold text-amber-900">
-          Ejecutar protocolo = solo Nivel Dios (rol_id=1 + categoria=DIOS). Historial: Admin RIMEC.
+          Ejecutar protocolo = solo {UI_NIVEL_SUPERIOR}. Historial: Admin RIMEC.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <EjecutarProtocoloImportacionPreciosButton />

@@ -7,6 +7,14 @@ import type { SessionData } from "./session";
 export const NIVEL_DIOS_ROL_ID = 1;
 export const NIVEL_DIOS_CATEGORIA = "DIOS";
 
+/** Etiquetas UI — no exponer «Dios» al usuario final */
+export const UI_NIVEL_SUPERIOR = "Nivel Superior";
+export const UI_NIVEL_SUPERIOR_CORTO = "Superior";
+
+export function mensajeAccesoNivelSuperior(): string {
+  return "Acceso restringido: se requiere perfil de Nivel Superior autorizado.";
+}
+
 export function isNivelDios(session: SessionData | null | undefined): boolean {
   if (!session) return false;
   const cat = (session.role || "").toUpperCase().trim();
@@ -14,7 +22,7 @@ export function isNivelDios(session: SessionData | null | undefined): boolean {
 }
 
 export function mensajeAccesoNivelDios(): string {
-  return "Acceso Nivel Dios requerido: rol_id = 1 y categoria = DIOS en usuario_v2.";
+  return mensajeAccesoNivelSuperior();
 }
 
 /** Solo el módulo /aprobaciones — el resto de Report sigue reglas por rol_id. */

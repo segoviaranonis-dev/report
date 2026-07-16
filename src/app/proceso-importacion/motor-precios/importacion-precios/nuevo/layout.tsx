@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { isNivelDios, mensajeAccesoNivelDios } from "@/lib/auth/nivel-dios";
+import { isNivelDios, mensajeAccesoNivelDios, UI_NIVEL_SUPERIOR } from "@/lib/auth/nivel-dios";
 import { getSession } from "@/lib/auth/session";
 import { IMPORTACION_PRECIOS, MOTOR_PRECIOS } from "@/lib/report/routes";
 
@@ -18,12 +18,11 @@ export default async function ImportacionPreciosNuevoLayout({
   if (!isNivelDios(session)) {
     return (
       <div className="mx-auto max-w-lg px-6 py-16 text-center">
-        <p className="text-xs font-bold uppercase tracking-widest text-amber-800">Nivel Dios</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-amber-800">{UI_NIVEL_SUPERIOR}</p>
         <h1 className="mt-2 font-serif text-2xl text-rimec-azul-dark">Protocolo bloqueado</h1>
         <p className="mt-3 text-sm text-slate-600">{mensajeAccesoNivelDios()}</p>
         <p className="mt-2 text-xs text-slate-500">
-          Ejecutar importación de precios (Pasos 0–5) requiere{" "}
-          <code className="rounded bg-slate-100 px-1">categoria=DIOS</code>.
+          Ejecutar importación de precios (Pasos 0–5) requiere perfil de máximo nivel autorizado.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link

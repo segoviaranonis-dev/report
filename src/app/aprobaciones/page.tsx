@@ -1,7 +1,7 @@
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { getSession } from "@/lib/auth/session";
-import { isNivelDios, mensajeAccesoNivelDios } from "@/lib/auth/nivel-dios";
+import { isNivelDios, mensajeAccesoNivelDios, UI_NIVEL_SUPERIOR } from "@/lib/auth/nivel-dios";
 import { AprobacionesClient } from "./AprobacionesClient";
 import { fetchAprobacionesCatalogos, fetchAprobacionesData } from "./lib/aprobaciones-queries";
 
@@ -16,14 +16,13 @@ export default async function AprobacionesPage() {
       <div className="min-h-screen bg-app-bg pb-16 text-neutral-ink">
         <NexusHeaderZen active="aprobaciones" />
         <section className="mx-auto max-w-2xl px-6 py-16">
-          <h1 className="font-serif text-3xl text-rimec-azul-dark">Nivel Dios requerido</h1>
+          <h1 className="font-serif text-3xl text-rimec-azul-dark">{UI_NIVEL_SUPERIOR} requerido</h1>
           <p className="mt-4 text-neutral-700">{mensajeAccesoNivelDios()}</p>
           <p className="mt-2 text-sm text-neutral-600">
-            Solo profesionales muy autorizados: <code>usuario_v2.rol_id = 1</code> y{" "}
-            <code>usuario_v2.categoria = &apos;DIOS&apos;</code>.
+            Solo perfiles de máximo nivel autorizado por el holding.
           </p>
         </section>
-        <ReportFooter note="Aprobaciones · acceso restringido Nivel Dios" />
+        <ReportFooter note={`Aprobaciones · acceso restringido ${UI_NIVEL_SUPERIOR}`} />
       </div>
     );
   }
