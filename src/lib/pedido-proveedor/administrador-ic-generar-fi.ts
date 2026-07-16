@@ -5,6 +5,7 @@ import {
 } from "@/lib/pedido-proveedor/aritmetica-programado";
 import type { ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
 import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
+import { resolveCasoDominanteDesdePpd } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
 
 type SkuFi = {
   ppd_id: number;
@@ -23,6 +24,8 @@ type IcCabecera = {
   numero_registro: string;
   id_cliente: number;
   id_vendedor: number | null;
+  id_marca: number | null;
+  marca_nombre: string | null;
   id_plazo: number | null;
   listado_precio_id: number | null;
   descuento_1: number;
@@ -50,9 +53,11 @@ function formatNroFi(ppId: number, correlativo: number): string {
 async function loadIcCabecera(pool: Pool, icId: number, ppId: number): Promise<IcCabecera | null> {
   const { rows } = await pool.query<IcCabecera>(
     `SELECT ic.id AS ic_id, ic.numero_registro, ic.id_cliente, ic.id_vendedor, ic.id_plazo,
+            ic.id_marca, UPPER(TRIM(mv.descp_marca)) AS marca_nombre,
             ic.listado_precio_id, ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
      FROM intencion_compra ic
      JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id
+     LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
      WHERE ic.id = $1 AND icp.pedido_proveedor_id = $2`,
     [icId, ppId],
   );
@@ -278,12 +283,22 @@ export async function generarFiDesdeAdministradorIc(
     const nro = formatNroFi(ppId, (await getNextNroFiBase(client, ppId)) + 1);
     const totalPares = items.reduce((s, i) => s + i.pares, 0);
     const totalMonto = Math.round(items.reduce((s, i) => s + i.subtotal, 0) * 100) / 100;
+    const casoCab = await resolveCasoDominanteDesdePpd(
+      client,
+      ppId,
+      eventoId,
+      items.map((i) => i.ppd_id),
+    );
+    if (!casoCab.caso) {
+      avisos.push("FI sin caso comercial resoluble desde listado/evento — cabecera queda vacía.");
+    }
 
     const fiRes = await client.query<{ id: number }>(
       `INSERT INTO factura_interna
          (pp_id, nro_factura, cliente_id, vendedor_id, plazo_id, lista_precio_id,
+          marca, marca_id, caso, caso_id,
           descuento_1, descuento_2, descuento_3, descuento_4, total_pares, total_monto, estado, notas)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'RESERVADA', $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'RESERVADA', $17)
        RETURNING id`,
       [
         ppId,
@@ -292,6 +307,10 @@ export async function generarFiDesdeAdministradorIc(
         ic.id_vendedor,
         ic.id_plazo,
         ic.listado_precio_id ?? 1,
+        ic.marca_nombre,
+        ic.id_marca,
+        casoCab.caso,
+        casoCab.caso_id,
         d1,
         d2,
         d3,

@@ -18,6 +18,7 @@ import {
   SQL_FROM_FI_DETALLE_PRECIO,
   sqlPrecioComercialDesdePl,
 } from "./fi-precio-evento-lookup";
+import { resolveCasoDominanteDesdePpd } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
 
 export type MutationResult = { ok: boolean; msg: string };
 
@@ -923,6 +924,34 @@ export async function resincronizarFiDesdeListadoPp(
       `UPDATE public.factura_interna SET total_monto = $2, total_pares = $3 WHERE id = $1`,
       [fiId, totalMonto, totalPares],
     );
+
+    // Si la cabecera quedó sin caso (bug Admin IC / motor), rellenar desde listado PP.
+    const cabRes = await client.query<{
+      pp_id: number | null;
+      caso: string | null;
+    }>(
+      `SELECT pp_id, caso FROM public.factura_interna WHERE id = $1`,
+      [fiId],
+    );
+    const cab = cabRes.rows[0];
+    let casoRellenado = false;
+    if (cab?.pp_id && (!cab.caso || !String(cab.caso).trim())) {
+      const eventoId = detRes.rows.find((r) => r.evento_id)?.evento_id ?? null;
+      const ppdIds = detRes.rows
+        .map((r) => Number(r.ppd_id))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (eventoId && ppdIds.length) {
+        const casoCab = await resolveCasoDominanteDesdePpd(client, cab.pp_id, eventoId, ppdIds);
+        if (casoCab.caso) {
+          await client.query(
+            `UPDATE public.factura_interna SET caso = $2, caso_id = COALESCE($3, caso_id) WHERE id = $1`,
+            [fiId, casoCab.caso, casoCab.caso_id],
+          );
+          casoRellenado = true;
+        }
+      }
+    }
+
     await syncPedidoTotalesDesdeFis(client, lock.pedidoId);
     await syncPedidoListaSiUnicaFi(client, lock.pedidoId, tier);
     await restoreFiEstadoTrasEdicion(client, lock);
@@ -930,6 +959,7 @@ export async function resincronizarFiDesdeListadoPp(
 
     let msg = `Resincronizado listado #${detRes.rows[0]?.evento_id ?? "?"}. ${actualizadas} línea(s). Total: Gs. ${totalMonto.toLocaleString("es-PY")}`;
     if (comercial) msg += " (redondeo comercial).";
+    if (casoRellenado) msg += " Caso comercial rellenado desde PP.";
     if (sinMatch.length) msg += ` Sin match: ${sinMatch.join(", ")}.`;
 
     return { ok: true, msg, totalMonto, lineas: lineasLog };

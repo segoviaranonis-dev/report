@@ -23,7 +23,9 @@ export function DepositoWebClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/bazzar-web/deposito-web");
+      const res = await fetch(`/api/bazzar-web/deposito-web?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const json = (await res.json()) as DepositoWebPayload & { error?: string };
       if (!res.ok) throw new Error(json.error || "Error al cargar depósito");
       setData(json);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import { UI_NIVEL_SUPERIOR } from "@/lib/auth/nivel-dios";
 import type { AprobacionesCatalogos, FiDetalle, FiRecord } from "../lib/aprobaciones-types";
 import {
   estadoBadge,
@@ -207,7 +208,7 @@ export function FiCard({
         </div>
         {editable && (
           <p className="mt-2 text-[10px] font-medium text-rimec-azul/90">
-            Nivel Dios — cada cambio persiste en BD y sincroniza FI, PVR y PP (sin agregar ítems).
+            {UI_NIVEL_SUPERIOR} — cada cambio persiste en BD y sincroniza FI, PVR y PP (sin agregar ítems).
           </p>
         )}
       </div>
@@ -232,7 +233,7 @@ export function FiCard({
               disabled={procesando}
               onClick={() => onAnular!(fi.id)}
               className="border-red-800 bg-red-50 font-bold text-red-800 hover:bg-red-100"
-              title="DIOS · anula FI entera · reintegra stock · Anulaciones"
+              title={`${UI_NIVEL_SUPERIOR} · anula FI entera · reintegra stock · Anulaciones`}
             >
               Anular FI y reintegrar stock
             </Button>

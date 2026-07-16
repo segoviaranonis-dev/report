@@ -26,6 +26,10 @@ import {
 } from "./proforma-snapshot";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
 import {
+  casoDominanteDeNombres,
+  resolveCasoDominanteDesdePpd,
+} from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
+import {
   casoLineaFromMapa,
   loadCasosEventoNombres,
   resolveCasoMotorPrecios,
@@ -179,6 +183,7 @@ type FiLineItem = {
   material_nombre: string;
   color_nombre: string;
   grades_json?: unknown;
+  caso: string | null;
   cajas: number;
   pares: number;
   precio_unit: number;
@@ -1068,12 +1073,27 @@ async function crearFacturaInterna(
   const nro = nroOverride ?? formatNroFi(ppId, (await getNextNroFiBase(client, ppId)) + 1);
   const totalPares = items.reduce((s, i) => s + i.pares, 0);
   const totalMonto = Math.round(items.reduce((s, i) => s + i.subtotal, 0) * 100) / 100;
+  let casoCab = casoDominanteDeNombres(items.map((i) => i.caso));
+  let casoId: number | null = null;
+  if (ic.precio_evento_id && items.length) {
+    const resolved = await resolveCasoDominanteDesdePpd(
+      client,
+      ppId,
+      ic.precio_evento_id,
+      items.map((i) => i.ppd_id),
+    );
+    if (!casoCab) casoCab = resolved.caso;
+    if (resolved.caso && (!casoCab || resolved.caso === casoCab)) {
+      casoId = resolved.caso_id;
+    }
+  }
 
   const fiRes = await client.query<{ id: number }>(
     `INSERT INTO factura_interna
        (pp_id, nro_factura, cliente_id, vendedor_id, plazo_id, lista_precio_id,
+        marca, marca_id, caso, caso_id,
         descuento_1, descuento_2, descuento_3, descuento_4, total_pares, total_monto, estado, notas)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'RESERVADA', $13)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'RESERVADA', $17)
      RETURNING id`,
     [
       ppId,
@@ -1082,6 +1102,10 @@ async function crearFacturaInterna(
       ic.id_vendedor,
       ic.id_plazo,
       ic.listado_precio_id ?? 1,
+      ic.marca_nombre,
+      ic.id_marca,
+      casoCab,
+      casoId,
       ic.descuento_1,
       ic.descuento_2,
       ic.descuento_3,
@@ -1270,6 +1294,7 @@ function buildProgramadoFiJobs(
           material_nombre: r.material,
           color_nombre: r.color,
           grades_json: r.grades_json,
+          caso: casoLinea || null,
           cajas: r.boxes || 1,
           pares: r.pairs,
           precio_unit,

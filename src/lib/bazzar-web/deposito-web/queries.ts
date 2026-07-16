@@ -26,13 +26,16 @@ export async function getResumenWeb(): Promise<DepositoResumenRow[]> {
       SUM(md.cantidad * md.signo) AS stock_total
     FROM movimiento_detalle md
     JOIN movimiento m ON m.id = md.movimiento_id
-    JOIN traspaso tr ON tr.numero_registro = m.documento_ref
-    LEFT JOIN marca_v2 mv ON mv.id_marca = (tr.snapshot_json->>'id_marca')::int
     JOIN combinacion c ON c.id = md.combinacion_id
     JOIN linea l ON l.id = c.linea_id
     JOIN referencia r ON r.id = c.referencia_id
     LEFT JOIN material mat ON mat.id = c.material_id
     LEFT JOIN color col ON col.id = c.color_id
+    LEFT JOIN traspaso tr ON tr.numero_registro = m.documento_ref
+    LEFT JOIN marca_v2 mv ON mv.id_marca = COALESCE(
+      (tr.snapshot_json->>'id_marca')::int,
+      l.marca_id
+    )
     WHERE m.almacen_destino_id = $1
       AND m.estado = 'CONFIRMADO'
       AND m.tipo = 'INGRESO_COMPRA'
@@ -76,14 +79,17 @@ export async function getStockWeb(): Promise<DepositoStockRow[]> {
       SUM(md.cantidad * md.signo) AS stock
     FROM movimiento_detalle md
     JOIN movimiento m ON m.id = md.movimiento_id
-    JOIN traspaso tr ON tr.numero_registro = m.documento_ref
-    LEFT JOIN marca_v2 mv ON mv.id_marca = (tr.snapshot_json->>'id_marca')::int
     JOIN combinacion c ON c.id = md.combinacion_id
     JOIN linea l ON l.id = c.linea_id
     JOIN referencia r ON r.id = c.referencia_id
     LEFT JOIN material mat ON mat.id = c.material_id
     LEFT JOIN color col ON col.id = c.color_id
     JOIN talla tl ON tl.id = c.talla_id
+    LEFT JOIN traspaso tr ON tr.numero_registro = m.documento_ref
+    LEFT JOIN marca_v2 mv ON mv.id_marca = COALESCE(
+      (tr.snapshot_json->>'id_marca')::int,
+      l.marca_id
+    )
     WHERE m.almacen_destino_id = $1
       AND m.estado = 'CONFIRMADO'
       AND m.tipo = 'INGRESO_COMPRA'
