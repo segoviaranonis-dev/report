@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRimecAdmin } from "@/lib/rimec-admin/auth-api";
 import { getFacturas, summarizeFacturas } from "@/lib/facturacion/queries";
 import { isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isCajaRimec } from "@/lib/auth/caja-rimec";
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireRimecAdmin();
+  const { session, error } = await requireRimecAdmin();
   if (error) return error;
 
   if (!isRimecDatabaseConfigured()) {
@@ -16,6 +17,13 @@ export async function GET(req: NextRequest) {
   const origenParam = req.nextUrl.searchParams.get("origen");
   const origen =
     origenParam === "pronta-entrega" ? "pronta-entrega" : ("transito" as const);
+
+  if (isCajaRimec(session!.rol_id, session!.role) && origen !== "pronta-entrega") {
+    return NextResponse.json(
+      { error: "CAJA RIMEC: solo Facturación Pronta Entrega" },
+      { status: 403 },
+    );
+  }
 
   try {
     const facturas = await getFacturas(Number.isFinite(idCl!) ? idCl : null, origen);

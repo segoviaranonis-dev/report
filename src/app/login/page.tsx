@@ -30,13 +30,19 @@ function LoginForm() {
       const data = await res.json();
 
       if (data.success) {
-        if (nextPath.startsWith("/herramienta-reposicion")) {
+        const dest =
+          nextPath !== "/"
+            ? nextPath
+            : typeof data.home === "string" && data.home.startsWith("/")
+              ? data.home
+              : "/";
+        if (dest.startsWith("/herramienta-reposicion")) {
           void fetch("/api/herramienta-reposicion", { credentials: "include" });
-        } else {
+        } else if (!dest.startsWith("/facturacion")) {
           void prefetchSalesReportSnapshot();
         }
-        router.prefetch(nextPath);
-        router.push(nextPath);
+        router.prefetch(dest);
+        router.push(dest);
         router.refresh();
       } else {
         setError(data.error || "Credenciales inválidas");

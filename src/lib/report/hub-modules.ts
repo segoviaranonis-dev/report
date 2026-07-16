@@ -145,7 +145,7 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     title: "Facturación",
     shortLabel: "Facturación",
     description:
-      "FAC-INT en tránsito · distribución sucursales y cliente 5000 (2.3.1.9).",
+      "FAC-INT · tránsito y Pronta Entrega · distribución sucursales (2.3.1.9).",
     icon: "🧾",
     group: "rimec",
     navKey: "facturacion",
@@ -287,9 +287,15 @@ export function filterHubModules(
   enteCodigo?: number | null,
 ): ReportHubModule[] {
   const allowedGroups = new Set(hubGroupsForEnte(enteCodigo, rolId));
+  const cat = (categoria || "").toUpperCase().trim();
 
   return modules.filter((m) => {
     if (!allowedGroups.has(m.group)) return false;
+
+    // CAJA RIMEC: solo Facturación (home real = Pronta Entrega vía middleware)
+    if (rolId === 1 && cat === "CAJA") {
+      return m.href === "/facturacion";
+    }
 
     // Matriz: rol 2 = solo columna BAZZAR tienda (retail · depósitos · caja)
     if (rolId === 2) {

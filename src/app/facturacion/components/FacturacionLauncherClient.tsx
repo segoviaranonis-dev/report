@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { CAJA_RIMEC_HOME } from "@/lib/auth/caja-rimec";
 
 const CARDS = [
   {
@@ -11,6 +14,7 @@ const CARDS = [
     icon: "📦",
     border: "border-rimec-azul/30 hover:border-rimec-azul",
     bg: "hover:bg-rimec-celeste-bg/50",
+    caja: false,
   },
   {
     href: "/facturacion/pronta-entrega",
@@ -20,10 +24,50 @@ const CARDS = [
     icon: "⚡",
     border: "border-orange-300 hover:border-orange-600",
     bg: "hover:bg-orange-50/80",
+    caja: true,
   },
 ] as const;
 
 export function FacturacionLauncherClient() {
+  const router = useRouter();
+  const [soloCaja, setSoloCaja] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = await res.json().catch(() => ({}));
+        const cat = String(data?.user?.role ?? data?.user?.categoria ?? "")
+          .toUpperCase()
+          .trim();
+        const rol = Number(data?.user?.rol_id);
+        if (!cancelled && rol === 1 && cat === "CAJA") {
+          setSoloCaja(true);
+          router.replace(CAJA_RIMEC_HOME);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!cancelled) setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  if (!ready || soloCaja) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-neutral-600">
+        Redirigiendo a Pronta Entrega…
+      </div>
+    );
+  }
+
+  const cards = CARDS.filter((c) => !soloCaja || c.caja);
+
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <main className="mx-auto flex min-h-[60vh] max-w-3xl flex-col justify-center px-6 py-12">
@@ -40,7 +84,7 @@ export function FacturacionLauncherClient() {
         </p>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2">
-          {CARDS.map((c) => (
+          {cards.map((c) => (
             <Link
               key={c.href}
               href={c.href}

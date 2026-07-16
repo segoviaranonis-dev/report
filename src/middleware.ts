@@ -15,6 +15,12 @@ import { jwtVerify } from 'jose'
 import { REPORT_SESSION_VERSION } from '@/lib/auth/constants'
 import { apiAllowedForEnte, pathnameAllowedForEnte } from '@/lib/auth/ente-acceso'
 import { aplicarAccesoCanonicoBzz } from '@/lib/auth/bzz-acceso'
+import {
+  CAJA_RIMEC_HOME,
+  cajaRimecPathAllowed,
+  cajaRimecShouldRedirectHome,
+  isCajaRimec,
+} from '@/lib/auth/caja-rimec'
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
@@ -122,6 +128,32 @@ export async function middleware(request: NextRequest) {
     const rol_id = bzz.rol_id
     const ente_codigo = bzz.ente_codigo
 
+    // CAJA RIMEC: solo Facturación Pronta Entrega
+    if (isCajaRimec(rol_id, categoria)) {
+      if (cajaRimecShouldRedirectHome(pathname)) {
+        return NextResponse.redirect(new URL(CAJA_RIMEC_HOME, request.url))
+      }
+      if (pathname.startsWith('/facturacion/transito')) {
+        if (isApiRoute) {
+          return NextResponse.json(
+            { error: 'CAJA RIMEC: solo Facturación Pronta Entrega' },
+            { status: 403 },
+          )
+        }
+        return NextResponse.redirect(new URL(CAJA_RIMEC_HOME, request.url))
+      }
+      if (!cajaRimecPathAllowed(pathname)) {
+        if (isApiRoute) {
+          return NextResponse.json(
+            { error: 'CAJA RIMEC: acceso denegado' },
+            { status: 403 },
+          )
+        }
+        return NextResponse.redirect(new URL(CAJA_RIMEC_HOME, request.url))
+      }
+      return NextResponse.next()
+    }
+
     // Motor precio BAZZAR WEB: solo rol_id=1
     if (
       pathname.startsWith('/bazzar-web/motor-precio') ||
@@ -158,7 +190,7 @@ export async function middleware(request: NextRequest) {
       if (rol_id !== 1 || categoria !== 'DIOS') {
         if (isApiRoute) {
           return NextResponse.json(
-            { error: 'Nivel Dios requerido: rol_id=1 y categoria=DIOS' },
+            { error: 'Nivel Superior requerido: acceso restringido' },
             { status: 403 },
           )
         }
