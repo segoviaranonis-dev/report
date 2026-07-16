@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { proveedorIdFromTipoV2 } from "./constants";
+import { loadEstilosForTipoV2, loadTipos1ForTipoV2 } from "./validar-maestras-pilares";
 import type {
   LineaReferenciaFilterOpts,
   LineaReferenciaRow,
@@ -91,19 +92,27 @@ export async function loadPilaresMaestras(pool: Pool, tipoV2Id?: TipoV2Id): Prom
     pool.query<{ id: number; label: string }>(
       `SELECT id, TRIM(descripcion) AS label FROM genero WHERE descripcion IS NOT NULL ORDER BY descripcion`,
     ),
-    pool.query<{ id: number; label: string }>(
-      `SELECT id_grupo_estilo AS id, TRIM(descp_grupo_estilo) AS label FROM grupo_estilo_v2 ORDER BY descp_grupo_estilo`,
-    ),
-    pool.query<{ id: number; label: string }>(
-      `SELECT id_tipo_1 AS id, TRIM(descp_tipo_1) AS label FROM tipo_1 ORDER BY id_tipo_1`,
-    ),
+    tipoV2Id != null
+      ? loadEstilosForTipoV2(pool, tipoV2Id)
+      : pool
+          .query<{ id: number; label: string }>(
+            `SELECT id_grupo_estilo AS id, TRIM(descp_grupo_estilo) AS label FROM grupo_estilo_v2 ORDER BY descp_grupo_estilo`,
+          )
+          .then((r) => r.rows),
+    tipoV2Id != null
+      ? loadTipos1ForTipoV2(pool, tipoV2Id)
+      : pool
+          .query<{ id: number; label: string }>(
+            `SELECT id_tipo_1 AS id, TRIM(descp_tipo_1) AS label FROM tipo_1 ORDER BY id_tipo_1`,
+          )
+          .then((r) => r.rows),
   ]);
 
   return {
     marcas,
     generos: generos.rows,
-    estilos: estilos.rows,
-    tipos1: tipos1.rows,
+    estilos,
+    tipos1,
   };
 }
 

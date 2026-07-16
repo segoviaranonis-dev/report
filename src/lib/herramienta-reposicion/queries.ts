@@ -6,6 +6,11 @@ import {
   mergeReposicionArticulos,
   type ReposicionArticulo,
 } from "@/lib/herramienta-reposicion/merge-reposicion";
+import {
+  auditarIntegridadReposicion,
+  kpisDesdeArticulos,
+  recalcularTotalesArticulo,
+} from "@/lib/herramienta-reposicion/totales-reposicion";
 
 export type HerramientaReposicionPayload = {
   articulos: ReposicionArticulo[];
@@ -16,6 +21,7 @@ export type HerramientaReposicionPayload = {
     cpVendido: number;
     programado: number;
   };
+  integridadOk: true;
 };
 
 export async function getHerramientaReposicion(pool: Pool): Promise<HerramientaReposicionPayload> {
@@ -25,19 +31,21 @@ export async function getHerramientaReposicion(pool: Pool): Promise<HerramientaR
     listProgramadoProductos(pool),
   ]);
 
-  const articulos = mergeReposicionArticulos({
+  const articulosRaw = mergeReposicionArticulos({
     pe: pe.productos,
     compraPrevia: cp.productos,
     programado: prog.productos,
   });
 
-  const kpis = {
-    moleculas: articulos.length,
-    peDisponible: articulos.reduce((s, a) => s + a.totales.peDisponible, 0),
-    cpDisponible: articulos.reduce((s, a) => s + a.totales.cpDisponible, 0),
-    cpVendido: articulos.reduce((s, a) => s + a.totales.cpVendido, 0),
-    programado: articulos.reduce((s, a) => s + a.totales.programado, 0),
-  };
+  const articulos = articulosRaw.map(recalcularTotalesArticulo);
 
-  return { articulos, kpis };
+  const issues = auditarIntegridadReposicion(articulos);
+  if (issues.length > 0) {
+    console.error("[herramienta-reposicion] integridad molecular FAIL", issues.slice(0, 5));
+    throw new Error(`Integridad molecular: ${issues.length} tarjeta(s) con totales ≠ pills`);
+  }
+
+  const kpis = kpisDesdeArticulos(articulos);
+
+  return { articulos, kpis, integridadOk: true as const };
 }

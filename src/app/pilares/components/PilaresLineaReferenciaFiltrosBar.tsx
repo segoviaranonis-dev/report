@@ -1,6 +1,7 @@
 "use client";
 
 import type { LineaReferenciaCascada, PilaresMaestras } from "@/lib/pilares/types";
+import { TIPO1_UI_LABEL } from "@/lib/pilares/constants";
 import { cap, FiltroRow, Pill, PilaresFiltrosShell, TipoV2FiltroRow } from "./PilaresFiltrosUi";
 
 interface Props {
@@ -14,6 +15,8 @@ interface Props {
   cascada?: LineaReferenciaCascada | null;
   cascadaActiva?: boolean;
   loading?: boolean;
+  /** Kyly 638 — etiqueta TEMPORADA en lugar de Tipo 1 */
+  tipoV2Id?: 1 | 2;
 }
 
 function normKey(s: string) {
@@ -31,7 +34,9 @@ export function PilaresLineaReferenciaFiltrosBar({
   cascada,
   cascadaActiva,
   loading,
+  tipoV2Id = 1,
 }: Props) {
+  const tipo1Label = tipoV2Id === 2 ? TIPO1_UI_LABEL[2] : TIPO1_UI_LABEL[1];
   const marcaKeys = new Set(cascada?.marcas.map((m) => normKey(m.key)) ?? []);
   const marcaInvolved = (key: string) => !cascadaActiva || marcaKeys.has(normKey(key));
 
@@ -104,7 +109,7 @@ export function PilaresLineaReferenciaFiltrosBar({
         ))}
       </FiltroRow>
 
-      <FiltroRow label="Tipo 1">
+      <FiltroRow label={tipo1Label}>
         <Pill active={!filtroTipo1} involved onClick={() => onTipo1("")}>
           Todos
         </Pill>

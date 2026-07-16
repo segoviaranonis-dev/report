@@ -34,6 +34,7 @@ export function applyStockPeFilters(
     gradas: [],
     cantidadOp: null,
     cantidadValor: null,
+    cadenaComercial: null,
   };
   out = applyOperativaFilters(out, peel);
 
@@ -43,6 +44,15 @@ export function applyStockPeFilters(
       cantidadOp: filtros.cantidadOp,
       cantidadValor: filtros.cantidadValor,
     });
+  }
+
+  const cadena = String(filtros.cadenaComercial ?? "").trim().toUpperCase();
+  if (cadena === "LIQUIDACION") {
+    out = out.filter((r) => r.es_liquidacion === true);
+  } else if (cadena && cadena !== "REGULAR") {
+    out = out.filter((r) => String(r.cadena_comercial ?? "").toUpperCase() === cadena);
+  } else if (cadena === "REGULAR") {
+    out = out.filter((r) => r.es_liquidacion !== true);
   }
 
   return out;

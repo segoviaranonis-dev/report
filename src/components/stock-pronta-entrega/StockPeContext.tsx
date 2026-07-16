@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -63,6 +64,7 @@ type StockPeContextValue = {
   confeccionesPares: number;
   calzadoGs: number;
   confeccionesGs: number;
+  reloadProductos: () => Promise<void>;
 };
 
 const StockPeContext = createContext<StockPeContextValue | null>(null);
@@ -80,6 +82,19 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
   const [err, setErr] = useState<string | null>(null);
   const [depositoLegal, setDepositoLegal] = useState("");
   const [filtros, setFiltros] = useState(EMPTY_OPERATIVA_FILTERS);
+
+  const reloadProductos = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const j = await loadPeProductosPrefetch();
+      setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -169,6 +184,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       confeccionesPares,
       calzadoGs,
       confeccionesGs,
+      reloadProductos,
     }),
     [
       rows,
@@ -192,6 +208,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       confeccionesPares,
       calzadoGs,
       confeccionesGs,
+      reloadProductos,
     ],
   );
 

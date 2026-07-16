@@ -14,6 +14,21 @@ export function resolveProductImageProtocol(input: {
   proveedorImportacionId?: number | null;
   tipoV2Id?: number | null;
   imagenNombre?: string | null;
+  material?: string | number | null;
+  linea?: string | number | null;
+  referencia?: string | number | null;
+}): ProductImageProtocol {
+  return inferProtocolFromProductCodes(input);
+}
+
+/** 654 calzado · 638 Kyly — stem, tipo_v2, prefijos material/línea, imagen Excel. */
+export function inferProtocolFromProductCodes(input: {
+  proveedorImportacionId?: number | null;
+  tipoV2Id?: number | null;
+  imagenNombre?: string | null;
+  material?: string | number | null;
+  linea?: string | number | null;
+  referencia?: string | number | null;
 }): ProductImageProtocol {
   const fromName = detectProtocolFromFileStem(input.imagenNombre);
   if (fromName) return fromName;
@@ -21,6 +36,14 @@ export function resolveProductImageProtocol(input: {
   const p = input.proveedorImportacionId;
   const t = input.tipoV2Id;
   if (p === PROVEEDOR_CONFECCIONES_KYLY || t === TIPO_V2_CONFECCIONES) return "638";
+
+  const mat = String(input.material ?? "").trim();
+  const linea = String(input.linea ?? "").trim();
+  const ref = String(input.referencia ?? "").trim();
+  if (mat.startsWith("638") || linea.startsWith("638") || ref.startsWith("638.")) {
+    return "638";
+  }
+
   return "654";
 }
 
@@ -112,6 +135,8 @@ export function productImagePrimaryStem(input: {
   proveedorImportacionId?: number | null;
   tipoV2Id?: number | null;
   imagenNombre?: string | null;
+  /** Kyly MIG-149 — color Excel (K3442), no bigint pilar. */
+  imagenColorExcel?: string | null;
   linea: string | number | null | undefined;
   referencia?: string | number | null | undefined;
   material?: string | number | null | undefined;
@@ -119,7 +144,7 @@ export function productImagePrimaryStem(input: {
 }): string | null {
   const protocol = input.protocol ?? resolveProductImageProtocol(input);
   if (protocol === "638") {
-    return stems638(input.linea, input.color)[0] ?? null;
+    return stems638(input.linea, input.imagenColorExcel ?? input.color)[0] ?? null;
   }
   return stem654(input.linea, input.referencia, input.material, input.color);
 }

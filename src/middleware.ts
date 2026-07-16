@@ -89,8 +89,12 @@ export async function middleware(request: NextRequest) {
     if (isApiRoute) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
-    // Sin sesión → redirect login
+    // Sin sesión → redirect login (conservar destino para post-login ágil)
     const loginUrl = new URL('/login', request.url)
+    if (!isApiRoute && pathname !== '/login') {
+      const dest = `${pathname}${request.nextUrl.search}`
+      loginUrl.searchParams.set('next', dest)
+    }
     return NextResponse.redirect(loginUrl)
   }
 

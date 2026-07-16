@@ -1,3 +1,8 @@
+/** FI Pronta entrega — pp_id NULL o nro PE-* (sin listado PP tránsito). */
+export const SQL_WHERE_FI_PRONTA_ENTREGA = `
+  (fi.pp_id IS NULL OR TRIM(COALESCE(fi.nro_factura, '')) LIKE 'PE-%')
+`;
+
 /** Resuelve LP/LPC desde precio_lista del evento ICP del PP, con fallback a snapshot PPD. */
 export function sqlPrecioBaseFiDetalle(listaTierParam: string): string {
   return `
@@ -20,6 +25,18 @@ export function sqlPrecioBaseFiDetalle(listaTierParam: string): string {
         WHEN 4 THEN ppd.precio_lpc04
         ELSE ppd.precio_lpn
       END
+    )
+  `;
+}
+
+/**
+ * Precio base por línea: listado PP (CP) o precio_unit ya grabado en FI PE (MIG-141/160).
+ */
+export function sqlPrecioBaseFiDetalleConFallbackPe(listaTierParam: string): string {
+  return `
+    COALESCE(
+      ${sqlPrecioBaseFiDetalle(listaTierParam)},
+      CASE WHEN ${SQL_WHERE_FI_PRONTA_ENTREGA} THEN fid.precio_unit ELSE NULL END
     )
   `;
 }

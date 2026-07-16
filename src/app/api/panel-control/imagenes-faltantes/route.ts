@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
           : Number(r.tipo_v2_id),
       imagen_nombre:
         r.imagen_nombre == null ? null : String(r.imagen_nombre).trim() || null,
+      imagen_color_excel:
+        r.imagen_color_excel == null
+          ? null
+          : String(r.imagen_color_excel).trim() || null,
     });
   }
 
@@ -61,6 +65,10 @@ export async function POST(req: NextRequest) {
       total: audit.total,
       sinImagen: audit.sinImagen,
       ms: audit.ms,
+      sinImagen654: audit.sinImagen654,
+      sinImagen638: audit.sinImagen638,
+      total654: audit.total654,
+      total638: audit.total638,
       faltantes: audit.faltantesMolKeys,
     });
   } catch (e) {

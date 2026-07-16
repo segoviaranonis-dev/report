@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
+import { EjecutarProtocoloImportacionPreciosButton } from "@/components/motor-precios/EjecutarProtocoloImportacionPreciosButton";
 import { BIBLIOTECA_CANONICA_LABEL } from "@/lib/motor-precios/constants";
 import {
   IMPORTACION_PRECIOS,
@@ -62,6 +63,18 @@ export function MotorPreciosHubClient() {
           Corazón 1 (biblioteca) + Corazón 2 (importación Excel). Paridad Streamlit{" "}
           <code className="text-sm">rimec_engine</code>.
         </p>
+
+        <div className="mt-6 rounded-xl border-2 border-rimec-azul/20 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul/70">
+            Protocolo · 2.3.1.7.2
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Ejecutar importación de precios (Pasos 0–5) — habilitado solo Nivel Dios.
+          </p>
+          <div className="mt-3">
+            <EjecutarProtocoloImportacionPreciosButton />
+          </div>
+        </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {CARDS.map((c) => {

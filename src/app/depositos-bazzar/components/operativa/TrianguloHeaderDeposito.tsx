@@ -38,6 +38,10 @@ type Props = {
   categoriaEnCabecera?: boolean;
   /** PE: pills extra junto a pares/Gs (venta demo) */
   summaryTrailing?: React.ReactNode;
+  /** PE Alejandro Magno · etiqueta tipo_1 dinámica (Temporada en 638) */
+  tipo1Label?: string;
+  /** PE Alejandro Magno · fila LIQUIDACIÓN / cadena comercial */
+  showComercialFilter?: boolean;
 };
 
 function Pill({
@@ -183,6 +187,8 @@ export function TrianguloHeaderDeposito({
   summaryLayout = "default",
   categoriaEnCabecera = false,
   summaryTrailing,
+  tipo1Label = "Tipo 1",
+  showComercialFilter = false,
 }: Props) {
   const patch = (p: Partial<OperativaFilterState>) =>
     onChange((prev) => ({ ...prev, ...p }));
@@ -199,6 +205,7 @@ export function TrianguloHeaderDeposito({
     !!filtros.q.trim() ||
     filtros.gradas.length > 0 ||
     (filtros.cantidadOp != null && filtros.cantidadValor != null) ||
+    !!filtros.cadenaComercial ||
     JSON.stringify(filtros) !== JSON.stringify(emptyFilters);
 
   const filaCategoria =
@@ -341,6 +348,44 @@ export function TrianguloHeaderDeposito({
           {categoriaFirst && !categoriaEnCabecera ? filaCategoria : null}
           {extraFilters}
 
+          {showComercialFilter ? (
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+              <span className="w-20 shrink-0 pt-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                Comercial
+              </span>
+              <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                <Pill
+                  active={!filtros.cadenaComercial}
+                  onClick={() => patch({ cadenaComercial: null })}
+                >
+                  Todos
+                </Pill>
+                <Pill
+                  active={filtros.cadenaComercial === "LIQUIDACION"}
+                  onClick={() =>
+                    patch({
+                      cadenaComercial:
+                        filtros.cadenaComercial === "LIQUIDACION" ? null : "LIQUIDACION",
+                    })
+                  }
+                >
+                  Liquidación
+                </Pill>
+                <Pill
+                  active={filtros.cadenaComercial === "REGULAR"}
+                  onClick={() =>
+                    patch({
+                      cadenaComercial:
+                        filtros.cadenaComercial === "REGULAR" ? null : "REGULAR",
+                    })
+                  }
+                >
+                  Regular
+                </Pill>
+              </div>
+            </div>
+          ) : null}
+
           <FilaChips
             label="Género"
             todosLabel="Todos"
@@ -381,7 +426,7 @@ export function TrianguloHeaderDeposito({
             onClear={() => patch({ grupoEstiloIds: [] })}
           />
           <FilaChips
-            label="Tipo 1"
+            label={tipo1Label}
             todosLabel="Todos"
             items={opciones.tipo1}
             selected={filtros.tipo1Ids}

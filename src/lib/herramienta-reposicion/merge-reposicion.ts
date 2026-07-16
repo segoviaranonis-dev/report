@@ -4,6 +4,7 @@
  */
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
+import { calcularTotalesDesdeBuckets } from "@/lib/herramienta-reposicion/totales-reposicion";
 
 export type ReposicionBucket = { label: string; pares: number };
 
@@ -17,8 +18,25 @@ export type ReposicionArticulo = {
   descp_material: string | null;
   descp_color: string | null;
   imagen_nombre: string | null;
+  /** Kyly 638 — color Excel stem L_C (MIG-149). */
+  imagen_color_excel: string | null;
   /** Precio unitario si hay (>0); null → badge «Sin LPN» */
   lpn: number | null;
+  /** Dimensiones FK — cabecera filtros AM */
+  genero: string;
+  estilo: string;
+  tipo_v2: string;
+  tipo_1: string | null;
+  tono_etiqueta: string | null;
+  linea_id: number | null;
+  referencia_id: number | null;
+  material_id: number;
+  color_id: number;
+  marca_id: number | null;
+  genero_id: number | null;
+  grupo_estilo_id: number | null;
+  tipo_1_id: number | null;
+  tipo_v2_id: number | null;
   /** STOCK's: PE disponible + CP disponible por quincena */
   stock: ReposicionBucket[];
   /** VENTAS · Compra previa ejecutada por quincena */
@@ -50,9 +68,15 @@ function quincenaLabel(r: DepositoRow, fallback: string): string {
   return q;
 }
 
+function enteroBucket(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.trunc(n);
+}
+
 function addBucket(map: Map<string, number>, label: string, n: number) {
-  if (n <= 0) return;
-  map.set(label, (map.get(label) ?? 0) + n);
+  const p = enteroBucket(n);
+  if (p <= 0) return;
+  map.set(label, (map.get(label) ?? 0) + p);
 }
 
 function bucketsFromMap(map: Map<string, number>): ReposicionBucket[] {
@@ -75,7 +99,22 @@ type Acc = {
   descp_material: string | null;
   descp_color: string | null;
   imagen_nombre: string | null;
+  imagen_color_excel: string | null;
   lpn: number | null;
+  genero: string;
+  estilo: string;
+  tipo_v2: string;
+  tipo_1: string | null;
+  tono_etiqueta: string | null;
+  linea_id: number | null;
+  referencia_id: number | null;
+  material_id: number;
+  color_id: number;
+  marca_id: number | null;
+  genero_id: number | null;
+  grupo_estilo_id: number | null;
+  tipo_1_id: number | null;
+  tipo_v2_id: number | null;
   stock: Map<string, number>;
   ventasCp: Map<string, number>;
   ventasProgramado: Map<string, number>;
@@ -95,16 +134,57 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
       descp_material: row.descp_material,
       descp_color: row.descp_color,
       imagen_nombre: row.imagen_nombre,
+      imagen_color_excel: row.imagen_color_excel ?? null,
       lpn: precio != null && precio > 0 ? precio : null,
+      genero: row.genero || "",
+      estilo: row.estilo || "",
+      tipo_v2: row.tipo_v2 || "",
+      tipo_1: row.tipo_1,
+      tono_etiqueta: row.tono_etiqueta,
+      linea_id: row.linea_id,
+      referencia_id: row.referencia_id,
+      material_id: row.material_id,
+      color_id: row.color_id,
+      marca_id: row.marca_id,
+      genero_id: row.genero_id,
+      grupo_estilo_id: row.grupo_estilo_id,
+      tipo_1_id: row.tipo_1_id,
+      tipo_v2_id: row.tipo_v2_id,
       stock: new Map(),
       ventasCp: new Map(),
       ventasProgramado: new Map(),
     };
     acc.set(key, a);
-  } else if (!a.lpn && row.precio_unitario != null && Number(row.precio_unitario) > 0) {
-    a.lpn = Number(row.precio_unitario);
-  } else if (!a.imagen_nombre && row.imagen_nombre) {
-    a.imagen_nombre = row.imagen_nombre;
+  } else {
+    if (!a.lpn && row.precio_unitario != null && Number(row.precio_unitario) > 0) {
+      a.lpn = Number(row.precio_unitario);
+    }
+    if (!a.imagen_nombre && row.imagen_nombre) a.imagen_nombre = row.imagen_nombre;
+    if (!a.imagen_color_excel && row.imagen_color_excel) {
+      a.imagen_color_excel = row.imagen_color_excel;
+    }
+    if (!a.genero_id && row.genero_id) {
+      a.genero_id = row.genero_id;
+      a.genero = row.genero || a.genero;
+    }
+    if (!a.marca_id && row.marca_id) {
+      a.marca_id = row.marca_id;
+      a.marca = row.marca || a.marca;
+    }
+    if (!a.grupo_estilo_id && row.grupo_estilo_id) {
+      a.grupo_estilo_id = row.grupo_estilo_id;
+      a.estilo = row.estilo || a.estilo;
+    }
+    if (!a.tipo_1_id && row.tipo_1_id) {
+      a.tipo_1_id = row.tipo_1_id;
+      a.tipo_1 = row.tipo_1;
+    }
+    if (!a.tipo_v2_id && row.tipo_v2_id) {
+      a.tipo_v2_id = row.tipo_v2_id;
+      a.tipo_v2 = row.tipo_v2 || a.tipo_v2;
+    }
+    if (!a.tono_etiqueta && row.tono_etiqueta) a.tono_etiqueta = row.tono_etiqueta;
+    if (!a.linea_id && row.linea_id) a.linea_id = row.linea_id;
   }
   return a;
 }
@@ -143,12 +223,8 @@ export function mergeReposicionArticulos(input: {
     const stock = bucketsFromMap(a.stock);
     const ventasCp = bucketsFromMap(a.ventasCp);
     const ventasProgramado = bucketsFromMap(a.ventasProgramado);
-    const peDisponible = stock.find((b) => b.label === PE_LABEL)?.pares ?? 0;
-    const cpDisponible = stock
-      .filter((b) => b.label !== PE_LABEL)
-      .reduce((s, b) => s + b.pares, 0);
-    const cpVendido = ventasCp.reduce((s, b) => s + b.pares, 0);
-    const programado = ventasProgramado.reduce((s, b) => s + b.pares, 0);
+    const totales = calcularTotalesDesdeBuckets(stock, ventasCp, ventasProgramado);
+    const { peDisponible, cpDisponible, cpVendido, programado } = totales;
     if (peDisponible + cpDisponible + cpVendido + programado <= 0) continue;
     out.push({
       key,
@@ -160,11 +236,26 @@ export function mergeReposicionArticulos(input: {
       descp_material: a.descp_material,
       descp_color: a.descp_color,
       imagen_nombre: a.imagen_nombre,
+      imagen_color_excel: a.imagen_color_excel,
       lpn: a.lpn,
+      genero: a.genero,
+      estilo: a.estilo,
+      tipo_v2: a.tipo_v2,
+      tipo_1: a.tipo_1,
+      tono_etiqueta: a.tono_etiqueta,
+      linea_id: a.linea_id,
+      referencia_id: a.referencia_id,
+      material_id: a.material_id,
+      color_id: a.color_id,
+      marca_id: a.marca_id,
+      genero_id: a.genero_id,
+      grupo_estilo_id: a.grupo_estilo_id,
+      tipo_1_id: a.tipo_1_id,
+      tipo_v2_id: a.tipo_v2_id,
       stock,
       ventasCp,
       ventasProgramado,
-      totales: { peDisponible, cpDisponible, cpVendido, programado },
+      totales,
     });
   }
 

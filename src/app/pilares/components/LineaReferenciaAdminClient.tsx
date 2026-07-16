@@ -8,6 +8,7 @@ import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import { PilaresLineaReferenciaFiltrosBar } from "./PilaresLineaReferenciaFiltrosBar";
 import { LineaReferenciaBuscador } from "./LineaReferenciaBuscador";
 import { LineaReferenciaEditor } from "./LineaReferenciaEditor";
+import { SdrmPilaresMapaPanel } from "./SdrmPilaresMapaPanel";
 import { useTipoV2FromUrl } from "./TipoV2Selector";
 
 const EMPTY_MAESTRAS: PilaresMaestras = { marcas: [], generos: [], estilos: [], tipos1: [] };
@@ -148,6 +149,7 @@ export function LineaReferenciaAdminClient() {
         cascada={cascada}
         cascadaActiva={cascadaActiva}
         loading={loading}
+        tipoV2Id={tipoV2Id}
       />
 
       <LineaReferenciaBuscador
@@ -156,6 +158,8 @@ export function LineaReferenciaAdminClient() {
         onLineasChange={setLineasSeleccionadas}
         scopeTotal={total}
       />
+
+      <SdrmPilaresMapaPanel tipoV2Id={tipoV2Id} onApplied={load} />
 
       <LineaReferenciaEditor tipoV2Id={tipoV2Id} maestras={maestras} onApplied={load} />
 

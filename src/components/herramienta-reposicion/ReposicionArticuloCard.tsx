@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReposicionArticulo, ReposicionBucket } from "@/lib/herramienta-reposicion/merge-reposicion";
+import { nivelAmLabel, nivelAmTitulo, type NivelAm } from "@/lib/herramienta-reposicion/nivel-am";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 import { ImagenAmpliadaOverlay } from "@/components/stock-pronta-entrega/ImagenAmpliadaOverlay";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
@@ -47,20 +48,56 @@ function listOrEmpty(items: ReposicionBucket[], empty: string) {
   return null;
 }
 
-type Props = { articulo: ReposicionArticulo };
+type Props = {
+  articulo: ReposicionArticulo;
+  /** Sync con «Extender todos los datos» */
+  expanded?: boolean;
+  /** Nivel AM fijado al cargar — no depende de filtros UI */
+  nivelAm?: NivelAm;
+  /**
+   * Ranking 1-based Ordenamiento por compra previa / Programado.
+   * Si > 0, el chip muestra #N (categoría N1/N2/N3 queda en filtros).
+   */
+  rankOrden?: number;
+};
 
 /**
  * Card AM — mock Director: header · STOCK's (naranja) · VENTAS acordeón (verde)
  * 4 paneles de datos: PE disp · CP disp · CP vend · PROGRAMADO
  */
-export function ReposicionArticuloCard({ articulo: a }: Props) {
+export function ReposicionArticuloCard({
+  articulo: a,
+  expanded = false,
+  nivelAm: nivel = 0,
+  rankOrden = 0,
+}: Props) {
   const [ventasOpen, setVentasOpen] = useState(true);
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
 
+  useEffect(() => {
+    setVentasOpen(expanded);
+  }, [expanded]);
+
+  const imageCtx = useMemo(
+    () => ({
+      tipoV2Id: a.tipo_v2_id,
+      imagenColorExcel: a.imagen_color_excel,
+    }),
+    [a.tipo_v2_id, a.imagen_color_excel],
+  );
+
   const imgCandidates = useMemo(
     () =>
-      productImageCandidatesForRow(a.linea, a.referencia, a.material, a.color, a.imagen_nombre),
-    [a],
+      productImageCandidatesForRow(
+        a.linea,
+        a.referencia,
+        a.material,
+        a.color,
+        a.imagen_nombre,
+        "thumb",
+        imageCtx,
+      ),
+    [a, imageCtx],
   );
 
   /** STOCK: CP por quincena primero, PE al final (mock) */
@@ -72,15 +109,48 @@ export function ReposicionArticuloCard({ articulo: a }: Props) {
 
   const hasVentas = a.ventasCp.length > 0 || a.ventasProgramado.length > 0;
 
+  const nivelChipClass =
+    nivel === 1
+      ? "border-violet-300 bg-violet-50 text-violet-900"
+      : nivel === 2
+        ? "border-amber-300 bg-amber-50 text-amber-900"
+        : nivel === 3
+          ? "border-slate-300 bg-slate-100 text-slate-700"
+          : "border-slate-200 bg-white text-slate-400";
+
+  const showRank = rankOrden > 0;
+  const chipClass = showRank
+    ? "border-violet-400 bg-violet-600 text-white"
+    : nivelChipClass;
+  const chipLabel = showRank ? `#${rankOrden}` : nivel > 0 ? nivelAmLabel(nivel as NivelAm) : null;
+  const chipTitle = showRank
+    ? `Orden #${rankOrden}${nivel > 0 ? ` · ${nivelAmTitulo(nivel as NivelAm)}` : ""}`
+    : nivel > 0
+      ? nivelAmTitulo(nivel as NivelAm)
+      : undefined;
+
   return (
     <>
       <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="px-3 pt-3">
-          <p className="text-sm font-bold uppercase tracking-wide text-rimec-azul">{a.marca}</p>
+        <div className="shrink-0 px-3 pt-3">
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 truncate text-sm font-bold uppercase tracking-wide text-rimec-azul">
+              {a.marca}
+            </p>
+            {chipLabel ? (
+              <span
+                className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-black tabular-nums ${chipClass}`}
+                title={chipTitle}
+              >
+                {chipLabel}
+              </span>
+            ) : null}
+          </div>
         </div>
+        {/* Marco sagrado — overflow hidden + contain (LEY 2.01.04.021). Prohibido object-cover. */}
         <button
           type="button"
-          className="relative mx-auto flex aspect-[4/3] w-full max-w-[240px] items-center justify-center bg-white"
+          className="relative mx-3 mt-2 aspect-square w-[calc(100%-1.5rem)] max-w-none shrink-0 overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200"
           onClick={() => setZoomSrc(imgCandidates[0] ?? null)}
           aria-label="Ampliar imagen"
         >
@@ -90,14 +160,15 @@ export function ReposicionArticuloCard({ articulo: a }: Props) {
             material={a.material}
             color={a.color}
             imagenNombre={a.imagen_nombre}
-            size={200}
+            imageCtx={imageCtx}
+            variant="frame"
           />
         </button>
-        <div className="flex items-baseline justify-between gap-2 px-3 pb-2 pt-1">
-          <p className="font-mono text-base font-bold text-slate-900">
+        <div className="flex shrink-0 items-baseline justify-between gap-2 px-3 pb-2 pt-2">
+          <p className="min-w-0 truncate font-mono text-base font-bold text-slate-900">
             {a.linea}.{a.referencia}
           </p>
-          <p className="text-[11px] font-medium text-slate-400">
+          <p className="shrink-0 text-[11px] font-medium text-slate-400">
             {a.lpn != null ? `LPN ${a.lpn.toLocaleString("es-PY")}` : "Sin LPN"}
           </p>
         </div>
@@ -119,6 +190,12 @@ export function ReposicionArticuloCard({ articulo: a }: Props) {
                 />
               ))
             )}
+            {stockSorted.length > 0 ? (
+              <p className="mt-2 border-t border-rimec-azul/15 pt-2 text-[10px] font-bold tabular-nums text-rimec-azul-dark">
+                Σ stock {Math.round(a.totales.peDisponible + a.totales.cpDisponible)} p · PE{" "}
+                {Math.round(a.totales.peDisponible)} · CP {Math.round(a.totales.cpDisponible)}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -173,6 +250,12 @@ export function ReposicionArticuloCard({ articulo: a }: Props) {
                   ))}
                 </div>
               </div>
+              {hasVentas ? (
+                <p className="border-t border-emerald-200 pt-2 text-[10px] font-bold tabular-nums text-emerald-800">
+                  Σ ventas {Math.round(a.totales.cpVendido + a.totales.programado)} p · CP vend.{" "}
+                  {Math.round(a.totales.cpVendido)} · Prog. {Math.round(a.totales.programado)}
+                </p>
+              ) : null}
             </div>
           )}
         </div>

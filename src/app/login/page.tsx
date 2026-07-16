@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, FormField, TextInput } from "@/components/ui";
 import { prefetchSalesReportSnapshot } from "@/lib/rimec/sales-report-prefetch";
+import { safeNextPath } from "@/lib/auth/safeNextPath";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,14 +30,18 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (data.success) {
-        void prefetchSalesReportSnapshot();
-        router.prefetch("/rimec");
-        router.push("/");
+        if (nextPath.startsWith("/herramienta-reposicion")) {
+          void fetch("/api/herramienta-reposicion", { credentials: "include" });
+        } else {
+          void prefetchSalesReportSnapshot();
+        }
+        router.prefetch(nextPath);
+        router.push(nextPath);
         router.refresh();
       } else {
         setError(data.error || "Credenciales inválidas");
       }
-    } catch (err) {
+    } catch {
       setError("Error de conexión");
     } finally {
       setLoading(false);
@@ -43,10 +50,8 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-bg via-card-bg to-app-bg-alt flex items-center justify-center p-4">
-      {/* Card Login con animación de entrada */}
       <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
         <div className="bg-card-bg rounded-3xl shadow-2xl border-4 border-rimec-azul-dark overflow-hidden">
-          {/* Header con gradiente institucional - Azul Marino Profundo */}
           <div className="bg-gradient-to-r from-rimec-azul to-rimec-azul-dark px-8 py-10 text-center">
             <div className="mb-6 inline-flex items-center justify-center w-20 h-20 rounded-full bg-card-bg shadow-lg">
               <svg className="w-12 h-12 text-rimec-azul" fill="currentColor" viewBox="0 0 24 24">
@@ -61,7 +66,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Formulario */}
           <form onSubmit={handleSubmit} className="px-8 py-8 space-y-6">
             {error && (
               <div className="flex items-start gap-3 rounded-lg border-2 border-semantic-error-light bg-semantic-error/10 px-4 py-3 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -70,11 +74,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            <FormField
-              label="Usuario"
-              required
-              hint="Ingrese su nombre de usuario"
-            >
+            <FormField label="Usuario" required hint="Ingrese su nombre de usuario">
               <TextInput
                 value={usuario}
                 onChange={(e) => setUsuario(e.target.value)}
@@ -85,11 +85,7 @@ export default function LoginPage() {
               />
             </FormField>
 
-            <FormField
-              label="Contraseña"
-              required
-              hint="Ingrese su contraseña"
-            >
+            <FormField label="Contraseña" required hint="Ingrese su contraseña">
               <TextInput
                 type="password"
                 value={password}
@@ -117,11 +113,24 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Footer minimalista */}
         <div className="text-center mt-6 text-sm text-neutral-600">
           Report · RIMEC {new Date().getFullYear()}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-neutral-600">
+          Cargando…
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

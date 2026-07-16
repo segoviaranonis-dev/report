@@ -1,0 +1,147 @@
+import type { ReposicionArticulo, ReposicionBucket } from "@/lib/herramienta-reposicion/merge-reposicion";
+
+const PE_LABEL = /^pronta\s*entrega$/i;
+
+/** Pares enteros · transferencia bancaria (sin drift float). */
+export function enteroPares(n: unknown): number {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.trunc(x);
+}
+
+export type KpisReposicion = {
+  moleculas: number;
+  peDisponible: number;
+  cpDisponible: number;
+  cpVendido: number;
+  programado: number;
+};
+
+export type IntegridadIssue = {
+  key: string;
+  linea: string;
+  referencia: string;
+  campo: "peDisponible" | "cpDisponible" | "cpVendido" | "programado";
+  enTotales: number;
+  enBuckets: number;
+};
+
+/** Totales canónicos = suma de pills/buckets por molécula (L+R+material+color). */
+export function calcularTotalesDesdeBuckets(
+  stock: ReposicionBucket[],
+  ventasCp: ReposicionBucket[],
+  ventasProgramado: ReposicionBucket[],
+): ReposicionArticulo["totales"] {
+  let peDisponible = 0;
+  let cpDisponible = 0;
+  for (const b of stock) {
+    const p = enteroPares(b.pares);
+    if (PE_LABEL.test(b.label)) peDisponible += p;
+    else cpDisponible += p;
+  }
+  let cpVendido = 0;
+  for (const b of ventasCp) cpVendido += enteroPares(b.pares);
+  let programado = 0;
+  for (const b of ventasProgramado) programado += enteroPares(b.pares);
+  return { peDisponible, cpDisponible, cpVendido, programado };
+}
+
+/** Fuerza `totales` desde buckets — evita drift entre merge y auditoría. */
+export function recalcularTotalesArticulo(a: ReposicionArticulo): ReposicionArticulo {
+  return {
+    ...a,
+    totales: calcularTotalesDesdeBuckets(a.stock, a.ventasCp, a.ventasProgramado),
+  };
+}
+
+/** KPIs = suma exacta de `totales` por tarjeta (transferencia bancaria · enteros). */
+export function kpisDesdeArticulos(articulos: ReposicionArticulo[]): KpisReposicion {
+  let peDisponible = 0;
+  let cpDisponible = 0;
+  let cpVendido = 0;
+  let programado = 0;
+  for (const a of articulos) {
+    peDisponible += enteroPares(a.totales.peDisponible);
+    cpDisponible += enteroPares(a.totales.cpDisponible);
+    cpVendido += enteroPares(a.totales.cpVendido);
+    programado += enteroPares(a.totales.programado);
+  }
+  return {
+    moleculas: articulos.length,
+    peDisponible,
+    cpDisponible,
+    cpVendido,
+    programado,
+  };
+}
+
+export function paresStockDesdeArticulo(a: ReposicionArticulo): number {
+  return a.totales.peDisponible + a.totales.cpDisponible;
+}
+
+export function paresTotalesAmDesdeArticulo(a: ReposicionArticulo): number {
+  return (
+    a.totales.peDisponible +
+    a.totales.cpDisponible +
+    a.totales.cpVendido +
+    a.totales.programado
+  );
+}
+
+/** Cada `totales.*` debe coincidir con la suma de pills visibles en la tarjeta. */
+export function auditarIntegridadArticulo(a: ReposicionArticulo): IntegridadIssue[] {
+  const issues: IntegridadIssue[] = [];
+  const canon = calcularTotalesDesdeBuckets(a.stock, a.ventasCp, a.ventasProgramado);
+  const checks: Array<{
+    campo: IntegridadIssue["campo"];
+    enTotales: number;
+    enBuckets: number;
+  }> = [
+    { campo: "peDisponible", enTotales: a.totales.peDisponible, enBuckets: canon.peDisponible },
+    { campo: "cpDisponible", enTotales: a.totales.cpDisponible, enBuckets: canon.cpDisponible },
+    { campo: "cpVendido", enTotales: a.totales.cpVendido, enBuckets: canon.cpVendido },
+    { campo: "programado", enTotales: a.totales.programado, enBuckets: canon.programado },
+  ];
+  for (const c of checks) {
+    if (c.enTotales !== c.enBuckets) {
+      issues.push({
+        key: a.key,
+        linea: a.linea,
+        referencia: a.referencia,
+        campo: c.campo,
+        enTotales: c.enTotales,
+        enBuckets: c.enBuckets,
+      });
+    }
+  }
+  return issues;
+}
+
+export function auditarIntegridadReposicion(articulos: ReposicionArticulo[]): IntegridadIssue[] {
+  return articulos.flatMap(auditarIntegridadArticulo);
+}
+
+/** Cabecera KPIs vs suma molecular de tarjetas visibles. */
+export function auditarIntegridadVista(
+  kpis: KpisReposicion,
+  articulos: ReposicionArticulo[],
+): boolean {
+  const sum = kpisDesdeArticulos(articulos);
+  return (
+    kpis.moleculas === sum.moleculas &&
+    kpis.peDisponible === sum.peDisponible &&
+    kpis.cpDisponible === sum.cpDisponible &&
+    kpis.cpVendido === sum.cpVendido &&
+    kpis.programado === sum.programado
+  );
+}
+
+/** Valor inventario = LPN × pares en stock (PE + CP disp) — solo tarjetas con LPN. */
+export function valorInventarioDesdeArticulos(articulos: ReposicionArticulo[]): number {
+  let total = 0;
+  for (const a of articulos) {
+    if (a.lpn == null || a.lpn <= 0) continue;
+    total += a.lpn * paresStockDesdeArticulo(a);
+  }
+  return total;
+}

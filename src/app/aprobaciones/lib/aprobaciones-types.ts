@@ -56,6 +56,8 @@ export type PedidoPendiente = {
   total_pares: number;
   total_monto: number;
   created_at: string | null;
+  /** true si el pedido web incluye al menos un lote CP (pp_id > 0, no PE). */
+  tiene_compra_previa: boolean;
   /** true si el pedido web es 100% Pronta entrega (payload lotes origen_pe o pp_id negativo). */
   origen_pe: boolean;
 };

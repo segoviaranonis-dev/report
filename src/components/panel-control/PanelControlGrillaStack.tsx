@@ -11,7 +11,8 @@ import type {
   OperativaOpciones,
 } from "@/lib/depositos/operativa-filters";
 import type { GrillaLoteModo } from "@/lib/panel-control/grilla-carga-lotes";
-import { moleculeKeyImagen } from "@/lib/retail/product-image-presence";
+import { tipo1UiLabelForFiltros } from "@/lib/pilares/constants";
+import { moleculeKeyFromDepRow } from "@/lib/retail/product-image-presence";
 import { PanelControlTrianguloHeader } from "./PanelControlTrianguloHeader";
 import { SinImagenCabeceraChip } from "./SinImagenCabeceraChip";
 
@@ -29,6 +30,13 @@ type Props = {
   onBibliotecaChange: (id: number | null) => void;
   onCasoChange: (caso: string | null) => void;
   onCasosLoaded?: (casos: CasoBibliotecaLite[]) => void;
+  vincularBibliotecaPath?: string;
+  batchLabel?: string;
+  onBibliotecaVinculada?: (payload: {
+    actualizados: number;
+    promocionales: number;
+    biblioteca_nombre: string;
+  }) => void;
   filtros: OperativaFilterState;
   onFiltrosChange: React.Dispatch<React.SetStateAction<OperativaFilterState>>;
   opciones: OperativaOpciones;
@@ -41,6 +49,8 @@ type Props = {
   casoPorLinea?: Map<string, string> | null;
   grilla?: GrillaOpts;
   footer?: ReactNode;
+  /** PE Alejandro Magno — filtro LIQUIDACIÓN en cabecera */
+  showComercialFilter?: boolean;
 };
 
 /** Stack canónico Panel CP: Biblioteca → CABECERA DE FILTROS → GrillaPeImportadora. */
@@ -51,6 +61,9 @@ export function PanelControlGrillaStack({
   onBibliotecaChange,
   onCasoChange,
   onCasosLoaded,
+  vincularBibliotecaPath,
+  batchLabel,
+  onBibliotecaVinculada,
   filtros,
   onFiltrosChange,
   opciones,
@@ -63,6 +76,7 @@ export function PanelControlGrillaStack({
   casoPorLinea = null,
   grilla = {},
   footer,
+  showComercialFilter = false,
 }: Props) {
   const {
     showLlegada = false,
@@ -81,17 +95,7 @@ export function PanelControlGrillaStack({
 
   const productosVista = useMemo(() => {
     if (!soloSinImagen || faltantes.size === 0) return productos;
-    return productos.filter((p) =>
-      faltantes.has(
-        moleculeKeyImagen({
-          linea: p.linea_codigo_proveedor,
-          referencia: p.referencia_codigo_proveedor,
-          material: p.material_code,
-          color: p.color_code,
-          tipo_v2_id: p.tipo_v2_id,
-        }),
-      ),
-    );
+    return productos.filter((p) => faltantes.has(moleculeKeyFromDepRow(p)));
   }, [productos, soloSinImagen, faltantes]);
 
   const trailing = (
@@ -106,15 +110,23 @@ export function PanelControlGrillaStack({
     </>
   );
 
+  const tipo1Label = useMemo(
+    () => tipo1UiLabelForFiltros(filtros.tipoV2Ids),
+    [filtros.tipoV2Ids],
+  );
+
   return (
     <div className="space-y-3">
       <BibliotecaCasoBar
         indiceApiPath={bibliotecaIndicePath}
+        vincularBibliotecaPath={vincularBibliotecaPath}
+        batchLabel={batchLabel}
         bibliotecaId={bibliotecaId}
         casoActivo={casoActivo}
         onBibliotecaChange={onBibliotecaChange}
         onCasoChange={onCasoChange}
         onCasosLoaded={onCasosLoaded ?? (() => {})}
+        onVinculado={onBibliotecaVinculada}
       />
       <PanelControlTrianguloHeader
         filtros={filtros}
@@ -125,6 +137,8 @@ export function PanelControlGrillaStack({
         valorInventario={valorInventario}
         summaryTrailing={trailing}
         extraFilters={extraFilters}
+        tipo1Label={tipo1Label}
+        showComercialFilter={showComercialFilter}
       />
       <GrillaPeImportadora
         productos={productosVista}

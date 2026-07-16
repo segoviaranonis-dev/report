@@ -175,8 +175,14 @@ export async function listImportadoProductos(
     batch_label: string;
     tipo_v2_id: string | null;
     tono_etiqueta: string | null;
+    imagen_color_excel: string | null;
     deposito_codigo: string;
     columna_stock_legal: string | null;
+    cod_grupo: string | null;
+    sdrm_marca: string | null;
+    cadena_comercial: string | null;
+    es_liquidacion: boolean | null;
+    temporada: string | null;
   }>(
     `
     SELECT
@@ -207,13 +213,55 @@ export async function listImportadoProductos(
       pp.numero_proforma AS batch_label,
       ${PE_TIPO_V2_EXPR}::text AS tipo_v2_id,
       NULLIF(TRIM(col.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
+      NULLIF(
+        regexp_replace(
+          COALESCE(pe_img.excel_color_code, col.nombre, ppd.descp_color, ''),
+          '^[Kk]',
+          ''
+        ),
+        ''
+      ) AS imagen_color_excel,
       pp.deposito_codigo,
-      ${PE_DEPOSITO_COL_EXPR} AS columna_stock_legal
+      ${PE_DEPOSITO_COL_EXPR} AS columna_stock_legal,
+      COALESCE(sac.cod_grupo, cg.cod_grupo, pe_stg.cod_grupo) AS cod_grupo,
+      COALESCE(sac.marca, cg.marca) AS sdrm_marca,
+      COALESCE(ppd.am_cadena_comercial, sac.cadena_comercial, cg.cadena_comercial, 'REGULAR') AS cadena_comercial,
+      CASE
+        WHEN ppd.am_cadena_comercial IS NOT NULL THEN ppd.am_es_liquidacion
+        ELSE COALESCE(sac.es_liquidacion, cg.es_liquidacion, false)
+      END AS es_liquidacion,
+      COALESCE(
+        NULLIF(btrim(ppd.am_temporada), ''),
+        NULLIF(btrim(t1.descp_tipo_1), '')
+      ) AS temporada
     ${PE_PPD_FROM}
     LEFT JOIN linea l ON l.codigo_proveedor::text = ppd.linea AND l.proveedor_id = pp.proveedor_importacion_id
     LEFT JOIN referencia r ON r.codigo_proveedor::text = ppd.referencia AND r.linea_id = l.id
     LEFT JOIN material mat ON mat.codigo_proveedor::text = ppd.material_code AND mat.proveedor_id = pp.proveedor_importacion_id
     LEFT JOIN color col ON col.codigo_proveedor::text = ppd.color_code AND col.proveedor_id = pp.proveedor_importacion_id
+    LEFT JOIN LATERAL (
+      SELECT NULLIF(btrim(s.excel_color_code), '') AS excel_color_code
+      FROM stock_pe_staging_migrated m
+      JOIN stock_pronta_entrega_rimec s ON s.id = m.staging_id
+      WHERE m.ppd_id = ppd.id
+      ORDER BY s.id
+      LIMIT 1
+    ) pe_img ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        NULLIF(btrim(s.codigo_barras), '') AS codigo_barras,
+        NULLIF(btrim(s.cod_grupo), '') AS cod_grupo
+      FROM stock_pe_staging_migrated m
+      JOIN stock_pronta_entrega_rimec s ON s.id = m.staging_id
+      WHERE m.ppd_id = ppd.id
+      ORDER BY s.id
+      LIMIT 1
+    ) pe_stg ON true
+    LEFT JOIN sdrm_articulo_comercial sac
+      ON lower(btrim(sac.batch_label)) = lower(btrim(pp.numero_proforma))
+     AND btrim(sac.codigo_barras) = btrim(pe_stg.codigo_barras)
+    LEFT JOIN sdrm_cod_grupo_dim cg
+      ON cg.cod_grupo = COALESCE(sac.cod_grupo, pe_stg.cod_grupo)
     LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN genero g ON g.id = l.genero_id
     LEFT JOIN linea_referencia lr ON lr.linea_id = l.id AND lr.referencia_id = r.id
@@ -253,10 +301,16 @@ export async function listImportadoProductos(
     tipo_1_id: r.tipo_1_id ? Number(r.tipo_1_id) : null,
     tipo_v2_id: r.tipo_v2_id ? Number(r.tipo_v2_id) : null,
     tono_etiqueta: r.tono_etiqueta,
+    imagen_color_excel: r.imagen_color_excel,
     tipo_1: r.tipo_1,
     precio_unitario: Number(r.precio) || null,
     deposito_codigo: r.deposito_codigo,
     columna_stock_legal: r.columna_stock_legal,
+    cod_grupo: r.cod_grupo,
+    sdrm_marca: r.sdrm_marca,
+    cadena_comercial: r.cadena_comercial,
+    es_liquidacion: r.es_liquidacion === true,
+    temporada: r.temporada,
   }));
 
   const cajas = new Set(

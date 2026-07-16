@@ -2,6 +2,7 @@
  * NIIF UI - Estados de carga
  * Anti-ansiedad: skeleton screens mantienen la estructura visual
  * Previene múltiples clics con bloqueo de interacción
+ * Navegación: NIIF-NAV-LAT-500 → `lib/niif/navigation-latency.ts`
  */
 
 interface LoadingSpinnerProps {

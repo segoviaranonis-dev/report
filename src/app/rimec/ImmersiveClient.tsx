@@ -5,6 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNiifDelayedLoader } from "@/hooks/useNiifDelayedLoader";
 import { getMockFullSnapshot } from "@/lib/rimec/build-full-snapshot";
 import type { FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
 import { defaultSalesReportFilters, type SalesReportFilters } from "@/modules/sales-report/types";
@@ -54,9 +55,6 @@ const MUNDO_IDS: MundoId[] = ["dashboard", "panel-control", "clientes", "marcas"
 
 const MUNDO_TRANSITION = { duration: 0.12, ease: "easeOut" as const };
 
-/** Flash loader RIMEC — máximo 1 s al entrar o sincronizar (velocidad rayo). */
-const RIMEC_ENTRY_SHELL_MAX_MS = 1000;
-
 function parseMundoParam(raw: string | null): MundoId | null {
   if (raw && MUNDO_IDS.includes(raw as MundoId)) return raw as MundoId;
   return null;
@@ -87,13 +85,7 @@ export function ImmersiveClient() {
   const [err, setErr] = useState<string | null>(() => initialPrefetch.error);
   const [mundo, setMundo] = useState<MundoId>(() => parseMundoParam(searchParams.get("mundo")) ?? "dashboard");
   const [hasSyncedOnce, setHasSyncedOnce] = useState(() => initialPrefetch.snapshot !== null);
-  const [entryShell, setEntryShell] = useState(true);
   const [syncShell, setSyncShell] = useState(false);
-
-  useEffect(() => {
-    const t = window.setTimeout(() => setEntryShell(false), RIMEC_ENTRY_SHELL_MAX_MS);
-    return () => clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     const fromUrl = parseMundoParam(searchParams.get("mundo"));
@@ -112,7 +104,7 @@ export function ImmersiveClient() {
 
   const dataLive = meta?.configured === true;
   const metaReady = meta !== null;
-  const showEntryShell = entryShell || syncShell;
+  const showEntryShell = useNiifDelayedLoader(bootLoading || syncShell);
 
   useEffect(() => {
     markRouteEnter();
@@ -160,7 +152,6 @@ export function ImmersiveClient() {
     setSyncShell(true);
     setLoading(true);
     setErr(null);
-    const shellCap = window.setTimeout(() => setSyncShell(false), RIMEC_ENTRY_SHELL_MAX_MS);
     const snapStarted = performance.now();
     try {
       const r = await fetch("/api/rimec/full-snapshot", {
@@ -190,7 +181,6 @@ export function ImmersiveClient() {
       setSnapshot(null);
       setErr(e instanceof Error ? e.message : "Error");
     } finally {
-      window.clearTimeout(shellCap);
       setSyncShell(false);
       setLoading(false);
     }

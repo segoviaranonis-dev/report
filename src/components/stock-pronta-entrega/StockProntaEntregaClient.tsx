@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { PanelControlGrillaStack } from "@/components/panel-control/PanelControlGrillaStack";
 import { PeImportSdrmButton } from "@/components/stock-pronta-entrega/PeImportSdrmButton";
+import { PeComercialWebFiltroBar } from "@/components/stock-pronta-entrega/PeComercialWebFiltroBar";
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
@@ -78,6 +79,7 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
     filtradas,
     depositoLegal,
     setDepositoLegal,
+    reloadProductos,
   } = useStockPe();
 
   const [bibliotecaId, setBibliotecaId] = useState<number | null>(null);
@@ -94,13 +96,26 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
   );
 
   return (
-    <PanelControlGrillaStack
+    <>
+      <PeComercialWebFiltroBar
+        batchLabel={batchLabel}
+        onCadenaChange={(cadena) =>
+          setFiltros((prev) => ({ ...prev, cadenaComercial: cadena }))
+        }
+      />
+      <PanelControlGrillaStack
+      showComercialFilter
       bibliotecaIndicePath="/api/stock-pronta-entrega/filtros-indice"
+      vincularBibliotecaPath="/api/stock-pronta-entrega/vincular-biblioteca"
+      batchLabel={batchLabel}
       bibliotecaId={bibliotecaId}
       casoActivo={casoActivo}
       onBibliotecaChange={setBibliotecaId}
       onCasoChange={setCasoActivo}
       onCasosLoaded={onCasosLoaded}
+      onBibliotecaVinculada={() => {
+        void reloadProductos();
+      }}
       filtros={filtros}
       onFiltrosChange={setFiltros}
       opciones={opciones}
@@ -123,6 +138,7 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
       casoPorLinea={lineaCasoMap}
       grilla={{ showVentas: true, loteModo: "pe-dual-ramo" }}
     />
+    </>
   );
 }
 

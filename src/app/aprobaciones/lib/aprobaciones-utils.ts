@@ -24,13 +24,33 @@ export function ppDisplay(
   fi: Pick<FiRecord, "nro_pp" | "pp_id" | "proforma"> &
     Partial<Pick<FiRecord, "origen_pe" | "nro_factura">>,
 ): string {
-  if (
-    fi.origen_pe ||
-    fi.pp_id == null ||
-    String(fi.nro_factura ?? "").startsWith("PE-")
-  ) {
+  if (esProntaEntregaFi(fi)) {
     return "Pronta entrega";
   }
+  return ppDetalleCompraPrevia(fi);
+}
+
+/** FI / lote con PP tránsito (no PE). */
+export function esCompraPreviaFi(
+  fi: Partial<Pick<FiRecord, "origen_pe" | "pp_id" | "nro_factura">>,
+): boolean {
+  return !esProntaEntregaFi(fi) && fi.pp_id != null;
+}
+
+export function esProntaEntregaFi(
+  fi: Partial<Pick<FiRecord, "origen_pe" | "pp_id" | "nro_factura">>,
+): boolean {
+  return Boolean(
+    fi.origen_pe ||
+      fi.pp_id == null ||
+      String(fi.nro_factura ?? "").startsWith("PE-"),
+  );
+}
+
+/** Solo nro PP + proforma (sin etiqueta origen). */
+export function ppDetalleCompraPrevia(
+  fi: Pick<FiRecord, "nro_pp" | "pp_id" | "proforma">,
+): string {
   const base = fi.nro_pp || (fi.pp_id != null ? String(fi.pp_id) : "—");
   return fi.proforma ? `${base} (${fi.proforma})` : base;
 }
@@ -38,6 +58,11 @@ export function ppDisplay(
 /** Badge ámbar PE — pedido web o FI sin PP tránsito. */
 export function badgeProntaEntrega(): { bg: string; fg: string; label: string } {
   return { bg: "#C2410C", fg: "#FFFFFF", label: "PRONTA ENTREGA" };
+}
+
+/** Badge sky CP — tránsito PP (paridad catálogo RIMEC Web). */
+export function badgeCompraPrevia(): { bg: string; fg: string; label: string } {
+  return { bg: "#0284C7", fg: "#FFFFFF", label: "COMPRA PREVIA" };
 }
 
 export function descuentosLabel(fi: Pick<FiRecord, "descuento_1" | "descuento_2" | "descuento_3" | "descuento_4">): string {
@@ -84,7 +109,7 @@ export function brutoDesdeNeto(
   return factor > 0 ? Math.round(neto / factor) : Math.round(neto);
 }
 
-/** Cascada descuentos FI — mismo criterio que logic.py actualizar_fi_encabezado */
+/** Cascada d1→d4 · floor centenas Gs. (paridad RIMEC Web guardar-descuentos / confirmar). */
 export function precioNetoCascada(
   precioBase: number,
   d1: number,
@@ -96,7 +121,18 @@ export function precioNetoCascada(
   for (const d of [d1, d2, d3, d4]) {
     if (d > 0) p *= 1 - d / 100;
   }
-  return Math.round(p);
+  return Math.floor(p / 100) * 100;
+}
+
+export function normalizarDescuentos4(raw: unknown): [number, number, number, number] {
+  const src = Array.isArray(raw) ? raw : [];
+  return [0, 1, 2, 3].map((i) => {
+    const v = src[i];
+    if (v == null || v === "") return 0;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.min(100, n);
+  }) as [number, number, number, number];
 }
 
 /** Editable en tránsito: FI RESERVADA/CONFIRMADA y PP aún no enviado a compra */
@@ -181,8 +217,30 @@ export function fmtFechaDoc(iso: string | null | undefined): string {
 
 export function fmtDescuentoPct(v: number | null | undefined): string {
   const n = Number(v);
-  if (!Number.isFinite(n) || n === 0) return "0%";
+  if (!Number.isFinite(n) || n === 0) return "—";
   return Number.isInteger(n) ? `${n}%` : `${n.toFixed(1)}%`;
+}
+
+/** Input editable: vacío si 0 (tablet). */
+export function descuentoInputDisplay(v: number | null | undefined): string {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n === 0) return "";
+  return String(n);
+}
+
+export function parseDescuentoInput(raw: string): number {
+  const t = raw.trim().replace(",", ".");
+  if (!t) return 0;
+  const n = parseFloat(t);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(100, n);
+}
+
+export function sanitizeDescuentoTyping(raw: string): string {
+  const t = raw.replace(",", ".");
+  if (t === "") return "";
+  if (!/^\d*\.?\d*$/.test(t)) return raw.slice(0, -1);
+  return t;
 }
 
 export function parseLineaSnapshot(raw: unknown): Record<string, unknown> {

@@ -143,3 +143,12 @@ body {
 .chusa-celebracion-bounce {
   animation: chusa-celebracion-bounce 0.9s ease-in-out infinite;
 }
+
+@keyframes catalog-liquidacion-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.22); }
+  50% { box-shadow: 0 0 0 5px rgba(5, 150, 105, 0.32); }
+}
+
+.catalog-card-liquidacion-pulse {
+  animation: catalog-liquidacion-pulse 1.35s ease-in-out infinite;
+}

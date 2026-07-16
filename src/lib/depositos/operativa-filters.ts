@@ -25,6 +25,8 @@ export type OperativaFilterState = {
   cantidadValor: number | null;
   /** Códigos grada (talla) — multi-select */
   gradas: string[];
+  /** Alejandro Magno · SDRM cadena comercial (LIQUIDACION|REGULAR|null=todos) */
+  cadenaComercial: string | null;
 };
 
 export type ExcluirDimension = keyof OperativaFilterState;
@@ -42,6 +44,7 @@ export const EMPTY_OPERATIVA_FILTERS: OperativaFilterState = {
   cantidadOp: null,
   cantidadValor: null,
   gradas: [],
+  cadenaComercial: null,
 };
 
 /** node-pg devuelve bigint como string — normalizar siempre. */
@@ -103,7 +106,8 @@ export function hayFiltrosActivos(f: OperativaFilterState): boolean {
     f.sinTono ||
     !!f.q.trim() ||
     f.gradas.length > 0 ||
-    (f.cantidadOp != null && f.cantidadValor != null)
+    (f.cantidadOp != null && f.cantidadValor != null) ||
+    !!f.cadenaComercial
   );
 }
 

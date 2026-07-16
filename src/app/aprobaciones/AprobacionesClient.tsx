@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui";
-import { anularFiAction, confirmarFiAction, rechazarPedidoAction } from "./actions";
+import { anularFiAction, rechazarPedidoAction } from "./actions";
 import { FiCard } from "./components/FiCard";
 import { PedidoPendienteCard } from "./components/PedidoPendienteCard";
 import { RechazoModal } from "./components/RechazoModal";
@@ -109,16 +109,41 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     return res.json();
   }
 
+  function evictFiDeVistasActivas(fiId: number) {
+    setFisPorPedido((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(prev)) {
+        const pedidoId = Number(k);
+        const filtered = prev[pedidoId].filter((f) => f.id !== fiId);
+        if (filtered.length === 0) delete next[pedidoId];
+        else next[pedidoId] = filtered;
+      }
+      return next;
+    });
+    setData((prev) => ({
+      ...prev,
+      reservadas: prev.reservadas.filter((f) => f.id !== fiId),
+    }));
+  }
+
   async function handleConfirmarFi(fiId: number) {
     setProcesandoFi(fiId);
     try {
-      const result = await confirmarFiAction(fiId);
-      if (result.success) {
-        flash("success", result.message || "FI confirmada");
-        refrescar();
+      const res = await fetch(`/api/aprobaciones/facturas/${fiId}/confirmar`, { method: "POST" });
+      const result = (await res.json()) as { ok?: boolean; msg?: string };
+      if (res.ok && result.ok) {
+        evictFiDeVistasActivas(fiId);
+        setData((prev) => ({
+          ...prev,
+          reservadas: prev.reservadas.filter((f) => f.id !== fiId),
+        }));
+        flash("success", result.msg || "FI confirmada");
+        startTransition(() => router.refresh());
       } else {
-        flash("error", result.error || "Error al confirmar");
+        flash("error", result.msg || "Error al confirmar");
       }
+    } catch {
+      flash("error", "No se pudo confirmar — reintentá");
     } finally {
       setProcesandoFi(null);
     }
@@ -130,6 +155,8 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     try {
       const result = await anularFiAction(modalAnular.fiId, modalAnular.motivo);
       if (result.success) {
+        evictFiDeVistasActivas(modalAnular.fiId);
+        setTab("anuladas");
         flash("success", result.message || "FI anulada");
         setModalAnular(null);
         refrescar();

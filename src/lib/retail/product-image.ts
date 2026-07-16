@@ -11,6 +11,8 @@ export type ProductImageContext = {
   proveedorImportacionId?: number | null;
   tipoV2Id?: number | null;
   protocol?: ProductImageProtocol;
+  /** Kyly 638 — color Excel (K0001), no color_code bigint pilar (MIG-149). */
+  imagenColorExcel?: string | null;
 };
 
 export {
@@ -127,8 +129,9 @@ export function productImageCandidates(
   const protocol = ctx ? resolveCtxProtocol({ ...ctx, imagenNombre: ctx.imagenNombre }) : "654";
 
   if (protocol === "638") {
+    const colorFor638 = ctx?.imagenColorExcel ?? colorCode;
     const urls: string[] = [];
-    for (const stem of stems638(lineaCodigo, colorCode)) {
+    for (const stem of stems638(lineaCodigo, colorFor638)) {
       for (const u of stemCandidates(stem, variant)) pushUnique(urls, u);
     }
     return urls;
@@ -180,6 +183,8 @@ export function productImagePrimaryFileName(
     referencia: referenciaCodigo,
     material: materialCode,
     color: colorCode,
+    imagenColorExcel: ctx?.imagenColorExcel,
+    imagenNombre: ctx?.imagenNombre,
   });
   if (!stem) return null;
   return `${stem}.jpg`;
@@ -249,7 +254,7 @@ export function resolveFlatImageUrl(input: {
 
   const protocol = resolveCtxProtocol(input);
   if (protocol === "638") {
-    const stem = stems638(input.linea, input.color)[0];
+    const stem = stems638(input.linea, input.imagenColorExcel ?? input.color)[0];
     if (!stem) return null;
     return publicStorageObjectUrl("productos", `${stem}.jpg`);
   }
@@ -278,7 +283,7 @@ export function resolveCanonicalImageUrl(input: {
   const protocol = resolveCtxProtocol(input);
   const stem =
     protocol === "638"
-      ? stems638(input.linea, input.color)[0]
+      ? stems638(input.linea, input.imagenColorExcel ?? input.color)[0]
       : stem654(input.linea, input.referencia, input.material, input.color);
   if (!stem) return null;
 

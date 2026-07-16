@@ -80,7 +80,13 @@ export async function fetchPedidosPendientes(): Promise<PedidoPendiente[]> {
         FROM jsonb_array_elements(COALESCE(pvr.payload_json->'lotes', '[]'::jsonb)) l
         WHERE COALESCE((l->>'origen_pe')::boolean, false)
            OR NULLIF(l->>'pp_id', '')::bigint < 0
-      ) AS origen_pe
+      ) AS origen_pe,
+      EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(COALESCE(pvr.payload_json->'lotes', '[]'::jsonb)) l
+        WHERE NOT COALESCE((l->>'origen_pe')::boolean, false)
+          AND COALESCE(NULLIF(l->>'pp_id', '')::bigint, 0) > 0
+      ) AS tiene_compra_previa
     FROM pedido_venta_rimec pvr
     JOIN cliente_v2 c ON c.id_cliente = pvr.cliente_id
     LEFT JOIN usuario_v2 v ON v.id_usuario = pvr.vendedor_id
@@ -110,6 +116,7 @@ export async function fetchPedidosPendientes(): Promise<PedidoPendiente[]> {
     total_monto: num(r.total_monto),
     created_at: r.created_at != null ? String(r.created_at) : null,
     origen_pe: Boolean(r.origen_pe),
+    tiene_compra_previa: Boolean(r.tiene_compra_previa),
   }));
 }
 
@@ -233,12 +240,15 @@ export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
     LEFT JOIN plazo_v2 pl ON pl.id_plazo = fi.plazo_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
     WHERE
-      fi.pedido_id = $1
-      OR (
-        fi.pedido_id IS NULL
-        AND ABS(EXTRACT(EPOCH FROM (
-          fi.created_at - (SELECT created_at FROM public.pedido_venta_rimec WHERE id = $1)
-        ))) < 10
+      UPPER(TRIM(fi.estado)) = 'RESERVADA'
+      AND (
+        fi.pedido_id = $1
+        OR (
+          fi.pedido_id IS NULL
+          AND ABS(EXTRACT(EPOCH FROM (
+            fi.created_at - (SELECT created_at FROM public.pedido_venta_rimec WHERE id = $1)
+          ))) < 10
+        )
       )
     ORDER BY fi.pp_id, fi.marca, fi.caso
   `,

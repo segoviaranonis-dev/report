@@ -10,9 +10,10 @@ import {
   fmtFechaConfirmacion,
   fmtGs,
   listaPrecioLabel,
-  ppDisplay,
-  badgeProntaEntrega,
+  esCompraPreviaFi,
+  esProntaEntregaFi,
 } from "../lib/aprobaciones-utils";
+import { OrigenVentaChips } from "./OrigenVentaChips";
 import {
   ClienteEditor,
   DescuentosEditor,
@@ -88,7 +89,6 @@ export function FiCard({
   }, [fi.id, onLoadDetalle, detallesProp]);
 
   const badge = estadoBadge(fi.estado);
-  const peBadge = fi.origen_pe ? badgeProntaEntrega() : null;
   const displayId = fiDisplayId(fi);
   const legacy = fi.nro_factura || null;
   const estadoUpper = (fi.estado || "").toUpperCase();
@@ -107,8 +107,15 @@ export function FiCard({
     onEditorApplied?.();
   }
 
+  const cp = esCompraPreviaFi(fi);
+  const pe = esProntaEntregaFi(fi);
+
   return (
-    <article className="overflow-hidden rounded-xl border-2 border-neutral-300 bg-card-bg shadow-md">
+    <article
+      className={`overflow-hidden rounded-xl border-2 bg-card-bg shadow-md ${
+        cp ? "border-sky-400/70" : pe ? "border-orange-400/60" : "border-neutral-300"
+      }`}
+    >
       <div className="border-b-2 border-rimec-azul/15 bg-gradient-to-r from-rimec-azul/5 to-transparent px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <ClienteEditor
@@ -131,17 +138,7 @@ export function FiCard({
             <span className="rounded-lg bg-rimec-azul px-3 py-1.5 text-sm font-bold tabular-nums text-white shadow-sm">
               {displayId}
             </span>
-            <span className="rounded-lg border-2 border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800">
-              {ppDisplay(fi)}
-            </span>
-            {peBadge && (
-              <span
-                className="rounded-lg px-3 py-1.5 text-xs font-black tracking-wide"
-                style={{ backgroundColor: peBadge.bg, color: peBadge.fg }}
-              >
-                {peBadge.label}
-              </span>
-            )}
+            <OrigenVentaChips fi={fi} />
             {legacy && legacy !== displayId && (
               <span className="rounded-lg border border-dashed border-neutral-400 bg-neutral-50 px-2.5 py-1.5 text-xs font-medium text-neutral-600">
                 FI {legacy}
@@ -215,6 +212,34 @@ export function FiCard({
         )}
       </div>
 
+      {(puedeConfirmar || puedeAnular) && (
+        <div className="flex flex-wrap gap-2 border-b border-neutral-200 bg-neutral-50/80 px-4 py-3 sm:px-5">
+          {puedeConfirmar && (
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={procesando}
+              onClick={() => onConfirmar!(fi.id)}
+              className="bg-semantic-success hover:bg-semantic-success/90"
+            >
+              {procesando ? "Confirmando…" : "Confirmar FI"}
+            </Button>
+          )}
+          {puedeAnular && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={procesando}
+              onClick={() => onAnular!(fi.id)}
+              className="border-red-800 bg-red-50 font-bold text-red-800 hover:bg-red-100"
+              title="DIOS · anula FI entera · reintegra stock · Anulaciones"
+            >
+              Anular FI y reintegrar stock
+            </Button>
+          )}
+        </div>
+      )}
+
       <details
         className="group border-b border-neutral-200"
         onToggle={(e) => setProductosAbiertos((e.currentTarget as HTMLDetailsElement).open)}
@@ -264,34 +289,6 @@ export function FiCard({
             <p>
               <span className="font-semibold text-neutral-700">Notas:</span> {fi.notas}
             </p>
-          )}
-
-          {(puedeConfirmar || puedeAnular) && (
-            <div className="flex gap-2 pt-1">
-              {puedeConfirmar && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  disabled={procesando}
-                  onClick={() => onConfirmar!(fi.id)}
-                  className="bg-semantic-success hover:bg-semantic-success/90"
-                >
-                  Confirmar
-                </Button>
-              )}
-              {puedeAnular && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={procesando}
-                  onClick={() => onAnular!(fi.id)}
-                  className="border-red-800 bg-red-50 font-bold text-red-800 hover:bg-red-100"
-                  title="DIOS · anula FI entera · reintegra stock · Anulaciones"
-                >
-                  Anular FI y reintegrar stock
-                </Button>
-              )}
-            </div>
           )}
 
           {accionesColapsadas && estadoUpper === "CONFIRMADA" && !editable && (

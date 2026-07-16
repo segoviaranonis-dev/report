@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
-import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { requireMotorPreciosNivelDios } from "@/lib/motor-precios/auth-api";
 import { resolverNombreEvento } from "@/lib/motor-precios/excel-proveedor";
 import { ejecutarPaso0Carga } from "@/lib/motor-precios/evento-carga";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
@@ -10,7 +10,8 @@ const MAX_BYTES = 200 * 1024 * 1024;
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
-  const gate = await requireMotorPreciosAdmin();
+  /** Protocolo importación precios — ejecutar Paso 0 solo Nivel Dios */
+  const gate = await requireMotorPreciosNivelDios();
   if (gate.error) return gate.error;
 
   if (!isRimecDatabaseConfigured()) {

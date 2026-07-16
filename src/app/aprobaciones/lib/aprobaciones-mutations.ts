@@ -14,6 +14,7 @@ import {
 } from "./fi-edit-guard";
 import {
   sqlPrecioBaseFiDetalle,
+  sqlPrecioBaseFiDetalleConFallbackPe,
   SQL_FROM_FI_DETALLE_PRECIO,
   sqlPrecioComercialDesdePl,
 } from "./fi-precio-evento-lookup";
@@ -212,7 +213,7 @@ export async function actualizarListaPrecioFi(
         fid.pares,
         fid.ppd_id,
         fid.subtotal,
-        ${sqlPrecioBaseFiDetalle("$2")} AS precio_base
+        ${sqlPrecioBaseFiDetalleConFallbackPe("$2")} AS precio_base
       ${SQL_FROM_FI_DETALLE_PRECIO}
       WHERE fid.factura_id = $1
       ORDER BY fid.id
@@ -315,7 +316,7 @@ async function recalcularDetallePreciosDesdePp(
       fid.pares,
       fid.ppd_id,
       fid.subtotal,
-      ${sqlPrecioBaseFiDetalle("$2")} AS precio_base
+      ${sqlPrecioBaseFiDetalleConFallbackPe("$2")} AS precio_base
     ${SQL_FROM_FI_DETALLE_PRECIO}
     WHERE fid.factura_id = $1
     ORDER BY fid.id

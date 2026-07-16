@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Merriweather, Source_Sans_3 } from "next/font/google";
+import { ReportLayoutClientProviders } from "@/components/report/ReportLayoutClientProviders";
 import { ReportPerfRoot } from "@/components/report/ReportPerfRoot";
 import "./globals.css";
 
@@ -30,7 +31,7 @@ export default function RootLayout({
       <body
         className={`${reportSerif.variable} ${reportSans.variable} min-h-screen bg-report-paper font-sans text-report-ink antialiased`}
       >
-        {children}
+        <ReportLayoutClientProviders>{children}</ReportLayoutClientProviders>
         <ReportPerfRoot />
       </body>
     </html>

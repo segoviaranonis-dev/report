@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePilaresAdmin } from "@/lib/pilares/auth-api";
 import { parseTipoV2Id, proveedorIdFromTipoV2 } from "@/lib/pilares/constants";
 import {
+  assertMaestrasPermitidasParaTipoV2,
+} from "@/lib/pilares/validar-maestras-pilares";
+import {
   loadLineaReferencia,
   loadLineaReferenciaCascada,
   loadLineaReferenciaFiltros,
@@ -159,6 +162,11 @@ export async function PATCH(req: NextRequest) {
     if (grupoEstiloId != null) lrFields.grupo_estilo_id = grupoEstiloId;
     if (tipo1Id != null) lrFields.tipo_1_id = tipo1Id;
 
+    const violacion = await assertMaestrasPermitidasParaTipoV2(pool, tipoV2Id, lrFields);
+    if (violacion) {
+      return NextResponse.json({ ok: false, error: violacion }, { status: 400 });
+    }
+
     if (body.rango) {
       const desde = String(body.desde ?? "").trim();
       const hasta = String(body.hasta ?? "").trim();
@@ -188,6 +196,10 @@ export async function PATCH(req: NextRequest) {
       }
       if ("tipo_1_id" in body) {
         fields.tipo_1_id = body.tipo_1_id == null ? null : Number(body.tipo_1_id);
+      }
+      const violacionRow = await assertMaestrasPermitidasParaTipoV2(pool, tipoV2Id, fields);
+      if (violacionRow) {
+        return NextResponse.json({ ok: false, error: violacionRow }, { status: 400 });
       }
       const ok = await patchLineaReferencia(pool, id, proveedorId, fields);
       if (!ok) return NextResponse.json({ ok: false, error: "Fila no encontrada" }, { status: 404 });

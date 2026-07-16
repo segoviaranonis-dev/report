@@ -2,6 +2,9 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { RimecCargandoPantalla } from "@/components/report/RimecCargandoPantalla";
+import { HerramientaReposicionDirectorCta } from "@/components/herramienta-reposicion/HerramientaReposicionDirectorCta";
+import { useNiifDelayedLoader } from "@/hooks/useNiifDelayedLoader";
 import { VENTA_VISUAL, ventaTileClass } from "@/lib/nexus/venta-visual";
 import type { EntidadActivoResumen, PanelControlResumen } from "@/lib/panel-control/queries-resumen";
 
@@ -239,6 +242,8 @@ export function MundoPanelControl() {
     // if (data) prefetchGrillasPanelControl();
   }, [data]);
 
+  const showCargaNiif = useNiifDelayedLoader(loading);
+
   return (
     <div className="p-8">
       <header className="mb-8 border-b border-rimec-azul/10 pb-6">
@@ -248,19 +253,22 @@ export function MundoPanelControl() {
           Activos del holding por entidad comercial — STOCK · COMPRA PREVIA · PROGRAMADO. Sales Report sigue blindado
           como cabo al Excel.
         </p>
-        <Link
-          href="/herramienta-reposicion"
-          className="mt-5 inline-flex items-center rounded-xl border-2 border-rimec-azul bg-rimec-azul px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-rimec-azul-dark"
-        >
-          Herramienta de reposición!!! →
-        </Link>
-        <p className="mt-1.5 text-[11px] text-neutral-500">
-          Culminación AM · una grilla · PE + CP (disp/vend) + PROGRAMADO
-        </p>
+        <HerramientaReposicionDirectorCta />
       </header>
 
-      {loading ? (
-        <p className="font-serif text-sm text-neutral-ink-muted">Cargando activos…</p>
+      {loading && !showCargaNiif ? <div className="h-24" aria-hidden /> : null}
+
+      {showCargaNiif ? (
+        <RimecCargandoPantalla
+          mensaje="Cargando Panel Alejandro Magno…"
+          subtitulo="Aguarde unos segundos, por favor."
+          etapas={[
+            "Leyendo activos STOCK…",
+            "Sumando Compra Previa…",
+            "Integrando PROGRAMADO…",
+            "Preparando entidades del holding…",
+          ]}
+        />
       ) : err ? (
         <div className="rounded-xl border border-semantic-error/30 bg-semantic-error/10 p-4 text-sm text-semantic-error">
           {err}

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
-import { IMPORTACION_PRECIOS_NUEVO, IMPORTACION_PRECIOS_HISTORIAL, MOTOR_PRECIOS } from "@/lib/report/routes";
+import { EjecutarProtocoloImportacionPreciosButton } from "@/components/motor-precios/EjecutarProtocoloImportacionPreciosButton";
+import { IMPORTACION_PRECIOS_HISTORIAL, MOTOR_PRECIOS } from "@/lib/report/routes";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +19,14 @@ export default function ImportacionPreciosHubPage() {
         </p>
         <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Importación de precios</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Excel proveedor + biblioteca → Preview → Conversión → Cierre. Sin intentos en historial hasta cerrar.
+          Excel proveedor + biblioteca → Preview → Conversión → Cierre. Sin intentos en historial hasta
+          cerrar.
+        </p>
+        <p className="mt-3 text-xs font-semibold text-amber-900">
+          Ejecutar protocolo = solo Nivel Dios (rol_id=1 + categoria=DIOS). Historial: Admin RIMEC.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href={IMPORTACION_PRECIOS_NUEVO}
-            className="inline-flex rounded-xl bg-rimec-azul px-6 py-3 text-sm font-bold text-white shadow-md hover:bg-rimec-azul-dark"
-          >
-            Nuevo evento · Paso 0
-          </Link>
+          <EjecutarProtocoloImportacionPreciosButton />
           <Link
             href={IMPORTACION_PRECIOS_HISTORIAL}
             className="inline-flex rounded-xl border-2 border-rimec-azul px-6 py-3 text-sm font-bold text-rimec-azul hover:bg-rimec-azul/5"

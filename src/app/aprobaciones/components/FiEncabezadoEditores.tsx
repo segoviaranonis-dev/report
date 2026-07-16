@@ -8,7 +8,14 @@ import {
   resincronizarFiDesdeListadoPpAction,
 } from "../actions";
 import type { AprobacionesCatalogos, FiRecord } from "../lib/aprobaciones-types";
-import { fmtDescuentoPct, plazoDisplay } from "../lib/aprobaciones-utils";
+import {
+  descuentoInputDisplay,
+  fmtDescuentoPct,
+  normalizarDescuentos4,
+  parseDescuentoInput,
+  plazoDisplay,
+  sanitizeDescuentoTyping,
+} from "../lib/aprobaciones-utils";
 
 type Feedback = (tipo: "success" | "error", texto: string) => void;
 
@@ -239,16 +246,15 @@ export function DescuentosEditor({
   onFeedback?: Feedback;
   onApplied?: () => void;
 }) {
-  const [d, setD] = useState([
-    fi.descuento_1,
-    fi.descuento_2,
-    fi.descuento_3,
-    fi.descuento_4,
-  ]);
+  const [dStr, setDStr] = useState(() =>
+    [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4].map(descuentoInputDisplay),
+  );
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    setD([fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4]);
+    setDStr(
+      [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4].map(descuentoInputDisplay),
+    );
   }, [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4]);
 
   async function guardar() {
@@ -256,13 +262,14 @@ export function DescuentosEditor({
       onFeedback?.("error", "Elegí un plazo antes de guardar descuentos.");
       return;
     }
+    const parsed = normalizarDescuentos4(dStr.map(parseDescuentoInput));
     setGuardando(true);
     const res = await actualizarEncabezadoFiAction(fi.id, {
       plazoId,
-      descuento_1: d[0],
-      descuento_2: d[1],
-      descuento_3: d[2],
-      descuento_4: d[3],
+      descuento_1: parsed[0],
+      descuento_2: parsed[1],
+      descuento_3: parsed[2],
+      descuento_4: parsed[3],
     });
     if (res.success) {
       onFeedback?.("success", res.message ?? "Descuentos aplicados.");
@@ -281,7 +288,11 @@ export function DescuentosEditor({
             <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
               Desc. {i + 1}
             </p>
-            <p className="mt-0.5 text-sm font-semibold">{fmtDescuentoPct(d[i])}</p>
+            <p className="mt-0.5 text-sm font-semibold">
+              {fmtDescuentoPct(
+                [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4][i],
+              )}
+            </p>
           </div>
         ))}
       </div>
@@ -297,15 +308,14 @@ export function DescuentosEditor({
               Desc. {i + 1} %
             </span>
             <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.1}
-              value={d[i]}
+              type="text"
+              inputMode="decimal"
+              placeholder=""
+              value={dStr[i]}
               onChange={(e) => {
-                const next = [...d] as [number, number, number, number];
-                next[i] = Number(e.target.value) || 0;
-                setD(next);
+                const next = [...dStr];
+                next[i] = sanitizeDescuentoTyping(e.target.value);
+                setDStr(next);
               }}
               className="mt-1 w-full rounded border border-neutral-300 px-2 py-1 text-sm font-bold"
             />

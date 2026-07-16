@@ -57,6 +57,10 @@ export function LineaReferenciaEditor({ tipoV2Id, maestras, onApplied }: LineaRe
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        throw new Error("Sesión expirada o acceso denegado — recargá e iniciá sesión RIMEC Admin.");
+      }
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo aplicar");
 

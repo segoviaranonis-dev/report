@@ -21,6 +21,8 @@ export type DepositoRow = {
   grada: string;
   cantidad: number;
   imagen_nombre: string | null;
+  /** Kyly 638 — color Excel para stem L_C (MIG-149). */
+  imagen_color_excel?: string | null;
   linea_id: number | null;
   referencia_id: number | null;
   material_id: number;
@@ -46,6 +48,13 @@ export type DepositoRow = {
   caso_precio?: string | null;
   cantidad_inicial?: number | null;
   pares_vendidos?: number | null;
+  /** Comercial SDRM xlsx — COD.GRUPO · LIQUIDACIÓN */
+  cod_grupo?: string | null;
+  sdrm_marca?: string | null;
+  cadena_comercial?: string | null;
+  es_liquidacion?: boolean | null;
+  /** Kyly 638 · TEMPORADA (VERANO|INVIERNO) — tipo_1 / am_temporada */
+  temporada?: string | null;
 };
 
 /**

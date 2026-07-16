@@ -3,10 +3,11 @@
  * Stem canónico 654|638 · probe sm/ + flat · caché proceso (latencia cabecera &lt;1s).
  */
 
-import { publicStorageObjectUrl } from "@/lib/storage-public-url";
+import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import {
+  inferProtocolFromProductCodes,
   productImagePrimaryStem,
-  resolveProductImageProtocol,
+  type ProductImageProtocol,
 } from "@/lib/retail/product-image-protocol";
 
 export type MoleculaImagenInput = {
@@ -16,6 +17,8 @@ export type MoleculaImagenInput = {
   color: string | number;
   tipo_v2_id?: number | null;
   imagen_nombre?: string | null;
+  /** Kyly 638 — color Excel (K0001), no bigint pilar. */
+  imagen_color_excel?: string | null;
 };
 
 export type PresenceResult = {
@@ -23,14 +26,6 @@ export type PresenceResult = {
   stem: string | null;
   hasImage: boolean;
 };
-
-function stripTier(path: string): string {
-  return String(path ?? "")
-    .trim()
-    .replace(/^productos\//i, "")
-    .replace(/^(sm|md|lg|thumbs)\//i, "")
-    .replace(/^\/+/, "");
-}
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const PROBE_TIMEOUT_MS = 350;
@@ -42,13 +37,65 @@ type CacheEntry = { ok: boolean; at: number };
 const presenceCache = new Map<string, CacheEntry>();
 
 export function moleculeKeyImagen(input: MoleculaImagenInput): string {
+  const protocol = inferProtocolFromProductCodes({
+    material: input.material,
+    linea: input.linea,
+    referencia: input.referencia,
+    imagenNombre: input.imagen_nombre,
+    tipoV2Id: input.tipo_v2_id,
+  });
+  if (protocol === "638") {
+    return [
+      "638",
+      String(input.linea ?? "").trim(),
+      String(input.imagen_color_excel ?? input.color ?? "").trim(),
+      String(input.imagen_nombre ?? "").trim(),
+    ].join("|");
+  }
   return [
+    "654",
     String(input.linea ?? "").trim(),
     String(input.referencia ?? "").trim(),
     String(input.material ?? "").trim(),
     String(input.color ?? "").trim(),
-    String(input.tipo_v2_id ?? ""),
+    String(input.imagen_nombre ?? "").trim(),
   ].join("|");
+}
+
+export function depRowToMoleculaInput(p: {
+  linea_codigo_proveedor: string;
+  referencia_codigo_proveedor: string;
+  material_code: string;
+  color_code: string;
+  tipo_v2_id?: number | null;
+  imagen_nombre?: string | null;
+  imagen_color_excel?: string | null;
+}): MoleculaImagenInput {
+  return {
+    linea: p.linea_codigo_proveedor,
+    referencia: p.referencia_codigo_proveedor,
+    material: p.material_code,
+    color: p.color_code,
+    tipo_v2_id: p.tipo_v2_id,
+    imagen_nombre: p.imagen_nombre,
+    imagen_color_excel: p.imagen_color_excel ?? null,
+  };
+}
+
+export function moleculeKeyFromDepRow(
+  p: Parameters<typeof depRowToMoleculaInput>[0],
+): string {
+  return moleculeKeyImagen(depRowToMoleculaInput(p));
+}
+
+export function moleculeProtocol(input: MoleculaImagenInput): ProductImageProtocol {
+  return inferProtocolFromProductCodes({
+    material: input.material,
+    linea: input.linea,
+    referencia: input.referencia,
+    imagenNombre: input.imagen_nombre,
+    tipoV2Id: input.tipo_v2_id,
+  });
 }
 
 function cacheGet(key: string): boolean | null {
@@ -65,35 +112,22 @@ function cacheSet(key: string, ok: boolean) {
   presenceCache.set(key, { ok, at: Date.now() });
 }
 
-/** Keys de URL a probar (canónico sm + flat; excel si aplica). */
+/** Mismas URLs que la grilla (`productImageCandidatesForRow`) — sm/md/lg/flat + Excel + stems 654|638. */
 export function probeUrlsForMolecule(input: MoleculaImagenInput): string[] {
-  const urls: string[] = [];
-  const push = (u: string) => {
-    if (u && !urls.includes(u)) urls.push(u);
-  };
-
-  const excel = String(input.imagen_nombre ?? "").trim();
-  if (excel) {
-    const base = stripTier(excel);
-    const file = /\.(jpe?g|png|webp)$/i.test(base) ? base : `${base}.jpg`;
-    push(publicStorageObjectUrl("productos", `sm/${file}`));
-    push(publicStorageObjectUrl("productos", file));
-  }
-
-  const stem = productImagePrimaryStem({
-    linea: input.linea,
-    referencia: input.referencia,
-    material: input.material,
-    color: input.color,
-    tipoV2Id: input.tipo_v2_id,
-    imagenNombre: input.imagen_nombre,
-  });
-  if (stem) {
-    push(publicStorageObjectUrl("productos", `sm/${stem}.jpg`));
-    push(publicStorageObjectUrl("productos", `${stem}.jpg`));
-  }
-
-  return urls.filter(Boolean);
+  const protocol = moleculeProtocol(input);
+  return productImageCandidatesForRow(
+    input.linea,
+    input.referencia,
+    input.material,
+    input.color,
+    input.imagen_nombre,
+    "thumb",
+    {
+      tipoV2Id: input.tipo_v2_id,
+      imagenColorExcel: input.imagen_color_excel,
+      protocol,
+    },
+  );
 }
 
 export function primaryStemForMolecule(input: MoleculaImagenInput): string | null {
@@ -104,10 +138,8 @@ export function primaryStemForMolecule(input: MoleculaImagenInput): string | nul
     color: input.color,
     tipoV2Id: input.tipo_v2_id,
     imagenNombre: input.imagen_nombre,
-    protocol: resolveProductImageProtocol({
-      tipoV2Id: input.tipo_v2_id,
-      imagenNombre: input.imagen_nombre,
-    }),
+    imagenColorExcel: input.imagen_color_excel,
+    protocol: moleculeProtocol(input),
   });
 }
 
@@ -156,16 +188,21 @@ async function moleculeHasImage(input: MoleculaImagenInput): Promise<boolean> {
   const cached = cacheGet(`mol:${molKey}`);
   if (cached != null) return cached;
 
-  // Solo sm/ (LEY 2.01.04.021 — grilla = tier sm). Evita 2º RTT por ficha.
-  const url = probeUrlsForMolecule(input)[0];
-  if (!url) {
+  // Probar candidatos sm/flat (638: variantes color Excel; 654: stem L-R-M-C).
+  const urls = probeUrlsForMolecule(input);
+  if (urls.length === 0) {
     cacheSet(`mol:${molKey}`, false);
     return false;
   }
 
-  const ok = await urlExists(url);
-  cacheSet(`mol:${molKey}`, ok);
-  return ok;
+  for (const url of urls) {
+    if (await urlExists(url)) {
+      cacheSet(`mol:${molKey}`, true);
+      return true;
+    }
+  }
+  cacheSet(`mol:${molKey}`, false);
+  return false;
 }
 
 async function mapPool<T, R>(
@@ -186,7 +223,14 @@ async function mapPool<T, R>(
   return out;
 }
 
-export type AuditImagenesProgress = {
+export type AuditImagenesRamoStats = {
+  total654: number;
+  sinImagen654: number;
+  total638: number;
+  sinImagen638: number;
+};
+
+export type AuditImagenesProgress = AuditImagenesRamoStats & {
   total: number;
   sinImagen: number;
   done: number;
@@ -194,6 +238,26 @@ export type AuditImagenesProgress = {
   ms: number;
   faltantesMolKeys: string[];
 };
+
+function statsFromPairs(
+  pairs: { input: MoleculaImagenInput; result: PresenceResult }[],
+): AuditImagenesRamoStats {
+  let total654 = 0;
+  let sinImagen654 = 0;
+  let total638 = 0;
+  let sinImagen638 = 0;
+  for (const { input, result } of pairs) {
+    const protocol = moleculeProtocol(input);
+    if (protocol === "638") {
+      total638 += 1;
+      if (!result.hasImage) sinImagen638 += 1;
+    } else {
+      total654 += 1;
+      if (!result.hasImage) sinImagen654 += 1;
+    }
+  }
+  return { total654, sinImagen654, total638, sinImagen638 };
+}
 
 const PROGRESS_CHUNK = 180;
 
@@ -207,7 +271,7 @@ export async function auditImagenesFaltantes(
   ms: number;
   results: PresenceResult[];
   faltantesMolKeys: string[];
-}> {
+} & AuditImagenesRamoStats> {
   const t0 = Date.now();
   const uniq = new Map<string, MoleculaImagenInput>();
   for (const it of items) {
@@ -237,15 +301,20 @@ export async function auditImagenesFaltantes(
 
   const emit = (parcial: boolean) => {
     if (!onProgress) return;
-    const known = results.filter(Boolean) as PresenceResult[];
-    const faltantesMolKeys = known.filter((r) => !r.hasImage).map((r) => r.molKey);
+    const pairs = list.flatMap((input, i) => {
+      const result = results[i];
+      return result ? [{ input, result }] : [];
+    });
+    const faltantesMolKeys = pairs.filter((p) => !p.result.hasImage).map((p) => p.result.molKey);
+    const ramo = statsFromPairs(pairs);
     onProgress({
       total: list.length,
       sinImagen: faltantesMolKeys.length,
-      done: known.length,
+      done: pairs.length,
       parcial,
       ms: Date.now() - t0,
       faltantesMolKeys,
+      ...ramo,
     });
   };
 
@@ -270,12 +339,15 @@ export async function auditImagenesFaltantes(
     }
   }
 
-  const faltantesMolKeys = results.filter((r) => !r.hasImage).map((r) => r.molKey);
+  const faltantesMolKeys = (results as PresenceResult[]).filter((r) => !r.hasImage).map((r) => r.molKey);
+  const pairs = list.map((input, i) => ({ input, result: results[i] as PresenceResult }));
+  const ramo = statsFromPairs(pairs);
   return {
     total: results.length,
     sinImagen: faltantesMolKeys.length,
     ms: Date.now() - t0,
     results,
     faltantesMolKeys,
+    ...ramo,
   };
 }

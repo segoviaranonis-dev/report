@@ -40,8 +40,11 @@ export function PeCardMiniatura({
   const p = card.producto;
 
   const imageCtx = useMemo(
-    () => ({ tipoV2Id: p.tipo_v2_id }),
-    [p.tipo_v2_id],
+    () => ({
+      tipoV2Id: p.tipo_v2_id,
+      imagenColorExcel: p.imagen_color_excel ?? null,
+    }),
+    [p.tipo_v2_id, p.imagen_color_excel],
   );
 
   const imgCandidates = useMemo(
@@ -60,10 +63,16 @@ export function PeCardMiniatura({
 
   return (
     <>
-      <article className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <article
+        className={`flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm ${
+          p.es_liquidacion
+            ? "catalog-card-liquidacion-pulse border-emerald-400/90"
+            : "border-slate-200"
+        }`}
+      >
         <button
           type="button"
-          className="relative flex aspect-square w-full shrink-0 items-center justify-center bg-slate-100"
+          className="relative aspect-square w-full shrink-0 overflow-hidden bg-slate-100"
           onClick={() => setZoomSrc(imgCandidates[0] ?? null)}
           aria-label="Ampliar imagen"
         >
@@ -73,8 +82,8 @@ export function PeCardMiniatura({
             material={p.material_code}
             color={p.color_code}
             imagenNombre={p.imagen_nombre}
-            size={140}
             imageCtx={imageCtx}
+            variant="frame"
           />
           {showVentas && card.totalVendidos > 0 ? (
             <span className={`absolute left-1.5 top-1.5 rounded-full ${VENTA_VISUAL.badge} px-2 py-0.5 text-[10px] font-bold ${VENTA_VISUAL.badgeFg} shadow-sm`}>
@@ -101,6 +110,11 @@ export function PeCardMiniatura({
         <div className="flex min-h-0 flex-1 flex-col gap-1 p-2">
           <div className="flex min-h-[14px] items-start justify-between gap-1">
             <p className="min-w-0 truncate text-[10px] font-bold uppercase text-rimec-azul">{p.marca}</p>
+            {p.es_liquidacion ? (
+              <span className="shrink-0 rounded-full border border-emerald-600 bg-emerald-600 px-1.5 py-0.5 text-[7px] font-bold uppercase text-white">
+                LIQ
+              </span>
+            ) : null}
             {showLlegada ? (
               <span
                 className={`max-w-[52%] shrink-0 truncate rounded border px-1.5 py-0.5 text-[7px] font-bold leading-tight ${
