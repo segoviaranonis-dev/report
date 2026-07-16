@@ -12,6 +12,8 @@ type Props = {
   resetKey?: boolean;
   /** Tránsito / programado — muestra vendido por curva */
   showVentas?: boolean;
+  /** 638 confecciones — etiqueta Talle + unidades */
+  modoConfecciones?: boolean;
 };
 
 function fmtPares(n: number) {
@@ -26,6 +28,7 @@ export function GradaImportadoraAcordeon({
   cardExpanded = false,
   resetKey = false,
   showVentas = false,
+  modoConfecciones = false,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -40,22 +43,32 @@ export function GradaImportadoraAcordeon({
   const totalSaldo = gradas.reduce((s, g) => s + g.pares, 0);
   const totalVendido = gradas.reduce((s, g) => s + g.vendidos, 0);
 
+  const uLabel = modoConfecciones ? "u" : "p";
+  const titulo = modoConfecciones ? "Talle" : "Grada";
+
   const filas = (
     <div className="flex flex-col gap-px">
-      {gradas.map((g) => (
+      {gradas.map((g, idx) => (
         <div
-          key={g.curva}
+          key={`${g.curva}-${g.lpn ?? ""}-${idx}`}
           className="flex items-start justify-between gap-1 font-mono text-[8px] leading-[1.15] tabular-nums text-slate-800"
         >
           <span className="min-w-0 flex-1 break-all" title={g.curva}>
-            {g.curva}
+            {modoConfecciones && g.lpn ? (
+              <>
+                {g.curva}
+                <span className="text-slate-500"> · {g.lpn.toLocaleString("es-PY")}</span>
+              </>
+            ) : (
+              g.curva
+            )}
           </span>
           <span className="flex shrink-0 items-center gap-0.5 font-semibold whitespace-nowrap">
             {showVentas && g.vendidos > 0 ? (
               <span className={VENTA_VISUAL.label}>{fmtPares(g.vendidos)} v</span>
             ) : null}
             {g.pares > 0 ? (
-              <span className="text-bazzar-naranja-dark">{fmtPares(g.pares)} p</span>
+              <span className="text-bazzar-naranja-dark">{fmtPares(g.pares)} {uLabel}</span>
             ) : showVentas && g.vendidos > 0 ? null : (
               <span className="text-slate-400">0</span>
             )}
@@ -66,9 +79,9 @@ export function GradaImportadoraAcordeon({
   );
 
   const resumen = [
-    `${gradas.length} curva${gradas.length === 1 ? "" : "s"}`,
+    `${gradas.length} ${modoConfecciones ? "talle" : "curva"}${gradas.length === 1 ? "" : "s"}`,
     showVentas && totalVendido > 0 ? `${fmtPares(totalVendido)} v` : null,
-    totalSaldo > 0 ? `${fmtPares(totalSaldo)} p` : null,
+    totalSaldo > 0 ? `${fmtPares(totalSaldo)} ${uLabel}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -77,7 +90,7 @@ export function GradaImportadoraAcordeon({
     return (
       <div className="shrink-0 overflow-hidden rounded-md border border-dashed border-slate-200 bg-slate-50/80 px-1.5 py-1">
         <p className="mb-px text-[7px] font-bold uppercase leading-none tracking-wide text-slate-500">
-          Grada
+          {titulo}
         </p>
         {filas}
       </div>
@@ -100,7 +113,7 @@ export function GradaImportadoraAcordeon({
           <span className={`inline-block transition-transform ${open ? "rotate-180" : ""}`} aria-hidden>
             ▾
           </span>
-          Grada
+          {titulo}
         </span>
         <span className="min-w-0 truncate text-[7px] font-semibold tabular-nums leading-none text-slate-600">
           {resumen}

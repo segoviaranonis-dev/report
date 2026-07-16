@@ -9,9 +9,14 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 export const dynamic = "force-dynamic";
 
 export default async function StockProntaEntregaPage() {
-  const resumen = isRimecDatabaseConfigured()
-    ? await getStockProntaEntregaResumen(getRimecPool(), {})
-    : EMPTY_STOCK_PE_RESUMEN;
+  let resumen = EMPTY_STOCK_PE_RESUMEN;
+  if (isRimecDatabaseConfigured()) {
+    try {
+      resumen = await getStockProntaEntregaResumen(getRimecPool(), {});
+    } catch (e) {
+      console.error("[stock-pronta-entrega] resumen SSR", e);
+    }
+  }
 
   return (
     <DepositoRimecShell footer={`Stock Pronta Entrega · batch ${resumen.batch_label} · Alejandro Magno`}>

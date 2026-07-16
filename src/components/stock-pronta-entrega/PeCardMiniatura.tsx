@@ -5,6 +5,7 @@ import type { PeImportadoraCard } from "@/lib/depositos/agrupar-pe-importadora";
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
+import { isConfecciones638, etiquetaUnidadStock } from "@/lib/deposito-rimec/grada-abierta-638";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 import { CompradoresVentasSlot } from "./CompradoresVentasSlot";
 import { GradaImportadoraAcordeon } from "./GradaImportadoraAcordeon";
@@ -38,6 +39,8 @@ export function PeCardMiniatura({
 }: Props) {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const p = card.producto;
+  const esConf = isConfecciones638(p.tipo_v2_id);
+  const uStock = etiquetaUnidadStock(p.tipo_v2_id);
 
   const imageCtx = useMemo(
     () => ({
@@ -93,7 +96,7 @@ export function PeCardMiniatura({
           {showVentas ? (
             card.totalPares > 0 ? (
               <span className="absolute right-1.5 top-1.5 rounded-full bg-bazzar-naranja px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                {Math.round(card.totalPares)} p
+                {Math.round(card.totalPares)} {uStock}
               </span>
             ) : card.totalVendidos <= 0 ? (
               <span className="absolute right-1.5 top-1.5 rounded-full bg-slate-400 px-2 py-0.5 text-[10px] font-bold text-white">
@@ -155,7 +158,7 @@ export function PeCardMiniatura({
             {card.precioVenta != null ? (
               <>
                 {formatPrecioGs(card.precioVenta)}
-                <span className="ml-1 text-[9px] font-semibold text-slate-500">/ par</span>
+                <span className="ml-1 text-[9px] font-semibold text-slate-500">/ {esConf ? "prenda" : "par"}</span>
               </>
             ) : (
               <span className="text-[9px] font-semibold text-slate-400">Sin precio</span>
@@ -181,7 +184,7 @@ export function PeCardMiniatura({
 
           {showVentas ? (
             <p className="min-h-[14px] truncate text-[9px] font-semibold tabular-nums leading-tight text-slate-500">
-              Saldo {Math.round(card.totalPares).toLocaleString("es-PY")} p
+              Saldo {Math.round(card.totalPares).toLocaleString("es-PY")} {uStock}
             </p>
           ) : null}
 
@@ -211,6 +214,7 @@ export function PeCardMiniatura({
               cardExpanded={expanded}
               resetKey={!expanded}
               showVentas={showVentas}
+              modoConfecciones={esConf}
             />
           </div>
         </div>
