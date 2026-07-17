@@ -58,6 +58,13 @@ export type ReposicionArticulo = {
 
 const PE_LABEL = "Pronta entrega";
 
+/** RIMEC = holding, no marca comercial. */
+function marcaDisplay(raw: string | null | undefined): string {
+  const m = String(raw ?? "").trim();
+  if (!m || /^rimec$/i.test(m) || m === "—" || m === "-") return "—";
+  return m;
+}
+
 function molKey(r: DepositoRow): string {
   return moleculeKeyVentas(
     r.linea_codigo_proveedor,
@@ -135,7 +142,7 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
   if (!a) {
     const precio = row.precio_unitario != null ? Number(row.precio_unitario) : null;
     a = {
-      marca: row.marca || "RIMEC",
+      marca: marcaDisplay(row.marca),
       linea: row.linea_codigo_proveedor,
       referencia: row.referencia_codigo_proveedor,
       material: row.material_code,
@@ -182,7 +189,8 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
     }
     if (!a.marca_id && row.marca_id) {
       a.marca_id = row.marca_id;
-      a.marca = row.marca || a.marca;
+      const md = marcaDisplay(row.marca);
+      if (md !== "—") a.marca = md;
     }
     if (!a.grupo_estilo_id && row.grupo_estilo_id) {
       a.grupo_estilo_id = row.grupo_estilo_id;

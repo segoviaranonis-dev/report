@@ -346,7 +346,7 @@ function uniqItems(
   rows: DepositoRow[],
   idKey: keyof DepositoRow,
   labelFn: (r: DepositoRow) => string,
-  opts?: { skipZero?: boolean },
+  opts?: { skipZero?: boolean; skipLabels?: (label: string) => boolean },
 ): DepositoFilterItem[] {
   const map = new Map<number, DepositoFilterItem>();
   for (const r of rows) {
@@ -355,9 +355,23 @@ function uniqItems(
     if (opts?.skipZero && n === 0) continue;
     const label = labelFn(r).trim();
     if (!label) continue;
+    if (opts?.skipLabels?.(label)) continue;
     if (!map.has(n)) map.set(n, { id: n, label });
   }
   return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "es"));
+}
+
+/** Holding / placeholders — no son marca comercial. */
+export function esMarcaFantasmaFiltro(label: string): boolean {
+  const t = label.trim().toUpperCase();
+  return (
+    !t ||
+    t === "RIMEC" ||
+    t === "—" ||
+    t === "-" ||
+    t === "(SIN MARCA)" ||
+    t === "SIN MARCA"
+  );
 }
 
 export function buildOperativaOpciones(
@@ -388,7 +402,9 @@ export function buildOperativaOpciones(
 
   return {
     generos: uniqItems(base("generoIds"), "genero_id", (r) => r.genero),
-    marcas: uniqItems(base("marcaIds"), "marca_id", (r) => r.marca),
+    marcas: uniqItems(base("marcaIds"), "marca_id", (r) => r.marca, {
+      skipLabels: esMarcaFantasmaFiltro,
+    }),
     estilos: uniqItems(base("grupoEstiloIds"), "grupo_estilo_id", (r) => r.estilo),
     tipo1: uniqItems(base("tipo1Ids"), "tipo_1_id", (r) => r.tipo_1 ?? String(r.tipo_1_id)).filter(
       (x) => x.label !== "(sin tipo 1)",

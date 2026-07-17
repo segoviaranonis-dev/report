@@ -365,11 +365,13 @@ export function ReposicionFiltrosSidebar({
     filtros.tipo1Ids.length +
     filtros.marcaIds.length +
     filtros.tipoGrupos.length +
-    filtros.generoIds.length +
-    filtros.grupoEstiloIds.length +
-    filtros.lineaIds.length;
+    filtros.generoIds.length;
 
-  const badgeMol = filtros.materialFamilias.length + filtros.colorFamilias.length;
+  const badgeMol =
+    filtros.grupoEstiloIds.length +
+    filtros.lineaIds.length +
+    filtros.materialFamilias.length +
+    filtros.colorFamilias.length;
 
   return (
     <div
@@ -479,6 +481,30 @@ export function ReposicionFiltrosSidebar({
           onClear={() => patch({ generoIds: [] })}
         />
 
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            checked={soloConStock}
+            onChange={(e) => onSoloConStockChange(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-slate-300 text-rimec-azul"
+          />
+          Solo con stock disponible
+        </label>
+
+        {trailing}
+      </BloqueColapsable>
+
+      <BloqueColapsable
+        title="Molécula"
+        railLabel="Estilo · Línea · Mat · Color"
+        badge={badgeMol}
+        open={bloqueMolOpen}
+        onToggle={() => setBloqueMolOpen((v) => !v)}
+      >
+        <p className="text-[10px] text-slate-500">
+          Cascada: Estilo → Línea → Material → Color · familias texto · NN
+        </p>
+
         <MultiSelectGroup
           title="Estilo"
           items={opciones.estilos}
@@ -490,6 +516,7 @@ export function ReposicionFiltrosSidebar({
             }))
           }
           onClear={() => patch({ grupoEstiloIds: [] })}
+          defaultOpen
         />
 
         <MultiSelectGroup
@@ -506,29 +533,6 @@ export function ReposicionFiltrosSidebar({
           maxH="max-h-48"
         />
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700">
-          <input
-            type="checkbox"
-            checked={soloConStock}
-            onChange={(e) => onSoloConStockChange(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-slate-300 text-rimec-azul"
-          />
-          Solo con stock disponible
-        </label>
-
-        {trailing}
-      </BloqueColapsable>
-
-      <BloqueColapsable
-        title="Molécula"
-        railLabel="Material · Color"
-        badge={badgeMol}
-        open={bloqueMolOpen}
-        onToggle={() => setBloqueMolOpen((v) => !v)}
-      >
-        <p className="text-[10px] text-slate-500">
-          Solo texto · códigos numéricos → NN · familias (Napa·Nap·Np = una).
-        </p>
         <FamiliaMultiSelectGroup
           title="Material"
           items={opciones.materiales}
@@ -541,7 +545,6 @@ export function ReposicionFiltrosSidebar({
           }
           onClear={() => patch({ materialFamilias: [] })}
           maxH="max-h-52"
-          defaultOpen
         />
         <FamiliaMultiSelectGroup
           title="Color"
@@ -555,7 +558,6 @@ export function ReposicionFiltrosSidebar({
           }
           onClear={() => patch({ colorFamilias: [] })}
           maxH="max-h-52"
-          defaultOpen
         />
       </BloqueColapsable>
     </div>

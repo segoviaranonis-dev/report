@@ -192,7 +192,11 @@ export async function listImportadoProductos(
       COALESCE(ppd.referencia, split_part(${PE_CODIGO_BARRAS_EXPR}, '.', 2), '0') AS referencia,
       COALESCE(ppd.material_code, '0') AS material_code,
       COALESCE(ppd.color_code, '0') AS color_code,
-      COALESCE(NULLIF(TRIM(mv.descp_marca), ''), 'RIMEC') AS marca,
+      COALESCE(
+        NULLIF(TRIM(mv.descp_marca), ''),
+        NULLIF(TRIM(mv_linea.descp_marca), ''),
+        '—'
+      ) AS marca,
       COALESCE(NULLIF(TRIM(g.descripcion), ''), NULLIF(TRIM(g.codigo::text), ''), '(sin género)') AS genero,
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), '(sin estilo)') AS estilo,
       COALESCE(NULLIF(TRIM(tv.descp_tipo), ''), CASE ${PE_TIPO_V2_EXPR} WHEN 1 THEN 'Calzado' WHEN 2 THEN 'Confecciones' ELSE '—' END) AS tipo_v2,
@@ -208,7 +212,7 @@ export async function listImportadoProductos(
       r.id::text AS referencia_id,
       mat.id::text AS material_id,
       col.id::text AS color_id,
-      l.marca_id::text AS marca_id,
+      COALESCE(l.marca_id, ppd.id_marca)::text AS marca_id,
       l.genero_id::text AS genero_id,
       lr.grupo_estilo_id::text AS grupo_estilo_id,
       lr.tipo_1_id::text AS tipo_1_id,
@@ -267,6 +271,7 @@ export async function listImportadoProductos(
     LEFT JOIN sdrm_cod_grupo_dim cg
       ON cg.cod_grupo = COALESCE(sac.cod_grupo, pe_stg.cod_grupo)
     LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
+    LEFT JOIN marca_v2 mv_linea ON mv_linea.id_marca = l.marca_id
     LEFT JOIN genero g ON g.id = l.genero_id
     LEFT JOIN linea_referencia lr ON lr.linea_id = l.id AND lr.referencia_id = r.id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
