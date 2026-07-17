@@ -182,6 +182,8 @@ export async function listImportadoProductos(
     sdrm_marca: string | null;
     cadena_comercial: string | null;
     es_liquidacion: boolean | null;
+    caso_precio: string | null;
+    caso_id: string | null;
     temporada: string | null;
   }>(
     `
@@ -230,6 +232,8 @@ export async function listImportadoProductos(
         WHEN ppd.am_cadena_comercial IS NOT NULL THEN ppd.am_es_liquidacion
         ELSE COALESCE(sac.es_liquidacion, cg.es_liquidacion, false)
       END AS es_liquidacion,
+      ppd.descp_caso_snapshot AS caso_precio,
+      ppd.biblioteca_id::text AS caso_id,
       COALESCE(
         NULLIF(btrim(ppd.am_temporada), ''),
         NULLIF(btrim(t1.descp_tipo_1), '')
@@ -310,6 +314,8 @@ export async function listImportadoProductos(
     sdrm_marca: r.sdrm_marca,
     cadena_comercial: r.cadena_comercial,
     es_liquidacion: r.es_liquidacion === true,
+    caso_precio: r.caso_precio?.trim() || null,
+    caso_id: r.caso_id ? Number(r.caso_id) : null,
     temporada: r.temporada,
   }));
 

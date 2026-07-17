@@ -37,6 +37,11 @@ export type ReposicionArticulo = {
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
   tipo_v2_id: number | null;
+  /** Caso biblioteca / motor precios */
+  caso_precio: string | null;
+  caso_id: number | null;
+  cadena_comercial: string | null;
+  es_liquidacion: boolean | null;
   /** STOCK's: PE disponible + CP disponible por quincena */
   stock: ReposicionBucket[];
   /** VENTAS · Compra previa ejecutada por quincena */
@@ -115,6 +120,10 @@ type Acc = {
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
   tipo_v2_id: number | null;
+  caso_precio: string | null;
+  caso_id: number | null;
+  cadena_comercial: string | null;
+  es_liquidacion: boolean | null;
   stock: Map<string, number>;
   ventasCp: Map<string, number>;
   ventasProgramado: Map<string, number>;
@@ -150,6 +159,10 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
       grupo_estilo_id: row.grupo_estilo_id,
       tipo_1_id: row.tipo_1_id,
       tipo_v2_id: row.tipo_v2_id,
+      caso_precio: row.caso_precio ?? null,
+      caso_id: row.caso_id ?? null,
+      cadena_comercial: row.cadena_comercial ?? null,
+      es_liquidacion: row.es_liquidacion ?? null,
       stock: new Map(),
       ventasCp: new Map(),
       ventasProgramado: new Map(),
@@ -185,6 +198,10 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
     }
     if (!a.tono_etiqueta && row.tono_etiqueta) a.tono_etiqueta = row.tono_etiqueta;
     if (!a.linea_id && row.linea_id) a.linea_id = row.linea_id;
+    if (!a.caso_precio && row.caso_precio) a.caso_precio = row.caso_precio;
+    if (!a.caso_id && row.caso_id != null) a.caso_id = row.caso_id;
+    if (row.es_liquidacion === true) a.es_liquidacion = true;
+    if (row.cadena_comercial) a.cadena_comercial = row.cadena_comercial;
   }
   return a;
 }
@@ -252,6 +269,10 @@ export function mergeReposicionArticulos(input: {
       grupo_estilo_id: a.grupo_estilo_id,
       tipo_1_id: a.tipo_1_id,
       tipo_v2_id: a.tipo_v2_id,
+      caso_precio: a.caso_precio,
+      caso_id: a.caso_id,
+      cadena_comercial: a.cadena_comercial,
+      es_liquidacion: a.es_liquidacion,
       stock,
       ventasCp,
       ventasProgramado,

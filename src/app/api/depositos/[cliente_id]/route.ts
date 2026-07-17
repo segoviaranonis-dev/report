@@ -46,6 +46,8 @@ export type DepositoRow = {
   pp_nro?: string | null;
   proforma?: string | null;
   caso_precio?: string | null;
+  /** FK biblioteca de precios (PPD.biblioteca_id · MIG-153/154). */
+  caso_id?: number | null;
   cantidad_inicial?: number | null;
   pares_vendidos?: number | null;
   /** Comercial SDRM xlsx — COD.GRUPO · LIQUIDACIÓN */
@@ -55,6 +57,12 @@ export type DepositoRow = {
   es_liquidacion?: boolean | null;
   /** Kyly 638 · TEMPORADA (VERANO|INVIERNO) — tipo_1 / am_temporada */
   temporada?: string | null;
+  /**
+   * Familia Material/Color sellada 1 vez (latencia).
+   * Texto canónico o «NN» si 1ª palabra es numérica.
+   */
+  familia_material?: string | null;
+  familia_color?: string | null;
 };
 
 /**

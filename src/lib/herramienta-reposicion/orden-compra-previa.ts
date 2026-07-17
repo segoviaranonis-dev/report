@@ -5,23 +5,54 @@ import {
 } from "@/lib/herramienta-reposicion/nivel-am";
 import { enteroPares } from "@/lib/herramienta-reposicion/totales-reposicion";
 
-/** Modo de ordenamiento Director · KPI encendido */
+/** Modo de ordenamiento Director · KPI encendido · A→Z línea.referencia */
 export type OrdenReposicionModo =
   | "peDisponible"
   | "cpDisponible"
   | "cpVendido"
   | "programado"
-  | "nivelAm";
+  | "nivelAm"
+  | "lineaReferenciaAz";
 
 export const ORDEN_STOCK_PE: OrdenReposicionModo = "peDisponible";
 export const ORDEN_TRANSITO_CP: OrdenReposicionModo = "cpDisponible";
 export const ORDEN_COMPRA_PREVIA: OrdenReposicionModo = "cpVendido";
 export const ORDEN_PROGRAMADO: OrdenReposicionModo = "programado";
+/** Preestablecido Director: menor → mayor · línea.referencia A→Z */
+export const ORDEN_LINEA_REF_AZ: OrdenReposicionModo = "lineaReferenciaAz";
 
-export type OrdenReposicionMetric = Exclude<OrdenReposicionModo, "nivelAm">;
+export type OrdenReposicionMetric = Exclude<
+  OrdenReposicionModo,
+  "nivelAm" | "lineaReferenciaAz"
+>;
 
 export function esOrdenPorMetrica(modo: OrdenReposicionModo): modo is OrdenReposicionMetric {
-  return modo !== "nivelAm";
+  return modo !== "nivelAm" && modo !== "lineaReferenciaAz";
+}
+
+/** Compara `linea.referencia` A→Z (numérico natural). */
+export function compareLineaReferenciaAz(
+  a: ReposicionArticulo,
+  b: ReposicionArticulo,
+): number {
+  const la = String(a.linea ?? "").trim();
+  const lb = String(b.linea ?? "").trim();
+  const byLinea = la.localeCompare(lb, "es", { numeric: true, sensitivity: "base" });
+  if (byLinea !== 0) return byLinea;
+  const ra = String(a.referencia ?? "").trim();
+  const rb = String(b.referencia ?? "").trim();
+  const byRef = ra.localeCompare(rb, "es", { numeric: true, sensitivity: "base" });
+  if (byRef !== 0) return byRef;
+  const ma = String(a.material ?? "").trim();
+  const mb = String(b.material ?? "").trim();
+  const byMat = ma.localeCompare(mb, "es", { numeric: true, sensitivity: "base" });
+  if (byMat !== 0) return byMat;
+  return String(a.color ?? "")
+    .trim()
+    .localeCompare(String(b.color ?? "").trim(), "es", {
+      numeric: true,
+      sensitivity: "base",
+    });
 }
 
 export function metricaOrden(a: ReposicionArticulo, modo: OrdenReposicionModo): number {
@@ -42,6 +73,9 @@ export function compareReposicionPorOrden(
   modo: OrdenReposicionModo,
   niveles: NivelAmMap,
 ): number {
+  if (modo === "lineaReferenciaAz") {
+    return compareLineaReferenciaAz(a, b);
+  }
   if (modo === "nivelAm") {
     return compareReposicionPorNivel(a, b, niveles);
   }
@@ -88,6 +122,8 @@ export function etiquetaOrdenModo(modo: OrdenReposicionModo): string {
       return "Ordenamiento por compra previa · chips #1…#n · Σ CP vendido = KPI Vendido (CP)";
     case "programado":
       return "Ordenamiento por programado · chips #1…#n · Σ programado = KPI Programado";
+    case "lineaReferenciaAz":
+      return "Orden A→Z · línea.referencia (menor → mayor) · calzado preestablecido";
     default:
       return "Orden por niveles AM";
   }

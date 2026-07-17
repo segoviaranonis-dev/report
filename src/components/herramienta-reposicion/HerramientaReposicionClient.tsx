@@ -8,9 +8,10 @@ import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { RimecCargandoPantalla } from "@/components/report/RimecCargandoPantalla";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { EjecutarProtocoloImportacionPreciosButton } from "@/components/motor-precios/EjecutarProtocoloImportacionPreciosButton";
-import { PanelControlTrianguloHeader } from "@/components/panel-control/PanelControlTrianguloHeader";
 import { SinImagenCabeceraChip } from "@/components/panel-control/SinImagenCabeceraChip";
+import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
 import { ReposicionGrilla } from "@/components/herramienta-reposicion/ReposicionGrilla";
+import { FiltroTonoOperativa } from "@/app/depositos-bazzar/components/operativa/FiltroTonoOperativa";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import type { ReposicionArticulo } from "@/lib/herramienta-reposicion/merge-reposicion";
 import { reposicionArticuloToDepositoRow } from "@/lib/herramienta-reposicion/reposicion-a-deposito-row";
@@ -18,6 +19,7 @@ import {
   applyOperativaFilters,
   buildOperativaOpciones,
   EMPTY_OPERATIVA_FILTERS,
+  stampFamiliaPilares,
   type OperativaFilterState,
 } from "@/lib/depositos/operativa-filters";
 import { moleculeKeyImagen } from "@/lib/retail/product-image-presence";
@@ -27,6 +29,7 @@ import {
 } from "@/lib/herramienta-reposicion/nivel-am";
 import {
   ORDEN_COMPRA_PREVIA,
+  ORDEN_LINEA_REF_AZ,
   ORDEN_PROGRAMADO,
   ORDEN_STOCK_PE,
   ORDEN_TRANSITO_CP,
@@ -37,6 +40,13 @@ import {
   sumaMetricaOrden,
   type OrdenReposicionModo,
 } from "@/lib/herramienta-reposicion/orden-compra-previa";
+import { TIPO_V2_CALZADO } from "@/lib/retail/product-image-protocol";
+
+/** Inicio Director: Calzado (tipo_v2=1) + orden A→Z línea.referencia */
+const REPOSICION_FILTROS_INICIAL: OperativaFilterState = {
+  ...EMPTY_OPERATIVA_FILTERS,
+  tipoV2Ids: [TIPO_V2_CALZADO],
+};
 import {
   borrarCacheReposicionCliente,
   guardarCacheReposicionCliente,
@@ -60,15 +70,15 @@ export function HerramientaReposicionClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [soloConStock, setSoloConStock] = useState(false);
-  const [filtros, setFiltros] = useState<OperativaFilterState>(EMPTY_OPERATIVA_FILTERS);
+  const [filtros, setFiltros] = useState<OperativaFilterState>(REPOSICION_FILTROS_INICIAL);
   /** Director: inicio con todas las tarjetas desplegadas · Compactar opcional */
   const [expandAll, setExpandAll] = useState(true);
   const [soloSinImagen, setSoloSinImagen] = useState(false);
   const [faltantes, setFaltantes] = useState<Set<string>>(() => new Set());
   const [filtroNivel, setFiltroNivel] = useState<NivelAm | "all">("all");
-  /** Orden KPI: UI al instante + overlay NIIF &lt;0.5s · sort diferido (doble rAF) */
+  /** Orden: A→Z línea.referencia preestablecido · KPIs opcionales */
   const { ordenModo, ordenUi, ordenando, etiquetaOrden, pedirOrden } =
-    useOrdenReposicionConAnimacion(ORDEN_COMPRA_PREVIA);
+    useOrdenReposicionConAnimacion(ORDEN_LINEA_REF_AZ);
 
   /** Nivel AM fijado al cargar API — no recalcular con filtros operativos. */
   const nivelesPorKey = useMemo(() => buildNivelAmMap(articulos), [articulos]);
@@ -132,7 +142,7 @@ export function HerramientaReposicionClient() {
   }, [articulos, soloConStock]);
 
   const asRows = useMemo(
-    () => baseArticulos.map(reposicionArticuloToDepositoRow),
+    () => stampFamiliaPilares(baseArticulos.map(reposicionArticuloToDepositoRow)),
     [baseArticulos],
   );
 
@@ -267,8 +277,8 @@ export function HerramientaReposicionClient() {
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader active="home" />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <main className="w-full max-w-none px-0 py-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 px-3 sm:px-4">
           <div>
             <Link
               href="/rimec?mundo=panel-control"
@@ -283,7 +293,7 @@ export function HerramientaReposicionClient() {
               Herramienta de reposición!!!
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-neutral-700">
-              Cabecera AM (FK) · Sin imagen · Extender. PE + CP + PROGRAMADO.
+              Filtros al margen · catálogo a ancho completo · familias Material/Color.
             </p>
           </div>
           <div className="flex flex-col items-stretch gap-2 sm:items-end">
@@ -316,7 +326,7 @@ export function HerramientaReposicionClient() {
           />
         ) : (
           <>
-            <div className="mt-6 space-y-2">
+            <div className="mt-6 space-y-2 px-3 sm:px-4">
               {hayFiltroActivo ? (
                 <p className="text-[11px] font-semibold text-amber-800">
                   Totales de cabecera ={" "}
@@ -329,16 +339,25 @@ export function HerramientaReposicionClient() {
                   tarjetas
                 </p>
               )}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {(
                   [
-                    { l: "Moléculas", v: kpisVista.moleculas, c: "text-rimec-azul-dark", mode: null as OrdenReposicionModo | null, hint: "" },
+                    { l: "Moléculas", v: kpisVista.moleculas, c: "text-rimec-azul-dark", mode: null as OrdenReposicionModo | null, hint: "", display: "num" as const },
+                    {
+                      l: "A→Z",
+                      v: 0,
+                      c: "text-violet-800",
+                      mode: ORDEN_LINEA_REF_AZ as OrdenReposicionModo,
+                      hint: "Orden A→Z · línea.referencia menor → mayor (preestablecido)",
+                      display: "az" as const,
+                    },
                     {
                       l: "En stock (PE)",
                       v: kpisVista.peDisponible,
                       c: "text-emerald-800",
                       mode: ORDEN_STOCK_PE as OrdenReposicionModo,
                       hint: "Ordenamiento por En stock (PE) · #1 = más pares PE",
+                      display: "num" as const,
                     },
                     {
                       l: "En tránsito (CP disp.)",
@@ -346,6 +365,7 @@ export function HerramientaReposicionClient() {
                       c: "text-rimec-azul",
                       mode: ORDEN_TRANSITO_CP as OrdenReposicionModo,
                       hint: "Ordenamiento por En tránsito · #1 = más pares CP disponibles",
+                      display: "num" as const,
                     },
                     {
                       l: "Vendido (CP)",
@@ -353,6 +373,7 @@ export function HerramientaReposicionClient() {
                       c: "text-emerald-700",
                       mode: ORDEN_COMPRA_PREVIA as OrdenReposicionModo,
                       hint: "Ordenamiento por compra previa · #1 = más pares vendidos CP",
+                      display: "num" as const,
                     },
                     {
                       l: "Programado",
@@ -360,6 +381,7 @@ export function HerramientaReposicionClient() {
                       c: "text-amber-900",
                       mode: ORDEN_PROGRAMADO as OrdenReposicionModo,
                       hint: "Ordenamiento por programado · #1 = mayor cantidad programada",
+                      display: "num" as const,
                     },
                   ] as const
                 ).map((k) => {
@@ -396,15 +418,22 @@ export function HerramientaReposicionClient() {
                         {k.l}
                         {encendido ? (ordenando ? " · ordenando…" : " · orden ON") : ""}
                       </p>
-                      <p className={`font-serif text-2xl font-semibold tabular-nums ${k.c}`}>{fmt(k.v)}</p>
+                      {k.display === "az" ? (
+                        <p className={`font-serif text-2xl font-semibold ${k.c}`}>
+                          línea.ref
+                        </p>
+                      ) : (
+                        <p className={`font-serif text-2xl font-semibold tabular-nums ${k.c}`}>{fmt(k.v)}</p>
+                      )}
                     </button>
                   );
                 })}
               </div>
-              {esOrdenPorMetrica(ordenUi) && (
+              {(esOrdenPorMetrica(ordenUi) || ordenUi === ORDEN_LINEA_REF_AZ) && (
                 <p className="text-[11px] font-semibold text-violet-900">
                   {ordenando ? `⏳ ${etiquetaOrden}` : etiquetaOrdenModo(ordenModo)}
                   {!ordenando &&
+                    esOrdenPorMetrica(ordenModo) &&
                     (sumaOrdenVista === kpiOrdenActivo
                       ? ` · Σ tarjetas ${fmt(sumaOrdenVista)} = KPI ✓`
                       : ` · ⚠ Σ ${fmt(sumaOrdenVista)} ≠ KPI ${fmt(kpiOrdenActivo)}`)}
@@ -422,6 +451,20 @@ export function HerramientaReposicionClient() {
                   ⚠ Cabecera ≠ suma molecular de tarjetas visibles — revisar integridad
                 </p>
               ) : null}
+
+              {/* Tono canónico — círculos de color (mantener · Director 2026-07-16) */}
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                <FiltroTonoOperativa
+                  tonos={filtros.tonos}
+                  sinTono={filtros.sinTono}
+                  onChange={(p) =>
+                    setFiltros((prev) => ({
+                      ...prev,
+                      ...p,
+                    }))
+                  }
+                />
+              </div>
             </div>
 
             {issuesIntegridad.length > 0 && (
@@ -443,94 +486,117 @@ export function HerramientaReposicionClient() {
               </p>
             )}
 
-            <div className="mt-6 space-y-3">
-            <PanelControlTrianguloHeader
-              filtros={filtros}
-              onChange={setFiltros}
-              opciones={opciones}
-              totalProductos={cardsCount}
-              totalPares={totalParesStock}
-              valorInventario={valorInventario}
-              summaryTrailing={
-                <>
-                  <SinImagenCabeceraChip
-                    productos={rowsParaChip}
-                    soloSinImagen={soloSinImagen}
-                    onSoloSinImagenChange={setSoloSinImagen}
-                    onFaltantesChange={onFaltantesChange}
-                  />
-                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={soloConStock}
-                      onChange={(e) => setSoloConStock(e.target.checked)}
+            <div className="mt-6 flex w-full flex-col gap-3 lg:flex-row lg:items-start lg:gap-2">
+              {/* Margen izquierdo de pantalla · filtros pegados al borde */}
+              <div className="w-full shrink-0 pl-1 pr-1 lg:sticky lg:top-2 lg:w-auto lg:max-w-[32rem] lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto lg:pl-1 lg:pr-0">
+                <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm lg:hidden" open>
+                  <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-rimec-azul [&::-webkit-details-marker]:hidden">
+                    ▾ Filtros · dimensiones + molécula
+                  </summary>
+                  <div className="border-t border-slate-100 p-2">
+                    <ReposicionFiltrosSidebar
+                      filtros={filtros}
+                      onChange={setFiltros}
+                      opciones={opciones}
+                      emptyFilters={REPOSICION_FILTROS_INICIAL}
+                      soloConStock={soloConStock}
+                      onSoloConStockChange={setSoloConStock}
+                      trailing={
+                        <SinImagenCabeceraChip
+                          productos={rowsParaChip}
+                          soloSinImagen={soloSinImagen}
+                          onSoloSinImagenChange={setSoloSinImagen}
+                          onFaltantesChange={onFaltantesChange}
+                        />
+                      }
                     />
-                    Solo con stock disponible
-                  </label>
-                </>
-              }
-            />
-
-            <div className={`relative min-h-[12rem] ${ordenando ? "pointer-events-none opacity-70" : ""}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs text-slate-500">
-                    {filtradosOrdenados.length.toLocaleString("es-PY")} /{" "}
-                    {articulos.length.toLocaleString("es-PY")} artículos · CABECERA DE FILTROS · 4 pilares + JPG
-                    {expandAll ? " · tarjetas extendidas" : " · tarjetas compactas"}
-                    {ordenando ? " · ordenando…" : ""}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      [
-                        { id: "all" as const, label: "Todos niveles", count: articulos.length },
-                        { id: 1 as const, label: "N1", count: conteoNiveles.n1 },
-                        { id: 2 as const, label: "N2", count: conteoNiveles.n2 },
-                        { id: 3 as const, label: "N3", count: conteoNiveles.n3 },
-                      ] as const
-                    ).map((opt) => (
-                      <button
-                        key={String(opt.id)}
-                        type="button"
-                        onClick={() => setFiltroNivel(opt.id)}
-                        disabled={ordenando}
-                        className={`rounded-lg border px-2 py-1 text-[10px] font-bold tabular-nums transition ${
-                          filtroNivel === opt.id
-                            ? "border-rimec-azul bg-rimec-azul text-white"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {opt.label} ({opt.count.toLocaleString("es-PY")})
-                      </button>
-                    ))}
                   </div>
+                </details>
+                <div className="hidden lg:block">
+                  <ReposicionFiltrosSidebar
+                    filtros={filtros}
+                    onChange={setFiltros}
+                    opciones={opciones}
+                    emptyFilters={REPOSICION_FILTROS_INICIAL}
+                    soloConStock={soloConStock}
+                    onSoloConStockChange={setSoloConStock}
+                    trailing={
+                      <SinImagenCabeceraChip
+                        productos={rowsParaChip}
+                        soloSinImagen={soloSinImagen}
+                        onSoloSinImagenChange={setSoloSinImagen}
+                        onFaltantesChange={onFaltantesChange}
+                      />
+                    }
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setExpandAll((v) => !v)}
-                  aria-pressed={expandAll}
-                  disabled={ordenando}
-                  className={`min-h-[40px] rounded-xl border px-4 text-xs font-bold transition ${
-                    expandAll
-                      ? "border-bazzar-naranja bg-bazzar-naranja text-white"
-                      : "border-bazzar-naranja/40 bg-white text-bazzar-naranja-dark hover:bg-orange-50"
-                  }`}
-                >
-                  {expandAll ? "▾ Compactar tarjetas" : "▸ Extender todos los datos"}
-                </button>
               </div>
 
-              <ReposicionGrilla
-                articulos={filtradosOrdenados}
-                expandAll={expandAll}
-                ordenModo={ordenModo}
-                nivelesPorKey={nivelesPorKey}
-                ranksPorKey={ranksPorKey}
-              />
-              {!filtradosOrdenados.length && (
-                <p className="mt-8 text-neutral-600">No hay artículos con esos filtros.</p>
-              )}
-            </div>
+              <div
+                className={`relative min-h-[12rem] min-w-0 flex-1 pr-2 sm:pr-3 ${ordenando ? "pointer-events-none opacity-70" : ""}`}
+              >
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-slate-500">
+                      {filtradosOrdenados.length.toLocaleString("es-PY")} /{" "}
+                      {articulos.length.toLocaleString("es-PY")} artículos · sidebar multi-select
+                      {cardsCount > 0
+                        ? ` · ${totalParesStock.toLocaleString("es-PY")} p · Gs ${valorInventario.toLocaleString("es-PY")}`
+                        : ""}
+                      {expandAll ? " · tarjetas extendidas" : " · tarjetas compactas"}
+                      {ordenando ? " · ordenando…" : ""}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {(
+                        [
+                          { id: "all" as const, label: "Todos niveles", count: articulos.length },
+                          { id: 1 as const, label: "N1", count: conteoNiveles.n1 },
+                          { id: 2 as const, label: "N2", count: conteoNiveles.n2 },
+                          { id: 3 as const, label: "N3", count: conteoNiveles.n3 },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={String(opt.id)}
+                          type="button"
+                          onClick={() => setFiltroNivel(opt.id)}
+                          disabled={ordenando}
+                          className={`rounded-lg border px-2 py-1 text-[10px] font-bold tabular-nums transition ${
+                            filtroNivel === opt.id
+                              ? "border-rimec-azul bg-rimec-azul text-white"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          {opt.label} ({opt.count.toLocaleString("es-PY")})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandAll((v) => !v)}
+                    aria-pressed={expandAll}
+                    disabled={ordenando}
+                    className={`min-h-[40px] rounded-xl border px-4 text-xs font-bold transition ${
+                      expandAll
+                        ? "border-bazzar-naranja bg-bazzar-naranja text-white"
+                        : "border-bazzar-naranja/40 bg-white text-bazzar-naranja-dark hover:bg-orange-50"
+                    }`}
+                  >
+                    {expandAll ? "▾ Compactar tarjetas" : "▸ Extender todos los datos"}
+                  </button>
+                </div>
+
+                <ReposicionGrilla
+                  articulos={filtradosOrdenados}
+                  expandAll={expandAll}
+                  ordenModo={ordenModo}
+                  nivelesPorKey={nivelesPorKey}
+                  ranksPorKey={ranksPorKey}
+                />
+                {!filtradosOrdenados.length && (
+                  <p className="mt-8 text-neutral-600">No hay artículos con esos filtros.</p>
+                )}
+              </div>
             </div>
           </>
         )}

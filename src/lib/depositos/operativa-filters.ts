@@ -6,7 +6,39 @@ import {
   sortGradaLabels,
 } from "@/lib/depositos/grada-operativa";
 import { colorPredominante } from "@/lib/pilares/color-canon";
+import { primeraPalabraPilar } from "@/lib/pilares/primera-palabra-pilar";
+import {
+  buildFamiliaClusters,
+  buildFamiliaItems,
+  familiaKeyFromDescripcion,
+  type FamiliaPilarItem,
+} from "@/lib/pilares/agrupar-etiqueta-pilar";
+
+/**
+ * Sella familia_material / familia_color una sola vez (evita Union-Find en cada filtro).
+ * Numéricos → NN · textos → clave familia.
+ */
+export function stampFamiliaPilares(rows: DepositoRow[]): DepositoRow[] {
+  if (!rows.length) return rows;
+  const matTokens = rows
+    .map((r) => primeraPalabraPilar(r.descp_material))
+    .filter((t): t is string => Boolean(t));
+  const colTokens = rows
+    .map((r) => primeraPalabraPilar(r.descp_color))
+    .filter((t): t is string => Boolean(t));
+  const matMap = buildFamiliaClusters(matTokens);
+  const colMap = buildFamiliaClusters(colTokens);
+  return rows.map((r) => ({
+    ...r,
+    familia_material: familiaKeyFromDescripcion(r.descp_material, matMap),
+    familia_color: familiaKeyFromDescripcion(r.descp_color, colMap),
+  }));
+}
 import { normalizePrecioUnitario } from "@/lib/depositos/precio-venta";
+import {
+  rowMatchesTipoGrupos,
+  type TipoGrupoId,
+} from "@/lib/filtros/filtro-tipo-canonico";
 
 export type CantidadOp = "gt" | "lt" | null;
 
@@ -27,6 +59,14 @@ export type OperativaFilterState = {
   gradas: string[];
   /** Alejandro Magno · SDRM cadena comercial (LIQUIDACION|REGULAR|null=todos) */
   cadenaComercial: string | null;
+  /** Grupos canónicos Tipo (vacío = Todos). */
+  tipoGrupos: TipoGrupoId[];
+  /**
+   * Familias Material / Color (claves de agrupar-etiqueta-pilar).
+   * Una opción = muchas variantes (Napa·Nap·Np → Napa).
+   */
+  materialFamilias: string[];
+  colorFamilias: string[];
 };
 
 export type ExcluirDimension = keyof OperativaFilterState;
@@ -45,6 +85,9 @@ export const EMPTY_OPERATIVA_FILTERS: OperativaFilterState = {
   cantidadValor: null,
   gradas: [],
   cadenaComercial: null,
+  tipoGrupos: [],
+  materialFamilias: [],
+  colorFamilias: [],
 };
 
 /** node-pg devuelve bigint como string — normalizar siempre. */
@@ -107,7 +150,10 @@ export function hayFiltrosActivos(f: OperativaFilterState): boolean {
     !!f.q.trim() ||
     f.gradas.length > 0 ||
     (f.cantidadOp != null && f.cantidadValor != null) ||
-    !!f.cadenaComercial
+    !!f.cadenaComercial ||
+    f.tipoGrupos.length > 0 ||
+    f.materialFamilias.length > 0 ||
+    f.colorFamilias.length > 0
   );
 }
 
@@ -204,6 +250,43 @@ export function applyOperativaFilters(
   if (eff.lineaIds.length) {
     out = out.filter((r) => matchFk(r.linea_id, eff.lineaIds));
   }
+  if (eff.tipoGrupos.length) {
+    out = out.filter((r) => rowMatchesTipoGrupos(r, eff.tipoGrupos));
+  }
+  if (eff.materialFamilias.length) {
+    const want = new Set(eff.materialFamilias);
+    const needStamp = out.some((r) => r.familia_material === undefined);
+    const matMap = needStamp
+      ? buildFamiliaClusters(
+          out
+            .map((r) => primeraPalabraPilar(r.descp_material))
+            .filter((t): t is string => Boolean(t)),
+        )
+      : null;
+    out = out.filter((r) => {
+      const k =
+        r.familia_material ??
+        (matMap ? familiaKeyFromDescripcion(r.descp_material, matMap) : null);
+      return k != null && want.has(k);
+    });
+  }
+  if (eff.colorFamilias.length) {
+    const want = new Set(eff.colorFamilias);
+    const needStamp = out.some((r) => r.familia_color === undefined);
+    const colMap = needStamp
+      ? buildFamiliaClusters(
+          out
+            .map((r) => primeraPalabraPilar(r.descp_color))
+            .filter((t): t is string => Boolean(t)),
+        )
+      : null;
+    out = out.filter((r) => {
+      const k =
+        r.familia_color ??
+        (colMap ? familiaKeyFromDescripcion(r.descp_color, colMap) : null);
+      return k != null && want.has(k);
+    });
+  }
   if (eff.sinTono) {
     out = out.filter((r) => !tonoEfectivo(r));
   } else if (eff.tonos.length) {
@@ -252,6 +335,9 @@ export type OperativaOpciones = {
   tipo1: DepositoFilterItem[];
   tipoV2: DepositoFilterItem[];
   lineas: DepositoFilterItem[];
+  /** Familias agrupadas · etiqueta canónica (sin códigos) */
+  materiales: FamiliaPilarItem[];
+  colores: FamiliaPilarItem[];
   tonos: string[];
   gradas: string[];
 };
@@ -260,12 +346,16 @@ function uniqItems(
   rows: DepositoRow[],
   idKey: keyof DepositoRow,
   labelFn: (r: DepositoRow) => string,
+  opts?: { skipZero?: boolean },
 ): DepositoFilterItem[] {
   const map = new Map<number, DepositoFilterItem>();
   for (const r of rows) {
     const n = normFk(r[idKey]);
     if (n == null) continue;
-    if (!map.has(n)) map.set(n, { id: n, label: labelFn(r) });
+    if (opts?.skipZero && n === 0) continue;
+    const label = labelFn(r).trim();
+    if (!label) continue;
+    if (!map.has(n)) map.set(n, { id: n, label });
   }
   return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "es"));
 }
@@ -285,6 +375,17 @@ export function buildOperativaOpciones(
     ),
   ).sort((a, b) => a.localeCompare(b, "es"));
 
+  const matRows = base("materialFamilias");
+  const colRows = base("colorFamilias");
+
+  /** Preferir claves ya selladas; si no, tokens desde descripción. */
+  const matTokens = matRows
+    .map((r) => r.familia_material ?? primeraPalabraPilar(r.descp_material))
+    .filter((t): t is string => Boolean(t));
+  const colTokens = colRows
+    .map((r) => r.familia_color ?? primeraPalabraPilar(r.descp_color))
+    .filter((t): t is string => Boolean(t));
+
   return {
     generos: uniqItems(base("generoIds"), "genero_id", (r) => r.genero),
     marcas: uniqItems(base("marcaIds"), "marca_id", (r) => r.marca),
@@ -294,6 +395,8 @@ export function buildOperativaOpciones(
     ),
     tipoV2: uniqItems(base("tipoV2Ids"), "tipo_v2_id", (r) => r.tipo_v2),
     lineas: uniqItems(base("lineaIds"), "linea_id", (r) => r.linea_codigo_proveedor),
+    materiales: buildFamiliaItems(matTokens),
+    colores: buildFamiliaItems(colTokens),
     tonos,
     gradas: listGradasOperativa(base("gradas")),
   };

@@ -36,5 +36,9 @@ export function reposicionArticuloToDepositoRow(a: ReposicionArticulo): Deposito
     tipo_1: a.tipo_1,
     precio_unitario: a.lpn,
     pares_vendidos: a.totales.cpVendido,
+    caso_precio: a.caso_precio,
+    caso_id: a.caso_id,
+    cadena_comercial: a.cadena_comercial,
+    es_liquidacion: a.es_liquidacion,
   };
 }
