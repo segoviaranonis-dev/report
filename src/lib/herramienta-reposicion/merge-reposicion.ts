@@ -5,6 +5,8 @@
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import { calcularTotalesDesdeBuckets } from "@/lib/herramienta-reposicion/totales-reposicion";
+import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
+import { esLiquidacionRow } from "@/lib/filtros/filtro-tipo-canonico";
 
 export type ReposicionBucket = { label: string; pares: number };
 
@@ -53,6 +55,7 @@ export type ReposicionArticulo = {
     cpDisponible: number;
     cpVendido: number;
     programado: number;
+    ppAbierto: number;
   };
 };
 
@@ -98,6 +101,8 @@ function bucketsFromMap(map: Map<string, number>): ReposicionBucket[] {
     .sort((a, b) => {
       if (a.label === PE_LABEL) return -1;
       if (b.label === PE_LABEL) return 1;
+      if (a.label === PP_ABIERTO_LABEL) return -1;
+      if (b.label === PP_ABIERTO_LABEL) return 1;
       return a.label.localeCompare(b.label, "es");
     });
 }
@@ -169,7 +174,7 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
       caso_precio: row.caso_precio ?? null,
       caso_id: row.caso_id ?? null,
       cadena_comercial: row.cadena_comercial ?? null,
-      es_liquidacion: row.es_liquidacion ?? null,
+      es_liquidacion: esLiquidacionRow(row) ? true : (row.es_liquidacion ?? null),
       stock: new Map(),
       ventasCp: new Map(),
       ventasProgramado: new Map(),
@@ -208,7 +213,7 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
     if (!a.linea_id && row.linea_id) a.linea_id = row.linea_id;
     if (!a.caso_precio && row.caso_precio) a.caso_precio = row.caso_precio;
     if (!a.caso_id && row.caso_id != null) a.caso_id = row.caso_id;
-    if (row.es_liquidacion === true) a.es_liquidacion = true;
+    if (esLiquidacionRow(row)) a.es_liquidacion = true;
     if (row.cadena_comercial) a.cadena_comercial = row.cadena_comercial;
   }
   return a;
@@ -218,6 +223,7 @@ export function mergeReposicionArticulos(input: {
   pe: DepositoRow[];
   compraPrevia: DepositoRow[];
   programado: DepositoRow[];
+  ppAbierto?: DepositoRow[];
 }): ReposicionArticulo[] {
   const acc = new Map<string, Acc>();
 
@@ -243,14 +249,19 @@ export function mergeReposicionArticulos(input: {
     addBucket(a.ventasProgramado, label, vend > 0 ? vend : inicial);
   }
 
+  for (const r of input.ppAbierto ?? []) {
+    const a = ensure(acc, r);
+    addBucket(a.stock, PP_ABIERTO_LABEL, Number(r.cantidad) || 0);
+  }
+
   const out: ReposicionArticulo[] = [];
   for (const [key, a] of acc) {
     const stock = bucketsFromMap(a.stock);
     const ventasCp = bucketsFromMap(a.ventasCp);
     const ventasProgramado = bucketsFromMap(a.ventasProgramado);
     const totales = calcularTotalesDesdeBuckets(stock, ventasCp, ventasProgramado);
-    const { peDisponible, cpDisponible, cpVendido, programado } = totales;
-    if (peDisponible + cpDisponible + cpVendido + programado <= 0) continue;
+    const { peDisponible, cpDisponible, cpVendido, programado, ppAbierto } = totales;
+    if (peDisponible + cpDisponible + cpVendido + programado + ppAbierto <= 0) continue;
     out.push({
       key,
       marca: a.marca,
@@ -293,12 +304,14 @@ export function mergeReposicionArticulos(input: {
       x.totales.peDisponible +
       x.totales.cpDisponible +
       x.totales.cpVendido +
-      x.totales.programado;
+      x.totales.programado +
+      x.totales.ppAbierto;
     const ty =
       y.totales.peDisponible +
       y.totales.cpDisponible +
       y.totales.cpVendido +
-      y.totales.programado;
+      y.totales.programado +
+      y.totales.ppAbierto;
     if (ty !== tx) return ty - tx;
     return `${x.linea}.${x.referencia}`.localeCompare(`${y.linea}.${y.referencia}`, "es");
   });

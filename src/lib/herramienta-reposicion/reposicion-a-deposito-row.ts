@@ -6,6 +6,7 @@ export function reposicionArticuloToDepositoRow(a: ReposicionArticulo): Deposito
   const total =
     a.totales.peDisponible +
     a.totales.cpDisponible +
+    a.totales.ppAbierto +
     a.totales.cpVendido +
     a.totales.programado;
   return {

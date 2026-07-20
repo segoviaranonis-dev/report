@@ -1,4 +1,5 @@
 import type { ReposicionArticulo, ReposicionBucket } from "@/lib/herramienta-reposicion/merge-reposicion";
+import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 
 const PE_LABEL = /^pronta\s*entrega$/i;
 
@@ -15,13 +16,14 @@ export type KpisReposicion = {
   cpDisponible: number;
   cpVendido: number;
   programado: number;
+  ppAbierto: number;
 };
 
 export type IntegridadIssue = {
   key: string;
   linea: string;
   referencia: string;
-  campo: "peDisponible" | "cpDisponible" | "cpVendido" | "programado";
+  campo: "peDisponible" | "cpDisponible" | "cpVendido" | "programado" | "ppAbierto";
   enTotales: number;
   enBuckets: number;
 };
@@ -34,16 +36,18 @@ export function calcularTotalesDesdeBuckets(
 ): ReposicionArticulo["totales"] {
   let peDisponible = 0;
   let cpDisponible = 0;
+  let ppAbierto = 0;
   for (const b of stock) {
     const p = enteroPares(b.pares);
     if (PE_LABEL.test(b.label)) peDisponible += p;
+    else if (b.label === PP_ABIERTO_LABEL) ppAbierto += p;
     else cpDisponible += p;
   }
   let cpVendido = 0;
   for (const b of ventasCp) cpVendido += enteroPares(b.pares);
   let programado = 0;
   for (const b of ventasProgramado) programado += enteroPares(b.pares);
-  return { peDisponible, cpDisponible, cpVendido, programado };
+  return { peDisponible, cpDisponible, cpVendido, programado, ppAbierto };
 }
 
 /** Fuerza `totales` desde buckets — evita drift entre merge y auditoría. */
@@ -60,11 +64,13 @@ export function kpisDesdeArticulos(articulos: ReposicionArticulo[]): KpisReposic
   let cpDisponible = 0;
   let cpVendido = 0;
   let programado = 0;
+  let ppAbierto = 0;
   for (const a of articulos) {
     peDisponible += enteroPares(a.totales.peDisponible);
     cpDisponible += enteroPares(a.totales.cpDisponible);
     cpVendido += enteroPares(a.totales.cpVendido);
     programado += enteroPares(a.totales.programado);
+    ppAbierto += enteroPares(a.totales.ppAbierto);
   }
   return {
     moleculas: articulos.length,
@@ -72,11 +78,12 @@ export function kpisDesdeArticulos(articulos: ReposicionArticulo[]): KpisReposic
     cpDisponible,
     cpVendido,
     programado,
+    ppAbierto,
   };
 }
 
 export function paresStockDesdeArticulo(a: ReposicionArticulo): number {
-  return a.totales.peDisponible + a.totales.cpDisponible;
+  return a.totales.peDisponible + a.totales.cpDisponible + a.totales.ppAbierto;
 }
 
 export function paresTotalesAmDesdeArticulo(a: ReposicionArticulo): number {
@@ -84,7 +91,8 @@ export function paresTotalesAmDesdeArticulo(a: ReposicionArticulo): number {
     a.totales.peDisponible +
     a.totales.cpDisponible +
     a.totales.cpVendido +
-    a.totales.programado
+    a.totales.programado +
+    a.totales.ppAbierto
   );
 }
 
@@ -101,6 +109,7 @@ export function auditarIntegridadArticulo(a: ReposicionArticulo): IntegridadIssu
     { campo: "cpDisponible", enTotales: a.totales.cpDisponible, enBuckets: canon.cpDisponible },
     { campo: "cpVendido", enTotales: a.totales.cpVendido, enBuckets: canon.cpVendido },
     { campo: "programado", enTotales: a.totales.programado, enBuckets: canon.programado },
+    { campo: "ppAbierto", enTotales: a.totales.ppAbierto, enBuckets: canon.ppAbierto },
   ];
   for (const c of checks) {
     if (c.enTotales !== c.enBuckets) {
@@ -132,7 +141,8 @@ export function auditarIntegridadVista(
     kpis.peDisponible === sum.peDisponible &&
     kpis.cpDisponible === sum.cpDisponible &&
     kpis.cpVendido === sum.cpVendido &&
-    kpis.programado === sum.programado
+    kpis.programado === sum.programado &&
+    kpis.ppAbierto === sum.ppAbierto
   );
 }
 

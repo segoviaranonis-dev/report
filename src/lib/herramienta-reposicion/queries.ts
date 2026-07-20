@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { listImportadoProductos } from "@/lib/deposito-rimec/queries-productos-grilla";
 import { listProgramadoProductos } from "@/lib/stock-programado/queries-productos";
 import { listTransitoProductos } from "@/lib/stock-transito/queries-productos";
+import { listPpAbiertoProductos } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 import {
   mergeReposicionArticulos,
   type ReposicionArticulo,
@@ -20,21 +21,24 @@ export type HerramientaReposicionPayload = {
     cpDisponible: number;
     cpVendido: number;
     programado: number;
+    ppAbierto: number;
   };
   integridadOk: true;
 };
 
 export async function getHerramientaReposicion(pool: Pool): Promise<HerramientaReposicionPayload> {
-  const [pe, cp, prog] = await Promise.all([
+  const [pe, cp, prog, ppAbierto] = await Promise.all([
     listImportadoProductos(pool),
     listTransitoProductos(pool),
     listProgramadoProductos(pool),
+    listPpAbiertoProductos(pool),
   ]);
 
   const articulosRaw = mergeReposicionArticulos({
     pe: pe.productos,
     compraPrevia: cp.productos,
     programado: prog.productos,
+    ppAbierto: ppAbierto.productos,
   });
 
   const articulos = articulosRaw.map(recalcularTotalesArticulo);

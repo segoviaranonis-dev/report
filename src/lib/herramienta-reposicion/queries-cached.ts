@@ -32,3 +32,7 @@ export async function getHerramientaReposicionFresh(): Promise<HerramientaReposi
   g.__herramientaReposicionCache = { ts: Date.now(), data };
   return data;
 }
+
+export function invalidarCacheHerramientaReposicion(): void {
+  g.__herramientaReposicionCache = undefined;
+}

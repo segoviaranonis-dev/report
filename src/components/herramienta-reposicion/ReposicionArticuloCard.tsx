@@ -5,7 +5,14 @@ import type { ReposicionArticulo, ReposicionBucket } from "@/lib/herramienta-rep
 import { nivelAmLabel, nivelAmTitulo, type NivelAm } from "@/lib/herramienta-reposicion/nivel-am";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 import { ImagenAmpliadaOverlay } from "@/components/stock-pronta-entrega/ImagenAmpliadaOverlay";
-import { productImageCandidatesForRow } from "@/lib/retail/product-image";
+import { productImageCandidatesForRow, productImagePrimaryFileName } from "@/lib/retail/product-image";
+import { normalizeCasoNombre } from "@/lib/depositos/caso-biblioteca";
+import { esLiquidacionRow } from "@/lib/filtros/filtro-tipo-canonico";
+import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
+
+function esCasoPromo(caso: string | null | undefined): boolean {
+  return normalizeCasoNombre(caso) === "PROMOCIONAL";
+}
 
 /** Fila mock: pill quincena + badge cantidad */
 function PillQty({
@@ -14,25 +21,44 @@ function PillQty({
   badgeClass,
   pillBorderClass,
   showP = true,
+  peLiquidacion = false,
+  ppAbierto = false,
 }: {
   label: string;
   pares: number;
   badgeClass: string;
   pillBorderClass: string;
   showP?: boolean;
+  /** PE + liquidación SDRM — pill con latido fuerte (paridad PeCardMiniatura) */
+  peLiquidacion?: boolean;
+  /** PP abierto — contorno índigo punteado */
+  ppAbierto?: boolean;
 }) {
   const esPe = /^pronta\s*entrega$/i.test(label.trim());
+  const esPpAbierto = ppAbierto || label === PP_ABIERTO_LABEL;
   return (
     <div className="flex items-center justify-between gap-2">
       <span
         className={`max-w-[72%] truncate rounded-full border bg-white px-3 py-1 text-[11px] font-semibold text-slate-800 ${
-          esPe ? "border-2 border-emerald-500" : pillBorderClass
+          peLiquidacion && esPe
+            ? "catalog-card-liquidacion-pulse border-2 border-emerald-600 bg-emerald-50 font-bold text-emerald-900"
+            : esPpAbierto
+              ? "border-2 border-dashed border-indigo-500 bg-indigo-50 font-bold text-indigo-900"
+              : esPe
+                ? "border-2 border-emerald-500"
+                : pillBorderClass
         }`}
       >
-        {label}
+        {peLiquidacion && esPe ? "Pronta entrega · LIQ" : label}
       </span>
       <span
-        className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-black tabular-nums text-white shadow-sm ${badgeClass}`}
+        className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-black tabular-nums text-white shadow-sm ${
+          peLiquidacion && esPe
+            ? "catalog-card-liquidacion-pulse bg-emerald-600"
+            : esPpAbierto
+              ? "bg-indigo-600"
+              : badgeClass
+        }`}
       >
         {Math.round(pares)}
         {showP ? " p" : ""}
@@ -100,14 +126,41 @@ export function ReposicionArticuloCard({
     [a, imageCtx],
   );
 
-  /** STOCK: CP por quincena primero, PE al final (mock) */
+  const nombreFoto = useMemo(
+    () =>
+      productImagePrimaryFileName(
+        a.linea,
+        a.referencia,
+        a.material,
+        a.color,
+        { ...imageCtx, imagenNombre: a.imagen_nombre },
+      ),
+    [a.linea, a.referencia, a.material, a.color, a.imagen_nombre, imageCtx],
+  );
+
+  const nombreFotoDisplay = nombreFoto?.replace(/\.jpe?g$/i, "") ?? null;
+
+  /** STOCK: CP por quincena · PP abierto · PE al final */
   const stockSorted = useMemo(() => {
     const pe = a.stock.filter((b) => /^pronta\s*entrega$/i.test(b.label));
-    const rest = a.stock.filter((b) => !/^pronta\s*entrega$/i.test(b.label));
-    return [...rest, ...pe];
+    const pp = a.stock.filter((b) => b.label === PP_ABIERTO_LABEL);
+    const rest = a.stock.filter(
+      (b) => !/^pronta\s*entrega$/i.test(b.label) && b.label !== PP_ABIERTO_LABEL,
+    );
+    return [...rest, ...pp, ...pe];
   }, [a.stock]);
 
   const hasVentas = a.ventasCp.length > 0 || a.ventasProgramado.length > 0;
+  const esLiq = esLiquidacionRow(a);
+  const esPromo = !esLiq && esCasoPromo(a.caso_precio);
+  const tienePe = a.totales.peDisponible > 0;
+
+  /** overflow-hidden recorta el glow del latido — solo en el bloque de imagen */
+  const cardPulseClass = esLiq
+    ? "catalog-card-liquidacion-pulse border-2 border-emerald-500"
+    : esPromo
+      ? "catalog-card-promo-pulse border-2 border-amber-400"
+      : "border border-slate-200";
 
   const nivelChipClass =
     nivel === 1
@@ -131,20 +184,40 @@ export function ReposicionArticuloCard({
 
   return (
     <>
-      <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <article
+        className={`relative z-0 flex flex-col rounded-2xl bg-white shadow-sm ${cardPulseClass}`}
+      >
         <div className="shrink-0 px-3 pt-3">
           <div className="flex items-start justify-between gap-2">
             <p className="min-w-0 truncate text-sm font-bold uppercase tracking-wide text-rimec-azul">
               {a.marca}
             </p>
-            {chipLabel ? (
-              <span
-                className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-black tabular-nums ${chipClass}`}
-                title={chipTitle}
-              >
-                {chipLabel}
-              </span>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1">
+              {esLiq ? (
+                <span
+                  className="catalog-card-liquidacion-pulse rounded-full border border-emerald-600 bg-emerald-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white"
+                  title="PE liquidación (SDRM)"
+                >
+                  LIQ
+                </span>
+              ) : null}
+              {esPromo ? (
+                <span
+                  className="catalog-card-promo-pulse rounded-full border border-amber-500 bg-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white"
+                  title="Caso PROMOCIONAL"
+                >
+                  PROMO
+                </span>
+              ) : null}
+              {chipLabel ? (
+                <span
+                  className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black tabular-nums ${chipClass}`}
+                  title={chipTitle}
+                >
+                  {chipLabel}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         {/* Marco sagrado — overflow hidden + contain (LEY 2.01.04.021). Prohibido object-cover. */}
@@ -165,9 +238,19 @@ export function ReposicionArticuloCard({
           />
         </button>
         <div className="flex shrink-0 items-baseline justify-between gap-2 px-3 pb-2 pt-2">
-          <p className="min-w-0 truncate font-mono text-base font-bold text-slate-900">
-            {a.linea}.{a.referencia}
-          </p>
+          <div className="min-w-0">
+            <p
+              className="truncate font-mono text-sm font-bold text-slate-900"
+              title={nombreFoto ?? `${a.linea}.${a.referencia}`}
+            >
+              {nombreFotoDisplay ?? `${a.linea}.${a.referencia}`}
+            </p>
+            {nombreFotoDisplay ? (
+              <p className="truncate font-mono text-[10px] text-slate-500">
+                {a.linea}.{a.referencia}
+              </p>
+            ) : null}
+          </div>
           <p className="shrink-0 text-[11px] font-medium text-slate-400">
             {a.lpn != null ? `LPN ${a.lpn.toLocaleString("es-PY")}` : "Sin LPN"}
           </p>
@@ -187,13 +270,16 @@ export function ReposicionArticuloCard({
                   pares={b.pares}
                   badgeClass="bg-bazzar-naranja"
                   pillBorderClass="border-rimec-azul/50"
+                  peLiquidacion={esLiq && tienePe}
+                  ppAbierto={b.label === PP_ABIERTO_LABEL}
                 />
               ))
             )}
             {stockSorted.length > 0 ? (
               <p className="mt-2 border-t border-rimec-azul/15 pt-2 text-[10px] font-bold tabular-nums text-rimec-azul-dark">
-                Σ stock {Math.round(a.totales.peDisponible + a.totales.cpDisponible)} p · PE{" "}
-                {Math.round(a.totales.peDisponible)} · CP {Math.round(a.totales.cpDisponible)}
+                Σ stock {Math.round(a.totales.peDisponible + a.totales.cpDisponible + a.totales.ppAbierto)} p · PE{" "}
+                {Math.round(a.totales.peDisponible)} · CP {Math.round(a.totales.cpDisponible)} · PP{" "}
+                {Math.round(a.totales.ppAbierto)}
               </p>
             ) : null}
           </div>
@@ -262,7 +348,7 @@ export function ReposicionArticuloCard({
       </article>
       <ImagenAmpliadaOverlay
         src={zoomSrc}
-        alt={`${a.marca} ${a.linea}.${a.referencia}`}
+        alt={`${nombreFotoDisplay ?? `${a.linea}.${a.referencia}`} ${a.marca}`}
         onClose={() => setZoomSrc(null)}
       />
     </>

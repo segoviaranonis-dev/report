@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNiifDelayedLoader } from "@/hooks/useNiifDelayedLoader";
 import { useOrdenReposicionConAnimacion } from "@/hooks/useOrdenReposicionConAnimacion";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
@@ -11,6 +11,7 @@ import { EjecutarProtocoloImportacionPreciosButton } from "@/components/motor-pr
 import { SinImagenCabeceraChip } from "@/components/panel-control/SinImagenCabeceraChip";
 import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
 import { ReposicionGrilla } from "@/components/herramienta-reposicion/ReposicionGrilla";
+import { ImportarPpAbiertoButton } from "@/components/herramienta-reposicion/ImportarPpAbiertoButton";
 import { FiltroTonoOperativa } from "@/app/depositos-bazzar/components/operativa/FiltroTonoOperativa";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import type { ReposicionArticulo } from "@/lib/herramienta-reposicion/merge-reposicion";
@@ -31,6 +32,7 @@ import {
   ORDEN_COMPRA_PREVIA,
   ORDEN_LINEA_REF_AZ,
   ORDEN_PROGRAMADO,
+  ORDEN_PP_ABIERTO,
   ORDEN_STOCK_PE,
   ORDEN_TRANSITO_CP,
   esOrdenPorMetrica,
@@ -71,11 +73,24 @@ export function HerramientaReposicionClient() {
   const [err, setErr] = useState<string | null>(null);
   const [soloConStock, setSoloConStock] = useState(false);
   const [filtros, setFiltros] = useState<OperativaFilterState>(REPOSICION_FILTROS_INICIAL);
+  const [qDebounced, setQDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setQDebounced(filtros.q), 280);
+    return () => window.clearTimeout(t);
+  }, [filtros.q]);
+
+  const filtrosCompute = useMemo(
+    () => ({ ...filtros, q: qDebounced }),
+    [filtros, qDebounced],
+  );
+  const filtrosDeferred = useDeferredValue(filtrosCompute);
   /** Director: inicio con todas las tarjetas desplegadas · Compactar opcional */
   const [expandAll, setExpandAll] = useState(true);
   const [soloSinImagen, setSoloSinImagen] = useState(false);
   const [faltantes, setFaltantes] = useState<Set<string>>(() => new Set());
   const [filtroNivel, setFiltroNivel] = useState<NivelAm | "all">("all");
+  /** Solo tarjetas con pill PP abierto (proforma importada). */
+  const [filtroSoloPpAbierto, setFiltroSoloPpAbierto] = useState(false);
   /** Orden: A→Z línea.referencia preestablecido · KPIs opcionales */
   const { ordenModo, ordenUi, ordenando, etiquetaOrden, pedirOrden } =
     useOrdenReposicionConAnimacion(ORDEN_LINEA_REF_AZ);
@@ -138,7 +153,7 @@ export function HerramientaReposicionClient() {
 
   const baseArticulos = useMemo(() => {
     if (!soloConStock) return articulos;
-    return articulos.filter((a) => a.totales.peDisponible + a.totales.cpDisponible > 0);
+    return articulos.filter((a) => a.totales.peDisponible + a.totales.cpDisponible + a.totales.ppAbierto > 0);
   }, [articulos, soloConStock]);
 
   const asRows = useMemo(
@@ -147,16 +162,16 @@ export function HerramientaReposicionClient() {
   );
 
   const opciones = useMemo(
-    () => buildOperativaOpciones(asRows, filtros),
-    [asRows, filtros],
+    () => buildOperativaOpciones(asRows, filtrosDeferred),
+    [asRows, filtrosDeferred],
   );
 
   const filtradasRows = useMemo(
     () =>
-      applyOperativaFilters(asRows, filtros, undefined, {
+      applyOperativaFilters(asRows, filtrosDeferred, undefined, {
         incluirVendidoSinSaldo: true,
       }),
-    [asRows, filtros],
+    [asRows, filtrosDeferred],
   );
 
   const filtrados = useMemo(() => {
@@ -194,11 +209,14 @@ export function HerramientaReposicionClient() {
 
   const filtradosOrdenados = useMemo(() => {
     let list = filtrados;
+    if (filtroSoloPpAbierto) {
+      list = list.filter((a) => a.totales.ppAbierto > 0);
+    }
     if (filtroNivel !== "all") {
       list = list.filter((a) => (nivelesPorKey.get(a.key) ?? 0) === filtroNivel);
     }
     return ordenarArticulosReposicion(list, ordenModo, nivelesPorKey);
-  }, [filtrados, filtroNivel, nivelesPorKey, ordenModo]);
+  }, [filtrados, filtroSoloPpAbierto, filtroNivel, nivelesPorKey, ordenModo]);
 
   const ranksPorKey = useMemo(
     () => ranksOrdenReposicion(filtradosOrdenados),
@@ -219,7 +237,8 @@ export function HerramientaReposicionClient() {
     filtradosOrdenados.length !== articulos.length ||
     soloConStock ||
     soloSinImagen ||
-    filtroNivel !== "all";
+    filtroNivel !== "all" ||
+    filtroSoloPpAbierto;
 
   const totalParesStock = useMemo(
     () => filtradosOrdenados.reduce((s, a) => s + paresStockDesdeArticulo(a), 0),
@@ -259,19 +278,28 @@ export function HerramientaReposicionClient() {
     if (ordenModo === ORDEN_TRANSITO_CP) return kpisVista.cpDisponible;
     if (ordenModo === ORDEN_COMPRA_PREVIA) return kpisVista.cpVendido;
     if (ordenModo === ORDEN_PROGRAMADO) return kpisVista.programado;
+    if (ordenModo === ORDEN_PP_ABIERTO) return kpisVista.ppAbierto;
     return 0;
   }, [ordenModo, kpisVista]);
 
   const sumLineaStockOk =
-    totalParesStock === kpisVista.peDisponible + kpisVista.cpDisponible;
+    totalParesStock === kpisVista.peDisponible + kpisVista.cpDisponible + kpisVista.ppAbierto;
   const sumLineaAmOk =
     totalParesAm ===
     kpisVista.peDisponible +
       kpisVista.cpDisponible +
       kpisVista.cpVendido +
-      kpisVista.programado;
+      kpisVista.programado +
+      kpisVista.ppAbierto;
 
-  /** Auditoría imagen sobre filtros AM (sin el toggle «solo sin foto»). */
+  const toggleFiltroPpAbierto = useCallback(() => {
+    setFiltroSoloPpAbierto((prev) => {
+      const next = !prev;
+      if (next) pedirOrden(ORDEN_PP_ABIERTO);
+      return next;
+    });
+  }, [pedirOrden]);
+
   const rowsParaChip = filtradasRows;
 
   return (
@@ -298,6 +326,7 @@ export function HerramientaReposicionClient() {
           </div>
           <div className="flex flex-col items-stretch gap-2 sm:items-end">
             <EjecutarProtocoloImportacionPreciosButton variant="compact" />
+            <ImportarPpAbiertoButton onImported={() => void load({ fresh: true })} />
             <button
               type="button"
               onClick={() => void load({ fresh: true })}
@@ -332,6 +361,13 @@ export function HerramientaReposicionClient() {
                   Totales de cabecera ={" "}
                   <strong>{filtradosOrdenados.length.toLocaleString("es-PY")}</strong> tarjetas visibles
                   (holding: {articulos.length.toLocaleString("es-PY")} moléculas)
+                  {filtroSoloPpAbierto ? (
+                    <>
+                      {" "}
+                      · <strong className="text-indigo-800">Filtro PP abierto</strong>: solo moléculas con
+                      proforma ({fmt(kpisVista.ppAbierto)} pares)
+                    </>
+                  ) : null}
                 </p>
               ) : (
                 <p className="text-[11px] font-semibold text-emerald-800">
@@ -339,7 +375,7 @@ export function HerramientaReposicionClient() {
                   tarjetas
                 </p>
               )}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
                 {(
                   [
                     { l: "Moléculas", v: kpisVista.moleculas, c: "text-rimec-azul-dark", mode: null as OrdenReposicionModo | null, hint: "", display: "num" as const },
@@ -368,6 +404,15 @@ export function HerramientaReposicionClient() {
                       display: "num" as const,
                     },
                     {
+                      l: "PP abierto",
+                      v: filtroSoloPpAbierto ? kpisVista.ppAbierto : kpisHolding.ppAbierto,
+                      c: "text-indigo-800",
+                      mode: ORDEN_PP_ABIERTO as OrdenReposicionModo,
+                      hint: "Clic: solo tarjetas con PP abierto (proforma) · orden por pares PP",
+                      display: "num" as const,
+                      filtraPp: true as const,
+                    },
+                    {
                       l: "Vendido (CP)",
                       v: kpisVista.cpVendido,
                       c: "text-emerald-700",
@@ -386,11 +431,14 @@ export function HerramientaReposicionClient() {
                   ] as const
                 ).map((k) => {
                   const clickable = k.mode != null;
-                  const encendido = clickable && ordenUi === k.mode;
+                  const encendidoPp = "filtraPp" in k && k.filtraPp && filtroSoloPpAbierto;
+                  const encendido = encendidoPp || (clickable && ordenUi === k.mode);
                   const base =
                     "rounded-xl border-2 px-3 py-2.5 text-left transition duration-150 w-full";
                   const cls = encendido
-                    ? `${base} border-violet-500 bg-violet-50 ring-2 ring-violet-300 ${ordenando ? "scale-[0.98]" : ""}`
+                    ? encendidoPp
+                      ? `${base} border-indigo-500 bg-indigo-50 ring-2 ring-indigo-300 ${ordenando ? "scale-[0.98]" : ""}`
+                      : `${base} border-violet-500 bg-violet-50 ring-2 ring-violet-300 ${ordenando ? "scale-[0.98]" : ""}`
                     : clickable
                       ? `${base} border-neutral-200 bg-white hover:border-violet-300 hover:bg-violet-50/40 active:scale-[0.98]`
                       : `${base} border-neutral-200 bg-white`;
@@ -403,6 +451,8 @@ export function HerramientaReposicionClient() {
                     );
                   }
                   const modoOrden = k.mode as OrdenReposicionModo;
+                  const onKpiClick =
+                    "filtraPp" in k && k.filtraPp ? toggleFiltroPpAbierto : () => pedirOrden(modoOrden);
                   return (
                     <button
                       key={k.l}
@@ -411,12 +461,18 @@ export function HerramientaReposicionClient() {
                       aria-pressed={encendido}
                       aria-busy={ordenando && encendido}
                       disabled={ordenando}
-                      onClick={() => pedirOrden(modoOrden)}
+                      onClick={onKpiClick}
                       className={`${cls} disabled:cursor-wait`}
                     >
                       <p className="text-[10px] font-bold uppercase text-neutral-500">
                         {k.l}
-                        {encendido ? (ordenando ? " · ordenando…" : " · orden ON") : ""}
+                        {encendidoPp
+                          ? " · filtro ON"
+                          : encendido
+                            ? ordenando
+                              ? " · ordenando…"
+                              : " · orden ON"
+                            : ""}
                       </p>
                       {k.display === "az" ? (
                         <p className={`font-serif text-2xl font-semibold ${k.c}`}>
@@ -441,9 +497,9 @@ export function HerramientaReposicionClient() {
               )}
               <p className="text-[10px] tabular-nums text-slate-500">
                 Σ stock {fmt(totalParesStock)} p (PE {fmt(kpisVista.peDisponible)} + CP{" "}
-                {fmt(kpisVista.cpDisponible)}) · Σ AM {fmt(totalParesAm)} p
+                {fmt(kpisVista.cpDisponible)} + PP {fmt(kpisVista.ppAbierto)}) · Σ AM {fmt(totalParesAm)} p
                 {hayFiltroActivo
-                  ? ` · Holding PE ${fmt(kpisHolding.peDisponible)} · CP ${fmt(kpisHolding.cpDisponible)} · Vend. ${fmt(kpisHolding.cpVendido)} · Prog. ${fmt(kpisHolding.programado)}`
+                  ? ` · Holding PE ${fmt(kpisHolding.peDisponible)} · CP ${fmt(kpisHolding.cpDisponible)} · PP ${fmt(kpisHolding.ppAbierto)} · Vend. ${fmt(kpisHolding.cpVendido)} · Prog. ${fmt(kpisHolding.programado)}`
                   : null}
               </p>
               {!integridadVistaOk || !sumLineaStockOk || !sumLineaAmOk ? (
@@ -601,7 +657,7 @@ export function HerramientaReposicionClient() {
           </>
         )}
       </main>
-      <ReportFooter note="Herramienta de reposición · Alejandro Magno · PE + CP + PROGRAMADO" />
+      <ReportFooter note="Herramienta de reposición · Alejandro Magno · PE + CP + PP abierto + PROGRAMADO" />
     </div>
   );
 }

@@ -11,6 +11,7 @@ export type OrdenReposicionModo =
   | "cpDisponible"
   | "cpVendido"
   | "programado"
+  | "ppAbierto"
   | "nivelAm"
   | "lineaReferenciaAz";
 
@@ -18,6 +19,7 @@ export const ORDEN_STOCK_PE: OrdenReposicionModo = "peDisponible";
 export const ORDEN_TRANSITO_CP: OrdenReposicionModo = "cpDisponible";
 export const ORDEN_COMPRA_PREVIA: OrdenReposicionModo = "cpVendido";
 export const ORDEN_PROGRAMADO: OrdenReposicionModo = "programado";
+export const ORDEN_PP_ABIERTO: OrdenReposicionModo = "ppAbierto";
 /** Preestablecido Director: menor → mayor · línea.referencia A→Z */
 export const ORDEN_LINEA_REF_AZ: OrdenReposicionModo = "lineaReferenciaAz";
 
@@ -60,6 +62,7 @@ export function metricaOrden(a: ReposicionArticulo, modo: OrdenReposicionModo): 
   if (modo === "cpDisponible") return enteroPares(a.totales.cpDisponible);
   if (modo === "cpVendido") return enteroPares(a.totales.cpVendido);
   if (modo === "programado") return enteroPares(a.totales.programado);
+  if (modo === "ppAbierto") return enteroPares(a.totales.ppAbierto);
   return 0;
 }
 
@@ -122,6 +125,8 @@ export function etiquetaOrdenModo(modo: OrdenReposicionModo): string {
       return "Ordenamiento por compra previa · chips #1…#n · Σ CP vendido = KPI Vendido (CP)";
     case "programado":
       return "Ordenamiento por programado · chips #1…#n · Σ programado = KPI Programado";
+    case "ppAbierto":
+      return "Filtro PP abierto ON · solo tarjetas con proforma importada · Σ PP = KPI PP abierto";
     case "lineaReferenciaAz":
       return "Orden A→Z · línea.referencia (menor → mayor) · calzado preestablecido";
     default:
