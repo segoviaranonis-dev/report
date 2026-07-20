@@ -91,16 +91,20 @@ export async function buildCsvGeneralAprobaciones(): Promise<string> {
     FROM public.factura_interna fi
     JOIN public.factura_interna_detalle fid ON fid.factura_id = fi.id
     JOIN public.pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+    LEFT JOIN public.pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN public.marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN public.plazo_v2 plz ON plz.id_plazo = fi.plazo_id
     LEFT JOIN public.usuario_v2 u ON u.id_usuario = fi.vendedor_id
-    LEFT JOIN public.pedido_proveedor pp ON pp.id = fi.pp_id
-    LEFT JOIN public.linea l ON l.codigo_proveedor::text = ppd.linea
+    LEFT JOIN public.linea l
+      ON l.codigo_proveedor::text = ppd.linea
+     AND l.proveedor_id = pp.proveedor_importacion_id
     LEFT JOIN public.referencia ref ON ref.codigo_proveedor::text = ppd.referencia
       AND ref.linea_id = l.id
     LEFT JOIN public.linea_referencia lr ON lr.linea_id = l.id
       AND lr.referencia_id = ref.id
-    LEFT JOIN public.material m ON m.codigo_proveedor::text = ppd.material_code
+    LEFT JOIN public.material m
+      ON m.codigo_proveedor::text = ppd.material_code
+     AND m.proveedor_id = pp.proveedor_importacion_id
     LEFT JOIN LATERAL (
       SELECT icp2.precio_evento_id
       FROM public.intencion_compra_pedido icp2
