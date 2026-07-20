@@ -146,6 +146,30 @@ export function auditarIntegridadVista(
   );
 }
 
+/** Vista filtrada ⊆ holding · cada eje ≤ total (tolerancia 0). */
+export function auditarParidadVistaHolding(
+  vista: KpisReposicion,
+  holding: KpisReposicion,
+): boolean {
+  return (
+    vista.moleculas <= holding.moleculas &&
+    vista.peDisponible <= holding.peDisponible &&
+    vista.cpDisponible <= holding.cpDisponible &&
+    vista.cpVendido <= holding.cpVendido &&
+    vista.programado <= holding.programado &&
+    vista.ppAbierto <= holding.ppAbierto
+  );
+}
+
+/** API kpis === recomputo desde tarjetas (holding completo). */
+export function auditarIntegridadApi(
+  apiKpis: KpisReposicion,
+  articulos: ReposicionArticulo[],
+): boolean {
+  const holding = kpisDesdeArticulos(articulos);
+  return JSON.stringify(apiKpis) === JSON.stringify(holding);
+}
+
 /** Valor inventario = LPN × pares en stock (PE + CP disp) — solo tarjetas con LPN. */
 export function valorInventarioDesdeArticulos(articulos: ReposicionArticulo[]): number {
   let total = 0;

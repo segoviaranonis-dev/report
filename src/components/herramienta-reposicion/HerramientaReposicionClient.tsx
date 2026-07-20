@@ -57,6 +57,7 @@ import {
 import {
   auditarIntegridadReposicion,
   auditarIntegridadVista,
+  auditarParidadVistaHolding,
   kpisDesdeArticulos,
   paresStockDesdeArticulo,
   paresTotalesAmDesdeArticulo,
@@ -267,6 +268,11 @@ export function HerramientaReposicionClient() {
     [kpisVista, filtradosOrdenados],
   );
 
+  const paridadVistaHoldingOk = useMemo(
+    () => auditarParidadVistaHolding(kpisVista, kpisHolding),
+    [kpisVista, kpisHolding],
+  );
+
   /** Σ métrica del orden activo = KPI visible · tolerancia 0 */
   const sumaOrdenVista = useMemo(() => {
     if (!esOrdenPorMetrica(ordenModo)) return 0;
@@ -292,12 +298,21 @@ export function HerramientaReposicionClient() {
       kpisVista.programado +
       kpisVista.ppAbierto;
 
+  const integridadHoldingOk = issuesIntegridad.length === 0;
+  const integridadCompletaOk =
+    integridadHoldingOk &&
+    integridadVistaOk &&
+    sumLineaStockOk &&
+    sumLineaAmOk &&
+    paridadVistaHoldingOk;
+
   const toggleFiltroPpAbierto = useCallback(() => {
+    let activar = false;
     setFiltroSoloPpAbierto((prev) => {
-      const next = !prev;
-      if (next) pedirOrden(ORDEN_PP_ABIERTO);
-      return next;
+      activar = !prev;
+      return activar;
     });
+    if (activar) pedirOrden(ORDEN_PP_ABIERTO);
   }, [pedirOrden]);
 
   const rowsParaChip = filtradasRows;
@@ -496,15 +511,37 @@ export function HerramientaReposicionClient() {
                 </p>
               )}
               <p className="text-[10px] tabular-nums text-slate-500">
-                Σ stock {fmt(totalParesStock)} p (PE {fmt(kpisVista.peDisponible)} + CP{" "}
-                {fmt(kpisVista.cpDisponible)} + PP {fmt(kpisVista.ppAbierto)}) · Σ AM {fmt(totalParesAm)} p
-                {hayFiltroActivo
-                  ? ` · Holding PE ${fmt(kpisHolding.peDisponible)} · CP ${fmt(kpisHolding.cpDisponible)} · PP ${fmt(kpisHolding.ppAbierto)} · Vend. ${fmt(kpisHolding.cpVendido)} · Prog. ${fmt(kpisHolding.programado)}`
-                  : null}
+                <span className="font-semibold text-slate-700">Vista ({fmt(filtradosOrdenados.length)} mol):</span>{" "}
+                Σ stock {fmt(totalParesStock)} p = PE {fmt(kpisVista.peDisponible)} + CP{" "}
+                {fmt(kpisVista.cpDisponible)} + PP {fmt(kpisVista.ppAbierto)}
+                {sumLineaStockOk ? " ✓" : " ⚠"} · Σ AM {fmt(totalParesAm)} p = stock + Vend.{" "}
+                {fmt(kpisVista.cpVendido)} + Prog. {fmt(kpisVista.programado)}
+                {sumLineaAmOk ? " ✓" : " ⚠"}
+                {hayFiltroActivo ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="font-semibold text-slate-700">
+                      Holding ({fmt(articulos.length)} mol):
+                    </span>{" "}
+                    PE {fmt(kpisHolding.peDisponible)} · CP {fmt(kpisHolding.cpDisponible)} · PP{" "}
+                    {fmt(kpisHolding.ppAbierto)} · Vend. {fmt(kpisHolding.cpVendido)} · Prog.{" "}
+                    {fmt(kpisHolding.programado)}
+                  </>
+                ) : null}
               </p>
-              {!integridadVistaOk || !sumLineaStockOk || !sumLineaAmOk ? (
+              {integridadCompletaOk ? (
+                <p className="text-[11px] font-semibold text-emerald-800">
+                  Integridad molecular ✓ · tolerancia 0 · KPI = suma tarjetas · vista ⊆ holding
+                </p>
+              ) : null}
+              {!integridadVistaOk || !sumLineaStockOk || !sumLineaAmOk || !paridadVistaHoldingOk ? (
                 <p className="text-[11px] font-bold text-red-700">
-                  ⚠ Cabecera ≠ suma molecular de tarjetas visibles — revisar integridad
+                  ⚠ Cabecera ≠ suma molecular
+                  {!integridadVistaOk ? " · KPI≠tarjetas" : ""}
+                  {!sumLineaStockOk ? " · Σ stock" : ""}
+                  {!sumLineaAmOk ? " · Σ AM" : ""}
+                  {!paridadVistaHoldingOk ? " · vista > holding" : ""}
                 </p>
               ) : null}
 
