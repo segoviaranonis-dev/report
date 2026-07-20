@@ -164,6 +164,18 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     roles: [1],
     rimecAdminOnly: true,
   },
+  {
+    href: "/logistica-ok",
+    title: "Logística OK",
+    shortLabel: "Logística OK",
+    description:
+      "Entregas · confirmación por vendedor · orden quincena embarque · CP + PROGRAMADO (2.3.1.28).",
+    icon: "🚚",
+    group: "rimec",
+    navKey: "logistica-ok",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
 
   // ── BAZZAR tiendas (2.3.2, 2.3.6, 2.3.9/tablet) ──
   {

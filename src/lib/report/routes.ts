@@ -26,6 +26,11 @@ export function digitacionAsignar(icId: number | string): string {
   return `${DIGITACION}/asignar/${icId}`;
 }
 
+export function digitacionAsignarLote(icIds: Array<number | string>, ramo: "programado" | "compra_previa" = "programado"): string {
+  const ids = icIds.map(String).join(",");
+  return `${DIGITACION}/asignar-lote?ramo=${ramo}&ids=${encodeURIComponent(ids)}`;
+}
+
 export type PpDetalleTab = "ics" | "admin-ic" | "stock" | "fi";
 
 export function pedidoProveedorDetalle(ppId: number | string, tab?: PpDetalleTab): string {
