@@ -26,6 +26,7 @@ export type NexusNavKey =
   | "compra-legal"
   | "facturacion"
   | "deposito-rimec"
+  | "logistica-ok"
   | "bazzar-web-compra"
   | "bazzar-web-deposito"
   | "bazzar-web-motor"
