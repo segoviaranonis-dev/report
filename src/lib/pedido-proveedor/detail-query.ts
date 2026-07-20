@@ -39,6 +39,12 @@ export type PpDetalleHeader = {
   n_facturas_internas: number;
   n_fi_confirmadas: number;
   fi_bloqueada: boolean;
+  /** Palabra reservada: Fecha de entrega Real → fecha_arribo_real */
+  fecha_entrega_real: string | null;
+  logistica_bandera_activa: boolean;
+  logistica_activada_at: string | null;
+  logistica_n_fi: number;
+  logistica_cajas: number;
 };
 
 import type { PpAlaNorteRow } from "./ala-norte-types";
@@ -56,11 +62,13 @@ export type PpFacturaInternaRow = {
   cliente_id: number | null;
   cliente: string;
   vendedor: string;
+  vendedor_id: number | null;
   marca: string;
   caso: string;
   lista_precio_id: number | null;
   ic_listado_precio_id: number | null;
   plazo_nombre: string | null;
+  plazo_id: number | null;
   descuento_1: number;
   descuento_2: number;
   descuento_3: number;
@@ -123,6 +131,11 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     evento_nombre: string | null;
     n_fi: string;
     n_fi_confirmadas: string;
+    fecha_arribo_real: string | null;
+    logistica_bandera_activa: boolean;
+    logistica_activada_at: string | null;
+    logistica_n_fi: string;
+    logistica_cajas: string;
   }>(
     `
     SELECT
@@ -238,7 +251,18 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
         LIMIT 1
       ) AS evento_nombre,
       (SELECT COUNT(*)::text FROM factura_interna fi WHERE fi.pp_id = pp.id) AS n_fi,
-      (SELECT COUNT(*)::text FROM factura_interna fi WHERE fi.pp_id = pp.id AND fi.estado = 'CONFIRMADA') AS n_fi_confirmadas
+      (SELECT COUNT(*)::text FROM factura_interna fi WHERE fi.pp_id = pp.id AND fi.estado = 'CONFIRMADA') AS n_fi_confirmadas,
+      pp.fecha_arribo_real::text AS fecha_arribo_real,
+      COALESCE(pp.logistica_bandera_activa, false) AS logistica_bandera_activa,
+      pp.logistica_activada_at::text AS logistica_activada_at,
+      (SELECT COUNT(*)::text FROM logistica_pendiente_confirmacion l WHERE l.pedido_proveedor_id = pp.id) AS logistica_n_fi,
+      /* cajas desde FI detalle — no depende de columna snapshot MIG-168 */
+      (
+        SELECT COALESCE(SUM(fid.cajas), 0)::text
+        FROM logistica_pendiente_confirmacion l
+        JOIN factura_interna_detalle fid ON fid.factura_id = l.factura_interna_id
+        WHERE l.pedido_proveedor_id = pp.id
+      ) AS logistica_cajas
     FROM pedido_proveedor pp
     LEFT JOIN proveedor_importacion pi ON pi.id = pp.proveedor_importacion_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
@@ -307,6 +331,11 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     n_facturas_internas: Number(r.n_fi ?? 0),
     n_fi_confirmadas: Number(r.n_fi_confirmadas ?? 0),
     fi_bloqueada: Number(r.total_articulos ?? 0) === 0,
+    fecha_entrega_real: r.fecha_arribo_real?.slice(0, 10) ?? null,
+    logistica_bandera_activa: Boolean(r.logistica_bandera_activa),
+    logistica_activada_at: r.logistica_activada_at,
+    logistica_n_fi: Number(r.logistica_n_fi ?? 0),
+    logistica_cajas: Number(r.logistica_cajas ?? 0),
   };
 }
 
@@ -397,11 +426,13 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
     created_at: string | null;
     cliente_id: string | null;
     cliente: string;
+    vendedor_id: string | null;
     vendedor: string;
     marca: string;
     caso: string;
     lista_precio_id: string | null;
     ic_listado_precio_id: string | null;
+    plazo_id: string | null;
     plazo_nombre: string | null;
     descuento_1: string;
     descuento_2: string;
@@ -421,11 +452,17 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
            fi.created_at::text AS created_at,
            fi.cliente_id::text AS cliente_id,
            COALESCE(cv.descp_cliente, '—') AS cliente,
-           COALESCE(NULLIF(TRIM(vd.descp_vendedor), ''), '—') AS vendedor,
+           fi.vendedor_id::text AS vendedor_id,
+           COALESCE(
+             NULLIF(TRIM(vd_fi.descp_vendedor), ''),
+             NULLIF(TRIM(vd_ic.descp_vendedor), ''),
+             '—'
+           ) AS vendedor,
            COALESCE(NULLIF(TRIM(fi.marca), ''), NULLIF(TRIM(mv.descp_marca), ''), '—') AS marca,
            COALESCE(fi.caso, '—') AS caso,
            fi.lista_precio_id::text AS lista_precio_id,
            ic.listado_precio_id::text AS ic_listado_precio_id,
+           COALESCE(fi.plazo_id, ic.id_plazo)::text AS plazo_id,
            COALESCE(NULLIF(TRIM(pl.descp_plazo), ''), NULLIF(TRIM(pl_ic.descp_plazo), '')) AS plazo_nombre,
            COALESCE(fi.descuento_1, ic.descuento_1, 0)::text AS descuento_1,
            COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
@@ -442,11 +479,11 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
       WHERE icp.pedido_proveedor_id = fi.pp_id
         AND ic.id_cliente = fi.cliente_id
-        AND ic.id_vendedor = fi.vendedor_id
       ORDER BY ABS(ic.cantidad_total_pares - COALESCE(fi.total_pares, 0)) ASC, ic.id ASC
       LIMIT 1
     ) ic ON true
-    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
+    LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
+    LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)
     LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     WHERE fi.pp_id = $1
@@ -473,11 +510,13 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
     created_at: r.created_at,
     cliente_id: r.cliente_id != null ? Number(r.cliente_id) : null,
     cliente: r.cliente,
+    vendedor_id: r.vendedor_id != null ? Number(r.vendedor_id) : null,
     vendedor: r.vendedor,
     marca: r.marca,
     caso: r.caso,
     lista_precio_id: r.lista_precio_id != null ? Number(r.lista_precio_id) : null,
     ic_listado_precio_id: r.ic_listado_precio_id != null ? Number(r.ic_listado_precio_id) : null,
+    plazo_id: r.plazo_id != null ? Number(r.plazo_id) : null,
     plazo_nombre: r.plazo_nombre,
     descuento_1: Number(r.descuento_1 ?? 0),
     descuento_2: Number(r.descuento_2 ?? 0),

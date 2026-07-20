@@ -32,6 +32,7 @@ import { IcProgramadoCabeceraGuide } from "@/app/proceso-importacion/intencion-c
 import { PpTabAdministradorIc } from "./PpTabAdministradorIc";
 import { PpTabStock } from "./PpTabStock";
 import { PpTabFacturasInternas } from "./PpTabFacturasInternas";
+import { PpLogisticaBandera } from "./PpLogisticaBandera";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
 
 const QUINCENA_IDS = Array.from({ length: 24 }, (_, i) => i + 1);
@@ -63,6 +64,10 @@ type IcFormDraft = {
   nro_pedido_fabrica: string;
   pares: number;
   monto_bruto: number;
+  descuento_1: number;
+  descuento_2: number;
+  descuento_3: number;
+  descuento_4: number;
   id_plazo: number | null;
   id_marca: number;
   id_vendedor: number;
@@ -76,10 +81,22 @@ function fmtGs(n: number) {
   return n.toLocaleString("es-PY", { maximumFractionDigits: 0 });
 }
 
+function fmtDescLabel(d1: number, d2: number, d3: number, d4: number) {
+  const parts = [d1, d2, d3, d4].map((d) => Number(d) || 0);
+  if (parts.every((d) => d === 0)) return "—";
+  return parts.map((d) => `${d}%`).join(" · ");
+}
+
 function parseMontoGsInput(raw: string): number {
   const cleaned = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
   const n = Number(cleaned);
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
+}
+
+function parsePctInput(raw: string): number {
+  const n = Number(String(raw).replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(100, Math.round(n * 100) / 100);
 }
 
 function icToDraft(ic: PpIcVinculada): IcFormDraft {
@@ -87,6 +104,10 @@ function icToDraft(ic: PpIcVinculada): IcFormDraft {
     nro_pedido_fabrica: ic.nro_pedido_fabrica ?? "",
     pares: ic.pares,
     monto_bruto: Math.round(Number(ic.monto_bruto ?? 0)),
+    descuento_1: Number(ic.descuento_1 ?? 0),
+    descuento_2: Number(ic.descuento_2 ?? 0),
+    descuento_3: Number(ic.descuento_3 ?? 0),
+    descuento_4: Number(ic.descuento_4 ?? 0),
     id_plazo: ic.id_plazo,
     id_marca: ic.id_marca,
     id_vendedor: ic.id_vendedor,
@@ -162,6 +183,19 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  /** Pasillo ágil PP ↔ Digitación: al volver con foco, refrescar ICs/estado. */
+  useEffect(() => {
+    function onFocusOrVisible() {
+      if (document.visibilityState === "visible") void load();
+    }
+    window.addEventListener("focus", onFocusOrVisible);
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+    return () => {
+      window.removeEventListener("focus", onFocusOrVisible);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -248,10 +282,6 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     if (!pp) return;
     const draft = icDrafts[icId];
     if (!draft) return;
-    if (draft.categoria_id === CATEGORIA_PROGRAMADO_ID && !esListadoPrecioValido(draft.listado_precio_id)) {
-      setMsg("PROGRAMADO exige elegir política LP antes de guardar.");
-      return;
-    }
     setIcBusy(icId);
     setMsg(null);
     try {
@@ -265,6 +295,10 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             nro_pedido_fabrica: draft.nro_pedido_fabrica,
             cantidad_total_pares: draft.pares,
             monto_bruto: draft.monto_bruto,
+            descuento_1: draft.descuento_1,
+            descuento_2: draft.descuento_2,
+            descuento_3: draft.descuento_3,
+            descuento_4: draft.descuento_4,
             id_plazo: draft.id_plazo,
             id_marca: draft.id_marca,
             id_vendedor: draft.id_vendedor,
@@ -360,6 +394,18 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   }
 
   const digitacionAbierta = pp?.estado_digitacion !== "CERRADO";
+  const fromParam = searchParams.get("from");
+  const ramoDig =
+    pp?.categoria_id === CATEGORIA_PROGRAMADO_ID || fromParam === "programado"
+      ? "programado"
+      : "compra_previa";
+  const digitacionHref = `${DIGITACION}?ramo=${ramoDig}`;
+  const listaHref =
+    fromParam === "programado" || pp?.categoria_id === CATEGORIA_PROGRAMADO_ID
+      ? `${PEDIDO_PROVEEDOR}?ramo=programado`
+      : fromParam === "compra_previa"
+        ? `${PEDIDO_PROVEEDOR}?ramo=compra_previa`
+        : PEDIDO_PROVEEDOR;
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
@@ -371,7 +417,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             : "max-w-6xl px-4 sm:px-6"
         }`}
       >
-        <Link href={PEDIDO_PROVEEDOR} className="text-sm font-semibold text-rimec-azul hover:underline">
+        <Link href={listaHref} className="text-sm font-semibold text-rimec-azul hover:underline">
           ← Lista pedidos proveedor
         </Link>
 
@@ -388,19 +434,34 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">2.3.1.7.5 · Detalle PP</p>
                 <h1 className="mt-2 font-mono text-3xl font-bold text-rimec-azul-dark">{pp.numero_registro}</h1>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className={`rounded px-2 py-0.5 text-xs font-bold ${ESTADO_STYLE[pp.estado] ?? "bg-slate-100"}`}>
                     {pp.estado}
                   </span>
-                  <span className="rounded bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-900">
+                  <Link
+                    href={digitacionHref}
+                    title="Ir a Digitación del mismo ramo"
+                    className="rounded bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-900 underline-offset-2 hover:bg-violet-200 hover:underline"
+                  >
                     Digitación: {pp.estado_digitacion ?? "ABIERTO"}
-                  </span>
+                  </Link>
                   {pp.web_alzado && (
                     <span className="rounded bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-900">
                       RIMEC Web · tránsito
                     </span>
                   )}
                 </div>
+                {pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                  <Link
+                    href={digitacionHref}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-800"
+                  >
+                    → Digitación PROGRAMADO
+                    <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                      pasillo
+                    </span>
+                  </Link>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3 text-center text-sm sm:grid-cols-3 lg:grid-cols-5">
                 <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
@@ -567,6 +628,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   <dd className="text-xs">{pp.listado_precio?.nombre ?? "Sin vincular"}</dd>
                 </div>
               </dl>
+              <PpLogisticaBandera ppId={Number(ppId)} pp={pp} onActivated={() => void load()} />
               {!pp.cabecera_editable && (
                 <p className="mt-2 text-xs text-amber-800">PP {pp.estado} — cabecera e ICs en solo lectura.</p>
               )}
@@ -661,6 +723,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                               >
                                 {ic.nro_ic}
                               </Link>
+                              <span
+                                className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-amber-950"
+                                title="Descuentos IC (D1·D2·D3·D4)"
+                              >
+                                {fmtDescLabel(
+                                  editable ? draft.descuento_1 : ic.descuento_1,
+                                  editable ? draft.descuento_2 : ic.descuento_2,
+                                  editable ? draft.descuento_3 : ic.descuento_3,
+                                  editable ? draft.descuento_4 : ic.descuento_4,
+                                )}
+                              </span>
                               {ic.categoria_id === CATEGORIA_PROGRAMADO_ID && (
                                 <span className="rounded border border-violet-200 bg-violet-50 px-2 py-0.5 font-mono text-[10px] font-bold text-violet-900">
                                   SHOP {ic.id_cliente} · {ic.cliente}
@@ -689,11 +762,11 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                               {draft.categoria_id === CATEGORIA_PROGRAMADO_ID && (
                                 <div className="sm:col-span-2 lg:col-span-3">
                                   <SelectorPoliticaLp
-                                    required
+                                    required={false}
                                     disabled={icBusy === ic.ic_id}
                                     value={draft.listado_precio_id}
                                     onChange={(id) => patchIcDraft(ic.ic_id, { listado_precio_id: id })}
-                                    hint={`Cabecera FI · CSV col. LISTA · actual ${labelListadoPrecio(draft.listado_precio_id)}`}
+                                    hint={`Opcional en IC · CSV/FI si aplica · actual ${labelListadoPrecio(draft.listado_precio_id)}`}
                                   />
                                 </div>
                               )}
@@ -798,14 +871,46 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                   {fmtGs(
                                     calcularNeto(
                                       draft.monto_bruto,
-                                      ic.descuento_1,
-                                      ic.descuento_2,
-                                      ic.descuento_3,
-                                      ic.descuento_4,
+                                      draft.descuento_1,
+                                      draft.descuento_2,
+                                      draft.descuento_3,
+                                      draft.descuento_4,
                                     ),
                                   )}
                                 </span>
                               </label>
+                              <div className="sm:col-span-2 lg:col-span-3">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                                  Descuentos % → Pre-FI / FI
+                                </p>
+                                <div className="mt-0.5 grid grid-cols-4 gap-1">
+                                  {(
+                                    [
+                                      ["descuento_1", "D1"],
+                                      ["descuento_2", "D2"],
+                                      ["descuento_3", "D3"],
+                                      ["descuento_4", "D4"],
+                                    ] as const
+                                  ).map(([key, lab]) => (
+                                    <label key={key} className="text-xs">
+                                      <span className="font-semibold text-slate-500">{lab}</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step={0.01}
+                                        className={`${inputCls} font-mono tabular-nums`}
+                                        value={draft[key]}
+                                        onChange={(e) =>
+                                          patchIcDraft(ic.ic_id, {
+                                            [key]: parsePctInput(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
                               <label className="text-xs">
                                 <span className="font-semibold text-slate-500">
                                   {draft.categoria_id === CATEGORIA_PROGRAMADO_ID
@@ -865,6 +970,15 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                               <p className="font-mono font-semibold text-slate-800">
                                 Gs. {fmtGs(ic.monto_bruto)} bruto · Gs. {fmtGs(ic.monto_neto)} neto
                               </p>
+                              <p className="font-semibold text-amber-900">
+                                Desc:{" "}
+                                {fmtDescLabel(
+                                  ic.descuento_1,
+                                  ic.descuento_2,
+                                  ic.descuento_3,
+                                  ic.descuento_4,
+                                )}
+                              </p>
                               <p>
                                 Plazo:{" "}
                                 <span className="font-semibold">{ic.plazo_nombre?.trim() || "—"}</span>
@@ -887,12 +1001,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                             <div className="mt-3 flex flex-wrap items-start gap-2">
                               <button
                                 type="button"
-                                disabled={
-                                  icBusy === ic.ic_id
-                                  || !catalogos
-                                  || (draft.categoria_id === CATEGORIA_PROGRAMADO_ID
-                                    && !esListadoPrecioValido(draft.listado_precio_id))
-                                }
+                                disabled={icBusy === ic.ic_id || !catalogos}
                                 onClick={() => guardarIc(ic.ic_id)}
                                 className="rounded border border-rimec-azul/30 bg-white px-3 py-1 text-xs font-bold text-rimec-azul hover:bg-sky-50 disabled:opacity-50"
                               >
@@ -913,8 +1022,12 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                     })}
                   </ul>
                 )}
-                <Link href={DIGITACION} className="mt-4 inline-block text-xs font-semibold text-rimec-azul hover:underline">
-                  + Asignar otra IC en Digitación
+                <Link
+                  href={digitacionHref}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg border-2 border-violet-600 bg-violet-50 px-4 py-2 text-sm font-bold text-violet-900 hover:bg-violet-100"
+                >
+                  → Digitación {ramoDig === "programado" ? "PROGRAMADO" : "Compra previa"}
+                  <span className="text-xs font-semibold text-violet-700">· asignar otra IC</span>
                 </Link>
               </section>
             )}
@@ -942,6 +1055,8 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   ppId={ppId}
                   facturas={facturas}
                   detallesPorFi={detallesPorFi}
+                  vendedores={catalogos?.vendedores ?? []}
+                  plazos={catalogos?.plazos ?? []}
                   onReload={load}
                   onMsg={setMsg}
                 />

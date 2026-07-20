@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
 import {
   brutoDesdeNeto,
+  descuentoInputDisplay,
   fmtDescuentoPct,
   fmtFechaDoc,
   fmtGs,
   listaPrecioLabel,
+  normalizarDescuentos4,
+  parseDescuentoInput,
+  sanitizeDescuentoTyping,
 } from "@/app/aprobaciones/lib/aprobaciones-utils";
 import { SelectorPoliticaLp } from "@/app/proceso-importacion/intencion-compra/components/SelectorPoliticaLp";
 import {
@@ -15,6 +19,7 @@ import {
   labelListadoPrecio,
   type ListadoPrecioTierId,
 } from "@/lib/intencion-compra/listado-precio-tiers";
+import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { PpFacturaInternaRow } from "@/lib/pedido-proveedor/detail-query";
 import {
   fetchPdfBlob,
@@ -36,6 +41,8 @@ type Props = {
   ppId: number;
   programado: boolean;
   editable: boolean;
+  vendedores: IcCatalogos["vendedores"];
+  plazos: IcCatalogos["plazos"];
   onUpdated: () => void;
   onMsg: (text: string) => void;
 };
@@ -49,17 +56,37 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, onMsg }: Props) {
+export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores, plazos, onUpdated, onMsg }: Props) {
   const [open, setOpen] = useState(false);
   const [lp, setLp] = useState<ListadoPrecioTierId | null>(
     esListadoPrecioValido(fi.lista_precio_id) ? fi.lista_precio_id : null,
   );
+  const [vendedorId, setVendedorId] = useState(fi.vendedor_id ?? 0);
+  const [vendedorNombre, setVendedorNombre] = useState(fi.vendedor);
+  const [plazoId, setPlazoId] = useState(fi.plazo_id ?? 0);
+  const [dStr, setDStr] = useState(() =>
+    [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4].map(descuentoInputDisplay),
+  );
   const [busy, setBusy] = useState(false);
+  const [vendBusy, setVendBusy] = useState(false);
+  const [encBusy, setEncBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
     setLp(esListadoPrecioValido(fi.lista_precio_id) ? fi.lista_precio_id : null);
   }, [fi.id, fi.lista_precio_id]);
+
+  useEffect(() => {
+    setVendedorId(fi.vendedor_id ?? 0);
+    setVendedorNombre(fi.vendedor);
+  }, [fi.id, fi.vendedor_id, fi.vendedor]);
+
+  useEffect(() => {
+    setPlazoId(fi.plazo_id ?? 0);
+    setDStr(
+      [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4].map(descuentoInputDisplay),
+    );
+  }, [fi.id, fi.plazo_id, fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4]);
 
   useEffect(() => {
     if (open) prefetchSingleFiPdf(ppId, fi.id);
@@ -73,6 +100,11 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
     fi.descuento_3,
     fi.descuento_4,
   ];
+  const encabezadoDirty =
+    plazoId !== (fi.plazo_id ?? 0)
+    || dStr.some((s, i) => parseDescuentoInput(s) !== descuentos[i]);
+  const plazoNombre =
+    plazos.find((p) => p.id === plazoId)?.label ?? fi.plazo_nombre?.trim() ?? "—";
   const montoNeto = fi.total_monto;
   const montoBruto = brutoDesdeNeto(montoNeto, ...descuentos);
   const icLp = labelListadoPrecio(fi.ic_listado_precio_id);
@@ -95,6 +127,68 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
       onMsg(err instanceof Error ? err.message : "Error al descargar PDF");
     } finally {
       setPdfBusy(false);
+    }
+  }
+
+  async function guardarVendedor(nextId: number) {
+    if (!nextId || nextId === vendedorId) return;
+    setVendBusy(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/fi/${fi.id}/vendedor`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id_vendedor: nextId }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setVendedorId(nextId);
+      setVendedorNombre(data.vendedor ?? vendedorNombre);
+      onMsg(`FI ${fi.nro_factura} · vendedor → ${data.vendedor ?? nextId}`);
+      onUpdated();
+    } catch (err) {
+      onMsg(err instanceof Error ? err.message : "Error");
+    } finally {
+      setVendBusy(false);
+    }
+  }
+
+  async function guardarEncabezado() {
+    if (!plazoId) {
+      onMsg("Elegí un plazo antes de guardar.");
+      return;
+    }
+    const parsed = normalizarDescuentos4(dStr.map(parseDescuentoInput));
+    setEncBusy(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/fi/${fi.id}/encabezado`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plazo_id: plazoId,
+            descuento_1: parsed[0],
+            descuento_2: parsed[1],
+            descuento_3: parsed[2],
+            descuento_4: parsed[3],
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al guardar encabezado");
+      onMsg(
+        `FI ${fi.nro_factura} · plazo + descuentos · total Gs. ${Number(data.total_monto ?? 0).toLocaleString("es-PY")}`,
+      );
+      onUpdated();
+    } catch (err) {
+      onMsg(err instanceof Error ? err.message : "Error");
+    } finally {
+      setEncBusy(false);
     }
   }
 
@@ -160,7 +254,7 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
           </div>
           <p className="mt-1 text-sm font-semibold text-slate-900">{fi.cliente}</p>
           <p className="text-xs text-slate-600">
-            {fi.vendedor} · {fiLp} · {fi.plazo_nombre?.trim() || "Sin plazo"}
+            {vendedorNombre} · {fiLp} · {plazoNombre}
             {fi.marca !== "—" ? ` · ${fi.marca}` : ""}
           </p>
           <p className="text-[10px] text-slate-500">
@@ -190,19 +284,87 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, onUpdated, 
         <>
           <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <MetaCell label="Vendedor" value={fi.vendedor} />
+              {fiEditable && vendedores.length > 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Vendedor</p>
+                  <select
+                    value={vendedorId || ""}
+                    disabled={vendBusy}
+                    onChange={(e) => void guardarVendedor(Number(e.target.value))}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm font-semibold text-rimec-azul-dark"
+                  >
+                    <option value="">— Elegir —</option>
+                    {vendedores.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <MetaCell label="Vendedor" value={vendedorNombre} />
+              )}
               <MetaCell label="Listado precios" value={fiLp} />
-              <MetaCell label="Plazo" value={fi.plazo_nombre?.trim() || "—"} />
+              {fiEditable && plazos.length > 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Plazo</p>
+                  <select
+                    value={plazoId || ""}
+                    disabled={encBusy}
+                    onChange={(e) => setPlazoId(Number(e.target.value))}
+                    className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm font-semibold text-rimec-azul-dark"
+                  >
+                    <option value="">— Elegir —</option>
+                    {plazos.filter((p) => p.id != null).map((p) => (
+                      <option key={p.id!} value={p.id!}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <MetaCell label="Plazo" value={fi.plazo_nombre?.trim() || "—"} />
+              )}
               <MetaCell label="Marca" value={fi.marca !== "—" ? fi.marca : "—"} />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Desc. {i + 1}</p>
-                  <p className="mt-0.5 text-sm font-semibold text-rimec-azul-dark">{fmtDescuentoPct(descuentos[i])}</p>
-                </div>
-              ))}
+              {[0, 1, 2, 3].map((i) =>
+                fiEditable ? (
+                  <label key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Desc. {i + 1} %
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={dStr[i]}
+                      disabled={encBusy}
+                      onChange={(e) => {
+                        const next = [...dStr];
+                        next[i] = sanitizeDescuentoTyping(e.target.value);
+                        setDStr(next);
+                      }}
+                      className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm font-semibold text-rimec-azul-dark"
+                    />
+                  </label>
+                ) : (
+                  <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Desc. {i + 1}</p>
+                    <p className="mt-0.5 text-sm font-semibold text-rimec-azul-dark">{fmtDescuentoPct(descuentos[i])}</p>
+                  </div>
+                ),
+              )}
             </div>
+            {fiEditable && encabezadoDirty && (
+              <button
+                type="button"
+                disabled={encBusy || !plazoId}
+                onClick={() => void guardarEncabezado()}
+                className="mt-3 rounded-lg bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                {encBusy ? "Recalculando…" : "Guardar plazo y descuentos (recalcula FI + IC)"}
+              </button>
+            )}
           </div>
 
           <div className="space-y-4 p-4">

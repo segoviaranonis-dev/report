@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
+import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { PpDetalleHeader, PpFacturaInternaRow } from "@/lib/pedido-proveedor/detail-query";
 import {
   clearCachedCsv,
@@ -22,11 +23,13 @@ type Props = {
   ppId: string;
   facturas: PpFacturaInternaRow[];
   detallesPorFi: Record<number, FiDetalle[]>;
+  vendedores: IcCatalogos["vendedores"];
+  plazos: IcCatalogos["plazos"];
   onReload: () => void;
   onMsg: (text: string) => void;
 };
 
-export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onReload, onMsg }: Props) {
+export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vendedores, plazos, onReload, onMsg }: Props) {
   const editable = pp.listado_editable;
   const esProgramado = pp.categoria_id === CATEGORIA_PROGRAMADO_ID;
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
@@ -244,6 +247,8 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, onRel
             ppId={ppIdNum}
             programado={esProgramado}
             editable={editable}
+            vendedores={vendedores}
+            plazos={plazos}
             detalles={detallesPorFi[fi.id] ?? []}
             onUpdated={onReload}
             onMsg={onMsg}

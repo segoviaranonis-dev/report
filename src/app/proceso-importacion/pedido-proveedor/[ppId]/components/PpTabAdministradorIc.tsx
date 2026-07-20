@@ -44,7 +44,7 @@ function msgFromUnknown(e: unknown): string {
 }
 
 const CABECERA_GRID =
-  "grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,1fr)_2rem_minmax(0,1fr)_2.5rem_0.9rem_1.1rem]";
+  "grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,1fr)_2rem_minmax(0,0.65fr)_minmax(0,1fr)_2.5rem_0.9rem_1.1rem]";
 
 const CANON_ERR =
   "rounded bg-red-200 font-bold text-red-950 ring-2 ring-red-500 shadow-sm animate-pulse";
@@ -57,6 +57,16 @@ function fmtMonto(n: number) {
   return n.toLocaleString("es-PY", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+/** Compacto D1+D2+… para grilla Admin IC */
+function fmtDescCompact(d1: number, d2: number, d3: number, d4: number) {
+  const labels = ["D1", "D2", "D3", "D4"];
+  const parts = [d1, d2, d3, d4]
+    .map((d, i) => ({ v: Number(d) || 0, lab: labels[i] }))
+    .filter((x) => x.v > 0)
+    .map((x) => `${x.lab}:${x.v}`);
+  return parts.length ? parts.join(" ") : "—";
+}
+
 function CabeceraFila({
   tone,
   codCliente,
@@ -66,6 +76,7 @@ function CabeceraFila({
   monto,
   montoSecundario,
   pares,
+  descLabel,
   canonDiff,
   canonHint,
   expanded,
@@ -84,6 +95,8 @@ function CabeceraFila({
   monto: number;
   montoSecundario?: number | null;
   pares: number;
+  /** Compacto D1+D2+… (IC / Pre-FI). */
+  descLabel?: string;
   canonDiff?: CanonDiffCelda | null;
   /** Valor canon del otro panel (tooltip al corregir IC). */
   canonHint?: { cliente?: string | number; marca?: string; cantidad?: number };
@@ -138,14 +151,24 @@ function CabeceraFila({
         {pares}
       </span>
       <span
-        className="truncate text-right tabular-nums"
+        className="truncate text-center text-[9px] font-bold tabular-nums text-amber-900"
+        title={`Descuentos IC: ${descLabel ?? "—"}`}
+      >
+        {descLabel && descLabel !== "—" ? descLabel : "—"}
+      </span>
+      <span
+        className="min-w-0 truncate text-right tabular-nums"
         title={
-          montoSecundario != null && Math.abs(montoSecundario - monto) > 1
-            ? `Sin desc.: ${fmtMonto(monto)} · con desc. IC: ${fmtMonto(montoSecundario)}`
-            : fmtMonto(monto)
+          [
+            montoSecundario != null && Math.abs(montoSecundario - monto) > 1
+              ? `Sin desc.: ${fmtMonto(monto)} · con desc. IC: ${fmtMonto(montoSecundario)}`
+              : `Monto bruto ${fmtMonto(monto)}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")
         }
       >
-        <span className="font-bold">{fmtMonto(monto)}</span>
+        <span className="block font-bold leading-tight">{fmtMonto(monto)}</span>
       </span>
       {lpEditable && lpValue != null && onLpChange && !lpLocked ? (
         <select
@@ -711,6 +734,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
             <span>IC Nº</span>
             <span>Marca</span>
             <span className="text-right">Cant.</span>
+            <span className="text-center">Desc</span>
             <span className="text-right">Monto</span>
             <span>LP</span>
             <span />
@@ -734,6 +758,12 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                   monto={ic.monto_ic}
                   montoSecundario={ic.monto_proforma}
                   pares={ic.pares}
+                  descLabel={fmtDescCompact(
+                    ic.descuento_1,
+                    ic.descuento_2,
+                    ic.descuento_3,
+                    ic.descuento_4,
+                  )}
                   canonDiff={canonDiff}
                   canonHint={
                     pfPar
@@ -763,6 +793,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
             <span>Caso</span>
             <span>Marca</span>
             <span className="text-right">Cant.</span>
+            <span className="text-center">Desc</span>
             <span className="text-right">Monto</span>
             <span>LP</span>
             <span />
@@ -808,6 +839,16 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                     monto={pfDisplay.total_monto}
                     montoSecundario={montoConDescIc}
                     pares={pfDisplay.total_pares}
+                    descLabel={
+                      icVinculada
+                        ? fmtDescCompact(
+                            icVinculada.descuento_1,
+                            icVinculada.descuento_2,
+                            icVinculada.descuento_3,
+                            icVinculada.descuento_4,
+                          )
+                        : undefined
+                    }
                     canonDiff={canonDiff}
                     canonHint={
                       icPar
