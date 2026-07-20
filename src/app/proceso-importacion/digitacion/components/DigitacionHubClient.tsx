@@ -6,21 +6,185 @@ import { useSearchParams } from "next/navigation";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { Skeleton } from "@/components/ui/LoadingState";
-import type { IcDigitacionPendiente, PpDigitacionQuincenaGrupo, PpEnProceso } from "@/lib/digitacion/bandeja-query";
-import { groupPpDigitacionPorQuincena } from "@/lib/digitacion/bandeja-query";
+import type { IcDigitacionPendiente, IcPendienteEmbarqueGrupo, PpDigitacionQuincenaGrupo, PpEnProceso } from "@/lib/digitacion/bandeja-query";
+import { groupIcPendientesPorEmbarque, groupPpDigitacionPorQuincena } from "@/lib/digitacion/bandeja-query";
 import type { RamoDigitacion } from "@/lib/intencion-compra/categoria-ic";
 import { labelRamoDigitacion } from "@/lib/intencion-compra/categoria-ic";
 import { FECHA_DE_EMBARQUE_LABEL } from "@/lib/intencion-compra/quincena-arribo";
 import {
-  DIGITACION,
   INTENCION_COMPRA_BANDEJA,
   PROCESO_IMPORTACION,
   PEDIDO_PROVEEDOR,
   digitacionAsignar,
+  digitacionAsignarLote,
   pedidoProveedorDetalle,
 } from "@/lib/report/routes";
 
 type Vista = "pendientes" | "en_proceso" | "cerrados";
+
+type FiltroKey =
+  | "ic"
+  | "vendedor"
+  | "marca"
+  | "cliente"
+  | "nro_fabrica"
+  | "estado"
+  | "creada"
+  | "pares"
+  | "evento"
+  | "embarque";
+
+type PendientesFiltros = Record<FiltroKey, string[]>;
+
+const FILTROS_VACIOS: PendientesFiltros = {
+  ic: [],
+  vendedor: [],
+  marca: [],
+  cliente: [],
+  nro_fabrica: [],
+  estado: [],
+  creada: [],
+  pares: [],
+  evento: [],
+  embarque: [],
+};
+
+const FILTRO_CAMPOS: { key: FiltroKey; label: string }[] = [
+  { key: "ic", label: "IC" },
+  { key: "vendedor", label: "Vendedor" },
+  { key: "marca", label: "Marca" },
+  { key: "cliente", label: "Cliente" },
+  { key: "nro_fabrica", label: "Nro. pedido fábrica" },
+  { key: "estado", label: "Estado" },
+  { key: "creada", label: "Creada" },
+  { key: "pares", label: "Pares" },
+  { key: "evento", label: "Evento" },
+  { key: "embarque", label: "FECHA DE EMBARQUE" },
+];
+
+function valorCampoFiltro(ic: IcDigitacionPendiente, key: FiltroKey): string {
+  switch (key) {
+    case "ic":
+      return ic.numero_registro;
+    case "vendedor":
+      return ic.vendedor || "—";
+    case "marca":
+      return ic.marca;
+    case "cliente":
+      return ic.cliente;
+    case "nro_fabrica":
+      return ic.nro_pedido_fabrica?.trim() || "—";
+    case "estado":
+      return ic.estado === "PENDIENTE_OPERATIVO" ? "Bandeja IC" : "Autorizada";
+    case "creada":
+      return fmtFechaCreacion(ic.fecha_creacion);
+    case "pares":
+      return String(ic.pares);
+    case "evento":
+      return ic.evento_precio?.trim() || "—";
+    case "embarque":
+      return ic.fecha_embarque?.trim() || "Sin fecha de embarque";
+  }
+}
+
+function icPasaFiltros(ic: IcDigitacionPendiente, f: PendientesFiltros) {
+  for (const key of Object.keys(f) as FiltroKey[]) {
+    const sel = f[key];
+    if (!sel.length) continue;
+    if (!sel.includes(valorCampoFiltro(ic, key))) return false;
+  }
+  return true;
+}
+
+function uniqSorted(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+}
+
+function FiltroMultiSelect({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const n = selected.length;
+  function toggle(opt: string) {
+    if (selected.includes(opt)) onChange(selected.filter((x) => x !== opt));
+    else onChange([...selected, opt]);
+  }
+
+  return (
+    <details className="group relative rounded-md border border-slate-300 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-1 px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0 truncate">
+          {label}
+          {n > 0 ? (
+            <span className="ml-1 rounded bg-violet-100 px-1.5 py-0.5 font-extrabold normal-case text-violet-900">
+              {n}
+            </span>
+          ) : null}
+        </span>
+        <span className="shrink-0 text-slate-400">▾</span>
+      </summary>
+      <div className="absolute left-0 right-0 z-30 mt-0.5 max-h-48 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+        <div className="flex items-center justify-between border-b border-slate-100 px-2 py-1">
+          <span className="text-[10px] text-slate-500">{options.length} opc.</span>
+          {n > 0 && (
+            <button
+              type="button"
+              className="text-[10px] font-bold text-violet-800 hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                onChange([]);
+              }}
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+        <ul className="max-h-40 space-y-0.5 overflow-y-auto p-1" role="group" aria-label={`${label} multi-select`}>
+          {options.length === 0 ? (
+            <li className="px-2 py-1.5 text-[11px] text-slate-400">Sin opciones</li>
+          ) : (
+            options.map((opt) => {
+              const on = selected.includes(opt);
+              return (
+                <li key={opt}>
+                  <label
+                    className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs ${
+                      on ? "bg-violet-50 font-semibold text-violet-950" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggle(opt)}
+                      className="h-3.5 w-3.5 accent-violet-700"
+                    />
+                    <span className="min-w-0 flex-1 truncate normal-case" title={opt}>
+                      {opt}
+                    </span>
+                  </label>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </div>
+    </details>
+  );
+}
+
+function fmtFechaCreacion(raw: string | null | undefined) {
+  if (!raw) return "—";
+  const d = new Date(raw.includes("T") ? raw : `${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 10);
+  return d.toLocaleDateString("es-PY", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 function DevolverModal({
   ic,
@@ -283,6 +447,230 @@ function QuincenaCerradosExpander({
   );
 }
 
+function PendienteIcRow({
+  ic,
+  ramo,
+  multiSelectOn,
+  checked,
+  onToggle,
+  onDevolver,
+  onEliminar,
+}: {
+  ic: IcDigitacionPendiente;
+  ramo: RamoDigitacion;
+  multiSelectOn: boolean;
+  checked: boolean;
+  onToggle: () => void;
+  onDevolver: () => void;
+  onEliminar: () => void;
+}) {
+  const pendienteBandeja = ic.estado === "PENDIENTE_OPERATIVO";
+  const esProgramadoRamo = ramo === "programado";
+
+  return (
+    <tr className={`border-t border-slate-100 hover:bg-slate-50/80 ${checked ? "bg-violet-50/70" : ""}`}>
+      {multiSelectOn && (
+        <td className="px-2 py-3">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onToggle}
+            aria-label={`Seleccionar ${ic.numero_registro}`}
+            className="h-4 w-4 accent-violet-700"
+          />
+        </td>
+      )}
+      <td className="px-3 py-3 font-mono text-xs font-bold">{ic.numero_registro}</td>
+      <td className="px-3 py-3 text-xs">{ic.vendedor || "—"}</td>
+      <td className="px-3 py-3">{ic.marca}</td>
+      <td className="px-3 py-3 text-xs">{ic.cliente}</td>
+      <td className="px-3 py-3 font-mono text-xs text-slate-700">{ic.nro_pedido_fabrica?.trim() || "—"}</td>
+      <td className="px-3 py-3">
+        <span
+          className={`rounded px-2 py-0.5 text-xs font-bold ${
+            pendienteBandeja ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
+          }`}
+        >
+          {pendienteBandeja ? "Bandeja IC" : "Autorizada"}
+        </span>
+      </td>
+      <td className="px-3 py-3 font-mono text-xs text-slate-700">{fmtFechaCreacion(ic.fecha_creacion)}</td>
+      <td className="px-3 py-3">{ic.pares.toLocaleString("es-PY")}</td>
+      <td className="px-3 py-3 text-xs text-slate-600">{ic.evento_precio ?? "—"}</td>
+      <td className="px-3 py-3 text-right">
+        <div className="inline-flex items-center justify-end gap-1">
+          {esProgramadoRamo || !pendienteBandeja ? (
+            <>
+              <Link
+                href={`${digitacionAsignar(ic.id)}?ramo=${ramo}`}
+                title={esProgramadoRamo ? "Asignar PP" : "Asignar"}
+                aria-label={esProgramadoRamo ? "Asignar PP" : "Asignar"}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-bold text-white shadow-sm ${
+                  esProgramadoRamo ? "bg-violet-700 hover:bg-violet-800" : "bg-rimec-azul hover:bg-rimec-azul-dark"
+                }`}
+              >
+                →
+              </Link>
+              {!pendienteBandeja && (
+                <button
+                  type="button"
+                  title="Devolver"
+                  aria-label="Devolver"
+                  onClick={onDevolver}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-bold text-red-700 hover:bg-red-50"
+                >
+                  ↩
+                </button>
+              )}
+              <button
+                type="button"
+                title="Eliminar"
+                aria-label="Eliminar"
+                onClick={onEliminar}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-500 bg-slate-800 text-sm font-bold text-white hover:bg-slate-900"
+              >
+                ✕
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href={INTENCION_COMPRA_BANDEJA}
+                title="Autorizar en bandeja"
+                aria-label="Autorizar en bandeja"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-violet-300 bg-violet-50 text-sm font-bold text-violet-900 hover:bg-violet-100"
+              >
+                ✓
+              </Link>
+              <button
+                type="button"
+                title="Eliminar"
+                aria-label="Eliminar"
+                onClick={onEliminar}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-500 bg-slate-800 text-sm font-bold text-white hover:bg-slate-900"
+              >
+                ✕
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function EmbarquePendientesExpander({
+  grupo,
+  defaultOpen,
+  ramo,
+  multiSelectOn,
+  selectedIds,
+  onToggle,
+  onToggleGroup,
+  onDevolver,
+  onEliminar,
+}: {
+  grupo: IcPendienteEmbarqueGrupo;
+  defaultOpen: boolean;
+  ramo: RamoDigitacion;
+  multiSelectOn: boolean;
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+  onToggleGroup: (ids: number[], select: boolean) => void;
+  onDevolver: (ic: IcDigitacionPendiente) => void;
+  onEliminar: (ic: IcDigitacionPendiente) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const ids = grupo.ics.map((ic) => ic.id);
+  const selectedInGroup = ids.filter((id) => selectedIds.includes(id)).length;
+  const allGroupSelected = multiSelectOn && ids.length > 0 && selectedInGroup === ids.length;
+  const someGroupSelected = multiSelectOn && selectedInGroup > 0 && !allGroupSelected;
+
+  return (
+    <div
+      className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+        ramo === "programado" ? "border-violet-200" : "border-slate-200"
+      }`}
+    >
+      <div
+        className={`flex w-full items-center gap-3 px-4 py-3.5 ${
+          ramo === "programado" ? "bg-violet-50/80 hover:bg-violet-50" : "bg-slate-50 hover:bg-slate-100/80"
+        }`}
+      >
+        {multiSelectOn && (
+          <input
+            type="checkbox"
+            checked={allGroupSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = someGroupSelected;
+            }}
+            onChange={() => onToggleGroup(ids, !allGroupSelected)}
+            aria-label={`Seleccionar IC de ${grupo.quincena}`}
+            className="h-4 w-4 shrink-0 accent-violet-700"
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-rimec-azul-dark">
+              <span className="mr-1.5" aria-hidden>
+                📅
+              </span>
+              {FECHA_DE_EMBARQUE_LABEL}: {grupo.quincena}
+            </span>
+            <span className="mt-0.5 block text-xs font-semibold text-slate-600">
+              {grupo.n_ics} IC · {grupo.n_clientes} cliente{grupo.n_clientes !== 1 ? "s" : ""} ·{" "}
+              <strong className="tabular-nums text-rimec-azul-dark">
+                {grupo.total_pares.toLocaleString("es-PY")} pares
+              </strong>
+            </span>
+          </span>
+          <span className="shrink-0 text-slate-400">{open ? "▲" : "▼"}</span>
+        </button>
+      </div>
+      {open && (
+        <div className="overflow-x-auto border-t border-slate-100">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="bg-white text-left text-xs font-bold uppercase text-slate-500">
+              <tr>
+                {multiSelectOn && <th className="w-10 px-2 py-2" />}
+                <th className="px-3 py-2">IC</th>
+                <th className="px-3 py-2">Vendedor</th>
+                <th className="px-3 py-2">Marca</th>
+                <th className="px-3 py-2">Cliente</th>
+                <th className="px-3 py-2">Nro. fábrica</th>
+                <th className="px-3 py-2">Estado</th>
+                <th className="px-3 py-2">Creada</th>
+                <th className="px-3 py-2">Pares</th>
+                <th className="px-3 py-2">Evento</th>
+                <th className="px-3 py-2 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grupo.ics.map((ic) => (
+                <PendienteIcRow
+                  key={ic.id}
+                  ic={ic}
+                  ramo={ramo}
+                  multiSelectOn={multiSelectOn}
+                  checked={selectedIds.includes(ic.id)}
+                  onToggle={() => onToggle(ic.id)}
+                  onDevolver={() => onDevolver(ic)}
+                  onEliminar={() => onEliminar(ic)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DigitacionHubClient() {
   const searchParams = useSearchParams();
   const ramoInicial = searchParams.get("ramo") === "programado" ? "programado" : "compra_previa";
@@ -295,6 +683,8 @@ export function DigitacionHubClient() {
   const [cerrados, setCerrados] = useState<PpEnProceso[]>([]);
   const [statsRamos, setStatsRamos] = useState({ compra_previa: 0, programado: 0, total_pares: 0 });
   const [devolverIc, setDevolverIc] = useState<IcDigitacionPendiente | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [filtros, setFiltros] = useState<PendientesFiltros>(FILTROS_VACIOS);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -313,12 +703,29 @@ export function DigitacionHubClient() {
         programado: data.stats?.programado ?? 0,
         total_pares: data.stats?.total_pares ?? 0,
       });
+      setSelectedIds([]);
+      setFiltros(FILTROS_VACIOS);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {
       setLoading(false);
     }
   }, [ramo]);
+
+  async function eliminarIcSimple(ic: IcDigitacionPendiente) {
+    if (!window.confirm(`¿Seguro que querés eliminar ${ic.numero_registro}?`)) return;
+    try {
+      const res = await fetch(`/api/proceso-importacion/intencion-compra/${ic.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al eliminar");
+      await load();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Error al eliminar");
+    }
+  }
 
   useEffect(() => {
     setRamo(ramoInicial);
@@ -329,7 +736,58 @@ export function DigitacionHubClient() {
   }, [load]);
 
   const nPend = pendientes.length;
+  const pendientesFiltrados = useMemo(
+    () => pendientes.filter((ic) => icPasaFiltros(ic, filtros)),
+    [pendientes, filtros],
+  );
+  const gruposPendientes = useMemo(
+    () => groupIcPendientesPorEmbarque(pendientesFiltrados),
+    [pendientesFiltrados],
+  );
+  const filtrosActivos = useMemo(
+    () => Object.values(filtros).some((v) => v.length > 0),
+    [filtros],
+  );
+  const opcionesFiltro = useMemo(() => {
+    const map = {} as Record<FiltroKey, string[]>;
+    for (const { key } of FILTRO_CAMPOS) {
+      map[key] = uniqSorted(pendientes.map((ic) => valorCampoFiltro(ic, key)));
+    }
+    // Label dinámico embarque ya está en FILTRO_CAMPOS; override label at render
+    return map;
+  }, [pendientes]);
   const gruposCerrados = useMemo(() => groupPpDigitacionPorQuincena(cerrados), [cerrados]);
+  const multiSelectOn = ramo === "programado" && vista === "pendientes";
+  const allSelected =
+    multiSelectOn &&
+    pendientesFiltrados.length > 0 &&
+    pendientesFiltrados.every((ic) => selectedIds.includes(ic.id));
+  const selectedPares = useMemo(() => {
+    if (!selectedIds.length) return 0;
+    const set = new Set(selectedIds);
+    return pendientes.filter((ic) => set.has(ic.id)).reduce((s, ic) => s + (ic.pares || 0), 0);
+  }, [pendientes, selectedIds]);
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) setSelectedIds([]);
+    else setSelectedIds(pendientesFiltrados.map((ic) => ic.id));
+  }
+
+  function toggleSelectGroup(ids: number[], select: boolean) {
+    setSelectedIds((prev) => {
+      if (select) return [...new Set([...prev, ...ids])];
+      const drop = new Set(ids);
+      return prev.filter((id) => !drop.has(id));
+    });
+  }
+
+  function patchFiltro(key: FiltroKey, value: string[]) {
+    setFiltros((prev) => ({ ...prev, [key]: value }));
+  }
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
@@ -353,6 +811,8 @@ export function DigitacionHubClient() {
               onClick={() => {
                 setRamo(r);
                 setVista("pendientes");
+                setSelectedIds([]);
+                setFiltros(FILTROS_VACIOS);
               }}
               className={`rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition ${
                 ramo === r
@@ -393,7 +853,10 @@ export function DigitacionHubClient() {
             <button
               key={v}
               type="button"
-              onClick={() => setVista(v)}
+              onClick={() => {
+                setVista(v);
+                if (v !== "pendientes") setSelectedIds([]);
+              }}
               className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition ${
                 vista === v
                   ? "border-b-2 border-rimec-azul text-rimec-azul"
@@ -422,78 +885,78 @@ export function DigitacionHubClient() {
                 No hay IC {labelRamoDigitacion(ramo).toLowerCase()} sin asignar
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full min-w-[780px] text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-3">IC</th>
-                      <th className="px-3 py-3">Marca</th>
-                      <th className="px-3 py-3">Cliente</th>
-                      <th className="px-3 py-3">Estado</th>
-                      <th className="px-3 py-3">{FECHA_DE_EMBARQUE_LABEL}</th>
-                      <th className="px-3 py-3">Pares</th>
-                      <th className="px-3 py-3">Evento</th>
-                      <th className="px-3 py-3 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendientes.map((ic) => {
-                      const pendienteBandeja = ic.estado === "PENDIENTE_OPERATIVO";
-                      const esProgramadoRamo = ramo === "programado";
-                      return (
-                        <tr key={ic.id} className="border-t border-slate-100 hover:bg-slate-50/80">
-                          <td className="px-3 py-3 font-mono text-xs font-bold">{ic.numero_registro}</td>
-                          <td className="px-3 py-3">{ic.marca}</td>
-                          <td className="px-3 py-3 text-xs">{ic.cliente}</td>
-                          <td className="px-3 py-3">
-                            <span
-                              className={`rounded px-2 py-0.5 text-xs font-bold ${
-                                pendienteBandeja ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
-                              }`}
-                            >
-                              {pendienteBandeja ? "Bandeja IC" : "Autorizada"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-xs">{ic.fecha_embarque ?? "—"}</td>
-                          <td className="px-3 py-3">{ic.pares.toLocaleString("es-PY")}</td>
-                          <td className="px-3 py-3 text-xs text-slate-600">{ic.evento_precio ?? "—"}</td>
-                          <td className="px-3 py-3 text-right">
-                            {esProgramadoRamo || !pendienteBandeja ? (
-                              <>
-                                <Link
-                                  href={`${digitacionAsignar(ic.id)}?ramo=programado`}
-                                  className={`mr-2 inline-block rounded-lg px-3 py-1.5 text-xs font-bold text-white ${
-                                    esProgramadoRamo
-                                      ? "bg-violet-700 hover:bg-violet-800"
-                                      : "bg-rimec-azul hover:bg-rimec-azul-dark"
-                                  }`}
-                                >
-                                  {esProgramadoRamo ? "Asignar PP →" : "Asignar →"}
-                                </Link>
-                                {!pendienteBandeja && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setDevolverIc(ic)}
-                                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
-                                  >
-                                    ← Devolver
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <Link
-                                href={INTENCION_COMPRA_BANDEJA}
-                                className="inline-block rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-900 hover:bg-violet-100"
-                              >
-                                Autorizar en bandeja →
-                              </Link>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                <div className="relative z-20 overflow-visible rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Filtros multi-select · sin selección = mostrar todo
+                    </p>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="tabular-nums text-slate-600">
+                        {pendientesFiltrados.length}/{nPend} IC
+                        {filtrosActivos ? " (filtrado)" : ""}
+                      </span>
+                      {filtrosActivos && (
+                        <button
+                          type="button"
+                          onClick={() => setFiltros(FILTROS_VACIOS)}
+                          className="rounded-md border border-slate-300 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Limpiar filtros
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    {FILTRO_CAMPOS.map(({ key, label }) => (
+                      <FiltroMultiSelect
+                        key={key}
+                        label={key === "embarque" ? FECHA_DE_EMBARQUE_LABEL : label}
+                        options={opcionesFiltro[key] ?? []}
+                        selected={filtros[key]}
+                        onChange={(next) => patchFiltro(key, next)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {multiSelectOn && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-950">
+                    <label className="inline-flex items-center gap-2 font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 accent-violet-700"
+                      />
+                      Seleccionar visibles ({pendientesFiltrados.length} IC · {gruposPendientes.length} embarques)
+                    </label>
+                    <span className="tabular-nums text-slate-600">
+                      Agrupado por {FECHA_DE_EMBARQUE_LABEL.toLowerCase()}
+                    </span>
+                  </div>
+                )}
+
+                {gruposPendientes.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-8 text-center text-sm text-amber-950">
+                    Ninguna IC coincide con los filtros.
+                  </p>
+                ) : (
+                  gruposPendientes.map((g, i) => (
+                    <EmbarquePendientesExpander
+                      key={g.key}
+                      grupo={g}
+                      defaultOpen={i === 0}
+                      ramo={ramo}
+                      multiSelectOn={multiSelectOn}
+                      selectedIds={selectedIds}
+                      onToggle={toggleSelect}
+                      onToggleGroup={toggleSelectGroup}
+                      onDevolver={(ic) => setDevolverIc(ic)}
+                      onEliminar={(ic) => void eliminarIcSimple(ic)}
+                    />
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -529,6 +992,29 @@ export function DigitacionHubClient() {
         )}
       </main>
       <ReportFooter note={`Digitación · ${labelRamoDigitacion(ramo)} · 2.3.1.7.4`} />
+
+      {multiSelectOn && selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex w-[min(92vw,36rem)] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border-2 border-violet-400 bg-violet-900 px-4 py-3 text-white shadow-2xl">
+          <div className="min-w-0 text-sm">
+            <p className="font-bold">
+              {selectedIds.length} IC · {selectedPares.toLocaleString("es-PY")} pares
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-violet-200 underline hover:text-white"
+            >
+              Limpiar selección
+            </button>
+          </div>
+          <Link
+            href={digitacionAsignarLote(selectedIds, "programado")}
+            className="shrink-0 rounded-xl bg-white px-4 py-2.5 text-sm font-extrabold text-violet-900 hover:bg-violet-50"
+          >
+            Asignar {selectedIds.length} →
+          </Link>
+        </div>
+      )}
 
       {devolverIc && (
         <DevolverModal ic={devolverIc} onClose={() => setDevolverIc(null)} onDone={load} />

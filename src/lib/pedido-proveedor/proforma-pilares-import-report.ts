@@ -75,7 +75,7 @@ export async function listLineasProformaEnBiblioteca(
 ): Promise<LineaBibliotecaAsignada[]> {
   if (!codigos.length) return [];
   const { rows } = await pool.query<{ cod: string; nombre_caso: string }>(
-    `SELECT DISTINCT t.cod, cpb.nombre_caso
+    `SELECT t.cod, MIN(cpb.nombre_caso) AS nombre_caso
      FROM unnest($1::text[]) AS t(cod)
      INNER JOIN linea l
        ON l.proveedor_id = $2
@@ -83,7 +83,8 @@ export async function listLineasProformaEnBiblioteca(
      INNER JOIN biblioteca_caso_linea bcl
        ON bcl.biblioteca_id = $3 AND bcl.linea_id = l.id
      INNER JOIN caso_precio_biblioteca cpb ON cpb.id = bcl.caso_biblioteca_id
-     ORDER BY t.cod::bigint`,
+     GROUP BY t.cod
+     ORDER BY MIN(t.cod::bigint)`,
     [codigos, proveedorId, bibliotecaId],
   );
   return rows.map((r) => ({
@@ -100,7 +101,7 @@ export async function listLineasProformaSinBiblioteca(
 ): Promise<string[]> {
   if (!codigos.length) return [];
   const { rows } = await pool.query<{ cod: string }>(
-    `SELECT DISTINCT t.cod
+    `SELECT t.cod
      FROM unnest($1::text[]) AS t(cod)
      INNER JOIN linea l
        ON l.proveedor_id = $2
@@ -110,7 +111,8 @@ export async function listLineasProformaSinBiblioteca(
        SELECT 1 FROM biblioteca_caso_linea bcl
        WHERE bcl.biblioteca_id = $3 AND bcl.linea_id = l.id
      )
-     ORDER BY t.cod::bigint`,
+     GROUP BY t.cod
+     ORDER BY MIN(t.cod::bigint)`,
     [codigos, proveedorId, bibliotecaId],
   );
   return rows.map((r) => String(Math.trunc(Number(r.cod))));

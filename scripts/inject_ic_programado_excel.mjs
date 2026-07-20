@@ -30,6 +30,7 @@ const LP_TO_ID = { LPN: 1, LPC02: 2, LPC03: 3, LPC04: 4 };
 const PLAZO_EXCEL_A_DESC = {
   "CR30-60-90": "30-60-90 DÍAS",
   "CR-6090120": "30-60-90-120 DÍAS",
+  "CR-30A120D": "30-60-90-120 DÍAS",
   "CR-EFECTIV": "EFECTIVO",
   "CR-60-150": "90-120-150 DÍAS",
   "CR-CONTADO": "EFECTIVO",
@@ -38,6 +39,9 @@ const PLAZO_EXCEL_A_DESC = {
   "CR-150": "150 DIAS",
   "CR-30/60": "30-60-90 DÍAS",
   "CR-60": "60 DÍAS",
+  "CR-90A150": "90-120-150 DÍAS",
+  "CR-90-150": "90-120-150 DÍAS",
+  "CR-20": "20 DÍAS",
 };
 
 function norm(s) {
@@ -89,7 +93,7 @@ try {
     const r = rows[i];
     const fila = i + 3;
     const lpCod = norm(String(r[0]).replace(/\s+/g, ""));
-    const listado_precio_id = LP_TO_ID[lpCod];
+    const listado_precio_id = lpCod ? LP_TO_ID[lpCod] ?? null : null;
     const id_proveedor = Number(r[18]);
     const id_marca = Number(r[16]);
     const id_cliente = Number(r[3]);
@@ -103,11 +107,14 @@ try {
     const d2 = Number(r[10]) || 0;
     const d3 = Number(r[11]) || 0;
     const d4 = Number(r[12]) || 0;
-    const precio_evento_id = Number(r[17]) || null;
+    const peRaw = r[17];
+    const precio_evento_id =
+      peRaw === "" || peRaw == null || Number(peRaw) === 0 ? null : Number(peRaw);
     const plazoKey = norm(String(r[5]));
     const id_plazo = plazoFromExcel[plazoKey] ?? null;
 
-    if (!listado_precio_id) errores.push({ fila, msg: `LP inválido: ${r[0]}` });
+    // IC administrativa: LP y evento opcionales · monto 0 OK · D1–D4 siempre
+    if (lpCod && !listado_precio_id) errores.push({ fila, msg: `LP inválido: ${r[0]}` });
     if (!id_cliente) errores.push({ fila, msg: "id_cliente vacío" });
     if (!id_vendedor) errores.push({ fila, msg: "id_vendedor vacío" });
     if (!id_marca) errores.push({ fila, msg: "id_marca vacío" });
@@ -117,6 +124,16 @@ try {
       errores.push({ fila, msg: `quincena inválida: ${r[7]}` });
     }
     if (id_plazo == null) errores.push({ fila, msg: `plazo legacy sin mapa BD: ${r[5]}` });
+    for (const [lab, v] of [
+      ["D1", d1],
+      ["D2", d2],
+      ["D3", d3],
+      ["D4", d4],
+    ]) {
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        errores.push({ fila, msg: `${lab} fuera de 0–100: ${v}` });
+      }
+    }
 
     parsed.push({
       fila,

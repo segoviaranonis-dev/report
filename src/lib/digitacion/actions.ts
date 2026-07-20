@@ -162,6 +162,51 @@ export async function cerrarPp(
   return { ok: true };
 }
 
+export async function asignarIcLote(
+  pool: Pool,
+  input: {
+    ic_ids: number[];
+    precio_evento_id: number;
+    nro_pedido_fabrica: string;
+    pedido_proveedor_id?: number | null;
+    asignado_por?: number | null;
+  },
+): Promise<
+  | { ok: true; pp_id: number; pp_numero: string; asignadas: number }
+  | { ok: false; error: string; pp_id: number | null; pp_numero: string | null; asignadas: number }
+> {
+  const ids = [...new Set(input.ic_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  if (!ids.length) return { ok: false, error: "Sin IC seleccionadas.", pp_id: null, pp_numero: null, asignadas: 0 };
+
+  let ppId = input.pedido_proveedor_id ?? null;
+  let ppNumero: string | null = null;
+  let asignadas = 0;
+
+  for (const ic_id of ids) {
+    const r = await asignarIc(pool, {
+      ic_id,
+      precio_evento_id: input.precio_evento_id,
+      nro_pedido_fabrica: input.nro_pedido_fabrica,
+      pedido_proveedor_id: ppId,
+      asignado_por: input.asignado_por ?? null,
+    });
+    if (!r.ok) {
+      return {
+        ok: false,
+        error: `${r.error} (tras ${asignadas} OK · IC id ${ic_id})`,
+        pp_id: ppId,
+        pp_numero: ppNumero,
+        asignadas,
+      };
+    }
+    ppId = r.pp_id;
+    ppNumero = r.pp_numero;
+    asignadas += 1;
+  }
+
+  return { ok: true, pp_id: ppId!, pp_numero: ppNumero ?? "", asignadas };
+}
+
 export async function devolverIc(
   pool: Pool,
   icId: number,

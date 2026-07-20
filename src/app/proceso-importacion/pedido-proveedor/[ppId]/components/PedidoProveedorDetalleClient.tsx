@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
 import { useRouter, useSearchParams } from "next/navigation";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
@@ -148,10 +148,14 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
+  const loadedOnceRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true && loadedOnceRef.current;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}`, {
         credentials: "same-origin",
@@ -174,10 +178,11 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
         drafts[ic.ic_id] = icToDraft(ic);
       }
       setIcDrafts(drafts);
+      loadedOnceRef.current = true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      if (!silent) setError(e instanceof Error ? e.message : "Error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [ppId]);
 
@@ -185,10 +190,10 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     load();
   }, [load]);
 
-  /** Pasillo ágil PP ↔ Digitación: al volver con foco, refrescar ICs/estado. */
+  /** Pasillo ágil PP ↔ Digitación: al volver con foco, refrescar sin skeleton (capturas / alt-tab). */
   useEffect(() => {
     function onFocusOrVisible() {
-      if (document.visibilityState === "visible") void load();
+      if (document.visibilityState === "visible") void load({ silent: true });
     }
     window.addEventListener("focus", onFocusOrVisible);
     document.addEventListener("visibilitychange", onFocusOrVisible);
@@ -432,9 +437,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
           <>
             <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">2.3.1.7.5 · Detalle PP</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">
+                  2.3.1.7.5 · Detalle PP
+                  {pp.categoria_id === CATEGORIA_PROGRAMADO_ID ? " · PROGRAMADO" : ""}
+                </p>
                 <h1 className="mt-2 font-mono text-3xl font-bold text-rimec-azul-dark">{pp.numero_registro}</h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
+                    <span className="rounded-lg bg-violet-700 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-white">
+                      Pedido proveedor · PROGRAMADO
+                    </span>
+                  )}
                   <span className={`rounded px-2 py-0.5 text-xs font-bold ${ESTADO_STYLE[pp.estado] ?? "bg-slate-100"}`}>
                     {pp.estado}
                   </span>

@@ -14,8 +14,12 @@ export type IcDigitacionPendiente = {
   estado: string;
   proveedor: string;
   cliente: string;
+  vendedor: string;
+  nro_pedido_fabrica: string | null;
   pares: number;
   fecha_embarque: string | null;
+  quincena_arribo_id: number | null;
+  fecha_creacion: string | null;
   evento_precio: string | null;
   precio_evento_id: number | null;
 };
@@ -39,6 +43,16 @@ export type PpDigitacionQuincenaGrupo = {
   quincena_arribo_id: number | null;
   pps: PpEnProceso[];
   n_preventas: number;
+  total_pares: number;
+};
+
+export type IcPendienteEmbarqueGrupo = {
+  key: string;
+  quincena: string;
+  quincena_arribo_id: number | null;
+  ics: IcDigitacionPendiente[];
+  n_ics: number;
+  n_clientes: number;
   total_pares: number;
 };
 
@@ -70,8 +84,12 @@ export async function listIcPendientesDigitacion(
     estado: string;
     proveedor: string;
     cliente: string;
+    vendedor: string | null;
+    nro_pedido_fabrica: string | null;
     pares: string;
     fecha_embarque: string | null;
+    quincena_arribo_id: string | null;
+    fecha_creacion: string | null;
     evento_precio: string | null;
     precio_evento_id: string | null;
   }>(
@@ -82,14 +100,19 @@ export async function listIcPendientesDigitacion(
            COALESCE(cat.descp_categoria, '—') AS categoria,
            pi.nombre AS proveedor,
            cv.descp_cliente AS cliente,
+           COALESCE(NULLIF(TRIM(vd.descp_vendedor), ''), '—') AS vendedor,
+           NULL::text AS nro_pedido_fabrica,
            ic.cantidad_total_pares AS pares,
            qa.descripcion AS fecha_embarque,
+           ic.quincena_arribo_id::text AS quincena_arribo_id,
+           ic.fecha_registro::text AS fecha_creacion,
            pe.nombre_evento AS evento_precio,
            ic.precio_evento_id
     FROM intencion_compra ic
     JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     JOIN proveedor_importacion pi ON pi.id = ic.id_proveedor
     JOIN cliente_v2 cv ON cv.id_cliente = ic.id_cliente
+    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = ic.id_vendedor
     LEFT JOIN categoria_v2 cat ON cat.id_categoria = ic.categoria_id
     LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id
     LEFT JOIN quincena_arribo qa ON qa.id = ic.quincena_arribo_id
@@ -98,7 +121,7 @@ export async function listIcPendientesDigitacion(
         SELECT 1 FROM intencion_compra_pedido icp WHERE icp.intencion_compra_id = ic.id
       )
       AND ($2::int IS NULL OR ic.categoria_id = $2)
-    ORDER BY ic.numero_registro ASC
+    ORDER BY COALESCE(ic.quincena_arribo_id, 9999) ASC, ic.numero_registro ASC
   `,
     [estados, categoriaId],
   );
@@ -112,8 +135,12 @@ export async function listIcPendientesDigitacion(
     estado: r.estado,
     proveedor: r.proveedor,
     cliente: r.cliente,
+    vendedor: r.vendedor ?? "—",
+    nro_pedido_fabrica: r.nro_pedido_fabrica?.trim() || null,
     pares: Number(r.pares ?? 0),
     fecha_embarque: r.fecha_embarque,
+    quincena_arribo_id: r.quincena_arribo_id != null ? Number(r.quincena_arribo_id) : null,
+    fecha_creacion: r.fecha_creacion,
     evento_precio: r.evento_precio,
     precio_evento_id: r.precio_evento_id ? Number(r.precio_evento_id) : null,
   }));
@@ -396,6 +423,47 @@ export function groupPpDigitacionPorQuincena(pps: PpEnProceso[]): PpDigitacionQu
     g.pps.push(p);
     g.n_preventas += 1;
     g.total_pares += p.pares_comprometidos;
+  }
+
+  const grupos = [...map.values()];
+  grupos.sort((a, b) => {
+    const sa = a.quincena_arribo_id ?? 9999;
+    const sb = b.quincena_arribo_id ?? 9999;
+    if (sa !== sb) return sa - sb;
+    return a.quincena.localeCompare(b.quincena, "es");
+  });
+
+  return grupos;
+}
+
+/** Agrupa IC pendientes digitación por FECHA DE EMBARQUE · contadores pares + clientes. */
+export function groupIcPendientesPorEmbarque(ics: IcDigitacionPendiente[]): IcPendienteEmbarqueGrupo[] {
+  const map = new Map<string, IcPendienteEmbarqueGrupo>();
+
+  for (const ic of ics) {
+    const quincena = ic.fecha_embarque?.trim() || "Sin fecha de embarque";
+    const key = ic.quincena_arribo_id != null ? `q-${ic.quincena_arribo_id}` : `z-${quincena}`;
+
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        quincena,
+        quincena_arribo_id: ic.quincena_arribo_id,
+        ics: [],
+        n_ics: 0,
+        n_clientes: 0,
+        total_pares: 0,
+      };
+      map.set(key, g);
+    }
+    g.ics.push(ic);
+    g.n_ics += 1;
+    g.total_pares += ic.pares || 0;
+  }
+
+  for (const g of map.values()) {
+    g.n_clientes = new Set(g.ics.map((ic) => ic.cliente)).size;
   }
 
   const grupos = [...map.values()];

@@ -1418,14 +1418,28 @@ export async function importProformaProgramadoPhased(
       }
       await client.query("COMMIT");
       const provId = pp.proveedor_importacion_id ?? 654;
-      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
-      pilaresImportReport = await buildProformaPilaresImportReport(pool, {
-        rows: detalle,
-        proveedorId: provId,
-        eventoId,
-        stats: pop.pilaresStats,
-      });
-      const importAvisos = [...pilaresImportReport.avisos, ...importPrecioAudit.avisos];
+      const postAvisos: string[] = [];
+      try {
+        importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
+        postAvisos.push(...importPrecioAudit.avisos);
+      } catch (e) {
+        postAvisos.push(
+          `Auditoría precio_lista falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
+        );
+      }
+      try {
+        pilaresImportReport = await buildProformaPilaresImportReport(pool, {
+          rows: detalle,
+          proveedorId: provId,
+          eventoId,
+          stats: pop.pilaresStats,
+        });
+        postAvisos.push(...pilaresImportReport.avisos);
+      } catch (e) {
+        postAvisos.push(
+          `Reporte pilares falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
+        );
+      }
       if (phase === "ppd") {
         return {
           ok: true,
@@ -1440,8 +1454,8 @@ export async function importProformaProgramadoPhased(
           fi_offset: 0,
           fi_offset_next: 0,
           fi_batch: fiBatchSize,
-          import_avisos: importAvisos,
-          precio_audit: importPrecioAudit.resumen,
+          import_avisos: postAvisos,
+          precio_audit: importPrecioAudit?.resumen,
           pilares_import: pilaresImportReport,
         };
       }
