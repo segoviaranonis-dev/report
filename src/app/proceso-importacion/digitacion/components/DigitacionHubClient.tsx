@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
@@ -105,21 +105,66 @@ function FiltroMultiSelect({
   options,
   selected,
   onChange,
+  open,
+  onOpenChange,
+  onEnterNext,
+  triggerRef,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (next: string[]) => void;
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  onEnterNext: () => void;
+  triggerRef: (el: HTMLButtonElement | null) => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const n = selected.length;
+
   function toggle(opt: string) {
     if (selected.includes(opt)) onChange(selected.filter((x) => x !== opt));
     else onChange([...selected, opt]);
   }
 
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) onOpenChange(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open, onOpenChange]);
+
+  function onPanelKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      onEnterNext();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onOpenChange(false);
+    }
+  }
+
   return (
-    <details className="group relative rounded-md border border-slate-300 bg-white">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-1 px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 [&::-webkit-details-marker]:hidden">
+    <div ref={rootRef} className="relative rounded-md border border-slate-300 bg-white">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className="flex w-full cursor-pointer items-center justify-between gap-1 px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500"
+        onClick={() => onOpenChange(!open)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && open) {
+            e.preventDefault();
+            onEnterNext();
+          }
+        }}
+      >
         <span className="min-w-0 truncate">
           {label}
           {n > 0 ? (
@@ -128,54 +173,64 @@ function FiltroMultiSelect({
             </span>
           ) : null}
         </span>
-        <span className="shrink-0 text-slate-400">▾</span>
-      </summary>
-      <div className="absolute left-0 right-0 z-30 mt-0.5 max-h-48 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
-        <div className="flex items-center justify-between border-b border-slate-100 px-2 py-1">
-          <span className="text-[10px] text-slate-500">{options.length} opc.</span>
-          {n > 0 && (
-            <button
-              type="button"
-              className="text-[10px] font-bold text-violet-800 hover:underline"
-              onClick={(e) => {
-                e.preventDefault();
-                onChange([]);
-              }}
-            >
-              Limpiar
-            </button>
-          )}
+        <span className="shrink-0 text-slate-400">{open ? "▴" : "▾"}</span>
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 right-0 z-30 mt-0.5 max-h-48 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg"
+          onKeyDown={onPanelKeyDown}
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 px-2 py-1">
+            <span className="text-[10px] text-slate-500">
+              {options.length} opc. · Enter → siguiente
+            </span>
+            {n > 0 && (
+              <button
+                type="button"
+                className="text-[10px] font-bold text-violet-800 hover:underline"
+                onClick={() => onChange([])}
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+          <ul
+            className="max-h-40 space-y-0.5 overflow-y-auto p-1"
+            role="listbox"
+            aria-multiselectable
+            aria-label={`${label} multi-select`}
+          >
+            {options.length === 0 ? (
+              <li className="px-2 py-1.5 text-[11px] text-slate-400">Sin opciones</li>
+            ) : (
+              options.map((opt) => {
+                const on = selected.includes(opt);
+                return (
+                  <li key={opt} role="option" aria-selected={on}>
+                    <label
+                      className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs ${
+                        on ? "bg-violet-50 font-semibold text-violet-950" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => toggle(opt)}
+                        onKeyDown={onPanelKeyDown}
+                        className="h-3.5 w-3.5 accent-violet-700"
+                      />
+                      <span className="min-w-0 flex-1 truncate normal-case" title={opt}>
+                        {opt}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })
+            )}
+          </ul>
         </div>
-        <ul className="max-h-40 space-y-0.5 overflow-y-auto p-1" role="group" aria-label={`${label} multi-select`}>
-          {options.length === 0 ? (
-            <li className="px-2 py-1.5 text-[11px] text-slate-400">Sin opciones</li>
-          ) : (
-            options.map((opt) => {
-              const on = selected.includes(opt);
-              return (
-                <li key={opt}>
-                  <label
-                    className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs ${
-                      on ? "bg-violet-50 font-semibold text-violet-950" : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => toggle(opt)}
-                      className="h-3.5 w-3.5 accent-violet-700"
-                    />
-                    <span className="min-w-0 flex-1 truncate normal-case" title={opt}>
-                      {opt}
-                    </span>
-                  </label>
-                </li>
-              );
-            })
-          )}
-        </ul>
-      </div>
-    </details>
+      )}
+    </div>
   );
 }
 
@@ -685,6 +740,25 @@ export function DigitacionHubClient() {
   const [devolverIc, setDevolverIc] = useState<IcDigitacionPendiente | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [filtros, setFiltros] = useState<PendientesFiltros>(FILTROS_VACIOS);
+  const [openFiltro, setOpenFiltro] = useState<FiltroKey | null>(null);
+  const filtroTriggerRefs = useRef<Partial<Record<FiltroKey, HTMLButtonElement | null>>>({});
+
+  const focusFiltro = useCallback((key: FiltroKey | null) => {
+    setOpenFiltro(key);
+    if (!key) return;
+    requestAnimationFrame(() => {
+      filtroTriggerRefs.current[key]?.focus();
+    });
+  }, []);
+
+  const enterFiltroSiguiente = useCallback(
+    (idx: number) => {
+      const next = FILTRO_CAMPOS[idx + 1];
+      if (next) focusFiltro(next.key);
+      else setOpenFiltro(null);
+    },
+    [focusFiltro]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -889,7 +963,7 @@ export function DigitacionHubClient() {
                 <div className="relative z-20 overflow-visible rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Filtros multi-select · sin selección = mostrar todo
+                      Filtros multi-select · Enter aplica y pasa al siguiente · Esc cierra
                     </p>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="tabular-nums text-slate-600">
@@ -908,13 +982,19 @@ export function DigitacionHubClient() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {FILTRO_CAMPOS.map(({ key, label }) => (
+                    {FILTRO_CAMPOS.map(({ key, label }, idx) => (
                       <FiltroMultiSelect
                         key={key}
                         label={key === "embarque" ? FECHA_DE_EMBARQUE_LABEL : label}
                         options={opcionesFiltro[key] ?? []}
                         selected={filtros[key]}
                         onChange={(next) => patchFiltro(key, next)}
+                        open={openFiltro === key}
+                        onOpenChange={(next) => setOpenFiltro(next ? key : null)}
+                        onEnterNext={() => enterFiltroSiguiente(idx)}
+                        triggerRef={(el) => {
+                          filtroTriggerRefs.current[key] = el;
+                        }}
                       />
                     ))}
                   </div>
