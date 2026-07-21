@@ -12,6 +12,7 @@ import { PDFDocument, type PDFFont, type PDFImage, type PDFPage, StandardFonts, 
 import {
   detectDeviceType,
   safeFetchImageGarantizado,
+  ImageLoadError,
   isIOSDevice,
   getRecommendedImageLimit,
   getConcurrencyLimit,
@@ -510,21 +511,26 @@ function resolveRowImageCandidates(row: VentaFotoRow): string[] {
   return mergeImageCandidatesFlatFirst(fromExcel, fromPillars)
 }
 
+type FetchImageOutcome =
+  | { status: 'ok'; img: PDFImage }
+  | { status: 'not_found' }
+  | { status: 'network'; detail: string }
+
 async function fetchImage(
   pdfDoc: PDFDocument,
   cache: Map<string, PDFImage>,
   candidates: string[],
   metrics: ImageMetrics,
   deviceType: 'desktop' | 'tablet' | 'mobile',
-): Promise<PDFImage | null> {
+): Promise<FetchImageOutcome> {
   const urls = candidates.filter(Boolean)
-  if (!urls.length) return null
+  if (!urls.length) return { status: 'not_found' }
 
   for (const u of urls) {
     const cached = cache.get(u)
     if (cached) {
       metrics.cached++
-      return cached
+      return { status: 'ok', img: cached }
     }
   }
 
@@ -568,16 +574,21 @@ async function fetchImage(
     if (img) {
       for (const u of urls) cache.set(u, img)
       metrics.downloaded++
-      return img
+      return { status: 'ok', img }
     }
 
     console.warn('[PDF Ventas-Fotos] Formato de imagen no soportado:', primary)
     metrics.fallback++
-    return null
+    return { status: 'not_found' }
   } catch (e) {
-    console.error('[PDF Ventas-Fotos] FALLO CRÍTICO cargando imagen después de reintentos:', primary, e)
     metrics.fallback++
-    return null
+    if (e instanceof ImageLoadError && e.kind === 'not_found') {
+      console.log('[PDF Ventas-Fotos] Imagen inexistente en Storage:', primary)
+      return { status: 'not_found' }
+    }
+    const detail = e instanceof Error ? e.message : String(e)
+    console.error('[PDF Ventas-Fotos] FALLO DE RED/SEÑAL tras reintentos:', primary, detail)
+    return { status: 'network', detail }
   }
 }
 
@@ -592,13 +603,23 @@ interface ImageMetrics {
   fallback: number
 }
 
-/** Precarga paralela — aborta si falta alguna foto (ventas+fotos = ambos obligatorios). */
+export type PreloadVentasFotosResult = {
+  rowCache: Map<string, PDFImage>
+  /** Archivos que no existen en Storage — no bloquean el PDF. */
+  missingInStorage: string[]
+}
+
+/**
+ * Precarga paralela.
+ * - Inexistente en Storage (404) → placeholder + alerta (no aborta).
+ * - Fallo de red/señal tras reintentos → aborta (espíritu de integridad del PDF).
+ */
 async function preloadVentasFotosImages(
   pdfDoc: PDFDocument,
   rows: VentaFotoRow[],
   deviceType: 'desktop' | 'tablet' | 'mobile',
   metrics: ImageMetrics,
-): Promise<Map<string, PDFImage>> {
+): Promise<PreloadVentasFotosResult> {
   const byImagen = new Map<string, VentaFotoRow>()
   for (const row of rows) {
     const key = row.imagen?.trim()
@@ -607,7 +628,8 @@ async function preloadVentasFotosImages(
 
   const urlCache = new Map<string, PDFImage>()
   const rowCache = new Map<string, PDFImage>()
-  const missing: string[] = []
+  const missingInStorage: string[] = []
+  const networkFails: string[] = []
   const entries = [...byImagen.entries()]
   const isServer = typeof window === 'undefined'
   const concurrency = isServer ? 10 : getConcurrencyLimit(deviceType)
@@ -618,11 +640,13 @@ async function preloadVentasFotosImages(
       const idx = next++
       const [imagenKey, row] = entries[idx]
       const candidates = resolveRowImageCandidates(row)
-      const img = await fetchImage(pdfDoc, urlCache, candidates, metrics, deviceType)
-      if (img) {
-        rowCache.set(imagenKey, img)
+      const outcome = await fetchImage(pdfDoc, urlCache, candidates, metrics, deviceType)
+      if (outcome.status === 'ok') {
+        rowCache.set(imagenKey, outcome.img)
+      } else if (outcome.status === 'not_found') {
+        missingInStorage.push(imagenKey)
       } else {
-        missing.push(imagenKey)
+        networkFails.push(`${imagenKey} (${outcome.detail})`)
       }
     }
   }
@@ -631,15 +655,21 @@ async function preloadVentasFotosImages(
     Array.from({ length: Math.min(concurrency, Math.max(entries.length, 1)) }, () => worker()),
   )
 
-  if (missing.length > 0) {
-    const preview = missing.slice(0, 6).join(', ')
+  if (networkFails.length > 0) {
+    const preview = networkFails.slice(0, 4).join('; ')
     throw new Error(
-      `PDF abortado — «ventas + fotos» exige foto en cada fila. Faltan ${missing.length} imagen(es) en Storage: ${preview}${missing.length > 6 ? '…' : ''}`,
+      `PDF abortado — fallo de red/señal al descargar foto(s) (no es ausencia en Storage). Reintentá. Detalle: ${preview}${networkFails.length > 4 ? '…' : ''}`,
     )
   }
 
-  console.log(`[PDF Ventas-Fotos] Precarga OK: ${rowCache.size} imagen(es) únicas`)
-  return rowCache
+  if (missingInStorage.length > 0) {
+    console.warn(
+      `[PDF Ventas-Fotos] ${missingInStorage.length} imagen(es) inexistente(s) en Storage — PDF continúa con placeholder: ${missingInStorage.slice(0, 6).join(', ')}`,
+    )
+  }
+
+  console.log(`[PDF Ventas-Fotos] Precarga OK: ${rowCache.size} imagen(es) únicas · ausentes Storage: ${missingInStorage.length}`)
+  return { rowCache, missingInStorage }
 }
 
 async function renderDetalle(
@@ -777,7 +807,13 @@ function deriveStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
 /** Mismo tope en server y cliente desktop — paridad getRecommendedImageLimit('desktop'). */
 const PDF_MAX_FILAS_VENTAS_FOTOS = 80
 
-export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<Buffer> {
+export type GenerarPDFVentasFotosResult = {
+  buffer: Buffer
+  /** Archivos ausentes en Storage — PDF OK con placeholder; UI muestra alerta. */
+  missingInStorage: string[]
+}
+
+export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<GenerarPDFVentasFotosResult> {
   const startTime = performance.now()
 
   const isServerless = typeof window === 'undefined' && Boolean(process.env.VERCEL)
@@ -827,7 +863,12 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     const stats = data.pillarStats ?? deriveStats(data.rows)
     const imageMetrics: ImageMetrics = { downloaded: 0, cached: 0, fallback: 0 }
 
-    const imageCache = await preloadVentasFotosImages(pdfDoc, rowsLimitadas, deviceType, imageMetrics)
+    const { rowCache: imageCache, missingInStorage } = await preloadVentasFotosImages(
+      pdfDoc,
+      rowsLimitadas,
+      deviceType,
+      imageMetrics,
+    )
 
     await renderPaginaEjecutiva(pdfDoc, fonts, data, stats, esLimitado, data.rows.length, MAX_FILAS_PDF)
     await renderDetalle(pdfDoc, fonts, data, rowsLimitadas, imageCache)
@@ -844,11 +885,15 @@ export async function generarPDFVentasFotos(data: PDFVentasFotosData): Promise<B
     console.log(`[PDF Ventas-Fotos]   - Filas procesadas: ${rowsLimitadas.length}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes descargadas: ${imageMetrics.downloaded}`)
     console.log(`[PDF Ventas-Fotos]   - Imágenes en caché: ${imageMetrics.cached}`)
-    console.log(`[PDF Ventas-Fotos]   ✅ TODAS las imágenes cargadas — sin placeholders`)
+    if (missingInStorage.length > 0) {
+      console.log(`[PDF Ventas-Fotos]   ⚠️  Ausentes en Storage (placeholder): ${missingInStorage.length}`)
+    } else {
+      console.log(`[PDF Ventas-Fotos]   ✅ TODAS las imágenes cargadas — sin placeholders`)
+    }
     console.log(`[PDF Ventas-Fotos]   - Tamaño: ${Math.round(pdfBytes.length / 1024)}KB`)
     console.log(`[PDF Ventas-Fotos] ═══════════════════════════════════════════════════`)
 
-    return Buffer.from(pdfBytes)
+    return { buffer: Buffer.from(pdfBytes), missingInStorage }
   } catch (error) {
     console.error('[PDF Ventas-Fotos] Exception en generación:', error)
     throw error

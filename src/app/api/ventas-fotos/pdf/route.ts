@@ -145,9 +145,9 @@ export async function POST(req: NextRequest) {
 
     // 4. Generar PDF
     console.log('[API Ventas-Fotos PDF] Iniciando generación de PDF...')
-    let pdfBuffer
+    let pdfResult: Awaited<ReturnType<typeof generarPDFVentasFotos>>
     try {
-      pdfBuffer = await generarPDFVentasFotos(body)
+      pdfResult = await generarPDFVentasFotos(body)
       console.log('[API Ventas-Fotos PDF] PDF generado exitosamente')
     } catch (pdfError) {
       console.error('[API Ventas-Fotos PDF] Error en generarPDFVentasFotos:', pdfError)
@@ -165,14 +165,22 @@ export async function POST(req: NextRequest) {
 
     // 5. Responder con PDF
     const nombreArchivo = `ventas-fotos-${body.cliente.id}-${body.marca.descp_marca.replace(/\s+/g, '_')}-${body.filtros.fechaInicio}-${body.filtros.fechaFin}.pdf`
+    const missingPreview = pdfResult.missingInStorage.slice(0, 8).join(', ')
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${nombreArchivo}"`,
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Access-Control-Expose-Headers': 'X-PDF-Missing-Images, X-PDF-Missing-Count',
+    }
+    if (pdfResult.missingInStorage.length > 0) {
+      headers['X-PDF-Missing-Count'] = String(pdfResult.missingInStorage.length)
+      headers['X-PDF-Missing-Images'] =
+        missingPreview + (pdfResult.missingInStorage.length > 8 ? '…' : '')
+    }
 
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    return new NextResponse(new Uint8Array(pdfResult.buffer), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${nombreArchivo}"`,
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-      },
+      headers,
     })
   } catch (error) {
     console.error('[API Ventas-Fotos PDF] Error generando PDF:', error)

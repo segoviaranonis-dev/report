@@ -34,6 +34,17 @@ interface FetchAttemptResult {
   elapsedMs: number
 }
 
+/** Distingue foto inexistente (Storage) vs fallo de señal / red. */
+export class ImageLoadError extends Error {
+  readonly kind: 'not_found' | 'network'
+
+  constructor(message: string, kind: 'not_found' | 'network') {
+    super(message)
+    this.name = 'ImageLoadError'
+    this.kind = kind
+  }
+}
+
 /**
  * Detecta si el dispositivo es iOS (iPhone, iPad, iPod)
  * Safari en iOS tiene limitaciones específicas que requieren ajustes
@@ -321,7 +332,7 @@ export async function safeFetchImageGarantizado(
   const isIOS = isIOSDevice()
 
   if (allUrls.length === 0) {
-    throw new Error('[PDF] No hay URLs válidas para cargar la imagen')
+    throw new ImageLoadError('[PDF] No hay URLs válidas para cargar la imagen', 'not_found')
   }
 
   // Advertencia especial para iOS
@@ -391,19 +402,29 @@ export async function safeFetchImageGarantizado(
   const totalAttempts = allUrls.length * maxRetries
   const errorDetail = errors.join('\n  - ')
 
-  // Detectar si es un error esperado (imagen no existe) vs error crítico
-  const isExpectedError = errors.some(e => e.includes('HTTP 400') || e.includes('HTTP 404'))
+  // Solo not_found si TODOS los fallos son ausencia (404/400). Si hay timeout/red → bloquear.
+  const isNotFound = errors.length > 0 && errors.every(
+    (e) =>
+      e.includes('HTTP 400') ||
+      e.includes('HTTP 404') ||
+      e.includes('URL no válida') ||
+      e.includes('dominio no permitido'),
+  )
 
-  if (isExpectedError) {
-    // Imagen no existe - silenciar error (se manejará con placeholder)
-    console.log(`[PDF] Imagen no disponible después de ${totalAttempts} intentos (se usará placeholder)`)
-  } else {
-    // Error real - logear como crítico
-    const errorMessage = `[PDF] ERROR CRÍTICO: No se pudo cargar imagen después de ${totalAttempts} intentos\n  - ${errorDetail}`
-    console.error(errorMessage)
+  if (isNotFound) {
+    console.log(`[PDF] Imagen inexistente en Storage tras ${totalAttempts} intentos (placeholder + alerta)`)
+    throw new ImageLoadError(
+      `Imagen no existe en Storage después de ${totalAttempts} intentos`,
+      'not_found',
+    )
   }
 
-  throw new Error(`No se pudo cargar imagen después de ${totalAttempts} intentos`)
+  const errorMessage = `[PDF] ERROR CRÍTICO (señal/red): No se pudo cargar imagen después de ${totalAttempts} intentos\n  - ${errorDetail}`
+  console.error(errorMessage)
+  throw new ImageLoadError(
+    `Fallo de red/señal al cargar imagen después de ${totalAttempts} intentos`,
+    'network',
+  )
 }
 
 /**

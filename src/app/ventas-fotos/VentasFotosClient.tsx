@@ -92,10 +92,16 @@ async function readJsonResponse<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function readPdfResponse(res: Response): Promise<Blob> {
+async function readPdfResponse(res: Response): Promise<{ blob: Blob; missingAlert: string | null }> {
   const contentType = res.headers.get("content-type") ?? "";
   if (res.ok && contentType.includes("application/pdf")) {
-    return res.blob();
+    const missingCount = res.headers.get("X-PDF-Missing-Count");
+    const missingNames = res.headers.get("X-PDF-Missing-Images");
+    const missingAlert =
+      missingCount && Number(missingCount) > 0
+        ? `PDF generado. Falta(n) ${missingCount} imagen(es) en Storage (no bloquea): ${missingNames ?? "—"}`
+        : null;
+    return { blob: await res.blob(), missingAlert };
   }
   const bodyText = await res.text();
   if (contentType.includes("application/json")) {
@@ -155,6 +161,7 @@ export function VentasFotosClient() {
   const [loadingPDF, setLoadingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfWarning, setPdfWarning] = useState<string | null>(null);
   const [pdfState, setPdfState] = useState<"idle" | "generating" | "ready" | "error">("idle");
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const pdfRequestIdRef = useRef(0);
@@ -276,6 +283,7 @@ export function VentasFotosClient() {
     const currentRequestId = ++pdfRequestIdRef.current;
     setPdfState("generating");
     setPdfError(null);
+    setPdfWarning(null);
     try {
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
@@ -283,9 +291,10 @@ export function VentasFotosClient() {
         body: JSON.stringify({ source: "filters", filters }),
       });
       if (currentRequestId !== pdfRequestIdRef.current) return;
-      const blob = await readPdfResponse(res);
+      const { blob, missingAlert } = await readPdfResponse(res);
       setPdfBlobUrl(window.URL.createObjectURL(blob));
       setPdfState("ready");
+      setPdfWarning(missingAlert);
     } catch (e) {
       if (currentRequestId === pdfRequestIdRef.current) {
         setPdfState("error");
@@ -311,21 +320,24 @@ export function VentasFotosClient() {
     if (pdfState === "generating") return;
     setLoadingPDF(true);
     setPdfError(null);
+    setPdfWarning(null);
     try {
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "filters", filters }),
       });
-      const blob = await readPdfResponse(res);
+      const { blob, missingAlert } = await readPdfResponse(res);
       const url = window.URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+      setPdfState("ready");
+      setPdfWarning(missingAlert);
       const a = document.createElement("a");
       a.href = url;
       a.download = `ventas-fotos-${cliente.id}-${marca.descp_marca.replace(/\s+/g, "_")}-${filters.fechaInicio}-${filters.fechaFin}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
     } catch (e) {
       setPdfError(e instanceof Error ? e.message : "Error al generar PDF");
       setPdfState("error");
@@ -384,6 +396,9 @@ export function VentasFotosClient() {
               </div>
             ) : null}
             {pdfError ? <p className="max-w-xs text-right text-[10px] text-red-700">{pdfError}</p> : null}
+            {pdfWarning ? (
+              <p className="max-w-xs text-right text-[10px] font-semibold text-amber-800">{pdfWarning}</p>
+            ) : null}
           </div>
         </div>
 
