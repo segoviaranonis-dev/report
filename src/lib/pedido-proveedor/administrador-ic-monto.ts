@@ -373,6 +373,18 @@ export function montoFiConDescuentosIc(
 }
 
 /** Orden canon lote — misma regla UI Administrador IC. */
+/** Orden grilla Admin IC — cliente · cod.marca · cantidad (asc). */
+export function cmpAdminFilasGrilla(
+  clienteA: number,
+  idMarcaA: number,
+  paresA: number,
+  clienteB: number,
+  idMarcaB: number,
+  paresB: number,
+) {
+  return clienteA - clienteB || idMarcaA - idMarcaB || paresA - paresB;
+}
+
 export function cmpAdminFilasLote(
   clienteA: number,
   marcaA: string,
@@ -398,31 +410,23 @@ export function cmpAdminFilasLote(
 
 export function ordenarUniversoLoteChusa(ics: IcAdminRow[], prefacturas: PreFacturaInterna[]) {
   const icsOrden = [...ics].sort((a, b) =>
-    cmpAdminFilasLote(
+    cmpAdminFilasGrilla(
       a.id_cliente,
-      a.marca,
+      a.id_marca,
       a.pares,
-      a.monto_ic,
-      a.nro_ic,
       b.id_cliente,
-      b.marca,
+      b.id_marca,
       b.pares,
-      b.monto_ic,
-      b.nro_ic,
     ),
   );
   const pfOrden = [...prefacturas].sort((a, b) =>
-    cmpAdminFilasLote(
+    cmpAdminFilasGrilla(
       a.id_cliente,
-      marcaAlineacionPrefactura(a),
+      a.id_marca,
       a.total_pares,
-      a.total_monto,
-      a.caso,
       b.id_cliente,
-      marcaAlineacionPrefactura(b),
+      b.id_marca,
       b.total_pares,
-      b.total_monto,
-      b.caso,
     ),
   );
   return { icsOrden, pfOrden };
@@ -439,46 +443,12 @@ export type ParejaLoteFi = {
 export function construirParejasLoteChusa(
   ics: IcAdminRow[],
   prefacturas: PreFacturaInterna[],
-  opts?: { modoBiblioteca?: boolean },
+  _opts?: { modoBiblioteca?: boolean },
 ):
   | { ok: true; parejas: ParejaLoteFi[]; chusa: ProtocoloChusaEstado }
   | { ok: false; error: string; chusa: ProtocoloChusaEstado } {
-  const modoBiblioteca = opts?.modoBiblioteca === true;
-  const pfOrden = [...prefacturas].sort((a, b) =>
-    cmpAdminFilasLote(
-      a.id_cliente,
-      marcaAlineacionPrefactura(a),
-      a.total_pares,
-      a.total_monto,
-      a.caso,
-      b.id_cliente,
-      marcaAlineacionPrefactura(b),
-      b.total_pares,
-      b.total_monto,
-      b.caso,
-    ),
-  );
-
-  let icsOrden: IcAdminRow[];
-  let chusa: ProtocoloChusaEstado;
-
-  if (modoBiblioteca) {
-    const { alineadas, huerfanas } = expandIcFilasChusaBiblioteca(ics, prefacturas);
-    icsOrden = alineadas;
-    chusa = evalProtocoloChusa(alineadas, pfOrden, ics);
-    chusa = { ...chusa, icHuerfanas: huerfanas.length };
-    if (huerfanas.length > 0) {
-      return {
-        ok: false,
-        error: `${huerfanas.length} IC sin proforma — eliminá o reasigná antes del lote.`,
-        chusa,
-      };
-    }
-  } else {
-    const orden = ordenarUniversoLoteChusa(ics, prefacturas);
-    icsOrden = orden.icsOrden;
-    chusa = evalProtocoloChusa(icsOrden, pfOrden, ics);
-  }
+  const { icsOrden, pfOrden } = ordenarUniversoLoteChusa(ics, prefacturas);
+  const chusa = evalProtocoloChusa(icsOrden, pfOrden, ics);
 
   if (!chusa.puedeLote) {
     return { ok: false, error: "Protocolo Chusa: contadores o canon no cuadran.", chusa };

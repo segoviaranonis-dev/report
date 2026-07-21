@@ -18,8 +18,7 @@ import {
   parejaTripleteIcPf,
   recalcPfConTier,
   canonDiffsPorIndice,
-  cmpAdminFilasLote,
-  filasIcGrillaChusaBiblioteca,
+  cmpAdminFilasGrilla,
   tieneDesajusteCanon,
   type CanonDiffCelda,
   type IcAdminFilaChusa,
@@ -145,9 +144,6 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
   const [nFiServidor, setNFiServidor] = useState<number | null>(null);
   const [icBusy, setIcBusy] = useState<number | null>(null);
   const [pfSplits, setPfSplits] = useState<PfSplitRecord[]>([]);
-  const [chusaModoBiblioteca, setChusaModoBiblioteca] = useState(
-    Boolean(pp.biblioteca_precio_id),
-  );
   const [splitPfTarget, setSplitPfTarget] = useState<PreFacturaInterna | null>(null);
   const [splitSelections, setSplitSelections] = useState<Map<number, number>>(new Map());
   const [splitCliente, setSplitCliente] = useState("");
@@ -172,7 +168,6 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
       setIcs(snap.ics);
       setPrefacturas(snap.prefacturas);
       setPfSplits((data.pf_splits ?? []) as PfSplitRecord[]);
-      setChusaModoBiblioteca(Boolean(data.chusa_modo_biblioteca ?? pp.biblioteca_precio_id));
       loadedOnceRef.current = true;
     } catch (e) {
       onMsg(msgFromUnknown(e));
@@ -249,48 +244,38 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
 
   const sortPfAdmin = useCallback(
     (a: PreFacturaInterna, b: PreFacturaInterna) =>
-      cmpAdminFilasLote(
+      cmpAdminFilasGrilla(
         a.id_cliente,
-        marcaAlineacionPrefactura(a),
+        a.id_marca,
         a.total_pares,
-        a.total_monto,
-        a.caso,
         b.id_cliente,
-        marcaAlineacionPrefactura(b),
+        b.id_marca,
         b.total_pares,
-        b.total_monto,
-        b.caso,
       ),
     [],
   );
 
-  const icsGrilla = useMemo((): IcAdminFilaChusa[] => {
-    if (chusaModoBiblioteca) {
-      return filasIcGrillaChusaBiblioteca(ics, pfConTier);
-    }
-    return ics.map((ic) => ({ ...ic, chusa_fila_key: String(ic.ic_id) }));
-  }, [chusaModoBiblioteca, ics, pfConTier]);
-
-  const icsVisibles = useMemo(() => {
-    const list = filtroCliente
-      ? icsGrilla.filter((i) => i.id_cliente === Number(filtroCliente))
-      : [...icsGrilla];
-    if (chusaModoBiblioteca) return list;
-    return list.sort((a, b) =>
-      cmpAdminFilasLote(
+  const sortIcAdmin = useCallback(
+    (a: IcAdminRow, b: IcAdminRow) =>
+      cmpAdminFilasGrilla(
         a.id_cliente,
-        a.marca,
+        a.id_marca,
         a.pares,
-        a.monto_ic,
-        a.nro_ic,
         b.id_cliente,
-        b.marca,
+        b.id_marca,
         b.pares,
-        b.monto_ic,
-        b.nro_ic,
       ),
-    );
-  }, [icsGrilla, filtroCliente, chusaModoBiblioteca]);
+    [],
+  );
+
+  const icsVisibles = useMemo((): IcAdminFilaChusa[] => {
+    const list = filtroCliente
+      ? ics.filter((i) => i.id_cliente === Number(filtroCliente))
+      : [...ics];
+    return list
+      .sort(sortIcAdmin)
+      .map((ic) => ({ ...ic, chusa_fila_key: String(ic.ic_id) }));
+  }, [ics, filtroCliente, sortIcAdmin]);
 
   const pfVisibles = useMemo(() => {
     const list = filtroCliente
@@ -301,17 +286,10 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
 
   const generandoFi = generandoFiKey != null;
 
-  const protocoloChusa = useMemo(() => {
-    const icChusa = chusaModoBiblioteca
-      ? icsVisibles.filter((i) => !i.ic_huerfana)
-      : icsVisibles;
-    const estado = evalProtocoloChusa(icChusa, pfVisibles, ics);
-    if (chusaModoBiblioteca) {
-      const nHuerf = icsVisibles.filter((i) => i.ic_huerfana).length;
-      return { ...estado, icHuerfanas: nHuerf };
-    }
-    return estado;
-  }, [icsVisibles, pfVisibles, ics, chusaModoBiblioteca]);
+  const protocoloChusa = useMemo(
+    () => evalProtocoloChusa(icsVisibles, pfVisibles, ics),
+    [icsVisibles, pfVisibles, ics],
+  );
 
   const nFiEfectivo = Math.max(pp.n_facturas_internas, nFiServidor ?? 0);
   const fiEsperadas = protocoloChusa.contadorIc;
@@ -336,12 +314,10 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
   const fiDesincronizado = fiExceso || fiPendientes;
   const botonMaestroVerde = chusaListo && (fiDesincronizado || loteExacto);
 
-  const canonDiffs = useMemo(() => {
-    const icCanon = chusaModoBiblioteca
-      ? icsVisibles.filter((i) => !i.ic_huerfana)
-      : icsVisibles;
-    return canonDiffsPorIndice(icCanon, pfVisibles, ics);
-  }, [icsVisibles, pfVisibles, ics, chusaModoBiblioteca]);
+  const canonDiffs = useMemo(
+    () => canonDiffsPorIndice(icsVisibles, pfVisibles, ics),
+    [icsVisibles, pfVisibles, ics],
+  );
 
   async function irAFi() {
     setCelebracion(null);
@@ -675,17 +651,8 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
         {!protocoloChusa.nivel1 && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-950">
             <span className="font-bold">
-              IC {protocoloChusa.contadorIc} · PF {protocoloChusa.contadorPf} — contadores distintos
-              {chusaModoBiblioteca
-                ? " · revisá ICs huérfanas o usá división PF (÷)"
-                : " · alineá cabeceras antes del lote"}
-            </span>
-          </div>
-        )}
-        {(protocoloChusa.icHuerfanas ?? 0) > 0 && (
-          <div className="mt-2 rounded-lg border border-amber-400 bg-amber-50/80 px-3 py-2 text-xs text-amber-950">
-            <span className="font-bold">
-              {protocoloChusa.icHuerfanas} IC sin proforma en este PP — eliminá o reasigná en ICs Asignadas
+              IC {protocoloChusa.contadorIc} · PF {protocoloChusa.contadorPf} — contadores distintos · alineá
+              filas (cliente · marca · cantidad) antes del lote
             </span>
           </div>
         )}
@@ -901,7 +868,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
           </div>
           <div className="max-h-[520px] space-y-1 overflow-x-auto overflow-y-auto p-2">
             {icsVisibles.map((ic, idx) => {
-              const pfPar = ic.ic_huerfana ? undefined : pfVisibles[idx];
+              const pfPar = pfVisibles[idx];
               const marcaPf = pfPar ? marcaDisplayPrefactura(pfPar, ics) : undefined;
               const canonDiff = canonDiffs.ic[idx] ?? null;
               return (
