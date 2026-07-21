@@ -11,6 +11,9 @@ import { tryLockPpFiOps, unlockPpFiOps } from "@/lib/pedido-proveedor/pp-fi-advi
 
 type Params = { params: Promise<{ ppId: string }> };
 
+/** PP-26+ · lote 100 FI puede superar 60s en Vercel (UI avisa ~2 min). */
+export const maxDuration = 300;
+
 /** Protocolo Chusa · genera N FI en secuencia (1 IC ↔ 1 PF por pareja). */
 export async function POST(req: Request, { params }: Params) {
   const gate = await requireMotorPreciosAdmin();
@@ -195,4 +198,4 @@ export async function POST(req: Request, { params }: Params) {
     lockClient.release();
   }
 }
-
+
