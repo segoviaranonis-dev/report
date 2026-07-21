@@ -28,8 +28,10 @@ type FilaRow = {
 };
 
 export async function listPpAbiertoProductos(pool: Pool): Promise<{ productos: DepositoRow[] }> {
+  // DISTINCT ON molécula: `linea_referencia` puede tener >1 fila por L+R
+  // (estilo/tipo distintos) y el JOIN multiplicaba pares en el KPI AM (+120 en 0004/2026).
   const { rows } = await pool.query<FilaRow>(
-    `SELECT
+    `SELECT DISTINCT ON (f.linea_codigo, f.referencia_codigo, f.material_code, f.color_code)
        f.linea_codigo,
        f.referencia_codigo,
        f.material_code,
@@ -55,14 +57,21 @@ export async function listPpAbiertoProductos(pool: Pool): Promise<{ productos: D
      JOIN pp_abierto_import i ON i.id = f.import_id AND i.activo = true
      LEFT JOIN linea l ON l.codigo_proveedor::text = TRIM(f.linea_codigo)
      LEFT JOIN referencia r ON r.codigo_proveedor::text = TRIM(f.referencia_codigo) AND r.linea_id = l.id
-     LEFT JOIN linea_referencia lr ON lr.linea_id = l.id AND lr.referencia_id = r.id
+     LEFT JOIN LATERAL (
+       SELECT lr0.grupo_estilo_id, lr0.tipo_1_id
+       FROM linea_referencia lr0
+       WHERE lr0.linea_id = l.id AND lr0.referencia_id = r.id
+       ORDER BY lr0.id
+       LIMIT 1
+     ) lr ON true
      LEFT JOIN material m ON m.codigo_proveedor::text = TRIM(f.material_code)
      LEFT JOIN color c ON c.codigo_proveedor::text = TRIM(f.color_code)
      LEFT JOIN genero g ON g.id = l.genero_id
      LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
      LEFT JOIN tipo_v2 tv ON tv.id_tipo = 1
      LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
-     WHERE f.pares > 0`,
+     WHERE f.pares > 0
+     ORDER BY f.linea_codigo, f.referencia_codigo, f.material_code, f.color_code`,
   );
 
   const productos: DepositoRow[] = rows.map((f) => ({
