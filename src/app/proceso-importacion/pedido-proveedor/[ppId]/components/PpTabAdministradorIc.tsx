@@ -19,8 +19,10 @@ import {
   recalcPfConTier,
   canonDiffsPorIndice,
   cmpAdminFilasLote,
+  filasIcGrillaChusaBiblioteca,
   tieneDesajusteCanon,
   type CanonDiffCelda,
+  type IcAdminFilaChusa,
 } from "@/lib/pedido-proveedor/administrador-ic-monto";
 import { fiListaTier } from "@/lib/pedido-proveedor/aritmetica-programado";
 import {
@@ -143,6 +145,9 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
   const [nFiServidor, setNFiServidor] = useState<number | null>(null);
   const [icBusy, setIcBusy] = useState<number | null>(null);
   const [pfSplits, setPfSplits] = useState<PfSplitRecord[]>([]);
+  const [chusaModoBiblioteca, setChusaModoBiblioteca] = useState(
+    Boolean(pp.biblioteca_precio_id),
+  );
   const [splitPfTarget, setSplitPfTarget] = useState<PreFacturaInterna | null>(null);
   const [splitSelections, setSplitSelections] = useState<Map<number, number>>(new Map());
   const [splitCliente, setSplitCliente] = useState("");
@@ -167,6 +172,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
       setIcs(snap.ics);
       setPrefacturas(snap.prefacturas);
       setPfSplits((data.pf_splits ?? []) as PfSplitRecord[]);
+      setChusaModoBiblioteca(Boolean(data.chusa_modo_biblioteca ?? pp.biblioteca_precio_id));
       loadedOnceRef.current = true;
     } catch (e) {
       onMsg(msgFromUnknown(e));
@@ -218,26 +224,6 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
     return [...set].sort((a, b) => a - b);
   }, [ics, prefacturas]);
 
-  const icsVisibles = useMemo(() => {
-    const list = filtroCliente
-      ? ics.filter((i) => i.id_cliente === Number(filtroCliente))
-      : [...ics];
-    return list.sort((a, b) =>
-      cmpAdminFilasLote(
-        a.id_cliente,
-        a.marca,
-        a.pares,
-        a.monto_ic,
-        a.nro_ic,
-        b.id_cliente,
-        b.marca,
-        b.pares,
-        b.monto_ic,
-        b.nro_ic,
-      ),
-    );
-  }, [ics, filtroCliente]);
-
   const pfTierAutoIc = useMemo(() => {
     const out: Record<string, ListadoPrecioTierId> = {};
     const icPorPf = new Map<string, IcAdminRow>();
@@ -260,11 +246,8 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
     });
   }, [prefacturas, pfTierOverrides, pfTierAutoIc.tiers]);
 
-  const pfVisibles = useMemo(() => {
-    const list = filtroCliente
-      ? pfConTier.filter((p) => p.id_cliente === Number(filtroCliente))
-      : [...pfConTier];
-    return list.sort((a, b) =>
+  const sortPfAdmin = useCallback(
+    (a: PreFacturaInterna, b: PreFacturaInterna) =>
       cmpAdminFilasLote(
         a.id_cliente,
         marcaAlineacionPrefactura(a),
@@ -277,15 +260,57 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
         b.total_monto,
         b.caso,
       ),
+    [],
+  );
+
+  const icsGrilla = useMemo((): IcAdminFilaChusa[] => {
+    if (chusaModoBiblioteca) {
+      return filasIcGrillaChusaBiblioteca(ics, pfConTier);
+    }
+    return ics.map((ic) => ({ ...ic, chusa_fila_key: String(ic.ic_id) }));
+  }, [chusaModoBiblioteca, ics, pfConTier]);
+
+  const icsVisibles = useMemo(() => {
+    const list = filtroCliente
+      ? icsGrilla.filter((i) => i.id_cliente === Number(filtroCliente))
+      : [...icsGrilla];
+    if (chusaModoBiblioteca) return list;
+    return list.sort((a, b) =>
+      cmpAdminFilasLote(
+        a.id_cliente,
+        a.marca,
+        a.pares,
+        a.monto_ic,
+        a.nro_ic,
+        b.id_cliente,
+        b.marca,
+        b.pares,
+        b.monto_ic,
+        b.nro_ic,
+      ),
     );
-  }, [pfConTier, filtroCliente, ics]);
+  }, [icsGrilla, filtroCliente, chusaModoBiblioteca]);
+
+  const pfVisibles = useMemo(() => {
+    const list = filtroCliente
+      ? pfConTier.filter((p) => p.id_cliente === Number(filtroCliente))
+      : [...pfConTier];
+    return [...list].sort(sortPfAdmin);
+  }, [pfConTier, filtroCliente, sortPfAdmin]);
 
   const generandoFi = generandoFiKey != null;
 
-  const protocoloChusa = useMemo(
-    () => evalProtocoloChusa(icsVisibles, pfVisibles, ics),
-    [icsVisibles, pfVisibles, ics],
-  );
+  const protocoloChusa = useMemo(() => {
+    const icChusa = chusaModoBiblioteca
+      ? icsVisibles.filter((i) => !i.ic_huerfana)
+      : icsVisibles;
+    const estado = evalProtocoloChusa(icChusa, pfVisibles, ics);
+    if (chusaModoBiblioteca) {
+      const nHuerf = icsVisibles.filter((i) => i.ic_huerfana).length;
+      return { ...estado, icHuerfanas: nHuerf };
+    }
+    return estado;
+  }, [icsVisibles, pfVisibles, ics, chusaModoBiblioteca]);
 
   const nFiEfectivo = Math.max(pp.n_facturas_internas, nFiServidor ?? 0);
   const fiEsperadas = protocoloChusa.contadorIc;
@@ -310,10 +335,12 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
   const fiDesincronizado = fiExceso || fiPendientes;
   const botonMaestroVerde = chusaListo && (fiDesincronizado || loteExacto);
 
-  const canonDiffs = useMemo(
-    () => canonDiffsPorIndice(icsVisibles, pfVisibles, ics),
-    [icsVisibles, pfVisibles, ics],
-  );
+  const canonDiffs = useMemo(() => {
+    const icCanon = chusaModoBiblioteca
+      ? icsVisibles.filter((i) => !i.ic_huerfana)
+      : icsVisibles;
+    return canonDiffsPorIndice(icCanon, pfVisibles, ics);
+  }, [icsVisibles, pfVisibles, ics, chusaModoBiblioteca]);
 
   async function irAFi() {
     setCelebracion(null);
@@ -630,7 +657,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
             {pfSplits.length} división{pfSplits.length === 1 ? "" : "es"} PF activa{pfSplits.length === 1 ? "" : "s"} · filas verdes = prefactura hija
           </p>
         )}
-        {canonDiffs.desajustes > 0 && (
+        {canonDiffs.desajustes > 0 && protocoloChusa.nivel1 && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border-2 border-red-500 bg-red-100 px-3 py-2 text-xs text-red-950">
             <span className="font-bold">
               {canonDiffs.desajustes} fila{canonDiffs.desajustes === 1 ? "" : "s"} con canon ≠ — error
@@ -642,6 +669,23 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
             >
               Ir a ICs Asignadas →
             </Link>
+          </div>
+        )}
+        {!protocoloChusa.nivel1 && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+            <span className="font-bold">
+              IC {protocoloChusa.contadorIc} · PF {protocoloChusa.contadorPf} — contadores distintos
+              {chusaModoBiblioteca
+                ? " · revisá ICs huérfanas o usá división PF (÷)"
+                : " · alineá cabeceras antes del lote"}
+            </span>
+          </div>
+        )}
+        {(protocoloChusa.icHuerfanas ?? 0) > 0 && (
+          <div className="mt-2 rounded-lg border border-amber-400 bg-amber-50/80 px-3 py-2 text-xs text-amber-950">
+            <span className="font-bold">
+              {protocoloChusa.icHuerfanas} IC sin proforma en este PP — eliminá o reasigná en ICs Asignadas
+            </span>
           </div>
         )}
       </div>
@@ -856,12 +900,12 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
           </div>
           <div className="max-h-[520px] space-y-1 overflow-x-auto overflow-y-auto p-2">
             {icsVisibles.map((ic, idx) => {
-              const pfPar = pfVisibles[idx];
-              const marcaPf = pfPar ? marcaAlineacionPrefactura(pfPar) : undefined;
+              const pfPar = ic.ic_huerfana ? undefined : pfVisibles[idx];
+              const marcaPf = pfPar ? marcaDisplayPrefactura(pfPar, ics) : undefined;
               const canonDiff = canonDiffs.ic[idx] ?? null;
               return (
                 <PpAdminIcCabeceraFila
-                  key={ic.ic_id}
+                  key={ic.chusa_fila_key}
                   tone="ic"
                   codCliente={ic.id_cliente}
                   colRef={ic.nro_ic}

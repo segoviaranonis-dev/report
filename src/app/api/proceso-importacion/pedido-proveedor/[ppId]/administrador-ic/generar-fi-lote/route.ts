@@ -40,8 +40,10 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Solo PP PROGRAMADO" }, { status: 400 });
   }
 
-  const { ics, prefacturas } = await loadAdministradorIcPp(pool, ppId);
-  const lote = construirParejasLoteChusa(ics, prefacturas);
+  const { ics, prefacturas, chusa_modo_biblioteca } = await loadAdministradorIcPp(pool, ppId);
+  const lote = construirParejasLoteChusa(ics, prefacturas, {
+    modoBiblioteca: chusa_modo_biblioteca,
+  });
   if (!lote.ok) {
     return NextResponse.json(
       { ok: false, error: lote.error, chusa: lote.chusa },

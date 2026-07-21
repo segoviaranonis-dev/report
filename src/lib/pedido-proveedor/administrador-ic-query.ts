@@ -66,6 +66,8 @@ export type AdministradorIcPayload = {
   ics: IcAdminRow[];
   prefacturas: PreFacturaInterna[];
   pf_splits: PfSplitRecord[];
+  /** Cabecera PP con biblioteca — Chusa alinea IC virtual por caso. */
+  chusa_modo_biblioteca: boolean;
 };
 
 type PpdPfRow = {
@@ -109,18 +111,26 @@ function resolveCasoNorm(
   });
 }
 
-function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId, caso: string): PfArticuloRow {
+function buildArticulo(
+  r: PpdPfRow,
+  tier: ListadoPrecioTierId,
+  caso: string,
+  opts?: { includeImages?: boolean },
+): PfArticuloRow {
   const { precio_unit, subtotal } = subtotalSinDescuento(
     { lpn: r.lpn, lpc02: r.lpc02, lpc03: r.lpc03, lpc04: r.lpc04 },
     tier,
     r.pares,
   );
-  const imageCandidates = productImageCandidatesForRow(
-    r.linea,
-    r.referencia,
-    r.material_code ?? "",
-    r.color_code ?? "",
-  ).filter(Boolean);
+  const imageCandidates =
+    opts?.includeImages === false
+      ? []
+      : productImageCandidatesForRow(
+          r.linea,
+          r.referencia,
+          r.material_code ?? "",
+          r.color_code ?? "",
+        ).filter(Boolean);
   return {
     ppd_id: Number(r.ppd_id),
     linea_id: r.linea_id,
@@ -224,7 +234,7 @@ function buildPrefacturaMap(
     const idMarca = ic?.id_marca ?? r.id_marca;
     const marca = ic?.marca ?? r.marca;
     const pfKey = `${idCliente}|${idMarca}|${casoNorm}`;
-    const art = buildArticulo(r, defaultPfTier, casoNorm);
+    const art = buildArticulo(r, defaultPfTier, casoNorm, { includeImages: false });
 
     const existing = pfMap.get(pfKey);
     if (existing) {
@@ -406,5 +416,10 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
       a.caso.localeCompare(b.caso),
   );
 
-  return { ics, prefacturas, pf_splits };
+  return {
+    ics,
+    prefacturas,
+    pf_splits,
+    chusa_modo_biblioteca: casoCtx.fuente === "biblioteca",
+  };
 }

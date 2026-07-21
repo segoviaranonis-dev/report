@@ -30,7 +30,111 @@ export type ProtocoloChusaEstado = {
   nivel1: boolean;
   nivel2: boolean;
   puedeLote: boolean;
+  /** IC cabecera sin prefactura emparejable (modo biblioteca). */
+  icHuerfanas?: number;
 };
+
+/** Fila IC virtual alineada 1:1 con PF cuando la biblioteca parte por caso. */
+export type IcAdminFilaChusa = IcAdminRow & {
+  chusa_fila_key: string;
+  chusa_caso?: string;
+  ic_huerfana?: boolean;
+};
+
+function repartoMontoIcPorPares(ic: Pick<IcAdminRow, "monto_ic" | "pares">, paresFila: number): number {
+  if (paresFila <= 0) return 0;
+  if (ic.pares <= 0) return ic.monto_ic;
+  return Math.round((ic.monto_ic * paresFila) / ic.pares);
+}
+
+function pickIcCandidatosPf(pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "caso">, ics: IcAdminRow[]) {
+  return ics.filter((ic) => icParPrefactura(ic, pf));
+}
+
+function pickIcParaPfChusa(
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "caso" | "total_pares">,
+  ics: IcAdminRow[],
+  paresRestantes: Map<number, number>,
+): IcAdminRow | undefined {
+  const candidates = pickIcCandidatosPf(pf, ics);
+  if (!candidates.length) return undefined;
+
+  const withSaldo = candidates.filter((ic) => (paresRestantes.get(ic.ic_id) ?? ic.pares) >= pf.total_pares);
+  const pool = withSaldo.length ? withSaldo : candidates;
+
+  const exactPares = pool.find((ic) => ic.pares === pf.total_pares);
+  if (exactPares) return exactPares;
+
+  const exactSaldo = pool.find((ic) => (paresRestantes.get(ic.ic_id) ?? ic.pares) === pf.total_pares);
+  if (exactSaldo) return exactSaldo;
+
+  const byMarca = pool.find((ic) => ic.id_marca === pf.id_marca);
+  if (byMarca) return byMarca;
+
+  return pool[0];
+}
+
+/**
+ * Modo biblioteca: una PF (cliente×marca×caso) → fila IC virtual con pares/monto de esa PF.
+ * IC sin proforma quedan como huérfanas al final.
+ */
+export function expandIcFilasChusaBiblioteca(
+  ics: IcAdminRow[],
+  prefacturas: PreFacturaInterna[],
+): { alineadas: IcAdminFilaChusa[]; huerfanas: IcAdminFilaChusa[] } {
+  const paresRestantes = new Map<number, number>();
+  for (const ic of ics) paresRestantes.set(ic.ic_id, ic.pares);
+
+  const pfOrden = [...prefacturas].sort((a, b) =>
+    cmpAdminFilasLote(
+      a.id_cliente,
+      marcaAlineacionPrefactura(a),
+      a.total_pares,
+      a.total_monto,
+      a.caso,
+      b.id_cliente,
+      marcaAlineacionPrefactura(b),
+      b.total_pares,
+      b.total_monto,
+      b.caso,
+    ),
+  );
+
+  const alineadas: IcAdminFilaChusa[] = [];
+  for (const pf of pfOrden) {
+    const ic = pickIcParaPfChusa(pf, ics, paresRestantes);
+    if (!ic) continue;
+    const rest = paresRestantes.get(ic.ic_id) ?? ic.pares;
+    paresRestantes.set(ic.ic_id, Math.max(0, rest - pf.total_pares));
+    alineadas.push({
+      ...ic,
+      chusa_fila_key: `${ic.ic_id}|${pf.pf_key}`,
+      chusa_caso: pf.caso,
+      pares: pf.total_pares,
+      monto_proforma: pf.total_monto,
+      monto_ic: repartoMontoIcPorPares(ic, pf.total_pares),
+    });
+  }
+
+  const huerfanas: IcAdminFilaChusa[] = ics
+    .filter((ic) => !prefacturas.some((pf) => icParPrefactura(ic, pf)))
+    .map((ic) => ({
+      ...ic,
+      chusa_fila_key: `orphan-${ic.ic_id}`,
+      ic_huerfana: true,
+    }));
+
+  return { alineadas, huerfanas };
+}
+
+/** Grilla Admin IC — alineadas + huérfanas (mismo orden que PF + cola). */
+export function filasIcGrillaChusaBiblioteca(
+  ics: IcAdminRow[],
+  prefacturas: PreFacturaInterna[],
+): IcAdminFilaChusa[] {
+  const { alineadas, huerfanas } = expandIcFilasChusaBiblioteca(ics, prefacturas);
+  return [...alineadas, ...huerfanas];
+}
 
 export function evalProtocoloChusa(
   icsVisibles: IcAdminRow[],
@@ -335,14 +439,64 @@ export type ParejaLoteFi = {
 export function construirParejasLoteChusa(
   ics: IcAdminRow[],
   prefacturas: PreFacturaInterna[],
+  opts?: { modoBiblioteca?: boolean },
 ):
   | { ok: true; parejas: ParejaLoteFi[]; chusa: ProtocoloChusaEstado }
   | { ok: false; error: string; chusa: ProtocoloChusaEstado } {
-  const { icsOrden, pfOrden } = ordenarUniversoLoteChusa(ics, prefacturas);
-  const chusa = evalProtocoloChusa(icsOrden, pfOrden, ics);
+  const modoBiblioteca = opts?.modoBiblioteca === true;
+  const pfOrden = [...prefacturas].sort((a, b) =>
+    cmpAdminFilasLote(
+      a.id_cliente,
+      marcaAlineacionPrefactura(a),
+      a.total_pares,
+      a.total_monto,
+      a.caso,
+      b.id_cliente,
+      marcaAlineacionPrefactura(b),
+      b.total_pares,
+      b.total_monto,
+      b.caso,
+    ),
+  );
+
+  let icsOrden: IcAdminRow[];
+  let chusa: ProtocoloChusaEstado;
+
+  if (modoBiblioteca) {
+    const { alineadas, huerfanas } = expandIcFilasChusaBiblioteca(ics, prefacturas);
+    icsOrden = alineadas;
+    chusa = evalProtocoloChusa(alineadas, pfOrden, ics);
+    chusa = { ...chusa, icHuerfanas: huerfanas.length };
+    if (huerfanas.length > 0) {
+      return {
+        ok: false,
+        error: `${huerfanas.length} IC sin proforma — eliminá o reasigná antes del lote.`,
+        chusa,
+      };
+    }
+  } else {
+    const orden = ordenarUniversoLoteChusa(ics, prefacturas);
+    icsOrden = orden.icsOrden;
+    chusa = evalProtocoloChusa(icsOrden, pfOrden, ics);
+  }
+
   if (!chusa.puedeLote) {
     return { ok: false, error: "Protocolo Chusa: contadores o canon no cuadran.", chusa };
   }
+
+  const icIdsUsados = new Set<number>();
+  for (const ic of icsOrden) {
+    if (icIdsUsados.has(ic.ic_id)) {
+      return {
+        ok: false,
+        error:
+          "Una IC abarca varios casos — usá división PF (÷) o separá ICs antes de generar el lote.",
+        chusa,
+      };
+    }
+    icIdsUsados.add(ic.ic_id);
+  }
+
   const parejas = parejasLoteAlineadas(icsOrden, pfOrden).map(({ ic, pf }) => {
     const ppd_pares: Record<number, number> = {};
     for (const a of pf.articulos) {
