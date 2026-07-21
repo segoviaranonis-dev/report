@@ -110,14 +110,64 @@ export function resolveMarcaProformaImport(opts: {
   const lineaHit = opts.lineaMarcaByCod.get(lineaCod);
 
   if (brandEsCasoComercial(brandKey, opts.casosEvento)) {
-    if (lineaHit) {
+    if (lineaHit && !brandEsCasoComercial(lineaHit.nombre, opts.casosEvento)) {
       return { id_marca: lineaHit.id_marca, brandParaJson: lineaHit.nombre };
     }
     return { id_marca: null, brandParaJson: brandRaw };
   }
 
   const idFromBrand = brandKey ? opts.marcaLookup.get(brandKey) ?? null : null;
-  const id_marca = idFromBrand ?? lineaHit?.id_marca ?? null;
-  const brandParaJson = brandKey || lineaHit?.nombre || brandRaw;
+  let id_marca = idFromBrand;
+  let brandParaJson = brandKey || brandRaw;
+  if (
+    id_marca == null &&
+    lineaHit &&
+    !brandEsCasoComercial(lineaHit.nombre, opts.casosEvento)
+  ) {
+    id_marca = lineaHit.id_marca;
+    brandParaJson = lineaHit.nombre;
+  }
   return { id_marca, brandParaJson };
+}
+
+/** Marca real PF — nunca caso comercial (CHINELO en marca_v2 · línea envenenada). */
+export function resolveMarcaRealPf(opts: {
+  id_marca: number;
+  marca: string;
+  linea_marca_id: number | null;
+  marca_linea: string;
+  brand_excel: string;
+  brand_json: string;
+  casoNorm: string;
+  casosEvento: Set<string>;
+  marcaByNom: Map<string, { id_marca: number; nombre: string }>;
+}): { id_marca: number; marca: string } {
+  const casoN = normAdminEtiqueta(opts.casoNorm);
+  const esCasoComoMarca = (nom: string): boolean => {
+    const n = normAdminEtiqueta(String(nom ?? "").replace(/\*/g, ""));
+    if (!n) return true;
+    if (opts.casosEvento.has(n)) return true;
+    return casoN !== "" && casoN !== "—" && n === casoN;
+  };
+
+  for (const raw of [opts.brand_excel, opts.brand_json]) {
+    const key = normAdminEtiqueta(String(raw ?? "").replace(/\*/g, ""));
+    if (!key || esCasoComoMarca(key)) continue;
+    const hit = opts.marcaByNom.get(key);
+    if (hit) return { id_marca: hit.id_marca, marca: hit.nombre };
+  }
+
+  if (
+    opts.linea_marca_id != null &&
+    opts.marca_linea &&
+    !esCasoComoMarca(opts.marca_linea)
+  ) {
+    return { id_marca: opts.linea_marca_id, marca: opts.marca_linea };
+  }
+
+  if (!esCasoComoMarca(opts.marca)) {
+    return { id_marca: opts.id_marca, marca: opts.marca };
+  }
+
+  return { id_marca: opts.id_marca, marca: opts.marca };
 }

@@ -8,6 +8,7 @@ import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
 import {
   casoLineaFromMapa,
   resolveCasoMotorPrecios,
+  resolveMarcaRealPf,
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import {
@@ -77,6 +78,8 @@ type PpdPfRow = {
   marca: string;
   linea_marca_id: number | null;
   marca_linea: string;
+  brand_excel: string;
+  brand_json: string;
   caso_pl: string;
   linea: string;
   referencia: string;
@@ -224,15 +227,20 @@ function resolveMarcaPfFila(
   r: PpdPfRow,
   mapaCasoLinea: Map<string, string>,
   casosEvento: Set<string>,
+  marcaByNom: Map<string, { id_marca: number; nombre: string }>,
 ): Pick<PpdPfRow, "id_marca" | "marca"> {
   const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
-  if (!marcaEsCasoComercial(r.marca, casoNorm, casosEvento)) {
-    return { id_marca: r.id_marca, marca: r.marca };
-  }
-  if (r.linea_marca_id != null && r.marca_linea) {
-    return { id_marca: r.linea_marca_id, marca: r.marca_linea };
-  }
-  return { id_marca: r.id_marca, marca: r.marca };
+  return resolveMarcaRealPf({
+    id_marca: r.id_marca,
+    marca: r.marca,
+    linea_marca_id: r.linea_marca_id,
+    marca_linea: r.marca_linea,
+    brand_excel: r.brand_excel,
+    brand_json: r.brand_json,
+    casoNorm,
+    casosEvento,
+    marcaByNom,
+  });
 }
 
 function buildPrefacturaMap(
@@ -241,18 +249,16 @@ function buildPrefacturaMap(
   mapaCasoLinea: Map<string, string>,
   casosEvento: Set<string>,
   defaultPfTier: ListadoPrecioTierId,
+  marcaByNom: Map<string, { id_marca: number; nombre: string }>,
 ): Map<string, PreFacturaInterna> {
   const pfMap = new Map<string, PreFacturaInterna>();
 
   for (const r of ppdRows) {
     const idCliente = Number(r.shop) || 0;
-    const marcaFila = resolveMarcaPfFila(r, mapaCasoLinea, casosEvento);
+    const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
+    const marcaFila = resolveMarcaPfFila(r, mapaCasoLinea, casosEvento, marcaByNom);
     const rMarca = { ...r, id_marca: marcaFila.id_marca, marca: marcaFila.marca };
-    const casoNorm = resolveCasoNorm(rMarca, mapaCasoLinea, casosEvento);
-    const ic = pickIcForPpdRow(rMarca, icsRaw, mapaCasoLinea, casosEvento);
-    const idMarca = ic?.id_marca ?? rMarca.id_marca;
-    const marca = ic?.marca ?? rMarca.marca;
-    const pfKey = `${idCliente}|${idMarca}|${casoNorm}`;
+    const pfKey = `${idCliente}|${rMarca.id_marca}|${casoNorm}`;
     const art = buildArticulo(rMarca, defaultPfTier, casoNorm, { includeImages: false });
 
     const existing = pfMap.get(pfKey);
@@ -264,8 +270,8 @@ function buildPrefacturaMap(
       pfMap.set(pfKey, {
         pf_key: pfKey,
         id_cliente: idCliente,
-        marca,
-        id_marca: idMarca,
+        marca: rMarca.marca,
+        id_marca: rMarca.id_marca,
         caso: casoNorm,
         listado_tier: defaultPfTier,
         listado_label: labelListadoPrecio(defaultPfTier),
@@ -315,6 +321,14 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
   const eventoId = ppMeta.rows[0]?.evento_id ?? casoCtx.eventoId;
   const { mapaCasoLinea, casosEvento } = casoCtx;
 
+  const marcasRes = await pool.query<{ id_marca: number; nom: string }>(
+    `SELECT id_marca, UPPER(TRIM(descp_marca)) AS nom FROM marca_v2 WHERE descp_marca IS NOT NULL`,
+  );
+  const marcaByNom = new Map<string, { id_marca: number; nombre: string }>();
+  for (const m of marcasRes.rows) {
+    if (m.nom) marcaByNom.set(m.nom, { id_marca: m.id_marca, nombre: m.nom });
+  }
+
   const { rows: ppdRows } = await pool.query<PpdPfRow>(
     `
     SELECT
@@ -324,6 +338,8 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
       COALESCE(mv_pilar.descp_marca, mv_excel.descp_marca, '—') AS marca,
       l_eff.marca_id AS linea_marca_id,
       COALESCE(mv_pilar.descp_marca, '—') AS marca_linea,
+      COALESCE(NULLIF(TRIM(ppd.grades_json->>'_brand_excel'), ''), '') AS brand_excel,
+      COALESCE(NULLIF(TRIM(ppd.grades_json->>'_brand'), ''), '') AS brand_json,
       COALESCE(
         NULLIF(TRIM(pl_fk.nombre_caso_aplicado), ''),
         NULLIF(TRIM(pec_fk.nombre_caso), ''),
@@ -409,7 +425,7 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
   );
 
   const defaultPfTier: ListadoPrecioTierId = 1;
-  const pfMap = buildPrefacturaMap(ppdRows, icsRaw, mapaCasoLinea, casosEvento, defaultPfTier);
+  const pfMap = buildPrefacturaMap(ppdRows, icsRaw, mapaCasoLinea, casosEvento, defaultPfTier, marcaByNom);
 
   const ics: IcAdminRow[] = icsRaw.map((ic) => {
     const tier = fiListaTier(ic.listado_precio_id ?? 1);
