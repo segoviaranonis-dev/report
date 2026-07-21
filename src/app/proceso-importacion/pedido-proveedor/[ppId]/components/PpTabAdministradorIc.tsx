@@ -20,6 +20,7 @@ import {
   canonDiffsPorIndice,
   cmpAdminFilasGrilla,
   tieneDesajusteCanon,
+  tripleteColumnasExacto,
   type CanonDiffCelda,
   type IcAdminFilaChusa,
 } from "@/lib/pedido-proveedor/administrador-ic-monto";
@@ -220,28 +221,6 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
     return [...set].sort((a, b) => a - b);
   }, [ics, prefacturas]);
 
-  const pfTierAutoIc = useMemo(() => {
-    const out: Record<string, ListadoPrecioTierId> = {};
-    const icPorPf = new Map<string, IcAdminRow>();
-    for (const pf of prefacturas) {
-      const ic = ics.find((i) => parejaTripleteIcPf(i, pf));
-      if (ic) {
-        out[pf.pf_key] = ic.listado_tier;
-        icPorPf.set(pf.pf_key, ic);
-      }
-    }
-    return { tiers: out, icPorPf };
-  }, [ics, prefacturas]);
-
-  const pfConTier = useMemo(() => {
-    return prefacturas.map((pf) => {
-      const autoTier = pfTierAutoIc.tiers[pf.pf_key];
-      const tier = autoTier ?? pfTierOverrides[pf.pf_key] ?? pf.listado_tier;
-      if (tier === pf.listado_tier && !autoTier && !pfTierOverrides[pf.pf_key]) return pf;
-      return recalcPfConTier(pf, tier);
-    });
-  }, [prefacturas, pfTierOverrides, pfTierAutoIc.tiers]);
-
   const sortPfAdmin = useCallback(
     (a: PreFacturaInterna, b: PreFacturaInterna) =>
       cmpAdminFilasGrilla(
@@ -267,6 +246,34 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
       ),
     [],
   );
+
+  const pfTierAutoIc = useMemo(() => {
+    const icsOrd = [...ics].sort(sortIcAdmin);
+    const pfOrd = [...prefacturas].sort(sortPfAdmin);
+    const out: Record<string, ListadoPrecioTierId> = {};
+    const icPorPf = new Map<string, IcAdminRow>();
+    for (let i = 0; i < pfOrd.length; i++) {
+      const pf = pfOrd[i];
+      const icTriplete = ics.find((row) => parejaTripleteIcPf(row, pf));
+      const icFila =
+        icTriplete ??
+        (icsOrd[i] && tripleteColumnasExacto(icsOrd[i], pf) ? icsOrd[i] : undefined);
+      if (icFila) {
+        out[pf.pf_key] = icFila.listado_tier;
+        icPorPf.set(pf.pf_key, icFila);
+      }
+    }
+    return { tiers: out, icPorPf };
+  }, [ics, prefacturas, sortIcAdmin, sortPfAdmin]);
+
+  const pfConTier = useMemo(() => {
+    return prefacturas.map((pf) => {
+      const autoTier = pfTierAutoIc.tiers[pf.pf_key];
+      const tier = autoTier ?? pfTierOverrides[pf.pf_key] ?? pf.listado_tier;
+      if (tier === pf.listado_tier && !autoTier && !pfTierOverrides[pf.pf_key]) return pf;
+      return recalcPfConTier(pf, tier);
+    });
+  }, [prefacturas, pfTierOverrides, pfTierAutoIc.tiers]);
 
   const icsVisibles = useMemo((): IcAdminFilaChusa[] => {
     const list = filtroCliente
@@ -517,38 +524,69 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
       return;
     }
     setGenerandoFiKey("lote");
+    const batchSize = 12;
     try {
-      const res = await fetch(
-        `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/generar-fi-lote`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ regenerar }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        if (data.fi_exceso) {
-          throw new Error(data.error || `FI de más (${data.n_fi} vs ${data.n_esperadas} IC)`);
+      let offset = 0;
+      let done = false;
+      let total = nFiEfectivo;
+      let firstBatch = true;
+      let lastData: Record<string, unknown> = {};
+      while (!done) {
+        const res = await fetch(
+          `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/generar-fi-lote`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              regenerar: firstBatch && regenerar,
+              offset,
+              batch_size: batchSize,
+            }),
+          },
+        );
+        const raw = await res.text();
+        let data: Record<string, unknown> = {};
+        try {
+          data = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+        } catch {
+          throw new Error(
+            raw.trim()
+              ? `Respuesta inválida del servidor (${res.status})`
+              : `Timeout o respuesta vacía (${res.status}) — reintentá en 30s`,
+          );
         }
-        const icHint = data.fallo_ic_nro
-          ? ` · ${data.fallo_ic_nro}`
-          : data.fallo_ic_id != null
-            ? ` · IC id ${data.fallo_ic_id}`
-            : "";
-        const parcial =
-          Array.isArray(data.generadas) && data.generadas.length
-            ? ` · ${data.generadas.length} FI parciales antes del fallo`
-            : "";
-        throw new Error((data.error || "Error en lote FI") + icHint + parcial);
+        if (!res.ok || !data.ok) {
+          if (data.fi_exceso) {
+            throw new Error(String(data.error || `FI de más (${data.n_fi} vs ${data.n_esperadas} IC)`));
+          }
+          const icHint = data.fallo_ic_nro
+            ? ` · ${data.fallo_ic_nro}`
+            : data.fallo_ic_id != null
+              ? ` · IC id ${data.fallo_ic_id}`
+              : "";
+          const parcial =
+            Array.isArray(data.generadas) && data.generadas.length
+              ? ` · ${data.generadas.length} FI parciales antes del fallo`
+              : "";
+          throw new Error(String(data.error || "Error en lote FI") + icHint + parcial);
+        }
+
+        total = Number(data.total ?? total);
+        done = data.done === true || data.next_offset == null;
+        offset = done ? offset : Number(data.next_offset ?? offset + batchSize);
+        firstBatch = false;
+        lastData = data;
+
+        if (!done && protocoloChusa.contadorIc > 0) {
+          onMsg(`Generando FI… ${total}/${protocoloChusa.contadorIc}`);
+        }
       }
 
-      const total = Number(data.total ?? data.generadas?.length ?? protocoloChusa.contadorIc);
-      if (data.already_done && total === fiEsperadas && !regenerar) {
+      if (lastData.already_done && total === fiEsperadas && !regenerar) {
         onMsg(`✓ Lote completo: ${total} FI = ${fiEsperadas} IC`);
-      } else if (data.regenerado) {
-        onMsg(`✓ Regeneradas ${data.generadas_en_lote ?? total} FI desde prefactura actual`);
+      } else if (regenerar || total > nFiEfectivo) {
+        onMsg(`✓ ${total} FI generadas desde prefactura`);
       }
       await load();
       await onReload?.();
@@ -953,8 +991,8 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
           <div className="max-h-[520px] space-y-1 overflow-x-auto overflow-y-auto p-2">
             {pfVisibles.map((pf, idx) => {
               const open = expandedPf.has(pf.pf_key);
-              const icVinculada = pfTierAutoIc.icPorPf.get(pf.pf_key);
               const icPar = icsVisibles[idx];
+              const icVinculada = pfTierAutoIc.icPorPf.get(pf.pf_key) ?? icPar;
               const lpLocked = Boolean(icVinculada);
               const tier =
                 pfTierAutoIc.tiers[pf.pf_key] ?? pfTierOverrides[pf.pf_key] ?? pf.listado_tier;

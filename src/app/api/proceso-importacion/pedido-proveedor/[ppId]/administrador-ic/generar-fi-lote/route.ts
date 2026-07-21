@@ -7,12 +7,16 @@ import { borrarFiReservadasProgramado } from "@/lib/pedido-proveedor/proforma-pr
 import { getPpDetalle } from "@/lib/pedido-proveedor/detail-query";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
+import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { tryLockPpFiOpsWithStaleRecovery, unlockPpFiOps } from "@/lib/pedido-proveedor/pp-fi-advisory-lock";
 
 type Params = { params: Promise<{ ppId: string }> };
 
-/** PP-26+ · lote 100 FI puede superar 60s en Vercel (UI avisa ~2 min). */
-export const maxDuration = 300;
+/** Lote Admin IC — batches cortos evitan timeout Vercel (504 body vacío). */
+export const maxDuration = 120;
+
+const FI_LOTE_BATCH_DEFAULT = 12;
+const FI_LOTE_BATCH_MAX = 20;
 
 /** Protocolo Chusa · genera N FI en secuencia (1 IC ↔ 1 PF por pareja). */
 export async function POST(req: Request, { params }: Params) {
@@ -28,11 +32,22 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   let regenerar = false;
+  let offset = 0;
+  let batchSize = FI_LOTE_BATCH_DEFAULT;
   try {
-    const body = (await req.json()) as { regenerar?: boolean };
+    const body = (await req.json()) as {
+      regenerar?: boolean;
+      offset?: number;
+      batch_size?: number;
+    };
     regenerar = body?.regenerar === true;
+    offset = Math.max(0, Number(body?.offset ?? 0));
+    const bs = Number(body?.batch_size ?? FI_LOTE_BATCH_DEFAULT);
+    if (Number.isFinite(bs) && bs > 0) {
+      batchSize = Math.min(FI_LOTE_BATCH_MAX, Math.max(1, Math.floor(bs)));
+    }
   } catch {
-    /* body vacío = crear faltantes */
+    /* body vacío = crear faltantes desde offset 0 */
   }
 
   const pool = getRimecPool();
@@ -75,7 +90,7 @@ export async function POST(req: Request, { params }: Params) {
 
     const nEsperadas = parejas.length;
 
-    if (regenerar) {
+    if (regenerar && offset === 0) {
       const del = await borrarFiReservadasProgramado(ppId);
       if (!del.ok) {
         return NextResponse.json(
@@ -89,9 +104,9 @@ export async function POST(req: Request, { params }: Params) {
       "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
       [ppId],
     );
-    const nFiExistentes = fiExistRows[0]?.c ?? 0;
+    let nFiExistentes = fiExistRows[0]?.c ?? 0;
 
-    if (!regenerar && nFiExistentes > nEsperadas) {
+    if (!regenerar && offset === 0 && nFiExistentes > nEsperadas) {
       return NextResponse.json(
         {
           ok: false,
@@ -104,17 +119,37 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    if (!regenerar && nFiExistentes === nEsperadas) {
+    if (!regenerar && offset === 0 && nFiExistentes === nEsperadas) {
       return NextResponse.json({
         ok: true,
+        done: true,
         already_done: true,
         total: nFiExistentes,
         n_esperadas: nEsperadas,
+        next_offset: null,
+        generadas_en_lote: 0,
         generadas: [],
         avisos: [`Lote completo: ${nFiExistentes} FI = ${nEsperadas} IC.`],
       });
     }
 
+    /** Reanudar desde FI ya creadas (idempotente). */
+    if (offset < nFiExistentes) offset = nFiExistentes;
+
+    if (offset >= nEsperadas) {
+      return NextResponse.json({
+        ok: true,
+        done: true,
+        total: nFiExistentes,
+        n_esperadas: nEsperadas,
+        next_offset: null,
+        generadas_en_lote: 0,
+        generadas: [],
+        avisos: [`Lote completo: ${nFiExistentes} FI = ${nEsperadas} IC.`],
+      });
+    }
+
+    const batch = parejas.slice(offset, offset + batchSize);
     const generadas: Array<{
       ic_id: number;
       fi_id: number;
@@ -122,12 +157,13 @@ export async function POST(req: Request, { params }: Params) {
       total_pares: number;
       total_monto: number;
     }> = [];
-    const avisos: string[] = regenerar
-      ? [`Regeneración: ${nEsperadas} FI desde prefactura actual.`]
-      : [];
+    const avisos: string[] =
+      regenerar && offset === 0
+        ? [`Regeneración por lotes: ${nEsperadas} FI desde prefactura.`]
+        : [];
     let omitidas = 0;
 
-    for (const p of parejas) {
+    for (const p of batch) {
       if (!regenerar && p.ppd_ids.length > 0) {
         const { rows: fiPpdRows } = await pool.query<{ c: number }>(
           `SELECT COUNT(*)::int AS c
@@ -167,6 +203,8 @@ export async function POST(req: Request, { params }: Params) {
             fallo_ic_nro: p.ic_nro,
             avisos: result.avisos ?? [],
             generadas,
+            offset,
+            n_esperadas: nEsperadas,
           },
           { status: 400 },
         );
@@ -181,16 +219,29 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
+    const { rows: fiAfterRows } = await pool.query<{ c: number }>(
+      "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
+      [ppId],
+    );
+    nFiExistentes = fiAfterRows[0]?.c ?? nFiExistentes + generadas.length;
+    const nextOffset = offset + batch.length;
+    const done = nextOffset >= nEsperadas;
+
     return NextResponse.json({
       ok: true,
-      regenerado: regenerar,
-      total: regenerar ? generadas.length : nFiExistentes + generadas.length,
+      done,
+      regenerado: regenerar && offset === 0,
+      total: nFiExistentes,
       generadas_en_lote: generadas.length,
       omitidas_ic_con_fi: omitidas,
       n_esperadas: nEsperadas,
+      offset,
+      next_offset: done ? null : nextOffset,
       generadas,
       avisos,
     });
+  } catch (e) {
+    return icApiErrorResponse(e, "Error al generar lote FI");
   } finally {
     if (ppFiLocked) {
       await unlockPpFiOps(lockClient, ppId).catch(() => undefined);
@@ -198,4 +249,3 @@ export async function POST(req: Request, { params }: Params) {
     lockClient.release();
   }
 }
-
