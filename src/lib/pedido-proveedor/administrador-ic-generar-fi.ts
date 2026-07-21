@@ -50,8 +50,10 @@ function formatNroFi(ppId: number, correlativo: number): string {
   return `${ppId}-PV${String(correlativo).padStart(3, "0")}`;
 }
 
-async function loadIcCabecera(pool: Pool, icId: number, ppId: number): Promise<IcCabecera | null> {
-  const { rows } = await pool.query<IcCabecera>(
+type PgQueryable = Pick<Pool, "query">;
+
+async function loadIcCabecera(db: PgQueryable, icId: number, ppId: number): Promise<IcCabecera | null> {
+  const { rows } = await db.query<IcCabecera>(
     `SELECT ic.id AS ic_id, ic.numero_registro, ic.id_cliente, ic.id_vendedor, ic.id_plazo,
             ic.id_marca, UPPER(TRIM(mv.descp_marca)) AS marca_nombre,
             ic.listado_precio_id, ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
@@ -145,11 +147,11 @@ async function loadSkusPpd(
 }
 
 async function resolveEventoIdIc(
-  pool: Pool,
+  db: PgQueryable,
   ppId: number,
   icId: number,
 ): Promise<number | null> {
-  const { rows } = await pool.query<{ evento_id: number | null }>(
+  const { rows } = await db.query<{ evento_id: number | null }>(
     `SELECT COALESCE(
        icp.precio_evento_id,
        ic.precio_evento_id,
@@ -189,17 +191,24 @@ export async function generarFiDesdeAdministradorIc(
   ppId: number,
   icId: number,
   ppdIds: number[],
-  opts?: { listado_tier_preview?: ListadoPrecioTierId; ppd_pares?: Record<number, number> },
+  opts?: {
+    listado_tier_preview?: ListadoPrecioTierId;
+    ppd_pares?: Record<number, number>;
+    /** Reutilizar conexión (Vercel pool max=1 — evitar deadlock con advisory lock). */
+    txClient?: PoolClient;
+  },
 ): Promise<GenerarFiAdminResult> {
   if (!ppdIds.length) return { ok: false, error: "Seleccioná al menos un artículo PPD." };
 
-  const ic = await loadIcCabecera(pool, icId, ppId);
+  const db = opts?.txClient ?? pool;
+  const ic = await loadIcCabecera(db, icId, ppId);
   if (!ic) return { ok: false, error: "IC no vinculada a este PP." };
 
-  const eventoId = await resolveEventoIdIc(pool, ppId, icId);
+  const eventoId = await resolveEventoIdIc(db, ppId, icId);
   if (!eventoId) return { ok: false, error: "IC sin evento de precios vinculado." };
 
-  const client = await pool.connect();
+  const ownsClient = !opts?.txClient;
+  const client = opts?.txClient ?? (await pool.connect());
   const avisos: string[] = [];
   try {
     const skuMap = await loadSkusPpd(client, ppId, eventoId, ppdIds);
@@ -378,6 +387,6 @@ export async function generarFiDesdeAdministradorIc(
     await client.query("ROLLBACK");
     return { ok: false, error: e instanceof Error ? e.message : "Error al generar FI" };
   } finally {
-    client.release();
+    if (ownsClient) client.release();
   }
 }

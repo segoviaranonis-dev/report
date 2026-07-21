@@ -12,7 +12,7 @@ import { tryLockPpFiOpsWithStaleRecovery, unlockPpFiOps } from "@/lib/pedido-pro
 
 type Params = { params: Promise<{ ppId: string }> };
 
-/** Lote Admin IC — batches cortos evitan timeout Vercel (504 body vacío). */
+/** Lote Admin IC — batches cortos; 1 sola conexión por request (Vercel pool max=1). */
 export const maxDuration = 120;
 
 const FI_LOTE_BATCH_DEFAULT = 12;
@@ -51,21 +51,8 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   const pool = getRimecPool();
-  const lockClient = await pool.connect();
-  let ppFiLocked = false;
-  try {
-    if (!(await tryLockPpFiOpsWithStaleRecovery(lockClient, ppId))) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Hay otro proceso FI en este PP (cambio de biblioteca u otro lote) — esperá unos segundos y reintentá.",
-        },
-        { status: 409 },
-      );
-    }
-    ppFiLocked = true;
 
+  try {
     const header = await getPpDetalle(pool, ppId);
     if (!header) {
       return NextResponse.json({ ok: false, error: "PP no encontrado" }, { status: 404 });
@@ -133,7 +120,6 @@ export async function POST(req: Request, { params }: Params) {
       });
     }
 
-    /** Reanudar desde FI ya creadas (idempotente). */
     if (offset < nFiExistentes) offset = nFiExistentes;
 
     if (offset >= nEsperadas) {
@@ -150,102 +136,125 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const batch = parejas.slice(offset, offset + batchSize);
-    const generadas: Array<{
-      ic_id: number;
-      fi_id: number;
-      fi_nro: string;
-      total_pares: number;
-      total_monto: number;
-    }> = [];
-    const avisos: string[] =
-      regenerar && offset === 0
-        ? [`Regeneración por lotes: ${nEsperadas} FI desde prefactura.`]
-        : [];
-    let omitidas = 0;
-
-    for (const p of batch) {
-      if (!regenerar && p.ppd_ids.length > 0) {
-        const { rows: fiPpdRows } = await pool.query<{ c: number }>(
-          `SELECT COUNT(*)::int AS c
-           FROM factura_interna_detalle fid
-           JOIN factura_interna fi ON fi.id = fid.factura_id
-           WHERE fi.pp_id = $1 AND fid.ppd_id = ANY($2::int[])`,
-          [ppId, p.ppd_ids],
-        );
-        if ((fiPpdRows[0]?.c ?? 0) > 0) {
-          omitidas++;
-          continue;
-        }
-      } else if (!regenerar) {
-        const { rows: fiIcRows } = await pool.query<{ c: number }>(
-          `SELECT COUNT(*)::int AS c
-           FROM factura_interna fi
-           JOIN intencion_compra ic ON TRIM(fi.notas) = TRIM(ic.numero_registro)
-           WHERE fi.pp_id = $1 AND ic.id = $2`,
-          [ppId, p.ic_id],
-        );
-        if ((fiIcRows[0]?.c ?? 0) > 0) {
-          omitidas++;
-          continue;
-        }
-      }
-
-      const result = await generarFiDesdeAdministradorIc(pool, ppId, p.ic_id, p.ppd_ids, {
-        ppd_pares: p.ppd_pares,
-      });
-      if (!result.ok) {
-        console.error("[generar-fi-lote] fallo", p.ic_nro, p.ic_id, result.error, result.avisos?.slice(0, 3));
+    const client = await pool.connect();
+    let ppFiLocked = false;
+    try {
+      if (!(await tryLockPpFiOpsWithStaleRecovery(client, ppId))) {
         return NextResponse.json(
           {
             ok: false,
-            error: result.error ?? "Error en lote",
-            fallo_ic_id: p.ic_id,
-            fallo_ic_nro: p.ic_nro,
-            avisos: result.avisos ?? [],
-            generadas,
-            offset,
-            n_esperadas: nEsperadas,
+            error:
+              "Hay otro proceso FI en este PP (cambio de biblioteca u otro lote) — esperá unos segundos y reintentá.",
           },
-          { status: 400 },
+          { status: 409 },
         );
       }
-      if (result.avisos?.length) avisos.push(...result.avisos);
-      generadas.push({
-        ic_id: p.ic_id,
-        fi_id: result.fi_id!,
-        fi_nro: result.fi_nro!,
-        total_pares: result.total_pares!,
-        total_monto: result.total_monto!,
+      ppFiLocked = true;
+
+      const generadas: Array<{
+        ic_id: number;
+        fi_id: number;
+        fi_nro: string;
+        total_pares: number;
+        total_monto: number;
+      }> = [];
+      const avisos: string[] =
+        regenerar && offset === 0
+          ? [`Regeneración por lotes: ${nEsperadas} FI desde prefactura.`]
+          : [];
+      let omitidas = 0;
+
+      for (const p of batch) {
+        if (!regenerar && p.ppd_ids.length > 0) {
+          const { rows: fiPpdRows } = await client.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c
+             FROM factura_interna_detalle fid
+             JOIN factura_interna fi ON fi.id = fid.factura_id
+             WHERE fi.pp_id = $1 AND fid.ppd_id = ANY($2::int[])`,
+            [ppId, p.ppd_ids],
+          );
+          if ((fiPpdRows[0]?.c ?? 0) > 0) {
+            omitidas++;
+            continue;
+          }
+        } else if (!regenerar) {
+          const { rows: fiIcRows } = await client.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c
+             FROM factura_interna fi
+             JOIN intencion_compra ic ON TRIM(fi.notas) = TRIM(ic.numero_registro)
+             WHERE fi.pp_id = $1 AND ic.id = $2`,
+            [ppId, p.ic_id],
+          );
+          if ((fiIcRows[0]?.c ?? 0) > 0) {
+            omitidas++;
+            continue;
+          }
+        }
+
+        const result = await generarFiDesdeAdministradorIc(pool, ppId, p.ic_id, p.ppd_ids, {
+          ppd_pares: p.ppd_pares,
+          txClient: client,
+        });
+        if (!result.ok) {
+          console.error(
+            "[generar-fi-lote] fallo",
+            p.ic_nro,
+            p.ic_id,
+            result.error,
+            result.avisos?.slice(0, 3),
+          );
+          return NextResponse.json(
+            {
+              ok: false,
+              error: result.error ?? "Error en lote",
+              fallo_ic_id: p.ic_id,
+              fallo_ic_nro: p.ic_nro,
+              avisos: result.avisos ?? [],
+              generadas,
+              offset,
+              n_esperadas: nEsperadas,
+            },
+            { status: 400 },
+          );
+        }
+        if (result.avisos?.length) avisos.push(...result.avisos);
+        generadas.push({
+          ic_id: p.ic_id,
+          fi_id: result.fi_id!,
+          fi_nro: result.fi_nro!,
+          total_pares: result.total_pares!,
+          total_monto: result.total_monto!,
+        });
+      }
+
+      const { rows: fiAfterRows } = await client.query<{ c: number }>(
+        "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
+        [ppId],
+      );
+      nFiExistentes = fiAfterRows[0]?.c ?? nFiExistentes + generadas.length;
+      const nextOffset = offset + batch.length;
+      const done = nextOffset >= nEsperadas;
+
+      return NextResponse.json({
+        ok: true,
+        done,
+        regenerado: regenerar && offset === 0,
+        total: nFiExistentes,
+        generadas_en_lote: generadas.length,
+        omitidas_ic_con_fi: omitidas,
+        n_esperadas: nEsperadas,
+        offset,
+        next_offset: done ? null : nextOffset,
+        generadas,
+        avisos,
       });
+    } finally {
+      if (ppFiLocked) {
+        await unlockPpFiOps(client, ppId).catch(() => undefined);
+      }
+      client.release();
     }
-
-    const { rows: fiAfterRows } = await pool.query<{ c: number }>(
-      "SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1",
-      [ppId],
-    );
-    nFiExistentes = fiAfterRows[0]?.c ?? nFiExistentes + generadas.length;
-    const nextOffset = offset + batch.length;
-    const done = nextOffset >= nEsperadas;
-
-    return NextResponse.json({
-      ok: true,
-      done,
-      regenerado: regenerar && offset === 0,
-      total: nFiExistentes,
-      generadas_en_lote: generadas.length,
-      omitidas_ic_con_fi: omitidas,
-      n_esperadas: nEsperadas,
-      offset,
-      next_offset: done ? null : nextOffset,
-      generadas,
-      avisos,
-    });
   } catch (e) {
     return icApiErrorResponse(e, "Error al generar lote FI");
-  } finally {
-    if (ppFiLocked) {
-      await unlockPpFiOps(lockClient, ppId).catch(() => undefined);
-    }
-    lockClient.release();
   }
 }
