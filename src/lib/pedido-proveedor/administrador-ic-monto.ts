@@ -44,12 +44,15 @@ function repartoMontoIcPorPares(ic: Pick<IcAdminRow, "monto_ic" | "pares">, pare
   return Math.round((ic.monto_ic * paresFila) / ic.pares);
 }
 
-function pickIcCandidatosPf(pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "caso">, ics: IcAdminRow[]) {
+function pickIcCandidatosPf(
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso">,
+  ics: IcAdminRow[],
+) {
   return ics.filter((ic) => icParPrefactura(ic, pf));
 }
 
 function pickIcParaPfChusa(
-  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "caso" | "total_pares">,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso" | "total_pares">,
   ics: IcAdminRow[],
   paresRestantes: Map<number, number>,
 ): IcAdminRow | undefined {
@@ -243,7 +246,7 @@ export function canonDiffsPorIndice(
 /** IC ↔ PF: cliente + marca + cantidad idénticos. */
 export function parejaTripleteIcPf(
   ic: Pick<IcAdminRow, "id_cliente" | "id_marca" | "marca" | "pares">,
-  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "caso" | "total_pares">,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso" | "total_pares">,
 ): boolean {
   return icParPrefactura(ic, pf) && ic.pares === pf.total_pares;
 }
