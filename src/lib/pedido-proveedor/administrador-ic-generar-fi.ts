@@ -5,7 +5,7 @@ import {
 } from "@/lib/pedido-proveedor/aritmetica-programado";
 import type { ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
 import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
-import { resolveCasoDominanteDesdePpd } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
+import { resolveCasoDominanteParaFi } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
 
 type SkuFi = {
   ppd_id: number;
@@ -283,14 +283,14 @@ export async function generarFiDesdeAdministradorIc(
     const nro = formatNroFi(ppId, (await getNextNroFiBase(client, ppId)) + 1);
     const totalPares = items.reduce((s, i) => s + i.pares, 0);
     const totalMonto = Math.round(items.reduce((s, i) => s + i.subtotal, 0) * 100) / 100;
-    const casoCab = await resolveCasoDominanteDesdePpd(
+    const casoCab = await resolveCasoDominanteParaFi(
       client,
       ppId,
       eventoId,
       items.map((i) => i.ppd_id),
     );
     if (!casoCab.caso) {
-      avisos.push("FI sin caso comercial resoluble desde listado/evento — cabecera queda vacía.");
+      avisos.push("FI sin caso comercial resoluble (BCL cabecera o listado IC) — cabecera queda vacía.");
     }
 
     const fiRes = await client.query<{ id: number }>(

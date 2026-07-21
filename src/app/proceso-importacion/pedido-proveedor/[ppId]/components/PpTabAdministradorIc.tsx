@@ -194,6 +194,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
 
   useEffect(() => {
     if (adminIcBump <= 0) return;
+    setNFiServidor(0);
     const c = readAdminIcCache(ppId);
     setPfTierOverrides({});
     setExpandedPf(new Set());
@@ -215,7 +216,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
         if (d.ok) setNFiServidor(Number(d.n_fi ?? 0));
       })
       .catch(() => setNFiServidor(null));
-  }, [ppId, pp.n_facturas_internas, generandoFiKey]);
+  }, [ppId, pp.n_facturas_internas, generandoFiKey, adminIcBump]);
 
   const clientes = useMemo(() => {
     const set = new Set<number>();

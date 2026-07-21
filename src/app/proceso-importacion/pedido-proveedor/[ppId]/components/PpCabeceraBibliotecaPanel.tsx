@@ -88,7 +88,7 @@ export function PpCabeceraBibliotecaPanel({
         categoriaId === CATEGORIA_PROGRAMADO_ID ? "admin-ic" : "ics";
       const casos = (j.casos_pf as string[] | undefined)?.join(", ") ?? "—";
       onChanged(
-        `Biblioteca «${j.biblioteca_nombre}» · ${j.n_fi_borradas ?? 0} FI eliminada(s) · ${j.n_pf ?? 0} pre-facturas reconstruidas (BCL) · casos: ${casos}`,
+        `Biblioteca «${j.biblioteca_nombre}» · ${j.n_fi_borradas ?? 0} FI eliminada(s) · ${j.n_pf ?? 0} pre-facturas (BCL) · snapshot ${j.proforma_snapshot ? "OK" : "PPD"} · casos: ${casos}`,
         tab,
         j.admin_ic,
       );
@@ -151,10 +151,15 @@ export function PpCabeceraBibliotecaPanel({
                 onClick={() => void ejecutarCambio(true)}
                 className="rounded-lg border-2 border-red-600 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-900 hover:bg-red-100 disabled:opacity-50"
               >
-                {busy ? "Borrando FI…" : "Confirmar · borrar todas las FI"}
+                {busy ? "Borrando FI…" : "Confirmar · borrar FI y recalcular proforma"}
               </button>
             )}
           </div>
+        ) : null}
+        {confirmStep === 1 ? (
+          <p className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-900">
+            La biblioteca aún no cambió — confirmá para borrar todas las FI y recalcular pre-facturas con la BCL nueva.
+          </p>
         ) : null}
         <p className="text-[10px] leading-snug text-slate-500">
           Política (Corazón 1). El listado de precios se asigna manualmente por IC / pre-factura / FI — no en cabecera.

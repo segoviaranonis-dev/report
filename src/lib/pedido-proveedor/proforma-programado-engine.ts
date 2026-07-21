@@ -29,7 +29,7 @@ import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-event
 import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
 import {
   casoDominanteDeNombres,
-  resolveCasoDominanteDesdePpd,
+  resolveCasoDominanteParaFi,
 } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
 import {
   casoLineaFromMapa,
@@ -1077,7 +1077,7 @@ async function crearFacturaInterna(
   let casoCab = casoDominanteDeNombres(items.map((i) => i.caso));
   let casoId: number | null = null;
   if (ic.precio_evento_id && items.length) {
-    const resolved = await resolveCasoDominanteDesdePpd(
+    const resolved = await resolveCasoDominanteParaFi(
       client,
       ppId,
       ic.precio_evento_id,
@@ -1931,6 +1931,71 @@ export async function importProformaCompraPreviaTs(
   } finally {
     client.release();
   }
+}
+
+/** Borra TODAS las FI del PP dentro de una transacción abierta (cambio biblioteca). */
+export async function borrarTodasFiPpEnTx(
+  client: PoolClient,
+  ppId: number,
+  opts?: { incluir_confirmadas?: boolean },
+): Promise<{ ok: boolean; n?: number; n_confirmadas?: number; error?: string }> {
+  const conf = await client.query<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM factura_interna
+     WHERE pp_id = $1 AND UPPER(TRIM(estado)) = 'CONFIRMADA'`,
+    [ppId],
+  );
+  const nConfirmadas = conf.rows[0]?.c ?? 0;
+  if (nConfirmadas > 0 && !opts?.incluir_confirmadas) {
+    return {
+      ok: false,
+      n_confirmadas: nConfirmadas,
+      error: `Hay ${nConfirmadas} FI CONFIRMADA(s) — confirmá cambio total para borrarlas.`,
+    };
+  }
+
+  const countRes = await client.query<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1`,
+    [ppId],
+  );
+  const nFi = countRes.rows[0]?.c ?? 0;
+  if (nFi === 0) return { ok: true, n: 0, n_confirmadas: nConfirmadas };
+
+  await client.query(
+    `UPDATE pedido_proveedor_detalle ppd
+     SET pares_vendidos = GREATEST(
+       0,
+       COALESCE(ppd.pares_vendidos, 0) - COALESCE(agg.pares, 0)
+     )
+     FROM (
+       SELECT fid.ppd_id, SUM(COALESCE(fid.pares, 0))::int AS pares
+       FROM factura_interna_detalle fid
+       INNER JOIN factura_interna fi ON fi.id = fid.factura_id
+       WHERE fi.pp_id = $1
+       GROUP BY fid.ppd_id
+     ) agg
+     WHERE ppd.id = agg.ppd_id AND ppd.pedido_proveedor_id = $1`,
+    [ppId],
+  );
+
+  await client.query(`DELETE FROM logistica_pendiente_confirmacion WHERE pedido_proveedor_id = $1`, [ppId]);
+
+  await client.query(
+    `DELETE FROM factura_interna_detalle fid
+     USING factura_interna fi
+     WHERE fid.factura_id = fi.id AND fi.pp_id = $1`,
+    [ppId],
+  );
+  await client.query(`DELETE FROM factura_interna WHERE pp_id = $1`, [ppId]);
+
+  const rest = await client.query<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM factura_interna WHERE pp_id = $1`,
+    [ppId],
+  );
+  if ((rest.rows[0]?.c ?? 0) > 0) {
+    return { ok: false, error: "Quedaron FI sin borrar — reintentá." };
+  }
+
+  return { ok: true, n: nFi, n_confirmadas: nConfirmadas };
 }
 
 export async function borrarFiReservadasProgramado(

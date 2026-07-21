@@ -5,6 +5,58 @@ export type CasoCabeceraFi = {
   caso_id: number | null;
 };
 
+/** Caso dominante desde BCL cabecera PP (prioridad al cambiar biblioteca). */
+async function resolveCasoDominanteDesdeBiblioteca(
+  client: PoolClient,
+  bibliotecaId: number,
+  ppId: number,
+  ppdIds: number[],
+): Promise<CasoCabeceraFi> {
+  if (!ppdIds.length) return { caso: null, caso_id: null };
+
+  const { rows } = await client.query<{ caso: string; caso_id: number; n: number }>(
+    `SELECT cpb.nombre_caso AS caso, cpb.id::int AS caso_id, COUNT(*)::int AS n
+     FROM pedido_proveedor_detalle ppd
+     JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
+     JOIN linea l
+       ON l.proveedor_id = pp.proveedor_importacion_id
+      AND l.codigo_proveedor::text = TRIM(ppd.linea)
+     JOIN biblioteca_caso_linea bcl
+       ON bcl.linea_id = l.id AND bcl.biblioteca_id = $2
+     JOIN caso_precio_biblioteca cpb
+       ON cpb.id = bcl.caso_biblioteca_id AND cpb.biblioteca_id = $2 AND cpb.activo = true
+     WHERE ppd.pedido_proveedor_id = $1 AND ppd.id = ANY($3::int[])
+     GROUP BY cpb.nombre_caso, cpb.id
+     ORDER BY n DESC
+     LIMIT 1`,
+    [ppId, bibliotecaId, ppdIds],
+  );
+
+  const top = rows[0];
+  if (!top?.caso) return { caso: null, caso_id: null };
+  const caso = String(top.caso).replace(/\*/g, "").trim() || null;
+  return { caso, caso_id: top.caso_id ?? null };
+}
+
+/** Cabecera FI: BCL cabecera si hay biblioteca; si no, precio_lista / PELE del evento IC. */
+export async function resolveCasoDominanteParaFi(
+  client: PoolClient,
+  ppId: number,
+  eventoId: number,
+  ppdIds: number[],
+): Promise<CasoCabeceraFi> {
+  const bibRes = await client.query<{ biblioteca_precio_id: number | null }>(
+    `SELECT biblioteca_precio_id::int FROM pedido_proveedor WHERE id = $1`,
+    [ppId],
+  );
+  const bibliotecaId = bibRes.rows[0]?.biblioteca_precio_id ?? null;
+  if (bibliotecaId) {
+    const fromBcl = await resolveCasoDominanteDesdeBiblioteca(client, bibliotecaId, ppId, ppdIds);
+    if (fromBcl.caso) return fromBcl;
+  }
+  return resolveCasoDominanteDesdePpd(client, ppId, eventoId, ppdIds);
+}
+
 /** Caso comercial dominante de las líneas PPD vía precio_lista / PELE del evento.
  * `caso_id` = FK a `caso_precio_biblioteca` (no a `precio_evento_caso`). */
 export async function resolveCasoDominanteDesdePpd(
