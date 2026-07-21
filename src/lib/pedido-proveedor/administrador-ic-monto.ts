@@ -484,19 +484,6 @@ export function construirParejasLoteChusa(
     return { ok: false, error: "Protocolo Chusa: contadores o canon no cuadran.", chusa };
   }
 
-  const icIdsUsados = new Set<number>();
-  for (const ic of icsOrden) {
-    if (icIdsUsados.has(ic.ic_id)) {
-      return {
-        ok: false,
-        error:
-          "Una IC abarca varios casos — usá división PF (÷) o separá ICs antes de generar el lote.",
-        chusa,
-      };
-    }
-    icIdsUsados.add(ic.ic_id);
-  }
-
   const parejas = parejasLoteAlineadas(icsOrden, pfOrden).map(({ ic, pf }) => {
     const ppd_pares: Record<number, number> = {};
     for (const a of pf.articulos) {

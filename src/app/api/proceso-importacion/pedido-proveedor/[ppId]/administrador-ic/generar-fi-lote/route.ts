@@ -111,7 +111,19 @@ export async function POST(req: Request, { params }: Params) {
   let omitidas = 0;
 
   for (const p of parejas) {
-    if (!regenerar) {
+    if (!regenerar && p.ppd_ids.length > 0) {
+      const { rows: fiPpdRows } = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c
+         FROM factura_interna_detalle fid
+         JOIN factura_interna fi ON fi.id = fid.factura_id
+         WHERE fi.pp_id = $1 AND fid.ppd_id = ANY($2::int[])`,
+        [ppId, p.ppd_ids],
+      );
+      if ((fiPpdRows[0]?.c ?? 0) > 0) {
+        omitidas++;
+        continue;
+      }
+    } else if (!regenerar) {
       const { rows: fiIcRows } = await pool.query<{ c: number }>(
         `SELECT COUNT(*)::int AS c
          FROM factura_interna fi
