@@ -11,16 +11,13 @@ export function normAdminEtiqueta(s: string): string {
   return s.trim().toUpperCase();
 }
 
-/** IC ↔ PF: mismo cliente y misma marca Excel, o marca IC = caso comercial en proforma. */
+/** IC ↔ PF: mismo cliente y marca canónica (id_marca, caso o etiqueta). */
 export function icParPrefactura(
   ic: Pick<IcAdminRow, "id_cliente" | "id_marca" | "marca">,
-  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "caso">,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso">,
 ): boolean {
   if (ic.id_cliente !== pf.id_cliente) return false;
-  if (ic.id_marca === pf.id_marca) return true;
-  const caso = String(pf.caso ?? "—").trim();
-  if (!caso || caso === "—") return false;
-  return normAdminEtiqueta(ic.marca) === normAdminEtiqueta(caso);
+  return marcasCanonCoinciden(ic, pf);
 }
 
 /** Estado Protocolo Chusa — 3 niveles (contadores · canon · lote). */

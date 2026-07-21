@@ -7,7 +7,7 @@ import { borrarFiReservadasProgramado } from "@/lib/pedido-proveedor/proforma-pr
 import { getPpDetalle } from "@/lib/pedido-proveedor/detail-query";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
-import { tryLockPpFiOps, unlockPpFiOps } from "@/lib/pedido-proveedor/pp-fi-advisory-lock";
+import { tryLockPpFiOpsWithStaleRecovery, unlockPpFiOps } from "@/lib/pedido-proveedor/pp-fi-advisory-lock";
 
 type Params = { params: Promise<{ ppId: string }> };
 
@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: Params) {
   const lockClient = await pool.connect();
   let ppFiLocked = false;
   try {
-    if (!(await tryLockPpFiOps(lockClient, ppId))) {
+    if (!(await tryLockPpFiOpsWithStaleRecovery(lockClient, ppId))) {
       return NextResponse.json(
         {
           ok: false,
