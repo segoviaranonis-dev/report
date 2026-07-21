@@ -34,6 +34,10 @@ export type PpDetalleHeader = {
   cabecera_editable: boolean;
   listado_editable: boolean;
   listado_precio: { evento_id: number; nombre: string } | null;
+  /** Política Corazón 1 — cabecera PP (2.3.1.7.5.3.13). */
+  biblioteca_precio_id: number | null;
+  biblioteca_nombre: string | null;
+  proveedor_motor_id: number;
   /** EN_TRANSITO = visible catálogo RIMEC Web (v_stock_rimec · TRÁNSITO_PP). */
   estado_transito: string | null;
   web_alzado: boolean;
@@ -137,6 +141,9 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     logistica_activada_at: string | null;
     logistica_n_fi: string;
     logistica_cajas: string;
+    biblioteca_precio_id: string | null;
+    biblioteca_nombre: string | null;
+    proveedor_importacion_id: string | null;
   }>(
     `
     SELECT
@@ -154,6 +161,9 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
       pp.notas,
       pp.nro_pedido_externo,
       pp.fecha_arribo_estimada::text AS fecha_arribo_estimada,
+      pp.biblioteca_precio_id::text AS biblioteca_precio_id,
+      pp.proveedor_importacion_id::text AS proveedor_importacion_id,
+      bp.nombre AS biblioteca_nombre,
       COALESCE(pp.descuento_1, 0)::text AS descuento_1,
       COALESCE(pp.descuento_2, 0)::text AS descuento_2,
       COALESCE(pp.descuento_3, 0)::text AS descuento_3,
@@ -266,6 +276,7 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
       ) AS logistica_cajas
     FROM pedido_proveedor pp
     LEFT JOIN proveedor_importacion pi ON pi.id = pp.proveedor_importacion_id
+    LEFT JOIN biblioteca_precio bp ON bp.id = pp.biblioteca_precio_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
     LEFT JOIN categoria_v2 cv ON cv.id_categoria = pp.categoria_id
     WHERE pp.id = $1
@@ -331,6 +342,10 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
       r.evento_id != null
         ? { evento_id: Number(r.evento_id), nombre: r.evento_nombre ?? `Evento #${r.evento_id}` }
         : null,
+    biblioteca_precio_id:
+      r.biblioteca_precio_id != null ? Number(r.biblioteca_precio_id) : null,
+    biblioteca_nombre: r.biblioteca_nombre?.trim() || null,
+    proveedor_motor_id: Number(r.proveedor_importacion_id ?? 654) || 654,
     n_facturas_internas: Number(r.n_fi ?? 0),
     n_fi_confirmadas: Number(r.n_fi_confirmadas ?? 0),
     fi_bloqueada: Number(r.total_articulos ?? 0) === 0,

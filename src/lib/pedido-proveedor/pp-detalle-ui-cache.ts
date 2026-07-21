@@ -42,6 +42,10 @@ export function readAdminIcCache(ppId: string): AdminIcUiSnapshot | null {
   return adminIcByPpId.get(ppId) ?? null;
 }
 
+export function clearAdminIcCache(ppId: string): void {
+  adminIcByPpId.delete(ppId);
+}
+
 export function writeAdminIcCache(ppId: string, snap: AdminIcUiSnapshot): void {
   adminIcByPpId.set(ppId, snap);
 }

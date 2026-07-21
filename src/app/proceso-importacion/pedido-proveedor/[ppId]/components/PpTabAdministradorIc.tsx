@@ -41,6 +41,7 @@ import type { PfSplitRecord } from "@/lib/pedido-proveedor/admin-ic-pf-splits";
 type Props = {
   pp: PpDetalleHeader;
   ppId: string;
+  adminIcBump?: number;
   onMsg: (msg: string | null) => void;
   onReload?: () => void | Promise<void>;
 };
@@ -128,7 +129,7 @@ function ArticuloFila({
   );
 }
 
-export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
+export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReload }: Props) {
   const router = useRouter();
   const cachedAdmin = readAdminIcCache(ppId);
   const [loading, setLoading] = useState(!cachedAdmin);
@@ -184,6 +185,20 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
     }
     void load({ silent: Boolean(c) });
   }, [ppId, load]);
+
+  useEffect(() => {
+    if (adminIcBump <= 0) return;
+    const c = readAdminIcCache(ppId);
+    setPfTierOverrides({});
+    setExpandedPf(new Set());
+    setPfSplits([]);
+    if (c) {
+      setIcs(c.ics);
+      setPrefacturas(c.prefacturas);
+      loadedOnceRef.current = true;
+    }
+    void load({ silent: false });
+  }, [adminIcBump, ppId, load]);
 
   useEffect(() => {
     fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/completar-fi`, {

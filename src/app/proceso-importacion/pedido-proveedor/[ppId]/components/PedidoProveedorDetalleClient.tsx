@@ -33,11 +33,15 @@ import { PpTabAdministradorIc } from "./PpTabAdministradorIc";
 import { PpTabStock } from "./PpTabStock";
 import { PpTabFacturasInternas } from "./PpTabFacturasInternas";
 import { PpLogisticaBandera } from "./PpLogisticaBandera";
+import { PpCabeceraBibliotecaPanel } from "./PpCabeceraBibliotecaPanel";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
 import {
   readPpDetalleCache,
   writePpDetalleCache,
+  clearAdminIcCache,
+  writeAdminIcCache,
 } from "@/lib/pedido-proveedor/pp-detalle-ui-cache";
+import type { IcAdminRow, PreFacturaInterna } from "@/lib/pedido-proveedor/administrador-ic-query";
 
 const QUINCENA_IDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -148,6 +152,9 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const [eventos, setEventos] = useState<EventoPrecioOption[]>(cached?.eventos ?? []);
   const [nroFactura, setNroFactura] = useState(cached?.pp?.nro_factura_importacion ?? "");
   const [proforma, setProforma] = useState(cached?.pp?.numero_proforma ?? "");
+  const [nroPedidoExterno, setNroPedidoExterno] = useState(
+    cached?.pp?.nro_pedido_externo ?? "",
+  );
   const [observaciones, setObservaciones] = useState(cached?.pp?.notas ?? "");
   const [quincenaId, setQuincenaId] = useState(
     quincenaSliderValue(cached?.pp?.quincena_arribo_id ?? null),
@@ -164,6 +171,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const [icBusy, setIcBusy] = useState<number | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [adminIcBump, setAdminIcBump] = useState(0);
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
   const loadedOnceRef = useRef(Boolean(cached));
@@ -200,6 +208,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       setEventos(snap.eventos);
       setNroFactura(data.pp?.nro_factura_importacion ?? "");
       setProforma(data.pp?.numero_proforma ?? "");
+      setNroPedidoExterno(data.pp?.nro_pedido_externo ?? "");
       setObservaciones(data.pp?.notas ?? "");
       setQuincenaId(quincenaSliderValue(data.pp?.quincena_arribo_id));
       const drafts: Record<number, IcFormDraft> = {};
@@ -228,6 +237,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       setEventos(c.eventos);
       setNroFactura(c.pp.nro_factura_importacion ?? "");
       setProforma(c.pp.numero_proforma ?? "");
+      setNroPedidoExterno(c.pp.nro_pedido_externo ?? "");
       setObservaciones(c.pp.notas ?? "");
       setQuincenaId(quincenaSliderValue(c.pp.quincena_arribo_id));
       const drafts: Record<number, IcFormDraft> = {};
@@ -274,6 +284,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
 
   async function guardarCabecera(partial?: {
     numero_proforma?: string;
+    nro_pedido_externo?: string;
     notas?: string;
     quincena_arribo_id?: number;
   }) {
@@ -288,6 +299,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           numero_proforma: partial?.numero_proforma ?? proforma,
+          nro_pedido_externo: partial?.nro_pedido_externo ?? nroPedidoExterno,
           notas: partial?.notas ?? observaciones,
           ...(partial?.quincena_arribo_id !== undefined || q !== quincenaSliderValue(pp.quincena_arribo_id)
             ? { quincena_arribo_id: q }
@@ -588,9 +600,10 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                     type="button"
                     disabled={guardandoCabecera}
                     onClick={() => guardarCabecera()}
-                    className="rounded-lg bg-rimec-azul px-3 py-1 text-xs font-bold text-white hover:bg-rimec-azul-dark disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-sky-950 bg-rimec-azul px-6 py-2.5 text-sm font-black text-white shadow-lg shadow-sky-950/20 transition hover:-translate-y-0.5 hover:bg-rimec-azul-dark disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {guardandoCabecera ? "Guardando…" : "Guardar cabecera"}
+                    <span aria-hidden="true">{guardandoCabecera ? "↻" : "✓"}</span>
+                    {guardandoCabecera ? "Guardando cabecera…" : "Guardar toda la cabecera"}
                   </button>
                 )}
               </div>
@@ -611,13 +624,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   <dt className="text-xs text-slate-500">Creador</dt>
                   <dd>{pp.creador}</dd>
                 </div>
-                <div className="md:col-span-2">
-                  <dt className="text-xs text-slate-500">{FECHA_DE_EMBARQUE_LABEL}</dt>
+              </dl>
+              <dl className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border-2 border-sky-200 bg-sky-50/70 p-4 shadow-sm">
+                  <dt className="text-xs font-black uppercase tracking-wider text-sky-800">
+                    {FECHA_DE_EMBARQUE_LABEL}
+                  </dt>
                   <dd className="mt-1">
                     {pp.cabecera_editable ? (
-                      <div className="flex flex-wrap items-end gap-2">
+                      <div className="space-y-2">
                         <select
-                          className={`${selectCls} min-w-[220px] flex-1`}
+                          className="w-full rounded-lg border-2 border-sky-300 bg-white px-3 py-2 font-mono text-lg font-black text-slate-950 shadow-inner"
                           value={quincenaId}
                           disabled={guardandoCabecera}
                           onChange={(e) => setQuincenaId(Number(e.target.value))}
@@ -633,13 +650,15 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                           type="button"
                           disabled={guardandoCabecera || quincenaId <= 0}
                           onClick={() => void aplicarQuincenaLote()}
-                          className="rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                          className="w-full rounded-lg border-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs font-black text-amber-950 hover:bg-amber-100 disabled:opacity-50"
                         >
                           {guardandoCabecera ? "Aplicando…" : "Aplicar quincena a todo el lote"}
                         </button>
                       </div>
                     ) : (
-                      <span>{pp.quincena ?? "—"}</span>
+                      <span className="font-mono text-xl font-black text-slate-950">
+                        {pp.quincena ?? "—"}
+                      </span>
                     )}
                     {pp.cabecera_editable && (
                       <p className="mt-1 text-[10px] text-slate-500">
@@ -648,55 +667,104 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                     )}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Proforma proveedor</dt>
-                  <dd>
+                <div className="rounded-xl border-2 border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+                  <dt className="text-xs font-black uppercase tracking-wider text-violet-800">
+                    Proforma proveedor
+                  </dt>
+                  <dd className="mt-1">
                     {pp.cabecera_editable ? (
                       <input
                         type="text"
-                        className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                        className="w-full rounded-lg border-2 border-violet-300 bg-white px-3 py-2 font-mono text-xl font-black text-slate-950 shadow-inner"
                         value={proforma}
                         onChange={(e) => setProforma(e.target.value)}
-                        onBlur={() => {
-                          if (proforma !== (pp.numero_proforma ?? "")) void guardarCabecera({ numero_proforma: proforma });
-                        }}
                         placeholder="Nro. proforma del proveedor"
                       />
                     ) : (
-                      <span className="font-mono text-xs">{pp.numero_proforma ?? "—"}</span>
+                      <span className="font-mono text-xl font-black text-slate-950">
+                        {pp.numero_proforma ?? "—"}
+                      </span>
                     )}
                   </dd>
                 </div>
-                <div className="md:col-span-2">
-                  <dt className="text-xs text-slate-500">Observaciones</dt>
-                  <dd>
+                <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
+                  <dt className="text-xs font-black uppercase tracking-wider text-emerald-800">
+                    Nº pedido externo
+                  </dt>
+                  <dd className="mt-1">
                     {pp.cabecera_editable ? (
-                      <textarea
-                        rows={2}
-                        className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs"
-                        value={observaciones}
-                        onChange={(e) => setObservaciones(e.target.value)}
-                        onBlur={() => {
-                          if (observaciones !== (pp.notas ?? "")) void guardarCabecera({ notas: observaciones });
-                        }}
-                        placeholder="Notas operativas del PP"
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border-2 border-emerald-300 bg-white px-3 py-2 font-mono text-xl font-black text-slate-950 shadow-inner"
+                        value={nroPedidoExterno}
+                        onChange={(e) => setNroPedidoExterno(e.target.value)}
+                        placeholder="Ej.: 4135 o PP-4081"
+                        autoComplete="off"
                       />
                     ) : (
-                      <span className="text-xs">{pp.notas?.trim() || "—"}</span>
+                      <span className="font-mono text-xl font-black text-slate-950">
+                        {pp.nro_pedido_externo ?? "—"}
+                      </span>
                     )}
+                    <p className="mt-2 text-[10px] font-semibold leading-snug text-emerald-900/70">
+                      Se guarda exactamente como se escribe. El sistema nunca agrega PP-.
+                    </p>
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Listado precio</dt>
-                  <dd className="text-xs">{pp.listado_precio?.nombre ?? "Sin vincular"}</dd>
-                </div>
+                <PpCabeceraBibliotecaPanel
+                  ppId={Number(ppId)}
+                  cabeceraEditable={pp.cabecera_editable}
+                  categoriaId={pp.categoria_id}
+                  bibliotecaPrecioId={pp.biblioteca_precio_id}
+                  bibliotecaNombre={pp.biblioteca_nombre}
+                  proveedorMotorId={pp.proveedor_motor_id}
+                  onChanged={(text, redirectTab, adminIc) => {
+                    setMsg(text);
+                    clearAdminIcCache(ppId);
+                    if (adminIc?.ics && adminIc?.prefacturas) {
+                      writeAdminIcCache(ppId, {
+                        ics: adminIc.ics as IcAdminRow[],
+                        prefacturas: adminIc.prefacturas as PreFacturaInterna[],
+                      });
+                    }
+                    setAdminIcBump((n) => n + 1);
+                    void load({ silent: true });
+                    if (redirectTab) setTab(redirectTab as PpDetalleTab);
+                  }}
+                />
               </dl>
+              <div className="mt-4">
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Observaciones
+                </label>
+                {pp.cabecera_editable ? (
+                  <textarea
+                    rows={2}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    value={observaciones}
+                    onChange={(e) => setObservaciones(e.target.value)}
+                    placeholder="Notas operativas del PP"
+                  />
+                ) : (
+                  <p className="mt-1 text-sm">{pp.notas?.trim() || "—"}</p>
+                )}
+              </div>
               <PpLogisticaBandera ppId={Number(ppId)} pp={pp} onActivated={() => void load()} />
               {!pp.cabecera_editable && (
                 <p className="mt-2 text-xs text-amber-800">PP {pp.estado} — cabecera e ICs en solo lectura.</p>
               )}
-              {typeof msg === "string" && msg && tab !== "ics" && (
-                <p className={`mt-2 text-xs ${msg.includes("guardad") || msg.includes("devuelta") || msg.includes("actualizado") ? "text-emerald-800" : "text-red-700"}`}>
+              {typeof msg === "string" && msg && (
+                <p
+                  role="status"
+                  className={`mt-3 rounded-lg border px-3 py-2 text-sm font-bold ${
+                    msg.includes("guardad") ||
+                    msg.includes("devuelta") ||
+                    msg.includes("actualizado") ||
+                    msg.includes("aplicada")
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : "border-red-200 bg-red-50 text-red-800"
+                  }`}
+                >
                   {msg}
                 </p>
               )}
@@ -1096,7 +1164,13 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             )}
 
             {tab === "admin-ic" && pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
-              <PpTabAdministradorIc pp={pp} ppId={ppId} onMsg={setMsg} onReload={load} />
+              <PpTabAdministradorIc
+                pp={pp}
+                ppId={ppId}
+                adminIcBump={adminIcBump}
+                onMsg={setMsg}
+                onReload={load}
+              />
             )}
 
             {tab === "stock" && (

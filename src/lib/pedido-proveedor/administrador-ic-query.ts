@@ -4,10 +4,9 @@ import type { PpIcVinculada } from "@/lib/pedido-proveedor/detail-query";
 import { listIcsVinculadasPp } from "@/lib/pedido-proveedor/detail-query";
 import { labelListadoPrecio, type ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
 import { normAdminEtiqueta, subtotalSinDescuento } from "@/lib/pedido-proveedor/administrador-ic-monto";
-import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
+import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
 import {
   casoLineaFromMapa,
-  loadCasosEventoNombres,
   resolveCasoMotorPrecios,
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
@@ -147,6 +146,17 @@ function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId, caso: string): Pf
   };
 }
 
+function marcaEsCasoComercial(
+  marca: string,
+  casoNorm: string,
+  casosEvento: Set<string>,
+): boolean {
+  const m = normAdminEtiqueta(marca);
+  if (!m || m === "—") return false;
+  if (casoNorm && m === normAdminEtiqueta(casoNorm)) return true;
+  return casosEvento.has(m);
+}
+
 function ppdRowParIc(
   ic: PpIcVinculada,
   r: PpdPfRow,
@@ -157,7 +167,87 @@ function ppdRowParIc(
   if (r.id_marca === ic.id_marca) return true;
   const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
   if (!casoNorm || casoNorm === "—") return false;
-  return normAdminEtiqueta(ic.marca) === normAdminEtiqueta(casoNorm);
+  /** IC cabecera legacy: marca = caso comercial (ej. CHINELO). */
+  if (normAdminEtiqueta(ic.marca) === normAdminEtiqueta(casoNorm)) return true;
+  /** Proforma exportó el caso en columna marca — emparejar IC marca real. */
+  if (marcaEsCasoComercial(r.marca, casoNorm, casosEvento)) return true;
+  return false;
+}
+
+/** IC vinculada a fila PPD — desempate cuando proforma puso caso como marca. */
+function pickIcForPpdRow(
+  r: PpdPfRow,
+  icsRaw: PpIcVinculada[],
+  mapaCasoLinea: Map<string, string>,
+  casosEvento: Set<string>,
+): PpIcVinculada | undefined {
+  const idCliente = Number(r.shop) || 0;
+  const candidates = icsRaw.filter((ic) => ppdRowParIc(ic, r, mapaCasoLinea, casosEvento));
+  if (candidates.length === 0) return undefined;
+  if (candidates.length === 1) return candidates[0];
+
+  const exactMarca = candidates.find((ic) => ic.id_marca === r.id_marca);
+  if (exactMarca) return exactMarca;
+
+  const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
+  if (marcaEsCasoComercial(r.marca, casoNorm, casosEvento)) {
+    const marcasReales = candidates.filter(
+      (ic) => !casosEvento.has(normAdminEtiqueta(ic.marca)),
+    );
+    if (marcasReales.length === 1) return marcasReales[0];
+    const byPares = marcasReales.filter((ic) => ic.pares === r.pares);
+    if (byPares.length === 1) return byPares[0];
+    const icConMarcaPpd = icsRaw.some(
+      (ic) => ic.id_cliente === idCliente && ic.id_marca === r.id_marca,
+    );
+    if (!icConMarcaPpd && marcasReales.length > 0) {
+      return [...marcasReales].sort((a, b) => a.ic_id - b.ic_id)[0];
+    }
+  }
+
+  return candidates[0];
+}
+
+function buildPrefacturaMap(
+  ppdRows: PpdPfRow[],
+  icsRaw: PpIcVinculada[],
+  mapaCasoLinea: Map<string, string>,
+  casosEvento: Set<string>,
+  defaultPfTier: ListadoPrecioTierId,
+): Map<string, PreFacturaInterna> {
+  const pfMap = new Map<string, PreFacturaInterna>();
+
+  for (const r of ppdRows) {
+    const idCliente = Number(r.shop) || 0;
+    const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
+    const ic = pickIcForPpdRow(r, icsRaw, mapaCasoLinea, casosEvento);
+    const idMarca = ic?.id_marca ?? r.id_marca;
+    const marca = ic?.marca ?? r.marca;
+    const pfKey = `${idCliente}|${idMarca}|${casoNorm}`;
+    const art = buildArticulo(r, defaultPfTier, casoNorm);
+
+    const existing = pfMap.get(pfKey);
+    if (existing) {
+      existing.articulos.push(art);
+      existing.total_pares += art.pares;
+      existing.total_monto = Math.round((existing.total_monto + art.subtotal) * 100) / 100;
+    } else {
+      pfMap.set(pfKey, {
+        pf_key: pfKey,
+        id_cliente: idCliente,
+        marca,
+        id_marca: idMarca,
+        caso: casoNorm,
+        listado_tier: defaultPfTier,
+        listado_label: labelListadoPrecio(defaultPfTier),
+        total_pares: art.pares,
+        total_monto: art.subtotal,
+        articulos: [art],
+      });
+    }
+  }
+
+  return pfMap;
 }
 
 function estimateIcMontoProforma(
@@ -181,7 +271,7 @@ function estimateIcMontoProforma(
 }
 
 export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<AdministradorIcPayload> {
-  const [icsRaw, ppMeta] = await Promise.all([
+  const [icsRaw, ppMeta, casoCtx] = await Promise.all([
     listIcsVinculadasPp(pool, ppId),
     pool.query<{ evento_id: number | null }>(
       `SELECT icp.precio_evento_id::int AS evento_id
@@ -190,13 +280,11 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
        ORDER BY icp.id LIMIT 1`,
       [ppId],
     ),
+    loadPpCasoContext(pool, ppId),
   ]);
 
-  const eventoId = ppMeta.rows[0]?.evento_id ?? null;
-  const [mapaCasoLinea, casosEvento] = await Promise.all([
-    eventoId ? loadMapaCasoPorLineaEvento(pool, eventoId) : Promise.resolve(new Map<string, string>()),
-    eventoId ? loadCasosEventoNombres(pool, eventoId) : Promise.resolve(new Set<string>()),
-  ]);
+  const eventoId = ppMeta.rows[0]?.evento_id ?? casoCtx.eventoId;
+  const { mapaCasoLinea, casosEvento } = casoCtx;
 
   const { rows: ppdRows } = await pool.query<PpdPfRow>(
     `
@@ -289,35 +377,8 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
     [ppId, eventoId],
   );
 
-  const pfMap = new Map<string, PreFacturaInterna>();
   const defaultPfTier: ListadoPrecioTierId = 1;
-
-  for (const r of ppdRows) {
-    const idCliente = Number(r.shop) || 0;
-    const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
-    const pfKey = `${idCliente}|${r.id_marca}|${casoNorm}`;
-    const art = buildArticulo(r, defaultPfTier, casoNorm);
-
-    const existing = pfMap.get(pfKey);
-    if (existing) {
-      existing.articulos.push(art);
-      existing.total_pares += art.pares;
-      existing.total_monto = Math.round((existing.total_monto + art.subtotal) * 100) / 100;
-    } else {
-      pfMap.set(pfKey, {
-        pf_key: pfKey,
-        id_cliente: idCliente,
-        marca: r.marca,
-        id_marca: r.id_marca,
-        caso: casoNorm,
-        listado_tier: defaultPfTier,
-        listado_label: labelListadoPrecio(defaultPfTier),
-        total_pares: art.pares,
-        total_monto: art.subtotal,
-        articulos: [art],
-      });
-    }
-  }
+  const pfMap = buildPrefacturaMap(ppdRows, icsRaw, mapaCasoLinea, casosEvento, defaultPfTier);
 
   const ics: IcAdminRow[] = icsRaw.map((ic) => {
     const tier = fiListaTier(ic.listado_precio_id ?? 1);

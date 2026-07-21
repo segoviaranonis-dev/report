@@ -26,6 +26,7 @@ import {
   backfillPpdShopFromSnapshot,
 } from "./proforma-snapshot";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
+import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
 import {
   casoDominanteDeNombres,
   resolveCasoDominanteDesdePpd,
@@ -968,10 +969,7 @@ type SkuFi = SkuPrecioTiers & {
 
 async function getSkusConPrecioParaFi(client: PoolClient, ppId: number, eventoId: number): Promise<Map<number, SkuFi>> {
   const pool = getRimecPool();
-  const [mapaCasoLinea, casosEvento] = await Promise.all([
-    loadMapaCasoPorLineaEvento(pool, eventoId),
-    loadCasosEventoNombres(pool, eventoId),
-  ]);
+  const { mapaCasoLinea, casosEvento } = await loadPpCasoContext(pool, ppId);
 
   const { rows } = await client.query<
     SkuFi & {
