@@ -187,6 +187,26 @@ const config: Config = {
             transform: "scale(1.04)",
           },
         },
+        "rimec-card-breathe": {
+          "0%, 100%": {
+            boxShadow:
+              "0 20px 50px -12px rgba(0,43,78,0.55), 0 0 0 0 rgba(251,191,36,0.15)",
+          },
+          "50%": {
+            boxShadow:
+              "0 28px 60px -10px rgba(0,43,78,0.7), 0 0 0 1px rgba(251,191,36,0.35)",
+          },
+        },
+        "rimec-cta-pulse": {
+          "0%, 100%": {
+            boxShadow: "0 0 0 0 rgba(251,191,36,0.45)",
+            transform: "scale(1)",
+          },
+          "50%": {
+            boxShadow: "0 0 0 10px rgba(251,191,36,0)",
+            transform: "scale(1.03)",
+          },
+        },
       },
       animation: {
         "rimec-shimmer": "rimec-shimmer 1.4s ease-in-out infinite",
@@ -195,6 +215,8 @@ const config: Config = {
         "rimec-gauge-spin": "rimec-gauge-spin 2.8s ease-in-out infinite alternate",
         "rimec-bar-rise": "rimec-bar-rise 1.2s ease-out forwards",
         "rimec-attention-pulse": "rimec-attention-pulse 1.55s ease-in-out infinite",
+        "rimec-card-breathe": "rimec-card-breathe 2.8s ease-in-out infinite",
+        "rimec-cta-pulse": "rimec-cta-pulse 1.85s ease-in-out infinite",
       },
     },
   },
