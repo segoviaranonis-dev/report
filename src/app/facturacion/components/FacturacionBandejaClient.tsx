@@ -350,7 +350,7 @@ export function FacturacionBandejaClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-xl border-2 border-red-800 bg-white p-5 shadow-xl">
             <p className="text-[10px] font-black uppercase tracking-widest text-red-800">
-              Nivel Dios · 2.3.1.9.C
+              Nivel Superior · 2.3.1.9.C
             </p>
             <h3 className="mt-1 font-serif text-xl text-neutral-900">
               Anular FI y reintegrar stock
@@ -369,7 +369,7 @@ export function FacturacionBandejaClient({
                 onChange={(e) =>
                   setModalAnular((prev) => (prev ? { ...prev, motivo: e.target.value } : null))
                 }
-                placeholder="Ej. listado equivocado · prueba DIOS · reintegrar a disponible"
+                placeholder="Ej. listado equivocado · prueba superior · reintegrar a disponible"
               />
             </label>
             <div className="mt-4 flex flex-wrap justify-end gap-2">

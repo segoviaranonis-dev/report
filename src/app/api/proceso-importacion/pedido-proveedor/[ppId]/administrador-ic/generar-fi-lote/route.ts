@@ -123,7 +123,9 @@ export async function POST(req: Request, { params }: Params) {
       }
     }
 
-    const result = await generarFiDesdeAdministradorIc(pool, ppId, p.ic_id, p.ppd_ids);
+    const result = await generarFiDesdeAdministradorIc(pool, ppId, p.ic_id, p.ppd_ids, {
+      ppd_pares: p.ppd_pares,
+    });
     if (!result.ok) {
       console.error("[generar-fi-lote] fallo", p.ic_nro, p.ic_id, result.error, result.avisos?.slice(0, 3));
       return NextResponse.json(

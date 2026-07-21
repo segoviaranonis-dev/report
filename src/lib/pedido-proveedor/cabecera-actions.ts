@@ -1,8 +1,9 @@
 import type { Pool, PoolClient } from "pg";
 import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
+import { getNextNumeroRegistro } from "@/lib/intencion-compra/numeracion";
 import { quincenaDbValue } from "@/lib/intencion-compra/quincena-arribo";
-import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
+import { formatNumeroPreventaCarlos } from "./dato-duro-cabecera";
 
 export function ppCabeceraEditable(estado: string): boolean {
   return estado !== "ENVIADO" && estado !== "ANULADO";
@@ -64,8 +65,10 @@ export async function patchPpCabecera(
       vals.push(n);
     }
     if (fields.nro_pedido_externo !== undefined) {
+      const ext = fields.nro_pedido_externo?.trim();
+      const normalizado = ext ? formatNumeroPreventaCarlos(ext) : null;
       sets.push(`nro_pedido_externo = $${i++}`);
-      vals.push(fields.nro_pedido_externo?.trim() || null);
+      vals.push(normalizado);
     }
     if (fields.quincena_arribo_id !== undefined) {
       const q = quincenaDbValue(fields.quincena_arribo_id ?? 0);
@@ -133,6 +136,10 @@ export type UpdateIcVinculadaInput = {
   listado_precio_id?: number | null;
   monto_bruto?: number;
   id_plazo?: number | null;
+  descuento_1?: number;
+  descuento_2?: number;
+  descuento_3?: number;
+  descuento_4?: number;
 };
 
 export async function updateIcVinculadaPp(
@@ -151,6 +158,14 @@ export async function updateIcVinculadaPp(
   if (fields.monto_bruto !== undefined && (!Number.isFinite(fields.monto_bruto) || fields.monto_bruto < 0)) {
     return { ok: false, error: "Monto bruto inválido." };
   }
+  for (const key of ["descuento_1", "descuento_2", "descuento_3", "descuento_4"] as const) {
+    if (fields[key] !== undefined) {
+      const v = Number(fields[key]);
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        return { ok: false, error: `${key} debe estar entre 0 y 100.` };
+      }
+    }
+  }
 
   const client = await pool.connect();
   try {
@@ -163,12 +178,14 @@ export async function updateIcVinculadaPp(
 
     const link = await client.query<{
       pares: string;
+      monto_bruto: string;
       descuento_1: string;
       descuento_2: string;
       descuento_3: string;
       descuento_4: string;
     }>(
       `SELECT ic.cantidad_total_pares::text AS pares,
+              COALESCE(ic.monto_bruto, 0)::text AS monto_bruto,
               COALESCE(ic.descuento_1, 0)::text AS descuento_1,
               COALESCE(ic.descuento_2, 0)::text AS descuento_2,
               COALESCE(ic.descuento_3, 0)::text AS descuento_3,
@@ -232,23 +249,28 @@ export async function updateIcVinculadaPp(
       }
     }
 
-    const d1 = Number(link.rows[0]?.descuento_1 ?? 0);
-    const d2 = Number(link.rows[0]?.descuento_2 ?? 0);
-    const d3 = Number(link.rows[0]?.descuento_3 ?? 0);
-    const d4 = Number(link.rows[0]?.descuento_4 ?? 0);
+    const d1 =
+      fields.descuento_1 !== undefined
+        ? Number(fields.descuento_1)
+        : Number(link.rows[0]?.descuento_1 ?? 0);
+    const d2 =
+      fields.descuento_2 !== undefined
+        ? Number(fields.descuento_2)
+        : Number(link.rows[0]?.descuento_2 ?? 0);
+    const d3 =
+      fields.descuento_3 !== undefined
+        ? Number(fields.descuento_3)
+        : Number(link.rows[0]?.descuento_3 ?? 0);
+    const d4 =
+      fields.descuento_4 !== undefined
+        ? Number(fields.descuento_4)
+        : Number(link.rows[0]?.descuento_4 ?? 0);
 
-    const catRes = await client.query<{ categoria_id: string | null }>(
-      `SELECT categoria_id::text FROM intencion_compra WHERE id = $1`,
-      [icId],
-    );
-    const categoriaEfectiva =
-      fields.categoria_id !== undefined ? fields.categoria_id : Number(catRes.rows[0]?.categoria_id ?? 0) || null;
-    if (categoriaEfectiva === CATEGORIA_PROGRAMADO_ID && fields.listado_precio_id !== undefined) {
-      if (!esListadoPrecioValido(fields.listado_precio_id)) {
-        await client.query("ROLLBACK");
-        return { ok: false, error: "PROGRAMADO exige política LP (LPN, LPC02, LPC03 o LPC04)." };
-      }
-    }
+    const descChanged =
+      fields.descuento_1 !== undefined ||
+      fields.descuento_2 !== undefined ||
+      fields.descuento_3 !== undefined ||
+      fields.descuento_4 !== undefined;
 
     const icSets: string[] = [];
     const icVals: unknown[] = [icId];
@@ -282,11 +304,30 @@ export async function updateIcVinculadaPp(
       icSets.push(`listado_precio_id = $${i++}`);
       icVals.push(fields.listado_precio_id);
     }
-    if (fields.monto_bruto !== undefined) {
-      const bruto = Math.round(Math.max(0, fields.monto_bruto));
+    if (fields.monto_bruto !== undefined || descChanged) {
+      const bruto = Math.round(
+        Math.max(
+          0,
+          fields.monto_bruto !== undefined
+            ? fields.monto_bruto
+            : Number(link.rows[0]?.monto_bruto ?? 0),
+        ),
+      );
       const neto = calcularNeto(bruto, d1, d2, d3, d4);
-      icSets.push(`monto_bruto = $${i++}`);
-      icVals.push(bruto);
+      if (fields.monto_bruto !== undefined) {
+        icSets.push(`monto_bruto = $${i++}`);
+        icVals.push(bruto);
+      }
+      if (descChanged) {
+        icSets.push(`descuento_1 = $${i++}`);
+        icVals.push(d1);
+        icSets.push(`descuento_2 = $${i++}`);
+        icVals.push(d2);
+        icSets.push(`descuento_3 = $${i++}`);
+        icVals.push(d3);
+        icSets.push(`descuento_4 = $${i++}`);
+        icVals.push(d4);
+      }
       icSets.push(`monto_neto = $${i++}`);
       icVals.push(neto);
     }
@@ -361,6 +402,190 @@ export async function updateIcPuenteNroFabrica(
   nroPedidoFabrica: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return updateIcVinculadaPp(pool, ppId, icId, { nro_pedido_fabrica: nroPedidoFabrica });
+}
+
+/** Clona IC vinculada al PP con N pares (negociación / split prefactura). */
+export async function duplicarIcEnPp(
+  pool: Pool,
+  ppId: number,
+  icId: number,
+  paresNueva: number,
+  idClienteOverride?: number,
+  opts?: { ajustarComprometidos?: boolean },
+): Promise<{ ok: true; new_ic_id: number; nro_ic: string } | { ok: false; error: string }> {
+  if (paresNueva <= 0) return { ok: false, error: "Pares de la nueva IC debe ser > 0." };
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const err = await assertPpEditable(client, ppId);
+    if (err) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: err };
+    }
+
+    const { rows } = await client.query<{
+      numero_registro: string;
+      pares: string;
+      id_proveedor: number;
+      id_cliente: number;
+      id_vendedor: number;
+      id_marca: number;
+      id_plazo: number | null;
+      tipo_id: number;
+      categoria_id: number;
+      monto_bruto: string;
+      descuento_1: string;
+      descuento_2: string;
+      descuento_3: string;
+      descuento_4: string;
+      fecha_registro: string;
+      quincena_arribo_id: number | null;
+      nota_pedido: string | null;
+      observaciones: string | null;
+      precio_evento_id: number | null;
+      listado_precio_id: number | null;
+      nro_pedido_fabrica: string | null;
+      asignado_por: number | null;
+    }>(
+      `SELECT ic.numero_registro, ic.cantidad_total_pares::text AS pares,
+              ic.id_proveedor, ic.id_cliente, ic.id_vendedor, ic.id_marca, ic.id_plazo,
+              ic.tipo_id, ic.categoria_id, COALESCE(ic.monto_bruto,0)::text AS monto_bruto,
+              COALESCE(ic.descuento_1,0)::text AS descuento_1,
+              COALESCE(ic.descuento_2,0)::text AS descuento_2,
+              COALESCE(ic.descuento_3,0)::text AS descuento_3,
+              COALESCE(ic.descuento_4,0)::text AS descuento_4,
+              ic.fecha_registro::text, ic.quincena_arribo_id,
+              ic.nota_pedido, ic.observaciones, ic.precio_evento_id, ic.listado_precio_id,
+              icp.nro_pedido_fabrica, icp.asignado_por
+       FROM intencion_compra ic
+       JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id
+       WHERE ic.id = $1 AND icp.pedido_proveedor_id = $2
+       FOR UPDATE OF ic`,
+      [icId, ppId],
+    );
+    const src = rows[0];
+    if (!src) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "IC no vinculada a este PP." };
+    }
+
+    const paresOrig = Number(src.pares ?? 0);
+    const brutoOrig = Number(src.monto_bruto ?? 0);
+    const brutoNuevo =
+      paresOrig > 0 ? Math.round((brutoOrig * paresNueva) / paresOrig) : brutoOrig;
+    const d1 = Number(src.descuento_1);
+    const d2 = Number(src.descuento_2);
+    const d3 = Number(src.descuento_3);
+    const d4 = Number(src.descuento_4);
+    const neto = calcularNeto(brutoNuevo, d1, d2, d3, d4);
+    const numero = await getNextNumeroRegistro(pool);
+    const idCliente = idClienteOverride ?? src.id_cliente;
+
+    const ins = await client.query<{ id: string }>(
+      `INSERT INTO intencion_compra (
+        numero_registro, id_proveedor, id_cliente, id_vendedor, id_marca, id_plazo,
+        tipo_id, categoria_id, cantidad_total_pares,
+        monto_bruto, descuento_1, descuento_2, descuento_3, descuento_4,
+        monto_neto, fecha_registro, quincena_arribo_id,
+        estado, nota_pedido, observaciones, precio_evento_id, listado_precio_id
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+        'DIGITADO',$18,$19,$20,$21
+      ) RETURNING id`,
+      [
+        numero,
+        src.id_proveedor,
+        idCliente,
+        src.id_vendedor,
+        src.id_marca,
+        src.id_plazo,
+        src.tipo_id,
+        src.categoria_id,
+        paresNueva,
+        brutoNuevo,
+        d1,
+        d2,
+        d3,
+        d4,
+        neto,
+        src.fecha_registro,
+        src.quincena_arribo_id,
+        src.nota_pedido,
+        src.observaciones,
+        src.precio_evento_id,
+        src.listado_precio_id,
+      ],
+    );
+    const newId = Number(ins.rows[0].id);
+
+    await client.query(
+      `INSERT INTO intencion_compra_pedido (
+        intencion_compra_id, pedido_proveedor_id, nro_pedido_fabrica, precio_evento_id, asignado_por
+      ) VALUES ($1, $2, $3, $4, $5)`,
+      [newId, ppId, src.nro_pedido_fabrica, src.precio_evento_id, src.asignado_por],
+    );
+
+    if (opts?.ajustarComprometidos !== false) {
+      await client.query(
+        `UPDATE pedido_proveedor SET pares_comprometidos = COALESCE(pares_comprometidos, 0) + $2 WHERE id = $1`,
+        [ppId, paresNueva],
+      );
+    }
+
+    await client.query("COMMIT");
+    return { ok: true, new_ic_id: newId, nro_ic: numero };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return { ok: false, error: e instanceof Error ? e.message : "Error al duplicar IC" };
+  } finally {
+    client.release();
+  }
+}
+
+/** Reduce IC origen y crea IC hija con pares separados (split prefactura). */
+export async function splitIcParesEnPp(
+  pool: Pool,
+  ppId: number,
+  icId: number,
+  paresHija: number,
+  idClienteDestino?: number,
+): Promise<
+  | { ok: true; ic_origen_id: number; ic_nueva_id: number; nro_ic_nueva: string }
+  | { ok: false; error: string }
+> {
+  const { rows } = await pool.query<{ pares: string; monto_bruto: string }>(
+    `SELECT ic.cantidad_total_pares::text AS pares, COALESCE(ic.monto_bruto,0)::text AS monto_bruto
+     FROM intencion_compra ic
+     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id
+     WHERE ic.id = $1 AND icp.pedido_proveedor_id = $2`,
+    [icId, ppId],
+  );
+  const total = Number(rows[0]?.pares ?? 0);
+  const brutoOrig = Number(rows[0]?.monto_bruto ?? 0);
+  if (paresHija <= 0 || paresHija >= total) {
+    return { ok: false, error: `Pares a separar inválido (IC tiene ${total}).` };
+  }
+
+  const dup = await duplicarIcEnPp(pool, ppId, icId, paresHija, idClienteDestino, {
+    ajustarComprometidos: false,
+  });
+  if (!dup.ok) return dup;
+
+  const paresResto = total - paresHija;
+  const brutoResto = total > 0 ? Math.round((brutoOrig * paresResto) / total) : brutoOrig;
+  const upd = await updateIcVinculadaPp(pool, ppId, icId, {
+    cantidad_total_pares: paresResto,
+    monto_bruto: brutoResto,
+  });
+  if (!upd.ok) return upd;
+
+  return {
+    ok: true,
+    ic_origen_id: icId,
+    ic_nueva_id: dup.new_ic_id,
+    nro_ic_nueva: dup.nro_ic,
+  };
 }
 
 /** Paridad Streamlit `desasignar_ic_de_pp` — IC vuelve a AUTORIZADO en pool Digitación. */

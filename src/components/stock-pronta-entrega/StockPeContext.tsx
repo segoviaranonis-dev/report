@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useDeferredValue,
   useEffect,
   useMemo,
   useState,
@@ -82,6 +83,16 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
   const [err, setErr] = useState<string | null>(null);
   const [depositoLegal, setDepositoLegal] = useState("");
   const [filtros, setFiltros] = useState(EMPTY_OPERATIVA_FILTERS);
+  const [qDebounced, setQDebounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setQDebounced(filtros.q), 280);
+    return () => window.clearTimeout(t);
+  }, [filtros.q]);
+  const filtrosCompute = useMemo(
+    () => ({ ...filtros, q: qDebounced }),
+    [filtros, qDebounced],
+  );
+  const filtrosDeferred = useDeferredValue(filtrosCompute);
 
   const reloadProductos = useCallback(async () => {
     setLoading(true);
@@ -113,12 +124,12 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const filtradas = useMemo(
-    () => applyStockPeFilters(rows, filtros, depositoLegal),
-    [rows, filtros, depositoLegal],
+    () => applyStockPeFilters(rows, filtrosDeferred, depositoLegal),
+    [rows, filtrosDeferred, depositoLegal],
   );
   const opciones = useMemo(
-    () => buildStockPeOpciones(rows, filtros, depositoLegal),
-    [rows, filtros, depositoLegal],
+    () => buildStockPeOpciones(rows, filtrosDeferred, depositoLegal),
+    [rows, filtrosDeferred, depositoLegal],
   );
   const drill = useMemo(() => buildEstiloTonoDrillFromRows(filtradas), [filtradas]);
   const estiloMarcaDrill = useMemo(() => buildEstiloMarcaDrillFromRows(filtradas), [filtradas]);

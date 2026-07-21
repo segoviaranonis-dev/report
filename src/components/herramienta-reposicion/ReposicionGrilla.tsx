@@ -28,7 +28,7 @@ export const ReposicionGrilla = memo(function ReposicionGrilla({
   ranksPorKey,
 }: Props) {
   return (
-    <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="mt-3 grid gap-5 overflow-visible p-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {articulos.map((a) => (
         <ReposicionArticuloCard
           key={a.key}

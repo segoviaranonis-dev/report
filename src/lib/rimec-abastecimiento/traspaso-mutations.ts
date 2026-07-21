@@ -2,6 +2,7 @@
  * Traspaso + combinacion — gemelo compra_legal/logic.py + facturacion/logic.py
  */
 import type { PoolClient } from "pg";
+import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonical";
 import { ALM_TRANSITO, ALM_WEB_BAZAR } from "./constants";
 
 export type ItemTallas = {
@@ -26,33 +27,66 @@ function parseJsonRecord(raw: unknown): Record<string, unknown> | null {
   }
 }
 
-function parseGradesJson(raw: unknown): Record<string, number> | null {
-  const obj = parseJsonRecord(raw);
-  if (!obj) return null;
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    const n = Number(v);
-    if (Number.isFinite(n)) out[String(k)] = n;
-  }
-  return Object.keys(out).length ? out : null;
+/** Normaliza clave talla: "t38" | "38" | "38.0" → 38 */
+export function tallaKeyToNum(tallaStr: string): number | null {
+  const head = String(tallaStr ?? "")
+    .trim()
+    .replace(/^t/i, "")
+    .split("/")[0]
+    ?.replace(/[^\d.]/g, "");
+  const n = Number(head);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.trunc(n);
+  if (i < 20 || i > 55) return null;
+  return i;
 }
 
-/** Escala grades_json a fid.pares (PP-2026-0010) */
+/**
+ * Escala grades_json a fid.pares (caja RIMEC 8 o 12).
+ * - Acepta claves `t38` o `38`
+ * - Reparte con método del mayor resto (no tira pares a la última talla)
+ * - Si pares no es múltiplo de la caja (suma grada), escala igual pero deja curva coherente
+ */
 export function scaleGradesToPares(grades: Record<string, number>, pares: number): Record<string, number> {
-  const suma = Object.values(grades).reduce((a, b) => a + Number(b || 0), 0);
-  if (suma <= 0 || pares <= 0) return {};
-  const factor = pares / suma;
-  const tallas: Record<string, number> = {};
+  const normalized: Record<number, number> = {};
   for (const [tallaStr, qty] of Object.entries(grades)) {
-    const tallaNum = parseInt(tallaStr, 10);
-    if (tallaNum >= 33 && tallaNum <= 40) {
-      tallas[`t${tallaNum}`] = Math.floor(Number(qty) * factor);
-    }
+    const tallaNum = tallaKeyToNum(tallaStr);
+    if (tallaNum == null) continue;
+    const q = Number(qty);
+    if (!Number.isFinite(q) || q <= 0) continue;
+    normalized[tallaNum] = (normalized[tallaNum] ?? 0) + q;
   }
-  const sumaTallas = Object.values(tallas).reduce((a, b) => a + b, 0);
-  if (sumaTallas !== pares && Object.keys(tallas).length > 0) {
-    const last = Object.keys(tallas).pop()!;
-    tallas[last] += pares - sumaTallas;
+  const entries = Object.entries(normalized)
+    .map(([t, q]) => [Number(t), Number(q)] as const)
+    .sort((a, b) => a[0] - b[0]);
+  const suma = entries.reduce((a, [, q]) => a + q, 0);
+  if (suma <= 0 || pares <= 0) return {};
+
+  if (suma === pares) {
+    const tallas: Record<string, number> = {};
+    for (const [t, q] of entries) tallas[`t${t}`] = q;
+    return tallas;
+  }
+
+  const factor = pares / suma;
+  const raw = entries.map(([t, q]) => {
+    const exact = q * factor;
+    const base = Math.floor(exact);
+    return { t, base, frac: exact - base };
+  });
+  let assigned = raw.reduce((a, r) => a + r.base, 0);
+  let remain = pares - assigned;
+  raw.sort((a, b) => b.frac - a.frac || a.t - b.t);
+  for (const r of raw) {
+    if (remain <= 0) break;
+    r.base += 1;
+    remain -= 1;
+  }
+  raw.sort((a, b) => a.t - b.t);
+
+  const tallas: Record<string, number> = {};
+  for (const r of raw) {
+    if (r.base > 0) tallas[`t${r.t}`] = r.base;
   }
   return tallas;
 }
@@ -81,18 +115,19 @@ export function extractTallasFromFiRow(row: {
   pares: number;
 }): Record<string, number> {
   let tallas: Record<string, number> = {};
-  const grades = parseGradesJson(row.grades_json);
-  if (grades && row.pares > 0) {
+  const grades = gradesJsonSoloTallas(row.grades_json);
+  if (Object.keys(grades).length && row.pares > 0) {
     tallas = scaleGradesToPares(grades, row.pares);
   }
   if (!Object.keys(tallas).length && row.linea_snapshot) {
     const snap = parseJsonRecord(row.linea_snapshot);
     const fmt = snap ? String(snap.gradas_fmt ?? snap.grada ?? "") : "";
     if (fmt) tallas = gradasFmtToTallas(fmt);
+    if (!Object.keys(tallas).length && snap?.tallas && typeof snap.tallas === "object") {
+      tallas = scaleGradesToPares(snap.tallas as Record<string, number>, row.pares);
+    }
   }
-  if (!Object.keys(tallas).length && row.pares > 0) {
-    tallas = { t37: row.pares };
-  }
+  // Prohibido volcar todo a t37: rompe la grada (caja 8/12).
   return tallas;
 }
 
@@ -117,34 +152,48 @@ export async function resolveCombinacionId(
   col: string,
   talla: string,
 ): Promise<number | null> {
-  const params = [String(linea).trim(), String(ref).trim(), String(talla).trim(), String(mat).trim(), String(col).trim()];
+  const lineaCod = String(linea).trim();
+  const refCod = String(ref).trim();
+  const tallaCod = String(talla).trim();
+  const matCod = String(mat).trim();
+  const colCod = String(col).trim();
+
+  const matMatch = `
+    (
+      NULLIF(btrim(mat.descripcion), '') = $4
+      OR mat.codigo_proveedor::text = $4
+      OR ('K' || l.codigo_proveedor::text) = $4
+    )
+  `;
+  const colMatch = `(col.nombre = $5 OR col.codigo_proveedor::text = $5)`;
+
   const found = await client.query<{ id: number }>(
     `
     SELECT c.id
     FROM combinacion c
     JOIN linea l ON l.id = c.linea_id AND l.codigo_proveedor::text = $1
-    JOIN referencia r ON r.id = c.referencia_id AND r.codigo_proveedor::text = $2
+    JOIN referencia r ON r.id = c.referencia_id AND r.codigo_proveedor::text = $2 AND r.linea_id = l.id
     JOIN talla tl ON tl.id = c.talla_id AND tl.talla_etiqueta = $3
-    JOIN material mat ON mat.id = c.material_id AND mat.descripcion = $4
-    JOIN color col ON col.id = c.color_id AND col.nombre = $5
+    JOIN material mat ON mat.id = c.material_id AND ${matMatch}
+    JOIN color col ON col.id = c.color_id AND ${colMatch}
     LIMIT 1
     `,
-    params,
+    [lineaCod, refCod, tallaCod, matCod, colCod],
   );
   if (found.rows[0]?.id) return found.rows[0].id;
 
   const ids = await client.query<{ linea_id: number; ref_id: number; mat_id: number; col_id: number; talla_id: number }>(
     `
     SELECT l.id AS linea_id, r.id AS ref_id, mat.id AS mat_id, col.id AS col_id, tl.id AS talla_id
-    FROM linea l, referencia r, material mat, color col, talla tl
+    FROM linea l
+    JOIN referencia r ON r.linea_id = l.id AND r.codigo_proveedor::text = $2
+    JOIN talla tl ON tl.talla_etiqueta = $3
+    JOIN material mat ON mat.proveedor_id = l.proveedor_id AND ${matMatch}
+    JOIN color col ON col.proveedor_id = l.proveedor_id AND ${colMatch}
     WHERE l.codigo_proveedor::text = $1
-      AND r.codigo_proveedor::text = $2
-      AND mat.descripcion = $3
-      AND col.nombre = $4
-      AND tl.talla_etiqueta = $5
     LIMIT 1
     `,
-    params,
+    [lineaCod, refCod, tallaCod, matCod, colCod],
   );
   if (!ids.rows.length) return null;
 
@@ -192,18 +241,33 @@ export async function crearTraspasoPorFactura(
   const trpId = ins.rows[0]?.id;
   if (!trpId) throw new Error("No se pudo crear traspaso");
 
+  let paresPedidos = 0;
+  let paresInsertados = 0;
   for (const rec of itemsTallas) {
     for (const [col, qtyVal] of Object.entries(rec.tallas ?? {})) {
       const qty = Math.trunc(Number(qtyVal) || 0);
       if (qty <= 0) continue;
-      const t = col.replace(/^t/i, "");
+      paresPedidos += qty;
+      const tNum = tallaKeyToNum(col);
+      const t = tNum != null ? String(tNum) : col.replace(/^t/i, "");
       const combId = await resolveCombinacionId(client, rec.linea, rec.referencia, rec.material, rec.color, t);
-      if (!combId) continue;
+      if (!combId) {
+        throw new Error(
+          `Traspaso ${numeroFactura}: sin combinación L${rec.linea}/R${rec.referencia} talla ${t} ` +
+            `(mat=${rec.material} col=${rec.color}) — grada incompleta, abortado.`,
+        );
+      }
       await client.query(
         `INSERT INTO traspaso_detalle (traspaso_id, combinacion_id, cantidad) VALUES ($1, $2, $3)`,
         [trpId, combId, qty],
       );
+      paresInsertados += qty;
     }
+  }
+  if (paresPedidos > 0 && paresInsertados !== paresPedidos) {
+    throw new Error(
+      `Traspaso ${numeroFactura}: pares pedidos ${paresPedidos} ≠ insertados ${paresInsertados}`,
+    );
   }
   return trpId;
 }

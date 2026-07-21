@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PpDetalleHeader } from "@/lib/pedido-proveedor/detail-query";
 import type {
@@ -11,7 +11,9 @@ import type {
 } from "@/lib/pedido-proveedor/administrador-ic-query";
 import {
   evalProtocoloChusa,
+  icParPrefactura,
   marcaAlineacionPrefactura,
+  marcaDisplayPrefactura,
   montoFiConDescuentosIc,
   parejaTripleteIcPf,
   recalcPfConTier,
@@ -26,9 +28,15 @@ import {
   type ListadoPrecioTierId,
 } from "@/lib/intencion-compra/listado-precio-tiers";
 import { pedidoProveedorDetalle } from "@/lib/report/routes";
+import {
+  readAdminIcCache,
+  writeAdminIcCache,
+} from "@/lib/pedido-proveedor/pp-detalle-ui-cache";
 import { ProcesoImportacionWaitOverlay } from "@/components/report/ProcesoImportacionWaitOverlay";
 import { ChusaLoteCelebracionOverlay } from "@/components/report/ChusaLoteCelebracionOverlay";
 import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
+import { PpAdminIcCabeceraFila, ADMIN_IC_GRID, ADMIN_IC_ROW_MIN_W } from "./PpAdminIcCabeceraFila";
+import type { PfSplitRecord } from "@/lib/pedido-proveedor/admin-ic-pf-splits";
 
 type Props = {
   pp: PpDetalleHeader;
@@ -43,11 +51,8 @@ function msgFromUnknown(e: unknown): string {
   return "Error";
 }
 
-const CABECERA_GRID =
-  "grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,1fr)_2rem_minmax(0,0.65fr)_minmax(0,1fr)_2.5rem_0.9rem_1.1rem]";
-
 const CANON_ERR =
-  "rounded bg-red-200 font-bold text-red-950 ring-2 ring-red-500 shadow-sm animate-pulse";
+  "rounded bg-red-200 font-bold text-red-950 ring-2 ring-red-500 shadow-sm";
 
 function clsCanon(ok: boolean | undefined) {
   return ok ? CANON_ERR : "";
@@ -67,155 +72,16 @@ function fmtDescCompact(d1: number, d2: number, d3: number, d4: number) {
   return parts.length ? parts.join(" ") : "—";
 }
 
-function CabeceraFila({
-  tone,
-  codCliente,
-  colRef,
-  marca,
-  lp,
-  monto,
-  montoSecundario,
-  pares,
-  descLabel,
-  canonDiff,
-  canonHint,
-  expanded,
-  onToggleExpand,
-  expandable,
-  lpEditable,
-  lpLocked,
-  lpValue,
-  onLpChange,
+function ArticuloFila({
+  art,
+  onAddToSplit,
 }: {
-  tone: "ic" | "pf";
-  codCliente: number | string;
-  colRef: string;
-  marca: string;
-  lp: string;
-  monto: number;
-  montoSecundario?: number | null;
-  pares: number;
-  /** Compacto D1+D2+… (IC / Pre-FI). */
-  descLabel?: string;
-  canonDiff?: CanonDiffCelda | null;
-  /** Valor canon del otro panel (tooltip al corregir IC). */
-  canonHint?: { cliente?: string | number; marca?: string; cantidad?: number };
-  expanded?: boolean;
-  onToggleExpand?: () => void;
-  expandable?: boolean;
-  lpEditable?: boolean;
-  lpLocked?: boolean;
-  lpValue?: ListadoPrecioTierId;
-  onLpChange?: (tier: ListadoPrecioTierId) => void;
+  art: PfArticuloRow;
+  onAddToSplit?: () => void;
 }) {
-  const bg =
-    tone === "ic"
-      ? canonDiff && tieneDesajusteCanon(canonDiff)
-        ? "border-red-400 bg-red-50/80"
-        : "border-slate-300 bg-slate-100"
-      : canonDiff && tieneDesajusteCanon(canonDiff)
-        ? "border-red-400 bg-red-50/80"
-        : "border-orange-300 bg-orange-50";
-
-  const rowTitle =
-    canonDiff && tieneDesajusteCanon(canonDiff)
-      ? tone === "ic"
-        ? `Canon ≠ proforma — corregí esta IC (cliente · marca · cant.)${canonHint ? ` · PF: ${canonHint.cliente ?? "?"} · ${canonHint.marca ?? "?"} · ${canonHint.cantidad ?? "?"}p` : ""}`
-        : `Canon ≠ IC en esta fila — la proforma no se edita`
-      : "Fila alineada · Protocolo Chusa";
-
   return (
     <div
-      className={`grid h-9 w-full min-w-0 ${CABECERA_GRID} items-center gap-1 border px-1 text-[10px] leading-tight sm:h-10 sm:text-[11px] ${bg}`}
-      title={rowTitle}
-    >
-      <span
-        className={`truncate font-mono font-bold ${clsCanon(canonDiff?.sinPar || canonDiff?.cliente)}`}
-        title={canonHint?.cliente != null ? `Proforma/IC esperado: ${canonHint.cliente}` : undefined}
-      >
-        {codCliente}
-      </span>
-      <span className="truncate text-[9px] font-semibold text-slate-700" title={colRef}>
-        {colRef}
-      </span>
-      <span
-        className={`truncate font-semibold ${clsCanon(canonDiff?.sinPar || canonDiff?.marca)}`}
-        title={canonHint?.marca ? `Canon proforma: ${canonHint.marca}` : marca}
-      >
-        {marca}
-      </span>
-      <span
-        className={`truncate text-right tabular-nums font-bold ${clsCanon(canonDiff?.sinPar || canonDiff?.cantidad)}`}
-        title={canonHint?.cantidad != null ? `Canon proforma: ${canonHint.cantidad} pares` : undefined}
-      >
-        {pares}
-      </span>
-      <span
-        className="truncate text-center text-[9px] font-bold tabular-nums text-amber-900"
-        title={`Descuentos IC: ${descLabel ?? "—"}`}
-      >
-        {descLabel && descLabel !== "—" ? descLabel : "—"}
-      </span>
-      <span
-        className="min-w-0 truncate text-right tabular-nums"
-        title={
-          [
-            montoSecundario != null && Math.abs(montoSecundario - monto) > 1
-              ? `Sin desc.: ${fmtMonto(monto)} · con desc. IC: ${fmtMonto(montoSecundario)}`
-              : `Monto bruto ${fmtMonto(monto)}`,
-          ]
-            .filter(Boolean)
-            .join(" · ")
-        }
-      >
-        <span className="block font-bold leading-tight">{fmtMonto(monto)}</span>
-      </span>
-      {lpEditable && lpValue != null && onLpChange && !lpLocked ? (
-        <select
-          className="w-full truncate rounded border border-orange-400 bg-white px-0.5 py-0.5 text-[8px] font-bold"
-          value={lpValue}
-          title={lp}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => onLpChange(Number(e.target.value) as ListadoPrecioTierId)}
-        >
-          {LISTADO_PRECIO_TIERS.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <span
-          className={`truncate text-[9px] font-semibold ${lpLocked ? "text-emerald-800" : "text-slate-700"}`}
-          title={lpLocked ? `LP heredado de IC · ${lp}` : lp}
-        >
-          {lpLocked ? "🔒 " : ""}
-          {lp}
-        </span>
-      )}
-      {expandable ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand?.();
-          }}
-          className="rounded px-1 text-xs font-bold text-orange-900 hover:bg-orange-200"
-          title="Ver artículos de la proforma"
-        >
-          {expanded ? "▾" : "▸"}
-        </button>
-      ) : (
-        <span className="w-4" />
-      )}
-    </div>
-  );
-}
-
-function ArticuloFila({ art }: { art: PfArticuloRow }) {
-  return (
-    <div
-      className="ml-2 grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-2 border border-dashed border-orange-300 bg-white px-2 py-1 text-[10px]"
+      className="ml-2 grid grid-cols-[2.75rem_minmax(0,1fr)_1.75rem] items-center gap-2 border border-dashed border-orange-300 bg-white px-2 py-1 text-[10px]"
       title="Detalle artículo proforma"
     >
       <ProductThumbFrame
@@ -243,32 +109,64 @@ function ArticuloFila({ art }: { art: PfArticuloRow }) {
           <strong>G</strong> {art.grada ?? "—"} · {art.pares}p
         </span>
       </div>
+      {onAddToSplit ? (
+        <button
+          type="button"
+          title="Separar este artículo a nueva prefactura (+ IC cabecera)"
+          className="rounded bg-violet-700 px-1 py-0.5 text-xs font-bold text-white hover:bg-violet-800"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToSplit();
+          }}
+        >
+          +
+        </button>
+      ) : (
+        <span className="w-5" />
+      )}
     </div>
   );
 }
 
 export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [ics, setIcs] = useState<IcAdminRow[]>([]);
-  const [prefacturas, setPrefacturas] = useState<PreFacturaInterna[]>([]);
+  const cachedAdmin = readAdminIcCache(ppId);
+  const [loading, setLoading] = useState(!cachedAdmin);
+  const [ics, setIcs] = useState<IcAdminRow[]>(cachedAdmin?.ics ?? []);
+  const [prefacturas, setPrefacturas] = useState<PreFacturaInterna[]>(cachedAdmin?.prefacturas ?? []);
   const [expandedPf, setExpandedPf] = useState<Set<string>>(new Set());
   const [filtroCliente, setFiltroCliente] = useState<string>("");
   const [pfTierOverrides, setPfTierOverrides] = useState<Record<string, ListadoPrecioTierId>>({});
   const [generandoFiKey, setGenerandoFiKey] = useState<string | null>(null);
   const [celebracion, setCelebracion] = useState<{ total: number } | null>(null);
   const [nFiServidor, setNFiServidor] = useState<number | null>(null);
+  const [icBusy, setIcBusy] = useState<number | null>(null);
+  const [pfSplits, setPfSplits] = useState<PfSplitRecord[]>([]);
+  const [splitPfTarget, setSplitPfTarget] = useState<PreFacturaInterna | null>(null);
+  const [splitSelections, setSplitSelections] = useState<Map<number, number>>(new Map());
+  const [splitCliente, setSplitCliente] = useState("");
+  const [splitBusy, setSplitBusy] = useState(false);
+  const loadedOnceRef = useRef(Boolean(cachedAdmin));
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const hasCache = loadedOnceRef.current || readAdminIcCache(ppId) != null;
+    const silent = opts?.silent === true || hasCache;
+    if (!silent) setLoading(true);
     try {
       const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic`, {
         credentials: "same-origin",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error cargando datos");
-      setIcs(data.ics ?? []);
-      setPrefacturas(data.prefacturas ?? []);
+      const snap = {
+        ics: (data.ics ?? []) as IcAdminRow[],
+        prefacturas: (data.prefacturas ?? []) as PreFacturaInterna[],
+      };
+      writeAdminIcCache(ppId, snap);
+      setIcs(snap.ics);
+      setPrefacturas(snap.prefacturas);
+      setPfSplits((data.pf_splits ?? []) as PfSplitRecord[]);
+      loadedOnceRef.current = true;
     } catch (e) {
       onMsg(msgFromUnknown(e));
     } finally {
@@ -277,8 +175,15 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
   }, [ppId, onMsg]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    const c = readAdminIcCache(ppId);
+    loadedOnceRef.current = Boolean(c);
+    if (c) {
+      setIcs(c.ics);
+      setPrefacturas(c.prefacturas);
+      setLoading(false);
+    }
+    void load({ silent: Boolean(c) });
+  }, [ppId, load]);
 
   useEffect(() => {
     fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/completar-fi`, {
@@ -347,12 +252,12 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
     return list.sort((a, b) =>
       cmpAdminFilasLote(
         a.id_cliente,
-        marcaAlineacionPrefactura(a, ics),
+        marcaAlineacionPrefactura(a),
         a.total_pares,
         a.total_monto,
         a.caso,
         b.id_cliente,
-        marcaAlineacionPrefactura(b, ics),
+        marcaAlineacionPrefactura(b),
         b.total_pares,
         b.total_monto,
         b.caso,
@@ -404,6 +309,165 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
   function mostrarCelebracionCompleta() {
     if (!loteExacto) return;
     setCelebracion({ total: nFiEfectivo });
+  }
+
+  async function patchIcFields(
+    icId: number,
+    fields: Record<string, number>,
+  ) {
+    setIcBusy(icId);
+    try {
+      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/ic/${icId}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo guardar IC");
+      await load({ silent: true });
+      await onReload?.();
+      onMsg("IC actualizada");
+    } catch (e) {
+      onMsg(msgFromUnknown(e));
+    } finally {
+      setIcBusy(null);
+    }
+  }
+
+  async function deleteIcRow(ic: IcAdminRow) {
+    if (
+      !window.confirm(
+        `¿Devolver ${ic.nro_ic} a Digitación?\nSe desvincula del PP · ${ic.pares} pares.`,
+      )
+    ) {
+      return;
+    }
+    setIcBusy(ic.ic_id);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/ic/${ic.ic_id}`,
+        { method: "DELETE", credentials: "same-origin" },
+      );
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo eliminar IC");
+      await load({ silent: true });
+      await onReload?.();
+      onMsg(`IC ${ic.nro_ic} devuelta a Digitación`);
+    } catch (e) {
+      onMsg(msgFromUnknown(e));
+    } finally {
+      setIcBusy(null);
+    }
+  }
+
+  function openSplitPf(pf: PreFacturaInterna, preselectPpdIds?: number[]) {
+    setSplitPfTarget(pf);
+    setSplitCliente(String(pf.id_cliente));
+    const next = new Map<number, number>();
+    if (preselectPpdIds?.length) {
+      for (const ppdId of preselectPpdIds) {
+        const art = pf.articulos.find((a) => a.ppd_id === ppdId);
+        if (art) next.set(ppdId, art.pares);
+      }
+    }
+    setSplitSelections(next);
+    setExpandedPf((prev) => new Set(prev).add(pf.pf_key));
+  }
+
+  const splitParesTotal = useMemo(() => {
+    let n = 0;
+    for (const p of splitSelections.values()) n += p;
+    return n;
+  }, [splitSelections]);
+
+  const splitIcOrigen = useMemo(() => {
+    if (!splitPfTarget) return null;
+    return (
+      ics.find(
+        (ic) =>
+          icParPrefactura(ic, splitPfTarget) &&
+          parejaTripleteIcPf(ic, {
+            ...splitPfTarget,
+            total_pares: splitPfTarget.total_pares,
+          }),
+      ) ?? null
+    );
+  }, [splitPfTarget, ics]);
+
+  function toggleSplitArt(ppdId: number, maxPares: number, checked: boolean) {
+    setSplitSelections((prev) => {
+      const next = new Map(prev);
+      if (checked) next.set(ppdId, maxPares);
+      else next.delete(ppdId);
+      return next;
+    });
+  }
+
+  function setSplitArtPares(ppdId: number, maxPares: number, raw: string) {
+    const p = Math.min(maxPares, Math.max(1, Math.round(Number(raw) || 0)));
+    setSplitSelections((prev) => {
+      if (!prev.has(ppdId)) return prev;
+      const next = new Map(prev);
+      next.set(ppdId, p);
+      return next;
+    });
+  }
+
+  async function confirmSplitPf() {
+    if (!splitPfTarget) return;
+    const idCliente = Math.round(Number(splitCliente));
+    if (!Number.isFinite(idCliente) || idCliente <= 0) {
+      onMsg("Cliente destino inválido");
+      return;
+    }
+    const articulos = [...splitSelections.entries()].map(([ppd_id, pares]) => ({ ppd_id, pares }));
+    if (!articulos.length) {
+      onMsg("Seleccioná al menos un artículo");
+      return;
+    }
+    const pares = articulos.reduce((s, a) => s + a.pares, 0);
+    if (pares <= 0 || pares >= splitPfTarget.total_pares) {
+      onMsg(`Total ${pares}p — debe quedar al menos 1 par en origen (${splitPfTarget.total_pares}p)`);
+      return;
+    }
+    setSplitBusy(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/pf-split`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parent_pf_key: splitPfTarget.pf_key,
+            id_cliente: idCliente,
+            articulos,
+            sync_ic: true,
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Error al dividir prefactura");
+      setIcs(data.ics ?? []);
+      setPrefacturas(data.prefacturas ?? []);
+      setPfSplits(data.pf_splits ?? []);
+      writeAdminIcCache(ppId, { ics: data.ics ?? [], prefacturas: data.prefacturas ?? [] });
+      await onReload?.();
+      await load({ silent: true });
+      const icNote = data.ic_sync?.nro_ic_nueva
+        ? ` · IC cabecera ${data.ic_sync.nro_ic_nueva}`
+        : splitIcOrigen
+          ? " · IC pareada no sincronizada (revisá pares)"
+          : "";
+      onMsg(`Nueva prefactura: ${articulos.length} artículo(s) · ${pares}p → cliente ${idCliente}${icNote}`);
+      setSplitPfTarget(null);
+      setSplitSelections(new Map());
+    } catch (e) {
+      onMsg(msgFromUnknown(e));
+    } finally {
+      setSplitBusy(false);
+    }
   }
 
   async function patchIcListado(icId: number, tier: ListadoPrecioTierId) {
@@ -482,7 +546,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
     }
   }
 
-  if (loading) {
+  if (loading && ics.length === 0 && prefacturas.length === 0) {
     return (
       <section className="mt-4 rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
         Cargando Administrador de IC…
@@ -513,13 +577,44 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
         onVerFi={irAFi}
       />
 
+      <div className="rounded-xl border-2 border-violet-700 bg-gradient-to-r from-violet-100 to-violet-50 px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="rounded-lg bg-violet-800 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+            Pedido proveedor · PROGRAMADO
+          </span>
+          <span className="font-mono text-base font-bold text-violet-950">{pp.numero_registro}</span>
+          <span className={`rounded px-2 py-0.5 text-xs font-bold ${pp.estado === "ENVIADO" ? "bg-emerald-100 text-emerald-900" : pp.estado === "CERRADO" ? "bg-sky-100 text-sky-900" : "bg-amber-100 text-amber-900"}`}>
+            {pp.estado}
+          </span>
+          {pp.numero_proforma ? (
+            <span className="text-xs text-violet-900">
+              Proforma <strong className="font-mono">{pp.numero_proforma}</strong>
+            </span>
+          ) : null}
+          <span className="text-xs text-violet-800">
+            {pp.proveedor} · {pp.marcas}
+          </span>
+          <span className="text-xs tabular-nums text-violet-800">
+            IC {protocoloChusa.contadorIc} · PF {protocoloChusa.contadorPf} · FI {nFiEfectivo}
+            {fiEsperadas > 0 && nFiEfectivo !== fiEsperadas ? ` / ${fiEsperadas}` : ""}
+          </span>
+        </div>
+      </div>
+
       <div className="rounded-xl border-2 border-yellow-400 bg-yellow-50 px-4 py-2">
         <h2 className="text-sm font-bold text-yellow-950">⚖ Administrador de IC · Protocolo Chusa</h2>
         <p className="mt-1 text-xs text-yellow-900">
           <strong>Cabecera:</strong> IC = PF = FI (115 filas · cliente · marca · pares por fila).{" "}
           <strong>Molécula:</strong> Saldo = pares F9 sin asignar a FI ({pp.pares_comprometidos.toLocaleString("es-PY")} pares IC · {pp.total_articulos} artículos).{" "}
-          <strong className="text-red-800">Rojo pulsante = corregí la IC</strong> en ICs Asignadas.
+          <strong className="text-red-800">Rojo = corregí la IC</strong> en ICs Asignadas.{" "}
+          <strong className="text-violet-900">IC:</strong> editá cantidad · D1–D4 · ✕ eliminar.{" "}
+          <strong className="text-violet-900">PF:</strong> botón <strong>÷</strong> divide pares a otra prefactura/FI (sync IC automático).
         </p>
+        {pfSplits.length > 0 && (
+          <p className="mt-1 text-[10px] font-semibold text-violet-900">
+            {pfSplits.length} división{pfSplits.length === 1 ? "" : "es"} PF activa{pfSplits.length === 1 ? "" : "s"} · filas verdes = prefactura hija
+          </p>
+        )}
         {canonDiffs.desajustes > 0 && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border-2 border-red-500 bg-red-100 px-3 py-2 text-xs text-red-950">
             <span className="font-bold">
@@ -720,32 +815,37 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
         </div>
       </div>
 
-      <div className="grid min-h-[560px] grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid min-h-[560px] grid-cols-1 gap-4 2xl:grid-cols-2">
         {/* Panel IC */}
-        <div className="flex min-w-0 flex-col overflow-hidden border border-slate-300 bg-slate-50">
-          <div className="flex items-center justify-between border-b border-slate-300 bg-slate-200 px-2 py-1">
-            <span className="text-[10px] font-bold uppercase">IC · cabecera</span>
-            <span className="rounded border-2 border-red-500 bg-white px-2 py-0.5 text-[10px] font-bold tabular-nums text-red-900">
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-slate-300 bg-slate-50 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-300 bg-slate-200 px-3 py-2">
+            <span className="text-[11px] font-bold uppercase tracking-wide">IC · cabecera</span>
+            <span className="rounded border-2 border-red-500 bg-white px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-red-900">
               {protocoloChusa.contadorIc}
             </span>
           </div>
-          <div className={`grid w-full ${CABECERA_GRID} gap-1 border-b border-slate-200 px-1 py-0.5 text-[9px] font-bold uppercase text-slate-500 sm:text-[10px]`}>
-            <span>Cliente</span>
-            <span>IC Nº</span>
-            <span>Marca</span>
-            <span className="text-right">Cant.</span>
-            <span className="text-center">Desc</span>
-            <span className="text-right">Monto</span>
-            <span>LP</span>
-            <span />
+          <div className="overflow-x-auto">
+            <div
+              className={`grid w-full ${ADMIN_IC_ROW_MIN_W} ${ADMIN_IC_GRID} gap-x-1.5 border-b border-slate-200 px-2 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px]`}
+            >
+              <span>Cliente</span>
+              <span>IC Nº</span>
+              <span>Marca</span>
+              <span className="text-center">Cant.</span>
+              <span className="text-center">D1–D4</span>
+              <span className="text-right">Monto</span>
+              <span className="text-center">LP</span>
+              <span />
+              <span className="text-right">Acc.</span>
+            </div>
           </div>
-          <div className="max-h-[520px] space-y-0.5 overflow-y-auto overflow-x-hidden p-1">
+          <div className="max-h-[520px] space-y-1 overflow-x-auto overflow-y-auto p-2">
             {icsVisibles.map((ic, idx) => {
               const pfPar = pfVisibles[idx];
-              const marcaPf = pfPar ? marcaAlineacionPrefactura(pfPar, ics) : undefined;
+              const marcaPf = pfPar ? marcaAlineacionPrefactura(pfPar) : undefined;
               const canonDiff = canonDiffs.ic[idx] ?? null;
               return (
-                <CabeceraFila
+                <PpAdminIcCabeceraFila
                   key={ic.ic_id}
                   tone="ic"
                   codCliente={ic.id_cliente}
@@ -774,6 +874,26 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                         }
                       : undefined
                   }
+                  icEdit={{
+                    icId: ic.ic_id,
+                    pares: ic.pares,
+                    monto: ic.monto_ic,
+                    d1: Number(ic.descuento_1) || 0,
+                    d2: Number(ic.descuento_2) || 0,
+                    d3: Number(ic.descuento_3) || 0,
+                    d4: Number(ic.descuento_4) || 0,
+                    busy: icBusy === ic.ic_id,
+                    onParesBlur: (p) => void patchIcFields(ic.ic_id, { cantidad_total_pares: p }),
+                    onMontoBlur: (m) => void patchIcFields(ic.ic_id, { monto_bruto: m }),
+                    onDescBlur: (d1, d2, d3, d4) =>
+                      void patchIcFields(ic.ic_id, {
+                        descuento_1: d1,
+                        descuento_2: d2,
+                        descuento_3: d3,
+                        descuento_4: d4,
+                      }),
+                    onDelete: () => void deleteIcRow(ic),
+                  }}
                 />
               );
             })}
@@ -781,24 +901,29 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
         </div>
 
         {/* Panel Pre-FI — derecha */}
-        <div className="flex min-w-0 flex-col overflow-hidden border border-orange-300 bg-orange-50/50">
-          <div className="flex items-center justify-between border-b border-orange-300 bg-orange-200 px-2 py-1">
-            <span className="text-[10px] font-bold uppercase">Pre-Factura interna · proforma</span>
-            <span className="rounded border-2 border-red-500 bg-white px-2 py-0.5 text-[10px] font-bold tabular-nums text-red-900">
+        <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-orange-300 bg-orange-50/50 shadow-sm">
+          <div className="flex items-center justify-between border-b border-orange-300 bg-orange-200 px-3 py-2">
+            <span className="text-[11px] font-bold uppercase tracking-wide">Pre-Factura interna · proforma</span>
+            <span className="rounded border-2 border-red-500 bg-white px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-red-900">
               {protocoloChusa.contadorPf}
             </span>
           </div>
-          <div className={`grid w-full ${CABECERA_GRID} gap-1 border-b border-orange-200 px-1 py-0.5 text-[9px] font-bold uppercase text-orange-800 sm:text-[10px]`}>
-            <span>Cliente</span>
-            <span>Caso</span>
-            <span>Marca</span>
-            <span className="text-right">Cant.</span>
-            <span className="text-center">Desc</span>
-            <span className="text-right">Monto</span>
-            <span>LP</span>
-            <span />
+          <div className="overflow-x-auto">
+            <div
+              className={`grid w-full ${ADMIN_IC_ROW_MIN_W} ${ADMIN_IC_GRID} gap-x-1.5 border-b border-orange-200 px-2 py-2 text-[9px] font-bold uppercase tracking-wide text-orange-800 sm:text-[10px]`}
+            >
+              <span>Cliente</span>
+              <span>Caso</span>
+              <span>Marca</span>
+              <span className="text-center">Cant.</span>
+              <span className="text-center">Desc</span>
+              <span className="text-right">Monto</span>
+              <span className="text-center">LP</span>
+              <span />
+              <span className="text-right">÷</span>
+            </div>
           </div>
-          <div className="max-h-[520px] space-y-0.5 overflow-y-auto overflow-x-hidden p-1">
+          <div className="max-h-[520px] space-y-1 overflow-x-auto overflow-y-auto p-2">
             {pfVisibles.map((pf, idx) => {
               const open = expandedPf.has(pf.pf_key);
               const icVinculada = pfTierAutoIc.icPorPf.get(pf.pf_key);
@@ -809,7 +934,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
               const pfDisplay = tier === pf.listado_tier && !lpLocked && !pfTierOverrides[pf.pf_key]
                 ? pf
                 : recalcPfConTier(pf, tier);
-              const marcaCol = marcaAlineacionPrefactura(pfDisplay, ics);
+              const marcaCol = marcaDisplayPrefactura(pfDisplay, ics);
               const canonDiff = canonDiffs.pf[idx] ?? null;
               const montoConDescIc =
                 icVinculada != null
@@ -822,9 +947,10 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                       icVinculada.descuento_4,
                     )
                   : null;
+              const pfEsHija = pf.pf_key.includes("|sp-");
               return (
                 <div key={pf.pf_key}>
-                  <CabeceraFila
+                  <PpAdminIcCabeceraFila
                     tone="pf"
                     codCliente={pfDisplay.id_cliente}
                     colRef={pfDisplay.caso}
@@ -839,6 +965,7 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                     monto={pfDisplay.total_monto}
                     montoSecundario={montoConDescIc}
                     pares={pfDisplay.total_pares}
+                    pfEsHija={pfEsHija}
                     descLabel={
                       icVinculada
                         ? fmtDescCompact(
@@ -869,6 +996,9 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                         return next;
                       })
                     }
+                    onSplitPf={
+                      pfDisplay.total_pares > 1 ? () => openSplitPf(pfDisplay) : undefined
+                    }
                   />
                   {open && (
                     <div className="space-y-1 border-l-2 border-orange-400 py-1 pl-1">
@@ -876,7 +1006,15 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
                         Detalle artículos proforma
                       </p>
                       {pfDisplay.articulos.map((art) => (
-                        <ArticuloFila key={art.ppd_id} art={art} />
+                        <ArticuloFila
+                          key={art.ppd_id}
+                          art={art}
+                          onAddToSplit={
+                            pfDisplay.total_pares > 1 && !pfEsHija
+                              ? () => openSplitPf(pfDisplay, [art.ppd_id])
+                              : undefined
+                          }
+                        />
                       ))}
                     </div>
                   )}
@@ -886,6 +1024,124 @@ export function PpTabAdministradorIc({ pp, ppId, onMsg, onReload }: Props) {
           </div>
         </div>
       </div>
+
+      {splitPfTarget && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 px-4 py-6">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border-2 border-violet-600 bg-white shadow-xl">
+            <div className="border-b border-violet-200 p-5">
+              <h3 className="text-sm font-bold text-violet-950">Nueva prefactura · selección de artículos</h3>
+              <p className="mt-2 text-xs text-slate-700">
+                Origen cliente <strong>{splitPfTarget.id_cliente}</strong> ·{" "}
+                <strong>{splitPfTarget.total_pares}</strong> pares · caso{" "}
+                <strong>{splitPfTarget.caso}</strong>
+              </p>
+              {splitIcOrigen ? (
+                <p className="mt-1 text-[10px] font-semibold text-emerald-800">
+                  IC pareada: {splitIcOrigen.nro_ic} ({splitIcOrigen.pares}p) — al confirmar se crea IC
+                  cabecera hija con los pares seleccionados.
+                </p>
+              ) : (
+                <p className="mt-1 text-[10px] text-amber-800">
+                  Sin IC pareada en cabecera — solo se divide la prefactura.
+                </p>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              <p className="mb-2 text-[10px] font-bold uppercase text-violet-900">
+                Marcá artículos a mover
+              </p>
+              <div className="space-y-2">
+                {splitPfTarget.articulos.map((art) => {
+                  const checked = splitSelections.has(art.ppd_id);
+                  const selPares = splitSelections.get(art.ppd_id) ?? art.pares;
+                  return (
+                    <label
+                      key={art.ppd_id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-[10px] ${
+                        checked ? "border-violet-500 bg-violet-50" : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => toggleSplitArt(art.ppd_id, art.pares, e.target.checked)}
+                        className="h-4 w-4 shrink-0"
+                      />
+                      <ProductThumbFrame
+                        alt={`${art.linea}-${art.referencia}`}
+                        candidates={art.imageCandidates}
+                        size={36}
+                      />
+                      <div className="min-w-0 flex-1 grid grid-cols-3 gap-x-2 gap-y-0.5">
+                        <span>
+                          <strong>L</strong> {art.linea} · <strong>R</strong> {art.referencia}
+                        </span>
+                        <span>
+                          <strong>M</strong> {art.material_code} · <strong>C</strong> {art.color_code}
+                        </span>
+                        <span>
+                          <strong>G</strong> {art.grada ?? "—"} · máx {art.pares}p
+                        </span>
+                      </div>
+                      {checked && art.pares > 1 ? (
+                        <input
+                          type="number"
+                          min={1}
+                          max={art.pares}
+                          value={selPares}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setSplitArtPares(art.ppd_id, art.pares, e.target.value)}
+                          className="w-14 rounded border border-violet-400 px-1 py-0.5 text-right font-mono text-xs"
+                          title="Pares de este artículo"
+                        />
+                      ) : checked ? (
+                        <span className="w-14 text-right font-bold tabular-nums">{art.pares}p</span>
+                      ) : null}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="border-t border-violet-200 p-5">
+              <p className="text-xs font-bold text-violet-950">
+                Total seleccionado: {splitParesTotal}p
+                {splitPfTarget.total_pares - splitParesTotal > 0
+                  ? ` · quedan ${splitPfTarget.total_pares - splitParesTotal}p en origen`
+                  : ""}
+              </p>
+              <label className="mt-3 block text-xs font-bold text-slate-600">Cliente destino (nueva PF + IC)</label>
+              <input
+                type="number"
+                min={1}
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-mono"
+                value={splitCliente}
+                onChange={(e) => setSplitCliente(e.target.value)}
+              />
+              <div className="mt-5 flex gap-2">
+                <button
+                  type="button"
+                  disabled={splitBusy || splitParesTotal <= 0}
+                  onClick={() => void confirmSplitPf()}
+                  className="flex-1 rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+                >
+                  {splitBusy ? "Creando…" : "Crear prefactura + IC cabecera"}
+                </button>
+                <button
+                  type="button"
+                  disabled={splitBusy}
+                  onClick={() => {
+                    setSplitPfTarget(null);
+                    setSplitSelections(new Map());
+                  }}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

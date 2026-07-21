@@ -67,15 +67,15 @@ export function PeCardMiniatura({
   return (
     <>
       <article
-        className={`flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm ${
+        className={`flex h-full min-h-0 flex-col rounded-xl border bg-white shadow-sm ${
           p.es_liquidacion
-            ? "catalog-card-liquidacion-pulse border-emerald-400/90"
+            ? "catalog-card-liquidacion-pulse border-2 border-emerald-500"
             : "border-slate-200"
         }`}
       >
         <button
           type="button"
-          className="relative aspect-square w-full shrink-0 overflow-hidden bg-slate-100"
+          className="relative aspect-square w-full shrink-0 overflow-hidden rounded-t-xl bg-slate-100"
           onClick={() => setZoomSrc(imgCandidates[0] ?? null)}
           aria-label="Ampliar imagen"
         >

@@ -13,7 +13,7 @@ export async function GET() {
   const session = await getSession();
   if (!isNivelDios(session)) {
     return NextResponse.json(
-      { error: "Nivel Dios requerido: rol_id=1 y categoria=DIOS" },
+      { error: "Nivel Superior requerido: acceso restringido" },
       { status: 403 },
     );
   }

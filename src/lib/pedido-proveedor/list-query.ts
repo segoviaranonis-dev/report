@@ -16,6 +16,8 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
     proveedor: string;
     marcas: string;
     ics: string;
+    n_ics: string;
+    n_clientes: string;
     nro_fabrica: string;
     quincena: string | null;
     quincena_arribo_id: string | null;
@@ -58,6 +60,8 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
     ics_agg AS (
       SELECT icp.pedido_proveedor_id,
              STRING_AGG(DISTINCT ic.numero_registro, ', ' ORDER BY ic.numero_registro) AS ics,
+             COUNT(DISTINCT ic.id)::int AS n_ics,
+             COUNT(DISTINCT ic.id_cliente)::int AS n_clientes,
              STRING_AGG(
                DISTINCT NULLIF(TRIM(icp.nro_pedido_fabrica), ''),
                ' · ' ORDER BY NULLIF(TRIM(icp.nro_pedido_fabrica), '')
@@ -105,6 +109,8 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
            COALESCE(qa.descripcion, icf.quincena_ic, 'Sin fecha de embarque') AS quincena,
            COALESCE(mppd.marcas, mic.marcas, '—') AS marcas,
            COALESCE(ics.ics, ic_legacy.numero_registro, '—') AS ics,
+           COALESCE(ics.n_ics, CASE WHEN ic_legacy.id IS NOT NULL THEN 1 ELSE 0 END, 0)::text AS n_ics,
+           COALESCE(ics.n_clientes, CASE WHEN ic_legacy.id IS NOT NULL THEN 1 ELSE 0 END, 0)::text AS n_clientes,
            COALESCE(ics.nro_fabrica, '—') AS nro_fabrica,
            COALESCE(icf.cliente_ic, c.descp_cliente, '—') AS cliente,
            COALESCE(icf.vendedor_ic, v.descp_usuario, '—') AS vendedor,
@@ -140,6 +146,8 @@ export async function listPedidosProveedor(pool: Pool): Promise<PpListaRow[]> {
     proveedor: r.proveedor,
     marcas: r.marcas,
     ics: r.ics,
+    n_ics: Number(r.n_ics ?? 0),
+    n_clientes: Number(r.n_clientes ?? 0),
     nro_fabrica: r.nro_fabrica,
     quincena: r.quincena,
     quincena_arribo_id: r.quincena_arribo_id ? Number(r.quincena_arribo_id) : null,

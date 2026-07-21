@@ -6,6 +6,8 @@ import { gradaCurvaImportadora } from "@/lib/depositos/grada-importadora-display
 
 import { parseLpnPrecioVenta } from "@/lib/depositos/precio-venta";
 
+import { formatNumeroPreventaCarlos } from "@/lib/pedido-proveedor/dato-duro-cabecera";
+
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 
 import { SQL_PP_CATEGORIA_CTE, sqlFilterPpCategoria } from "@/lib/stock-programado/pp-categoria-sql";
@@ -156,6 +158,8 @@ export async function listProgramadoProductos(
 
     pp_nro: string | null;
 
+    nro_pedido_externo: string | null;
+
     proforma: string | null;
 
     caso_precio: string | null;
@@ -223,6 +227,8 @@ export async function listProgramadoProductos(
       pp.id::text AS pp_id,
 
       pp.numero_registro AS pp_nro,
+
+      pp.nro_pedido_externo,
 
       pp.numero_proforma AS proforma,
 
@@ -367,6 +373,10 @@ export async function listProgramadoProductos(
     pp_id: r.pp_id ? Number(r.pp_id) : null,
 
     pp_nro: r.pp_nro,
+
+    numero_preventa: r.nro_pedido_externo
+      ? formatNumeroPreventaCarlos(r.nro_pedido_externo) || null
+      : null,
 
     proforma: r.proforma,
 

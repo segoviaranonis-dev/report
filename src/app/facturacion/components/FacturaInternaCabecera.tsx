@@ -133,7 +133,7 @@ export function FacturaInternaCabecera({
             type="button"
             disabled={anulando}
             onClick={onAnularReintegrar}
-            title="Nivel Dios · anula FI entera · reintegra stock · Anulaciones"
+            title="Nivel Superior · anula FI entera · reintegra stock · Anulaciones"
             className="rounded-lg bg-red-800 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-white shadow-sm hover:bg-red-900 disabled:opacity-50"
           >
             {anulando ? "Anulando…" : "Anular FI y reintegrar stock"}

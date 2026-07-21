@@ -2,6 +2,7 @@ import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import type { Pool } from "pg";
 import { gradaCurvaImportadora } from "@/lib/depositos/grada-importadora-display";
 import { parseLpnPrecioVenta } from "@/lib/depositos/precio-venta";
+import { formatNumeroPreventaCarlos } from "@/lib/pedido-proveedor/dato-duro-cabecera";
 import { SQL_PP_CATEGORIA_CTE, SQL_FILTER_COMPRA_PREVIA } from "@/lib/stock-programado/pp-categoria-sql";
 
 /** Productos en tránsito (v_stock_rimec TRÁNSITO_PP) → grilla estrategia ventas Report. */
@@ -56,6 +57,7 @@ export async function listTransitoProductos(
     quincena_desc: string | null;
     pp_id: string | null;
     pp_nro: string | null;
+    nro_pedido_externo: string | null;
     proforma: string | null;
     caso_precio: string | null;
   }>(
@@ -90,6 +92,7 @@ export async function listTransitoProductos(
       COALESCE(qa.descripcion, v.quincena_desc, 'Sin quincena') AS quincena_desc,
       v.pp_id::text,
       v.pp_nro,
+      pp.nro_pedido_externo,
       v.proforma,
       COALESCE(v.caso_precio, v.descp_caso, '') AS caso_precio
     FROM v_stock_rimec v
@@ -135,6 +138,9 @@ export async function listTransitoProductos(
     quincena_desc: r.quincena_desc,
     pp_id: r.pp_id ? Number(r.pp_id) : null,
     pp_nro: r.pp_nro,
+    numero_preventa: r.nro_pedido_externo
+      ? formatNumeroPreventaCarlos(r.nro_pedido_externo) || null
+      : null,
     proforma: r.proforma,
     caso_precio: r.caso_precio || null,
     cantidad_inicial: Number(r.cantidad_inicial),

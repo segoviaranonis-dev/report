@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useNiifDelayedLoader } from "@/hooks/useNiifDelayedLoader";
 import { useOrdenReposicionConAnimacion } from "@/hooks/useOrdenReposicionConAnimacion";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
@@ -11,6 +20,7 @@ import { EjecutarProtocoloImportacionPreciosButton } from "@/components/motor-pr
 import { SinImagenCabeceraChip } from "@/components/panel-control/SinImagenCabeceraChip";
 import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
 import { ReposicionGrilla } from "@/components/herramienta-reposicion/ReposicionGrilla";
+import { FiltroAplicandoOverlay } from "@/components/herramienta-reposicion/FiltroAplicandoOverlay";
 import { ImportarPpAbiertoButton } from "@/components/herramienta-reposicion/ImportarPpAbiertoButton";
 import { FiltroTonoOperativa } from "@/app/depositos-bazzar/components/operativa/FiltroTonoOperativa";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
@@ -68,12 +78,58 @@ function fmt(n: number) {
   return Math.trunc(n).toLocaleString("es-PY");
 }
 
+function etiquetaCambioFiltro(prev: OperativaFilterState, next: OperativaFilterState): string {
+  const cambio = (key: keyof OperativaFilterState) =>
+    JSON.stringify(prev[key] ?? null) !== JSON.stringify(next[key] ?? null);
+  const cantidad = (value: unknown) =>
+    Array.isArray(value) && value.length > 1 ? ` · ${value.length} seleccionados` : "";
+
+  if (cambio("tipoV2Ids")) return `Categoría${cantidad(next.tipoV2Ids)}`;
+  if (cambio("tipo1Ids")) return `AB - CR${cantidad(next.tipo1Ids)}`;
+  if (cambio("marcaIds")) return `Marca${cantidad(next.marcaIds)}`;
+  if (cambio("tipoGrupos")) {
+    const nombres = next.tipoGrupos.map((x) => ({
+      normal: "Normal",
+      carteras: "Carteras",
+      promo: "Promo",
+      liquidacion: "Liquidación",
+    })[x]);
+    return `Tipo · ${nombres.join(", ") || "Todos"}`;
+  }
+  if (cambio("generoIds")) return `Género${cantidad(next.generoIds)}`;
+  if (cambio("grupoEstiloIds")) return `Estilo${cantidad(next.grupoEstiloIds)}`;
+  if (cambio("lineaIds")) return `Línea${cantidad(next.lineaIds)}`;
+  if (cambio("materialFamilias")) return `Material${cantidad(next.materialFamilias)}`;
+  if (cambio("colorFamilias")) return `Color${cantidad(next.colorFamilias)}`;
+  if (cambio("tonos") || cambio("sinTono")) return "Tono";
+  if (cambio("gradas")) return `Grada${cantidad(next.gradas)}`;
+  if (cambio("cantidadOp") || cambio("cantidadValor")) return "Cantidad";
+  if (cambio("cadenaComercial")) return `Cadena · ${next.cadenaComercial || "Todas"}`;
+  if (cambio("q")) return `Búsqueda · ${next.q.trim() || "limpia"}`;
+  return "Filtros de reposición";
+}
+
 export function HerramientaReposicionClient() {
   const [articulos, setArticulos] = useState<ReposicionArticulo[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [soloConStock, setSoloConStock] = useState(false);
   const [filtros, setFiltros] = useState<OperativaFilterState>(REPOSICION_FILTROS_INICIAL);
+  const filtrosRef = useRef(filtros);
+  const [filtroFeedback, setFiltroFeedback] = useState<{ id: number; filtro: string } | null>(null);
+  const aplicarFiltros: Dispatch<SetStateAction<OperativaFilterState>> = useCallback((action) => {
+    const prev = filtrosRef.current;
+    const next = typeof action === "function" ? action(prev) : action;
+    filtrosRef.current = next;
+    setFiltros(next);
+    setFiltroFeedback({
+      id: Date.now(),
+      filtro: etiquetaCambioFiltro(prev, next),
+    });
+  }, []);
+  const cerrarFiltroFeedback = useCallback((eventoId: number) => {
+    setFiltroFeedback((actual) => actual?.id === eventoId ? null : actual);
+  }, []);
   const [qDebounced, setQDebounced] = useState("");
   useEffect(() => {
     const t = window.setTimeout(() => setQDebounced(filtros.q), 280);
@@ -319,6 +375,14 @@ export function HerramientaReposicionClient() {
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
+      {filtroFeedback ? (
+        <FiltroAplicandoOverlay
+          key={filtroFeedback.id}
+          eventoId={filtroFeedback.id}
+          filtro={filtroFeedback.filtro}
+          onDone={cerrarFiltroFeedback}
+        />
+      ) : null}
       <NexusGlobalHeader active="home" />
       <main className="w-full max-w-none px-0 py-6">
         <div className="flex flex-wrap items-start justify-between gap-3 px-3 sm:px-4">
@@ -551,7 +615,7 @@ export function HerramientaReposicionClient() {
                   tonos={filtros.tonos}
                   sinTono={filtros.sinTono}
                   onChange={(p) =>
-                    setFiltros((prev) => ({
+                    aplicarFiltros((prev) => ({
                       ...prev,
                       ...p,
                     }))
@@ -589,7 +653,7 @@ export function HerramientaReposicionClient() {
                   <div className="border-t border-slate-100 p-2">
                     <ReposicionFiltrosSidebar
                       filtros={filtros}
-                      onChange={setFiltros}
+                      onChange={aplicarFiltros}
                       opciones={opciones}
                       emptyFilters={REPOSICION_FILTROS_INICIAL}
                       soloConStock={soloConStock}
@@ -608,7 +672,7 @@ export function HerramientaReposicionClient() {
                 <div className="hidden lg:block">
                   <ReposicionFiltrosSidebar
                     filtros={filtros}
-                    onChange={setFiltros}
+                    onChange={aplicarFiltros}
                     opciones={opciones}
                     emptyFilters={REPOSICION_FILTROS_INICIAL}
                     soloConStock={soloConStock}

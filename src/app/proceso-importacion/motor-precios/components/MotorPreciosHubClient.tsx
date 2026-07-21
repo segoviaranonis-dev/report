@@ -69,7 +69,7 @@ export function MotorPreciosHubClient() {
             Protocolo · 2.3.1.7.2
           </p>
           <p className="mt-1 text-sm text-slate-600">
-            Ejecutar importación de precios (Pasos 0–5) — habilitado solo Nivel Dios.
+            Ejecutar importación de precios (Pasos 0–5) — habilitado solo Nivel Superior.
           </p>
           <div className="mt-3">
             <EjecutarProtocoloImportacionPreciosButton />

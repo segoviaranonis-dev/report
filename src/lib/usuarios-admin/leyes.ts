@@ -26,7 +26,7 @@ export function validarTriada(input: TriadaInput): string | null {
 
   if (categoriaNivel === 1) {
     if (rolNivel !== 1 || enteCodigo !== 1) {
-      return "DIOS requiere ente RIMEC (cod 1), rol GERENTE (nivel 1) y categoría DIOS (nivel 1).";
+      return "Superior requiere ente RIMEC (cod 1), rol GERENTE (nivel 1) y categoría de máximo nivel (nivel 1).";
     }
   }
 

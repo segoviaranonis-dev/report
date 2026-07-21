@@ -34,6 +34,10 @@ import { PpTabStock } from "./PpTabStock";
 import { PpTabFacturasInternas } from "./PpTabFacturasInternas";
 import { PpLogisticaBandera } from "./PpLogisticaBandera";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
+import {
+  readPpDetalleCache,
+  writePpDetalleCache,
+} from "@/lib/pedido-proveedor/pp-detalle-ui-cache";
 
 const QUINCENA_IDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -127,31 +131,46 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const searchParams = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
 
-  const [loading, setLoading] = useState(true);
+  const cached = readPpDetalleCache(ppId);
+
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [pp, setPp] = useState<PpDetalleHeader | null>(null);
-  const [ics, setIcs] = useState<PpIcVinculada[]>([]);
-  const [alaNorte, setAlaNorte] = useState<PpAlaNorteRow[]>([]);
-  const [facturas, setFacturas] = useState<PpFacturaInternaRow[]>([]);
-  const [detallesPorFi, setDetallesPorFi] = useState<Record<number, FiDetalle[]>>({});
-  const [eventoDetalle, setEventoDetalle] = useState<EventoPpDetalle | null>(null);
-  const [eventos, setEventos] = useState<EventoPrecioOption[]>([]);
-  const [nroFactura, setNroFactura] = useState("");
-  const [proforma, setProforma] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [quincenaId, setQuincenaId] = useState(0);
+  const [pp, setPp] = useState<PpDetalleHeader | null>(cached?.pp ?? null);
+  const [ics, setIcs] = useState<PpIcVinculada[]>(cached?.ics ?? []);
+  const [alaNorte, setAlaNorte] = useState<PpAlaNorteRow[]>(cached?.alaNorte ?? []);
+  const [facturas, setFacturas] = useState<PpFacturaInternaRow[]>(cached?.facturas ?? []);
+  const [detallesPorFi, setDetallesPorFi] = useState<Record<number, FiDetalle[]>>(
+    cached?.detallesPorFi ?? {},
+  );
+  const [eventoDetalle, setEventoDetalle] = useState<EventoPpDetalle | null>(
+    cached?.eventoDetalle ?? null,
+  );
+  const [eventos, setEventos] = useState<EventoPrecioOption[]>(cached?.eventos ?? []);
+  const [nroFactura, setNroFactura] = useState(cached?.pp?.nro_factura_importacion ?? "");
+  const [proforma, setProforma] = useState(cached?.pp?.numero_proforma ?? "");
+  const [observaciones, setObservaciones] = useState(cached?.pp?.notas ?? "");
+  const [quincenaId, setQuincenaId] = useState(
+    quincenaSliderValue(cached?.pp?.quincena_arribo_id ?? null),
+  );
   const [guardandoCabecera, setGuardandoCabecera] = useState(false);
-  const [icDrafts, setIcDrafts] = useState<Record<number, IcFormDraft>>({});
+  const [icDrafts, setIcDrafts] = useState<Record<number, IcFormDraft>>(() => {
+    const drafts: Record<number, IcFormDraft> = {};
+    for (const ic of cached?.ics ?? []) {
+      drafts[ic.ic_id] = icToDraft(ic);
+    }
+    return drafts;
+  });
   const [catalogos, setCatalogos] = useState<IcCatalogos | null>(null);
   const [icBusy, setIcBusy] = useState<number | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
-  const loadedOnceRef = useRef(false);
+  const loadedOnceRef = useRef(Boolean(cached));
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent === true && loadedOnceRef.current;
+    const hasCache = loadedOnceRef.current || readPpDetalleCache(ppId) != null;
+    const silent = opts?.silent === true || hasCache;
     if (!silent) {
       setLoading(true);
       setError(null);
@@ -162,19 +181,29 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "PP no encontrado");
-      setPp(data.pp);
-      setIcs(data.ics ?? []);
-      setAlaNorte(data.alaNorte ?? []);
-      setFacturas(data.facturas ?? []);
-      setDetallesPorFi(data.detallesPorFi ?? {});
-      setEventoDetalle(data.eventoDetalle ?? null);
-      setEventos(data.eventos ?? []);
+      const snap = {
+        pp: data.pp as PpDetalleHeader,
+        ics: (data.ics ?? []) as PpIcVinculada[],
+        alaNorte: (data.alaNorte ?? []) as PpAlaNorteRow[],
+        facturas: (data.facturas ?? []) as PpFacturaInternaRow[],
+        detallesPorFi: (data.detallesPorFi ?? {}) as Record<number, FiDetalle[]>,
+        eventoDetalle: (data.eventoDetalle ?? null) as EventoPpDetalle | null,
+        eventos: (data.eventos ?? []) as EventoPrecioOption[],
+      };
+      writePpDetalleCache(ppId, snap);
+      setPp(snap.pp);
+      setIcs(snap.ics);
+      setAlaNorte(snap.alaNorte);
+      setFacturas(snap.facturas);
+      setDetallesPorFi(snap.detallesPorFi);
+      setEventoDetalle(snap.eventoDetalle);
+      setEventos(snap.eventos);
       setNroFactura(data.pp?.nro_factura_importacion ?? "");
       setProforma(data.pp?.numero_proforma ?? "");
       setObservaciones(data.pp?.notas ?? "");
       setQuincenaId(quincenaSliderValue(data.pp?.quincena_arribo_id));
       const drafts: Record<number, IcFormDraft> = {};
-      for (const ic of data.ics ?? []) {
+      for (const ic of snap.ics) {
         drafts[ic.ic_id] = icToDraft(ic);
       }
       setIcDrafts(drafts);
@@ -182,25 +211,46 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     } catch (e) {
       if (!silent) setError(e instanceof Error ? e.message : "Error");
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
   }, [ppId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  /** Pasillo ágil PP ↔ Digitación: al volver con foco, refrescar sin skeleton (capturas / alt-tab). */
-  useEffect(() => {
-    function onFocusOrVisible() {
-      if (document.visibilityState === "visible") void load({ silent: true });
+    const c = readPpDetalleCache(ppId);
+    loadedOnceRef.current = Boolean(c);
+    if (c) {
+      setPp(c.pp);
+      setIcs(c.ics);
+      setAlaNorte(c.alaNorte);
+      setFacturas(c.facturas);
+      setDetallesPorFi(c.detallesPorFi);
+      setEventoDetalle(c.eventoDetalle);
+      setEventos(c.eventos);
+      setNroFactura(c.pp.nro_factura_importacion ?? "");
+      setProforma(c.pp.numero_proforma ?? "");
+      setObservaciones(c.pp.notas ?? "");
+      setQuincenaId(quincenaSliderValue(c.pp.quincena_arribo_id));
+      const drafts: Record<number, IcFormDraft> = {};
+      for (const ic of c.ics) drafts[ic.ic_id] = icToDraft(ic);
+      setIcDrafts(drafts);
+      setLoading(false);
     }
-    window.addEventListener("focus", onFocusOrVisible);
-    document.addEventListener("visibilitychange", onFocusOrVisible);
-    return () => {
-      window.removeEventListener("focus", onFocusOrVisible);
-      document.removeEventListener("visibilitychange", onFocusOrVisible);
-    };
+    void load({ silent: Boolean(c) });
+  }, [ppId, load]);
+
+  /** Refresco al volver de Digitación — ignorar capturas Win+Shift+S (< 8 s oculto). */
+  useEffect(() => {
+    let hiddenAt = 0;
+    function onVisibility() {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt && Date.now() - hiddenAt < 8000) return;
+      void load({ silent: true });
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [load]);
 
   useEffect(() => {
@@ -426,12 +476,12 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
           ← Lista pedidos proveedor
         </Link>
 
-        {loading ? (
+        {loading && !pp ? (
           <div className="mt-8 space-y-4">
             <Skeleton className="h-10 w-64" />
             <Skeleton className="h-40 w-full" />
           </div>
-        ) : error ? (
+        ) : error && !pp ? (
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>
         ) : pp ? (
           <>

@@ -18,6 +18,7 @@ import {
   fiListaTier,
   type SkuPrecioTiers,
 } from "./aritmetica-programado";
+import { formatNumeroPreventaCarlos } from "./dato-duro-cabecera";
 import {
   enrichProformaBrandsFromPpd,
   loadProformaDetalleParaFi,
@@ -808,7 +809,9 @@ async function populatePpFromProforma(
      WHERE id = $10`,
     [
       proforma.trim() || null,
-      pp.nro_pedido_externo?.trim() || null,
+      pp.nro_pedido_externo?.trim()
+        ? formatNumeroPreventaCarlos(pp.nro_pedido_externo)
+        : null,
       pp.descuento_1,
       pp.descuento_2,
       pp.descuento_3,

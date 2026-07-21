@@ -326,7 +326,11 @@ function QuincenaExpander({
         <div className="border-t border-slate-100">
           <div className="hidden bg-slate-50 px-4 py-2 text-xs font-bold uppercase text-slate-500 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_auto_auto_minmax(7.5rem,auto)] md:gap-3">
             <span>Pedido / Marcas</span>
-            <span>Cliente · IC</span>
+            <span>
+              {visibles.some((p) => p.categoria_id === CATEGORIA_PROGRAMADO_ID)
+                ? "Proforma · IC · Clientes"
+                : "Cliente · IC"}
+            </span>
             <span className="text-right">Pares</span>
             <span>Estado</span>
             <span>Acceso rápido</span>
@@ -343,6 +347,9 @@ function QuincenaExpander({
 function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
   const saldo = p.pares_comprometidos - p.total_vendido;
   const pct = p.pares_comprometidos > 0 ? (p.total_vendido / p.pares_comprometidos) * 100 : 0;
+  const esProgramado = p.categoria_id === CATEGORIA_PROGRAMADO_ID;
+  const proformaMostrar = p.numero_proforma?.trim() || null;
+  const fabricaFallback = p.nro_fabrica !== "—" ? p.nro_fabrica : null;
 
   return (
     <div
@@ -353,15 +360,37 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
       <div>
         <Link href={pedidoProveedorDetalle(p.id)} className="font-mono text-sm font-bold text-rimec-azul hover:underline">
           {p.numero_registro}
-          {p.numero_proforma ? ` (${p.numero_proforma})` : ""}
+          {!esProgramado && p.numero_proforma ? ` (${p.numero_proforma})` : ""}
         </Link>
         <p className="mt-0.5 text-xs text-slate-600">{p.marcas}</p>
         <p className="text-xs text-slate-500">{p.proveedor}</p>
       </div>
       <div className="mt-2 min-w-0 text-xs md:mt-0">
-        <p className="font-medium text-amber-900">{p.cliente}</p>
-        <p className="text-slate-500">{p.vendedor}</p>
-        <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica={p.nro_fabrica} />
+        {esProgramado ? (
+          <>
+            <p className="font-mono text-sm font-extrabold text-violet-950" title="Nro. proforma proveedor">
+              {proformaMostrar || fabricaFallback || "Sin proforma"}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              <span className="rounded-md bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-amber-950">
+                {p.n_ics} IC
+              </span>
+              <span className="rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-sky-950">
+                {p.n_clientes} cliente{p.n_clientes === 1 ? "" : "s"}
+              </span>
+            </div>
+            {proformaMostrar && p.nro_fabrica !== "—" && p.nro_fabrica !== proformaMostrar && (
+              <p className="mt-0.5 font-mono text-[10px] text-slate-500">Fábrica: {p.nro_fabrica}</p>
+            )}
+            <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica="—" />
+          </>
+        ) : (
+          <>
+            <p className="font-medium text-amber-900">{p.cliente}</p>
+            <p className="text-slate-500">{p.vendedor}</p>
+            <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica={p.nro_fabrica} />
+          </>
+        )}
       </div>
       <div className="mt-2 text-right md:mt-0">
         <p className="font-mono text-sm font-bold tabular-nums">{p.pares_comprometidos.toLocaleString("es-PY")}</p>

@@ -9,6 +9,8 @@ export type PpListaRow = {
   proveedor: string;
   marcas: string;
   ics: string;
+  n_ics: number;
+  n_clientes: number;
   nro_fabrica: string;
   quincena: string | null;
   quincena_arribo_id: number | null;

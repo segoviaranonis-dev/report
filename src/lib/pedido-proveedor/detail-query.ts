@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import type { IcDePp } from "@/lib/digitacion/bandeja-query";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 import { formatCategoriaPp, ppCabeceraEditable } from "./cabecera-actions";
+import { formatNumeroPreventaCarlos } from "./dato-duro-cabecera";
 
 export type PpDetalleHeader = {
   id: number;
@@ -314,7 +315,9 @@ export async function getPpDetalle(pool: Pool, ppId: number): Promise<PpDetalleH
     categoria_id: categoriaId,
     creador: r.creador,
     notas: r.notas,
-    nro_pedido_externo: r.nro_pedido_externo,
+    nro_pedido_externo: r.nro_pedido_externo
+      ? formatNumeroPreventaCarlos(r.nro_pedido_externo) || null
+      : null,
     fecha_arribo_estimada: r.fecha_arribo_estimada?.slice(0, 10) ?? null,
     descuento_1: Number(r.descuento_1 ?? 0),
     descuento_2: Number(r.descuento_2 ?? 0),

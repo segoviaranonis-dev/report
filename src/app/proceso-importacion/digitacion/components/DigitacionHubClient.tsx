@@ -136,7 +136,7 @@ function FiltroMultiSelect({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open, onOpenChange]);
 
-  function onPanelKeyDown(e: React.KeyboardEvent) {
+  function onPanelKeyDown(e: KeyboardEvent) {
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
@@ -779,6 +779,7 @@ export function DigitacionHubClient() {
       });
       setSelectedIds([]);
       setFiltros(FILTROS_VACIOS);
+      setOpenFiltro(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {

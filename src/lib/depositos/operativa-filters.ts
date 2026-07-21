@@ -218,114 +218,122 @@ function emptyForExcluir(excluir: ExcluirDimension): OperativaFilterState[Exclui
   return [];
 }
 
+function effectiveOperativaFilters(
+  f: OperativaFilterState,
+  excluir?: ExcluirDimension,
+): OperativaFilterState {
+  return excluir ? { ...f, [excluir]: emptyForExcluir(excluir) } : f
+}
+
+/** Evalúa una fila sin pasadas intermedias — base de apply + buildOperativaOpciones. */
+export function rowMatchesOperativaFilters(
+  r: DepositoRow,
+  f: OperativaFilterState,
+  excluir?: ExcluirDimension,
+  opts?: { incluirVendidoSinSaldo?: boolean },
+): boolean {
+  const eff = effectiveOperativaFilters(f, excluir)
+
+  if (opts?.incluirVendidoSinSaldo) {
+    if (r.cantidad <= 0 && (r.pares_vendidos ?? 0) <= 0) return false
+  } else if (r.cantidad <= 0) {
+    return false
+  }
+
+  if (eff.generoIds.length && !matchFk(r.genero_id, eff.generoIds)) return false
+  if (eff.marcaIds.length && !matchFk(r.marca_id, eff.marcaIds)) return false
+  if (eff.grupoEstiloIds.length && !matchFk(r.grupo_estilo_id, eff.grupoEstiloIds)) return false
+  if (eff.tipo1Ids.length && !matchFk(r.tipo_1_id, eff.tipo1Ids)) return false
+  if (eff.tipoV2Ids.length && !matchFk(r.tipo_v2_id, eff.tipoV2Ids)) return false
+  if (eff.lineaIds.length && !matchFk(r.linea_id, eff.lineaIds)) return false
+  if (eff.tipoGrupos.length && !rowMatchesTipoGrupos(r, eff.tipoGrupos)) return false
+
+  if (eff.materialFamilias.length) {
+    const want = new Set(eff.materialFamilias)
+    const k = r.familia_material ?? primeraPalabraPilar(r.descp_material)
+    if (!k || !want.has(k)) return false
+  }
+  if (eff.colorFamilias.length) {
+    const want = new Set(eff.colorFamilias)
+    const k = r.familia_color ?? primeraPalabraPilar(r.descp_color)
+    if (!k || !want.has(k)) return false
+  }
+
+  if (eff.sinTono) {
+    if (tonoEfectivo(r)) return false
+  } else if (eff.tonos.length) {
+    const te = tonoEfectivo(r)
+    if (!te) return false
+    const low = te.toLowerCase()
+    const set = eff.tonos.map((t) => t.toLowerCase())
+    if (!set.some((t) => low === t || low.includes(t))) return false
+  }
+
+  const q = eff.q.trim().toLowerCase()
+  if (q) {
+    const lineaRef = [r.linea_codigo_proveedor, r.referencia_codigo_proveedor]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .join(".")
+    const qMol = q.replace(/[\s.\-_]+/g, "")
+    const lineaRefMol = lineaRef.replace(/[\s.\-_]+/g, "").toLowerCase()
+    const hitMol = qMol.length >= 2 && lineaRefMol.includes(qMol)
+    const hit = hitMol || [
+      r.marca,
+      r.linea_codigo_proveedor,
+      r.referencia_codigo_proveedor,
+      lineaRef,
+      r.estilo,
+      r.descp_material,
+      r.descp_color,
+      r.tono_etiqueta,
+      tonoEfectivo(r),
+      r.tipo_v2,
+      r.genero,
+      r.tipo_1,
+      r.proforma,
+      r.pp_nro,
+    ].some((v) => v && String(v).toLowerCase().includes(q))
+    if (!hit) return false
+  }
+
+  return true
+}
+
 export function applyOperativaFilters(
   rows: DepositoRow[],
   f: OperativaFilterState,
   excluir?: ExcluirDimension,
   opts?: { incluirVendidoSinSaldo?: boolean },
 ): DepositoRow[] {
-  const eff: OperativaFilterState = excluir
-    ? { ...f, [excluir]: emptyForExcluir(excluir) }
-    : f;
+  const eff = effectiveOperativaFilters(f, excluir)
+  let out = rows.filter((r) => rowMatchesOperativaFilters(r, f, excluir, opts))
 
-  let out = opts?.incluirVendidoSinSaldo
-    ? rows.filter((r) => r.cantidad > 0 || (r.pares_vendidos ?? 0) > 0)
-    : rows.filter((r) => r.cantidad > 0);
-
-  if (eff.generoIds.length) {
-    out = out.filter((r) => matchFk(r.genero_id, eff.generoIds));
-  }
-  if (eff.marcaIds.length) {
-    out = out.filter((r) => matchFk(r.marca_id, eff.marcaIds));
-  }
-  if (eff.grupoEstiloIds.length) {
-    out = out.filter((r) => matchFk(r.grupo_estilo_id, eff.grupoEstiloIds));
-  }
-  if (eff.tipo1Ids.length) {
-    out = out.filter((r) => matchFk(r.tipo_1_id, eff.tipo1Ids));
-  }
-  if (eff.tipoV2Ids.length) {
-    out = out.filter((r) => matchFk(r.tipo_v2_id, eff.tipoV2Ids));
-  }
-  if (eff.lineaIds.length) {
-    out = out.filter((r) => matchFk(r.linea_id, eff.lineaIds));
-  }
-  if (eff.tipoGrupos.length) {
-    out = out.filter((r) => rowMatchesTipoGrupos(r, eff.tipoGrupos));
-  }
-  if (eff.materialFamilias.length) {
-    const want = new Set(eff.materialFamilias);
-    const needStamp = out.some((r) => r.familia_material === undefined);
-    const matMap = needStamp
-      ? buildFamiliaClusters(
-          out
-            .map((r) => primeraPalabraPilar(r.descp_material))
-            .filter((t): t is string => Boolean(t)),
-        )
-      : null;
+  if (eff.materialFamilias.length && out.some((r) => r.familia_material === undefined)) {
+    const want = new Set(eff.materialFamilias)
+    const matMap = buildFamiliaClusters(
+      out.map((r) => primeraPalabraPilar(r.descp_material)).filter((t): t is string => Boolean(t)),
+    )
     out = out.filter((r) => {
-      const k =
-        r.familia_material ??
-        (matMap ? familiaKeyFromDescripcion(r.descp_material, matMap) : null);
-      return k != null && want.has(k);
-    });
+      const k = r.familia_material ?? familiaKeyFromDescripcion(r.descp_material, matMap)
+      return k != null && want.has(k)
+    })
   }
-  if (eff.colorFamilias.length) {
-    const want = new Set(eff.colorFamilias);
-    const needStamp = out.some((r) => r.familia_color === undefined);
-    const colMap = needStamp
-      ? buildFamiliaClusters(
-          out
-            .map((r) => primeraPalabraPilar(r.descp_color))
-            .filter((t): t is string => Boolean(t)),
-        )
-      : null;
+  if (eff.colorFamilias.length && out.some((r) => r.familia_color === undefined)) {
+    const want = new Set(eff.colorFamilias)
+    const colMap = buildFamiliaClusters(
+      out.map((r) => primeraPalabraPilar(r.descp_color)).filter((t): t is string => Boolean(t)),
+    )
     out = out.filter((r) => {
-      const k =
-        r.familia_color ??
-        (colMap ? familiaKeyFromDescripcion(r.descp_color, colMap) : null);
-      return k != null && want.has(k);
-    });
-  }
-  if (eff.sinTono) {
-    out = out.filter((r) => !tonoEfectivo(r));
-  } else if (eff.tonos.length) {
-    const set = new Set(eff.tonos.map((t) => t.toLowerCase()));
-    out = out.filter((r) => {
-      const te = tonoEfectivo(r);
-      if (!te) return false;
-      const low = te.toLowerCase();
-      return set.has(low) || [...set].some((t) => low.includes(t));
-    });
-  }
-
-  const q = eff.q.trim().toLowerCase();
-  if (q) {
-    out = out.filter((r) =>
-      [
-        r.marca,
-        r.linea_codigo_proveedor,
-        r.referencia_codigo_proveedor,
-        r.estilo,
-        r.descp_material,
-        r.descp_color,
-        r.tono_etiqueta,
-        tonoEfectivo(r),
-        r.tipo_v2,
-        r.genero,
-        r.tipo_1,
-        r.proforma,
-        r.pp_nro,
-      ]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q)),
-    );
+      const k = r.familia_color ?? familiaKeyFromDescripcion(r.descp_color, colMap)
+      return k != null && want.has(k)
+    })
   }
 
   if (!excluir) {
-    return applyCantidadGradaFilter(out, eff);
+    return applyCantidadGradaFilter(out, eff)
   }
-  return out;
+  return out
 }
 
 export type OperativaOpciones = {
@@ -378,42 +386,83 @@ export function buildOperativaOpciones(
   rows: DepositoRow[],
   filtros: OperativaFilterState,
 ): OperativaOpciones {
-  const base = (excluir: ExcluirDimension) => applyOperativaFilters(rows, filtros, excluir);
+  const generos = new Map<number, DepositoFilterItem>()
+  const marcas = new Map<number, DepositoFilterItem>()
+  const estilos = new Map<number, DepositoFilterItem>()
+  const tipo1 = new Map<number, DepositoFilterItem>()
+  const tipoV2 = new Map<number, DepositoFilterItem>()
+  const lineas = new Map<number, DepositoFilterItem>()
+  const tonos = new Set<string>()
+  const gradas = new Set<string>()
+  const matTokens: string[] = []
+  const colTokens: string[] = []
 
-  const tonoRows = base("tonos");
-  const tonos = Array.from(
-    new Set(
-      tonoRows
-        .map((r) => tonoEfectivo(r))
-        .filter((t): t is string => Boolean(t)),
-    ),
-  ).sort((a, b) => a.localeCompare(b, "es"));
+  for (const r of rows) {
+    if (r.cantidad <= 0) continue
 
-  const matRows = base("materialFamilias");
-  const colRows = base("colorFamilias");
+    if (rowMatchesOperativaFilters(r, filtros, 'generoIds')) {
+      const n = normFk(r.genero_id)
+      const label = String(r.genero ?? '').trim()
+      if (n != null && label) generos.set(n, { id: n, label })
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'marcaIds')) {
+      const n = normFk(r.marca_id)
+      const label = String(r.marca ?? '').trim()
+      if (n != null && n !== 0 && label && !esMarcaFantasmaFiltro(label)) {
+        marcas.set(n, { id: n, label })
+      }
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'grupoEstiloIds')) {
+      const n = normFk(r.grupo_estilo_id)
+      const label = String(r.estilo ?? '').trim()
+      if (n != null && label) estilos.set(n, { id: n, label })
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'tipo1Ids')) {
+      const n = normFk(r.tipo_1_id)
+      const label = String(r.tipo_1 ?? r.tipo_1_id ?? '').trim()
+      if (n != null && label && label !== '(sin tipo 1)') tipo1.set(n, { id: n, label })
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'tipoV2Ids')) {
+      const n = normFk(r.tipo_v2_id)
+      const label = String(r.tipo_v2 ?? '').trim()
+      if (n != null && label) tipoV2.set(n, { id: n, label })
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'lineaIds')) {
+      const n = normFk(r.linea_id)
+      const label = String(r.linea_codigo_proveedor ?? '').trim()
+      if (n != null && label) lineas.set(n, { id: n, label })
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'tonos')) {
+      const te = tonoEfectivo(r)
+      if (te) tonos.add(te)
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'materialFamilias')) {
+      const t = r.familia_material ?? primeraPalabraPilar(r.descp_material)
+      if (t) matTokens.push(t)
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'colorFamilias')) {
+      const t = r.familia_color ?? primeraPalabraPilar(r.descp_color)
+      if (t) colTokens.push(t)
+    }
+    if (rowMatchesOperativaFilters(r, filtros, 'gradas')) {
+      const g = normalizeGradaLabel(r.grada)
+      if (g) gradas.add(g)
+    }
+  }
 
-  /** Preferir claves ya selladas; si no, tokens desde descripción. */
-  const matTokens = matRows
-    .map((r) => r.familia_material ?? primeraPalabraPilar(r.descp_material))
-    .filter((t): t is string => Boolean(t));
-  const colTokens = colRows
-    .map((r) => r.familia_color ?? primeraPalabraPilar(r.descp_color))
-    .filter((t): t is string => Boolean(t));
+  const sortItems = (m: Map<number, DepositoFilterItem>) =>
+    Array.from(m.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
 
   return {
-    generos: uniqItems(base("generoIds"), "genero_id", (r) => r.genero),
-    marcas: uniqItems(base("marcaIds"), "marca_id", (r) => r.marca, {
-      skipLabels: esMarcaFantasmaFiltro,
-    }),
-    estilos: uniqItems(base("grupoEstiloIds"), "grupo_estilo_id", (r) => r.estilo),
-    tipo1: uniqItems(base("tipo1Ids"), "tipo_1_id", (r) => r.tipo_1 ?? String(r.tipo_1_id)).filter(
-      (x) => x.label !== "(sin tipo 1)",
-    ),
-    tipoV2: uniqItems(base("tipoV2Ids"), "tipo_v2_id", (r) => r.tipo_v2),
-    lineas: uniqItems(base("lineaIds"), "linea_id", (r) => r.linea_codigo_proveedor),
+    generos: sortItems(generos),
+    marcas: sortItems(marcas),
+    estilos: sortItems(estilos),
+    tipo1: sortItems(tipo1),
+    tipoV2: sortItems(tipoV2),
+    lineas: sortItems(lineas),
     materiales: buildFamiliaItems(matTokens),
     colores: buildFamiliaItems(colTokens),
-    tonos,
-    gradas: listGradasOperativa(base("gradas")),
-  };
+    tonos: Array.from(tonos).sort((a, b) => a.localeCompare(b, 'es')),
+    gradas: Array.from(gradas).sort(sortGradaLabels),
+  }
 }

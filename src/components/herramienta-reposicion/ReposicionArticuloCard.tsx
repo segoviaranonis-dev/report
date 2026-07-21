@@ -8,6 +8,7 @@ import { ImagenAmpliadaOverlay } from "@/components/stock-pronta-entrega/ImagenA
 import { productImageCandidatesForRow, productImagePrimaryFileName } from "@/lib/retail/product-image";
 import { normalizeCasoNombre } from "@/lib/depositos/caso-biblioteca";
 import { esLiquidacionRow } from "@/lib/filtros/filtro-tipo-canonico";
+import { DatoDuroCpFilas } from "@/components/herramienta-reposicion/DatoDuroCpFilas";
 import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 
 function esCasoPromo(caso: string | null | undefined): boolean {
@@ -23,33 +24,44 @@ function PillQty({
   showP = true,
   peLiquidacion = false,
   ppAbierto = false,
+  preventa,
+  quincena,
 }: {
   label: string;
   pares: number;
   badgeClass: string;
   pillBorderClass: string;
   showP?: boolean;
-  /** PE + liquidación SDRM — pill con latido fuerte (paridad PeCardMiniatura) */
   peLiquidacion?: boolean;
-  /** PP abierto — contorno índigo punteado */
   ppAbierto?: boolean;
+  preventa?: string | null;
+  quincena?: string | null;
 }) {
   const esPe = /^pronta\s*entrega$/i.test(label.trim());
   const esPpAbierto = ppAbierto || label === PP_ABIERTO_LABEL;
+  const esCpDatoDuro = Boolean(preventa || quincena);
   return (
     <div className="flex items-center justify-between gap-2">
       <span
-        className={`max-w-[72%] truncate rounded-full border bg-white px-3 py-1 text-[11px] font-semibold text-slate-800 ${
+        className={`max-w-[72%] rounded-full border bg-white px-3 py-1 ${
           peLiquidacion && esPe
             ? "catalog-card-liquidacion-pulse border-2 border-emerald-600 bg-emerald-50 font-bold text-emerald-900"
             : esPpAbierto
               ? "border-2 border-dashed border-indigo-500 bg-indigo-50 font-bold text-indigo-900"
               : esPe
                 ? "border-2 border-emerald-500"
-                : pillBorderClass
-        }`}
+                : esCpDatoDuro
+                  ? "border-rimec-azul/50 py-1.5"
+                  : pillBorderClass
+        } ${esCpDatoDuro ? "" : "truncate text-[11px] font-semibold text-slate-800"}`}
       >
-        {peLiquidacion && esPe ? "Pronta entrega · LIQ" : label}
+        {peLiquidacion && esPe ? (
+          "Pronta entrega · LIQ"
+        ) : esCpDatoDuro ? (
+          <DatoDuroCpFilas preventa={preventa} quincena={quincena} labelCombinada={label} />
+        ) : (
+          label
+        )}
       </span>
       <span
         className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-black tabular-nums text-white shadow-sm ${
@@ -241,15 +253,13 @@ export function ReposicionArticuloCard({
           <div className="min-w-0">
             <p
               className="truncate font-mono text-sm font-bold text-slate-900"
-              title={nombreFoto ?? `${a.linea}.${a.referencia}`}
+              title={nombreFotoDisplay ?? undefined}
             >
-              {nombreFotoDisplay ?? `${a.linea}.${a.referencia}`}
+              {nombreFotoDisplay ??
+                (Number(a.tipo_v2_id) === 2
+                  ? `${a.linea}_${a.color}`
+                  : [a.linea, a.referencia, a.material, a.color].filter(Boolean).join("-"))}
             </p>
-            {nombreFotoDisplay ? (
-              <p className="truncate font-mono text-[10px] text-slate-500">
-                {a.linea}.{a.referencia}
-              </p>
-            ) : null}
           </div>
           <p className="shrink-0 text-[11px] font-medium text-slate-400">
             {a.lpn != null ? `LPN ${a.lpn.toLocaleString("es-PY")}` : "Sin LPN"}
@@ -267,6 +277,8 @@ export function ReposicionArticuloCard({
                 <PillQty
                   key={`st-${b.label}`}
                   label={b.label}
+                  preventa={b.preventa}
+                  quincena={b.quincena}
                   pares={b.pares}
                   badgeClass="bg-bazzar-naranja"
                   pillBorderClass="border-rimec-azul/50"
@@ -310,6 +322,8 @@ export function ReposicionArticuloCard({
                     <PillQty
                       key={`cpv-${b.label}`}
                       label={b.label}
+                      preventa={b.preventa}
+                      quincena={b.quincena}
                       pares={b.pares}
                       badgeClass="bg-emerald-600"
                       pillBorderClass="border-rimec-azul/50"
@@ -328,6 +342,8 @@ export function ReposicionArticuloCard({
                     <PillQty
                       key={`pg-${b.label}`}
                       label={b.label}
+                      preventa={b.preventa}
+                      quincena={b.quincena}
                       pares={b.pares}
                       badgeClass="bg-emerald-600"
                       pillBorderClass="border-rimec-azul/50"
@@ -348,7 +364,12 @@ export function ReposicionArticuloCard({
       </article>
       <ImagenAmpliadaOverlay
         src={zoomSrc}
-        alt={`${nombreFotoDisplay ?? `${a.linea}.${a.referencia}`} ${a.marca}`}
+        alt={`${
+          nombreFotoDisplay ??
+          (Number(a.tipo_v2_id) === 2
+            ? `${a.linea}_${a.color}`
+            : [a.linea, a.referencia, a.material, a.color].filter(Boolean).join("-"))
+        } ${a.marca}`}
         onClose={() => setZoomSrc(null)}
       />
     </>

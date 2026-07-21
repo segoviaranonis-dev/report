@@ -44,6 +44,8 @@ export type DepositoRow = {
   quincena_desc?: string | null;
   pp_id?: number | null;
   pp_nro?: string | null;
+  /** Nº preventa Carlos — pedido_proveedor.nro_pedido_externo (PP-NNNN). */
+  numero_preventa?: string | null;
   proforma?: string | null;
   caso_precio?: string | null;
   /** FK biblioteca de precios (PPD.biblioteca_id · MIG-153/154). */

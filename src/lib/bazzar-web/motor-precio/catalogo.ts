@@ -4,6 +4,7 @@
  */
 import { getRimecPool } from "@/lib/rimec/pool";
 import { ALM_WEB_BAZAR } from "@/lib/bazzar-web/compra-web/constants";
+import { LPN_CASO_LATERAL_SQL, LPN_CASO_SELECT } from "./lpn-caso-sql";
 import type { CatalogoPrecioRow } from "./types";
 
 const CATALOGO_SQL = `
@@ -14,8 +15,7 @@ WITH det AS (
     COALESCE(mat.descripcion, '—') AS material,
     c.id AS combinacion_id,
     SUM(md.cantidad * md.signo)::int AS stock,
-    pl.lpn,
-    pl.nombre_caso_aplicado AS caso_precio,
+    ${LPN_CASO_SELECT},
     (
       SELECT p.valor
       FROM precio p
@@ -34,26 +34,14 @@ WITH det AS (
   JOIN linea l ON l.id = c.linea_id
   JOIN referencia r ON r.id = c.referencia_id
   LEFT JOIN material mat ON mat.id = c.material_id
-  LEFT JOIN pedido_proveedor pp ON pp.id = (tr.snapshot_json->>'id_pp')::int
+  LEFT JOIN pedido_proveedor pp ON pp.id = NULLIF(tr.snapshot_json->>'id_pp', '')::int
   LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
-  LEFT JOIN LATERAL (
-    SELECT pl2.lpn, pl2.nombre_caso_aplicado
-    FROM precio_lista pl2
-    JOIN linea l2 ON l2.id = pl2.linea_id
-    JOIN referencia r2 ON r2.id = pl2.referencia_id
-    WHERE pl2.evento_id = icp.precio_evento_id
-      AND l2.codigo_proveedor = l.codigo_proveedor
-      AND r2.codigo_proveedor = r.codigo_proveedor
-      AND (c.material_id IS NULL OR pl2.material_id = c.material_id)
-    ORDER BY
-      CASE WHEN pl2.linea_id = l.id AND pl2.referencia_id = r.id THEN 0 ELSE 1 END,
-      pl2.id DESC
-    LIMIT 1
-  ) pl ON true
+  ${LPN_CASO_LATERAL_SQL}
   WHERE m.almacen_destino_id = $1
     AND m.estado = 'CONFIRMADO'
     AND m.tipo = 'INGRESO_COMPRA'
-  GROUP BY l.codigo_proveedor, r.codigo_proveedor, mat.descripcion, c.id, pl.lpn, pl.nombre_caso_aplicado
+  GROUP BY l.codigo_proveedor, r.codigo_proveedor, mat.descripcion, c.id,
+           pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio
   HAVING SUM(md.cantidad * md.signo) > 0
 )
 SELECT
@@ -141,8 +129,7 @@ export async function publicarPreciosWeb(): Promise<{
       WITH det AS (
         SELECT
           c.id AS combinacion_id,
-          pl.lpn,
-          pl.nombre_caso_aplicado AS caso_precio,
+          ${LPN_CASO_SELECT},
           SUM(md.cantidad * md.signo) AS stock
         FROM movimiento_detalle md
         JOIN movimiento m ON m.id = md.movimiento_id
@@ -151,26 +138,13 @@ export async function publicarPreciosWeb(): Promise<{
         JOIN linea l ON l.id = c.linea_id
         JOIN referencia r ON r.id = c.referencia_id
         LEFT JOIN material mat ON mat.id = c.material_id
-        LEFT JOIN pedido_proveedor pp ON pp.id = (tr.snapshot_json->>'id_pp')::int
+        LEFT JOIN pedido_proveedor pp ON pp.id = NULLIF(tr.snapshot_json->>'id_pp', '')::int
         LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
-  LEFT JOIN LATERAL (
-    SELECT pl2.lpn, pl2.nombre_caso_aplicado
-    FROM precio_lista pl2
-    JOIN linea l2 ON l2.id = pl2.linea_id
-    JOIN referencia r2 ON r2.id = pl2.referencia_id
-    WHERE pl2.evento_id = icp.precio_evento_id
-      AND l2.codigo_proveedor = l.codigo_proveedor
-      AND r2.codigo_proveedor = r.codigo_proveedor
-      AND (c.material_id IS NULL OR pl2.material_id = c.material_id)
-    ORDER BY
-      CASE WHEN pl2.linea_id = l.id AND pl2.referencia_id = r.id THEN 0 ELSE 1 END,
-      pl2.id DESC
-    LIMIT 1
-  ) pl ON true
+        ${LPN_CASO_LATERAL_SQL}
         WHERE m.almacen_destino_id = $1
           AND m.estado = 'CONFIRMADO'
           AND m.tipo = 'INGRESO_COMPRA'
-        GROUP BY c.id, pl.lpn, pl.nombre_caso_aplicado
+        GROUP BY c.id, pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio
         HAVING SUM(md.cantidad * md.signo) > 0
       )
       SELECT

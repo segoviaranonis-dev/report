@@ -4,6 +4,8 @@
 import type { PoolClient } from "pg";
 import { getRimecPool } from "@/lib/rimec/pool";
 import { ALM_TRANSITO, ALM_WEB_BAZAR, CLIENTE_WEB_BAZAR_ID } from "./constants";
+import { hydrateTraspasoDetalleFromSnapshot } from "./traspaso-detalle-hydrate";
+import { aplicarStockSanoAlmacen } from "@/lib/bazzar-web/stock-sano/aplicar";
 
 export type ProcesarIngresoResult = { ok: true; message: string } | { ok: false; error: string };
 
@@ -48,6 +50,8 @@ async function procesarIngresoBazarTx(client: PoolClient, idTrp: number): Promis
       error: `Traspaso no pertenece al cliente web (${CLIENTE_WEB_BAZAR_ID}). Solo mercadería canal e-commerce.`,
     };
   }
+
+  await hydrateTraspasoDetalleFromSnapshot(client, idTrp);
 
   const mov = await client.query<{ id: number }>(
     `
@@ -95,9 +99,11 @@ async function procesarIngresoBazarTx(client: PoolClient, idTrp: number): Promis
     [idTrp],
   );
 
+  const stockSano = await aplicarStockSanoAlmacen(client, ALM_WEB_BAZAR);
+
   return {
     ok: true,
-    message: `Ingreso procesado: ${nLines} línea(s) en depósito Web Bazar.`,
+    message: `Ingreso procesado: ${nLines} línea(s) en depósito Web Bazar. Stock Sano: ${stockSano.depositos} tripletas · ${stockSano.precios} precios WEB.`,
   };
 }
 

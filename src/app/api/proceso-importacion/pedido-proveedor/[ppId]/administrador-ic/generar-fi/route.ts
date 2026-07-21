@@ -3,6 +3,7 @@ import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { generarFiDesdeAdministradorIc } from "@/lib/pedido-proveedor/administrador-ic-generar-fi";
 import { getPpDetalle } from "@/lib/pedido-proveedor/detail-query";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { syncLogisticaPpIfBandera } from "@/lib/logistica-ok/sync-pp";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 
 type Params = { params: Promise<{ ppId: string }> };
@@ -48,6 +49,11 @@ export async function POST(req: Request, { params }: Params) {
   const result = await generarFiDesdeAdministradorIc(pool, ppId, icId, ppdIds);
   if (!result.ok) {
     return NextResponse.json(result, { status: 400 });
+  }
+  try {
+    await syncLogisticaPpIfBandera(pool, ppId);
+  } catch {
+    /* bandera off o MIG pendiente */
   }
   return NextResponse.json(result);
 }

@@ -189,7 +189,7 @@ export async function generarFiDesdeAdministradorIc(
   ppId: number,
   icId: number,
   ppdIds: number[],
-  opts?: { listado_tier_preview?: ListadoPrecioTierId },
+  opts?: { listado_tier_preview?: ListadoPrecioTierId; ppd_pares?: Record<number, number> },
 ): Promise<GenerarFiAdminResult> {
   if (!ppdIds.length) return { ok: false, error: "Seleccioná al menos un artículo PPD." };
 
@@ -237,7 +237,7 @@ export async function generarFiDesdeAdministradorIc(
         continue;
       }
       const sinLpn = Boolean((row as { sin_lpn?: boolean }).sin_lpn);
-      const pares = row.cantidad_pares;
+      const pares = opts?.ppd_pares?.[Number(ppdId)] ?? row.cantidad_pares;
       if (sinLpn) lineasSinLpn += 1;
 
       let precio_unit = 0;

@@ -7,8 +7,16 @@ import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import { calcularTotalesDesdeBuckets } from "@/lib/herramienta-reposicion/totales-reposicion";
 import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 import { esLiquidacionRow } from "@/lib/filtros/filtro-tipo-canonico";
+import { etiquetaDatoDuroCp, partesDatoDuroCp } from "@/lib/pedido-proveedor/dato-duro-cabecera";
 
-export type ReposicionBucket = { label: string; pares: number };
+export type ReposicionBucket = {
+  label: string;
+  pares: number;
+  /** CP siamese — fila 1 UI */
+  preventa?: string | null;
+  /** CP siamese — fila 2 UI */
+  quincena?: string | null;
+};
 
 export type ReposicionArticulo = {
   key: string;
@@ -77,10 +85,15 @@ function molKey(r: DepositoRow): string {
   );
 }
 
-function quincenaLabel(r: DepositoRow, fallback: string): string {
-  const q = String(r.quincena_desc ?? "").trim();
-  if (!q || q === "—" || /^sin quincena/i.test(q)) return fallback;
-  return q;
+/** Paridad siamese RIMEC Web — PP-4099 · 1ra Oct. (key) + partes UI. */
+function cpBucketFromRow(r: DepositoRow, fallback: string) {
+  const partes = partesDatoDuroCp(r.numero_preventa, r.quincena_desc);
+  const label = etiquetaDatoDuroCp(r.numero_preventa, r.quincena_desc);
+  return {
+    label: label && label !== "Compra previa" ? label : fallback,
+    preventa: partes.preventa || null,
+    quincena: partes.quincena || null,
+  };
 }
 
 function enteroBucket(n: number): number {
@@ -88,15 +101,35 @@ function enteroBucket(n: number): number {
   return Math.trunc(n);
 }
 
-function addBucket(map: Map<string, number>, label: string, n: number) {
+function addBucket(
+  map: Map<string, number>,
+  meta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>,
+  label: string,
+  n: number,
+  partes?: { preventa?: string | null; quincena?: string | null },
+) {
   const p = enteroBucket(n);
   if (p <= 0) return;
   map.set(label, (map.get(label) ?? 0) + p);
+  if (partes && !meta.has(label)) {
+    meta.set(label, {
+      preventa: partes.preventa ?? null,
+      quincena: partes.quincena ?? null,
+    });
+  }
 }
 
-function bucketsFromMap(map: Map<string, number>): ReposicionBucket[] {
+function bucketsFromMap(
+  map: Map<string, number>,
+  meta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>,
+): ReposicionBucket[] {
   return [...map.entries()]
-    .map(([label, pares]) => ({ label, pares }))
+    .map(([label, pares]) => ({
+      label,
+      pares,
+      preventa: meta.get(label)?.preventa ?? null,
+      quincena: meta.get(label)?.quincena ?? null,
+    }))
     .filter((b) => b.pares > 0)
     .sort((a, b) => {
       if (a.label === PE_LABEL) return -1;
@@ -137,8 +170,11 @@ type Acc = {
   cadena_comercial: string | null;
   es_liquidacion: boolean | null;
   stock: Map<string, number>;
+  stockMeta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>;
   ventasCp: Map<string, number>;
+  ventasCpMeta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>;
   ventasProgramado: Map<string, number>;
+  ventasProgramadoMeta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>;
 };
 
 function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
@@ -176,8 +212,11 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
       cadena_comercial: row.cadena_comercial ?? null,
       es_liquidacion: esLiquidacionRow(row) ? true : (row.es_liquidacion ?? null),
       stock: new Map(),
+      stockMeta: new Map(),
       ventasCp: new Map(),
+      ventasCpMeta: new Map(),
       ventasProgramado: new Map(),
+      ventasProgramadoMeta: new Map(),
     };
     acc.set(key, a);
   } else {
@@ -229,36 +268,41 @@ export function mergeReposicionArticulos(input: {
 
   for (const r of input.pe) {
     const a = ensure(acc, r);
-    addBucket(a.stock, PE_LABEL, Number(r.cantidad) || 0);
+    addBucket(a.stock, a.stockMeta, PE_LABEL, Number(r.cantidad) || 0);
   }
 
   for (const r of input.compraPrevia) {
     const a = ensure(acc, r);
-    const label = quincenaLabel(r, "Sin llegada");
-    addBucket(a.stock, label, Number(r.cantidad) || 0);
-    addBucket(a.ventasCp, label, Number(r.pares_vendidos) || 0);
+    const bucket = cpBucketFromRow(r, "Sin llegada");
+    addBucket(a.stock, a.stockMeta, bucket.label, Number(r.cantidad) || 0, bucket);
+    addBucket(a.ventasCp, a.ventasCpMeta, bucket.label, Number(r.pares_vendidos) || 0, bucket);
   }
 
   for (const r of input.programado) {
     const a = ensure(acc, r);
-    const label = quincenaLabel(r, "Programado");
+    const bucket = cpBucketFromRow(r, "Programado");
     const vend = Number(r.pares_vendidos) || 0;
     const saldo = Number(r.cantidad) || 0;
     const inicial = Number(r.cantidad_inicial) || saldo + vend;
-    // PROGRAMADO: cantidad dura de venta (vendido si hay; si no, inicial programado)
-    addBucket(a.ventasProgramado, label, vend > 0 ? vend : inicial);
+    addBucket(
+      a.ventasProgramado,
+      a.ventasProgramadoMeta,
+      bucket.label,
+      vend > 0 ? vend : inicial,
+      bucket,
+    );
   }
 
   for (const r of input.ppAbierto ?? []) {
     const a = ensure(acc, r);
-    addBucket(a.stock, PP_ABIERTO_LABEL, Number(r.cantidad) || 0);
+    addBucket(a.stock, a.stockMeta, PP_ABIERTO_LABEL, Number(r.cantidad) || 0);
   }
 
   const out: ReposicionArticulo[] = [];
   for (const [key, a] of acc) {
-    const stock = bucketsFromMap(a.stock);
-    const ventasCp = bucketsFromMap(a.ventasCp);
-    const ventasProgramado = bucketsFromMap(a.ventasProgramado);
+    const stock = bucketsFromMap(a.stock, a.stockMeta);
+    const ventasCp = bucketsFromMap(a.ventasCp, a.ventasCpMeta);
+    const ventasProgramado = bucketsFromMap(a.ventasProgramado, a.ventasProgramadoMeta);
     const totales = calcularTotalesDesdeBuckets(stock, ventasCp, ventasProgramado);
     const { peDisponible, cpDisponible, cpVendido, programado, ppAbierto } = totales;
     if (peDisponible + cpDisponible + cpVendido + programado + ppAbierto <= 0) continue;

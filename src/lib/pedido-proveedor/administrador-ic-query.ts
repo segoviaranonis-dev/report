@@ -11,6 +11,11 @@ import {
   resolveCasoMotorPrecios,
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
+import {
+  applyPfSplitsToPrefacturas,
+  loadPfSplits,
+  type PfSplitRecord,
+} from "@/lib/pedido-proveedor/admin-ic-pf-splits";
 
 export type PfArticuloRow = {
   ppd_id: number;
@@ -61,6 +66,7 @@ export type IcAdminRow = PpIcVinculada & {
 export type AdministradorIcPayload = {
   ics: IcAdminRow[];
   prefacturas: PreFacturaInterna[];
+  pf_splits: PfSplitRecord[];
 };
 
 type PpdPfRow = {
@@ -117,7 +123,7 @@ function buildArticulo(r: PpdPfRow, tier: ListadoPrecioTierId, caso: string): Pf
     r.color_code ?? "",
   ).filter(Boolean);
   return {
-    ppd_id: r.ppd_id,
+    ppd_id: Number(r.ppd_id),
     linea_id: r.linea_id,
     referencia_id: r.referencia_id,
     material_id: r.material_id,
@@ -197,8 +203,8 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
     SELECT
       ppd.id AS ppd_id,
       COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '0') AS shop,
-      COALESCE(l_eff.marca_id, ppd.id_marca)::int AS id_marca,
-      COALESCE(mv_pilar.descp_marca, mv_excel.descp_marca, '—') AS marca,
+      COALESCE(ppd.id_marca, l_eff.marca_id)::int AS id_marca,
+      COALESCE(mv_excel.descp_marca, mv_pilar.descp_marca, '—') AS marca,
       COALESCE(
         NULLIF(TRIM(pl_fk.nombre_caso_aplicado), ''),
         NULLIF(TRIM(pec_fk.nombre_caso), ''),
@@ -324,12 +330,20 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
     };
   });
 
-  const prefacturas = [...pfMap.values()].sort(
+  const prefacturasBase = [...pfMap.values()].sort(
     (a, b) =>
       a.id_cliente - b.id_cliente ||
       a.marca.localeCompare(b.marca) ||
       a.caso.localeCompare(b.caso),
   );
 
-  return { ics, prefacturas };
+  const pf_splits = await loadPfSplits(pool, ppId);
+  const prefacturas = applyPfSplitsToPrefacturas(prefacturasBase, pf_splits).sort(
+    (a, b) =>
+      a.id_cliente - b.id_cliente ||
+      a.marca.localeCompare(b.marca) ||
+      a.caso.localeCompare(b.caso),
+  );
+
+  return { ics, prefacturas, pf_splits };
 }

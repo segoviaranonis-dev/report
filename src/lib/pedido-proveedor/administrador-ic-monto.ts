@@ -44,8 +44,7 @@ export function evalProtocoloChusa(
   if (nivel1) {
     nivel2 = true;
     for (let i = 0; i < contadorIc; i++) {
-      const marcaPf = marcaAlineacionPrefactura(pfVisibles[i], icsAll);
-      if (!tripleteColumnasExacto(icsVisibles[i], pfVisibles[i], marcaPf)) {
+      if (!tripleteColumnasExacto(icsVisibles[i], pfVisibles[i])) {
         nivel2 = false;
         break;
       }
@@ -68,16 +67,28 @@ export function parejasLoteAlineadas(
   return icsVisibles.map((ic, i) => ({ ic, pf: pfVisibles[i] }));
 }
 
+/** IC ↔ PF: misma marca Excel (id_marca) o IC.marca = caso comercial en proforma. */
+export function marcasCanonCoinciden(
+  ic: Pick<IcAdminRow, "id_marca" | "marca">,
+  pf: Pick<PreFacturaInterna, "id_marca" | "marca" | "caso">,
+): boolean {
+  if (ic.id_marca === pf.id_marca) return true;
+  const caso = String(pf.caso ?? "—").trim();
+  if (caso && caso !== "—" && normAdminEtiqueta(ic.marca) === normAdminEtiqueta(caso)) {
+    return true;
+  }
+  return normAdminEtiqueta(ic.marca) === normAdminEtiqueta(pf.marca);
+}
+
 /** IC ↔ PF: cliente + marca (columna grilla) + cantidad — sin tolerancia. */
 export function tripleteColumnasExacto(
-  ic: Pick<IcAdminRow, "id_cliente" | "marca" | "pares">,
-  pf: Pick<PreFacturaInterna, "id_cliente" | "total_pares">,
-  marcaPf: string,
+  ic: Pick<IcAdminRow, "id_cliente" | "id_marca" | "marca" | "pares">,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso" | "total_pares">,
 ): boolean {
   return (
     ic.id_cliente === pf.id_cliente &&
     ic.pares === pf.total_pares &&
-    normAdminEtiqueta(ic.marca) === normAdminEtiqueta(marcaPf)
+    marcasCanonCoinciden(ic, pf)
   );
 }
 
@@ -90,16 +101,15 @@ export type CanonDiffCelda = {
 };
 
 export function evalCanonDiffFila(
-  ic: Pick<IcAdminRow, "id_cliente" | "marca" | "pares"> | undefined,
-  pf: Pick<PreFacturaInterna, "id_cliente" | "total_pares"> | undefined,
-  marcaPf: string,
+  ic: Pick<IcAdminRow, "id_cliente" | "id_marca" | "marca" | "pares"> | undefined,
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso" | "total_pares"> | undefined,
 ): CanonDiffCelda {
   if (!ic || !pf) {
     return { cliente: true, marca: true, cantidad: true, sinPar: true };
   }
   return {
     cliente: ic.id_cliente !== pf.id_cliente,
-    marca: normAdminEtiqueta(ic.marca) !== normAdminEtiqueta(marcaPf),
+    marca: !marcasCanonCoinciden(ic, pf),
     cantidad: ic.pares !== pf.total_pares,
     sinPar: false,
   };
@@ -121,8 +131,7 @@ export function canonDiffsPorIndice(
   for (let i = 0; i < maxLen; i++) {
     const ic = icsVisibles[i];
     const pf = pfVisibles[i];
-    const marcaPf = pf ? marcaAlineacionPrefactura(pf, icsAll) : "";
-    const diff = evalCanonDiffFila(ic, pf, marcaPf);
+    const diff = evalCanonDiffFila(ic, pf);
     icOut[i] = diff;
     pfOut[i] = diff;
     if (tieneDesajusteCanon(diff)) desajustes++;
@@ -138,19 +147,29 @@ export function parejaTripleteIcPf(
   return icParPrefactura(ic, pf) && ic.pares === pf.total_pares;
 }
 
-/** Marca mostrada en grilla PF para alinear con columna IC (caso comercial cuando aplica). */
+/** Marca real en grilla PF (marca_v2 / Excel) — el caso comercial va en columna Caso. */
 export function marcaAlineacionPrefactura(
-  pf: Pick<PreFacturaInterna, "id_cliente" | "marca" | "caso">,
-  ics: Pick<IcAdminRow, "id_cliente" | "marca">[],
+  pf: Pick<PreFacturaInterna, "marca">,
+): string {
+  const m = String(pf.marca ?? "—").trim();
+  return m || "—";
+}
+
+/**
+ * Marca PF en Admin IC — si PPD trajo caso como marca (ej. CHINELO),
+ * usa la IC pareada (BEIRA RIO vía id_marca real del vendedor).
+ */
+export function marcaDisplayPrefactura(
+  pf: Pick<PreFacturaInterna, "id_cliente" | "id_marca" | "marca" | "caso">,
+  ics: Pick<IcAdminRow, "id_cliente" | "id_marca" | "marca">[],
 ): string {
   const caso = String(pf.caso ?? "—").trim();
-  if (caso && caso !== "—") {
-    const icPorCaso = ics.find(
-      (ic) => ic.id_cliente === pf.id_cliente && normAdminEtiqueta(ic.marca) === normAdminEtiqueta(caso),
-    );
-    if (icPorCaso) return icPorCaso.marca;
+  const marcaRaw = marcaAlineacionPrefactura(pf);
+  if (caso && caso !== "—" && normAdminEtiqueta(marcaRaw) === normAdminEtiqueta(caso)) {
+    const ic = ics.find((i) => icParPrefactura(i, pf));
+    if (ic?.marca) return ic.marca;
   }
-  return pf.marca;
+  return marcaRaw;
 }
 
 /** Tolerancia en Gs. para «coincide al centavo». */
@@ -291,12 +310,12 @@ export function ordenarUniversoLoteChusa(ics: IcAdminRow[], prefacturas: PreFact
   const pfOrden = [...prefacturas].sort((a, b) =>
     cmpAdminFilasLote(
       a.id_cliente,
-      marcaAlineacionPrefactura(a, ics),
+      marcaAlineacionPrefactura(a),
       a.total_pares,
       a.total_monto,
       a.caso,
       b.id_cliente,
-      marcaAlineacionPrefactura(b, ics),
+      marcaAlineacionPrefactura(b),
       b.total_pares,
       b.total_monto,
       b.caso,
@@ -305,7 +324,13 @@ export function ordenarUniversoLoteChusa(ics: IcAdminRow[], prefacturas: PreFact
   return { icsOrden, pfOrden };
 }
 
-export type ParejaLoteFi = { ic_id: number; ic_nro: string; ppd_ids: number[] };
+export type ParejaLoteFi = {
+  ic_id: number;
+  ic_nro: string;
+  ppd_ids: number[];
+  /** Pares por PPD cuando hay división Admin IC (split PF). */
+  ppd_pares?: Record<number, number>;
+};
 
 export function construirParejasLoteChusa(
   ics: IcAdminRow[],
@@ -318,10 +343,17 @@ export function construirParejasLoteChusa(
   if (!chusa.puedeLote) {
     return { ok: false, error: "Protocolo Chusa: contadores o canon no cuadran.", chusa };
   }
-  const parejas = parejasLoteAlineadas(icsOrden, pfOrden).map(({ ic, pf }) => ({
-    ic_id: ic.ic_id,
-    ic_nro: ic.nro_ic,
-    ppd_ids: pf.articulos.map((a) => Number(a.ppd_id)).filter((n) => Number.isFinite(n) && n > 0),
-  }));
+  const parejas = parejasLoteAlineadas(icsOrden, pfOrden).map(({ ic, pf }) => {
+    const ppd_pares: Record<number, number> = {};
+    for (const a of pf.articulos) {
+      if (a.ppd_id > 0 && a.pares > 0) ppd_pares[a.ppd_id] = a.pares;
+    }
+    return {
+      ic_id: ic.ic_id,
+      ic_nro: ic.nro_ic,
+      ppd_ids: pf.articulos.map((a) => Number(a.ppd_id)).filter((n) => Number.isFinite(n) && n > 0),
+      ppd_pares,
+    };
+  });
   return { ok: true, parejas, chusa };
 }

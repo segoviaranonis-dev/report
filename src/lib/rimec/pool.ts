@@ -145,7 +145,7 @@ export function getRimecPool(): Pool {
       max: resolvePgPoolMax(),
       min: 0,
       idleTimeoutMillis: isVercelRuntime() ? 5_000 : 10_000,
-      connectionTimeoutMillis: 12_000,
+      connectionTimeoutMillis: isVercelRuntime() ? 12_000 : 30_000,
       allowExitOnIdle: true,
       ssl,
     });

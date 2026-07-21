@@ -87,8 +87,8 @@ export function sqlPrecioComercialDesdePl(listaTierParam: string): string {
   const lpnComercial = `(ROUND((${raw}) / 100) * 100)`;
   return `
     CASE ${listaTierParam}::int
-      WHEN 3 THEN (FLOOR((${lpnComercial} * 1.12) / 100) * 100)
-      WHEN 4 THEN (FLOOR((${lpnComercial} * 1.20) / 100) * 100)
+      WHEN 3 THEN (ROUND((${lpnComercial} * 1.12) / 100) * 100)
+      WHEN 4 THEN (ROUND((${lpnComercial} * 1.20) / 100) * 100)
       WHEN 2 THEN ${sqlPrecioBaseFiDetalle(listaTierParam)}
       ELSE ${lpnComercial}
     END

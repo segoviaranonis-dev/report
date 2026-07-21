@@ -7,7 +7,7 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 export async function GET() {
   const session = await getSession();
   if (!isNivelDios(session)) {
-    return NextResponse.json({ error: "Nivel Dios requerido" }, { status: 403 });
+    return NextResponse.json({ error: "Nivel Superior requerido" }, { status: 403 });
   }
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({ error: "DATABASE_URL no configurada" }, { status: 503 });
