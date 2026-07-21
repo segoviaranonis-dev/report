@@ -35,7 +35,7 @@ export async function fetchCpVendidoCanonPorMol(
       TRIM(m.material_code) AS material_code,
       TRIM(m.color_code) AS color_code,
       pp.nro_pedido_externo,
-      COALESCE(qa.descripcion, 'Sin llegada') AS quincena_desc,
+      qa.descripcion AS quincena_desc,
       COALESCE(SUM(m.vendido), 0)::text AS vendido
     FROM mol_activa m
     JOIN pedido_proveedor pp ON pp.id = m.pp_id

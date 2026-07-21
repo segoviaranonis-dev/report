@@ -25,9 +25,8 @@ export async function GET(req: NextRequest) {
       { ok: true, configured: true, cache: fresh ? "bypass" : "server", ms, ...data },
       {
         headers: {
-          "Cache-Control": fresh
-            ? "no-store"
-            : "private, max-age=60, stale-while-revalidate=240",
+          /** Integridad AM: prohibido HTTP cache del navegador (venenaba «Sin llegada»). */
+          "Cache-Control": "no-store",
           "X-Reposicion-Ms": String(ms),
           "X-Reposicion-Cache": fresh ? "bypass" : "server",
         },

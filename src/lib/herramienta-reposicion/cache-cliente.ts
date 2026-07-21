@@ -1,6 +1,7 @@
 import type { ReposicionArticulo } from "@/lib/herramienta-reposicion/merge-reposicion";
 
-const SS_KEY = "hr-am-payload-v1";
+/** v2 · 2026-07-21: invalida payload previo con ventas CP «Sin llegada» sin lote. */
+const SS_KEY = "hr-am-payload-v2";
 const TTL_MS = 30 * 60 * 1000;
 
 type CachePayload = {

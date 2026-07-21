@@ -200,7 +200,8 @@ export function HerramientaReposicionClient() {
   }, []);
 
   useEffect(() => {
-    void load();
+    /** Siempre fresh al montar: evita sessionStorage/HTTP envenenados con «Sin llegada». */
+    void load({ fresh: true });
   }, [load]);
 
   const onFaltantesChange = useCallback((keys: Set<string>) => {
