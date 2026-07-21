@@ -4,6 +4,10 @@ import { listProgramadoProductos } from "@/lib/stock-programado/queries-producto
 import { listTransitoProductos } from "@/lib/stock-transito/queries-productos";
 import { listPpAbiertoProductos } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 import {
+  aplicarCpVendidoCanon,
+  fetchCpVendidoCanonPorMol,
+} from "@/lib/herramienta-reposicion/cp-vendido-canon";
+import {
   mergeReposicionArticulos,
   type ReposicionArticulo,
 } from "@/lib/herramienta-reposicion/merge-reposicion";
@@ -27,19 +31,23 @@ export type HerramientaReposicionPayload = {
 };
 
 export async function getHerramientaReposicion(pool: Pool): Promise<HerramientaReposicionPayload> {
-  const [pe, cp, prog, ppAbierto] = await Promise.all([
+  const [pe, cp, prog, ppAbierto, cpVendidoCanon] = await Promise.all([
     listImportadoProductos(pool),
     listTransitoProductos(pool),
     listProgramadoProductos(pool),
     listPpAbiertoProductos(pool),
+    fetchCpVendidoCanonPorMol(pool),
   ]);
 
-  const articulosRaw = mergeReposicionArticulos({
-    pe: pe.productos,
-    compraPrevia: cp.productos,
-    programado: prog.productos,
-    ppAbierto: ppAbierto.productos,
-  });
+  const articulosRaw = aplicarCpVendidoCanon(
+    mergeReposicionArticulos({
+      pe: pe.productos,
+      compraPrevia: cp.productos,
+      programado: prog.productos,
+      ppAbierto: ppAbierto.productos,
+    }),
+    cpVendidoCanon,
+  );
 
   const articulos = articulosRaw.map(recalcularTotalesArticulo);
 
