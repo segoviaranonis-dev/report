@@ -6,6 +6,7 @@
 import type { PgQueryable } from "@/lib/pedido-proveedor/pilares-proforma-upsert";
 import { generoCodigoPorMarca, CODIGOS_GENERO_BD } from "@/lib/motor-precios/ley-genero";
 import type { ProformaRow } from "@/lib/pedido-proveedor/parse-proforma";
+import { brandEsCasoComercial } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import {
   upsertColorProforma,
   upsertMaterialProforma,
@@ -192,11 +193,14 @@ async function ensureLinea(
   marcaLookup: Map<string, number>,
   stats: ProformaPilaresStats,
   prevInBatch: { marca_id: number | null; genero_id: number | null; grupo_estilo_id: number | null } | null,
+  casosEvento: Set<string>,
 ): Promise<number> {
   const lineNum = codigoLineaNum(lineaCod);
   const brandKey = brand.trim().toUpperCase();
-  const marcaFromBrand = brandKey ? marcaLookup.get(brandKey) ?? null : null;
-  const generoFromLey = brand ? await lookupGeneroId(client, brand) : null;
+  const brandEsCaso = brandEsCasoComercial(brandKey, casosEvento);
+  const marcaFromBrand =
+    brandKey && !brandEsCaso ? marcaLookup.get(brandKey) ?? null : null;
+  const generoFromLey = brand && !brandEsCaso ? await lookupGeneroId(client, brand) : null;
 
   const existing = await getLineaByCodigo(client, proveedorId, lineaCod);
   const tplDb = lineNum != null ? await fetchLowerLinea(client, proveedorId, lineNum) : null;
@@ -386,6 +390,7 @@ export async function provisionPilaresFromProforma(
   proveedorId: number,
   detalleRows: ProformaRow[],
   marcaLookup: Map<string, number>,
+  casosEvento: Set<string> = new Set(),
 ): Promise<ProformaPilaresStats> {
   const t0 = Date.now();
   const stats: ProformaPilaresStats = {
@@ -457,6 +462,7 @@ export async function provisionPilaresFromProforma(
       marcaLookup,
       stats,
       prevAttrs ?? null,
+      casosEvento,
     );
     lineaIdCache.set(linea, id);
     const row = await client.query<{

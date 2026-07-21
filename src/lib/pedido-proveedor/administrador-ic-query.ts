@@ -75,6 +75,8 @@ type PpdPfRow = {
   shop: string;
   id_marca: number;
   marca: string;
+  linea_marca_id: number | null;
+  marca_linea: string;
   caso_pl: string;
   linea: string;
   referencia: string;
@@ -218,6 +220,21 @@ function pickIcForPpdRow(
   return candidates[0];
 }
 
+function resolveMarcaPfFila(
+  r: PpdPfRow,
+  mapaCasoLinea: Map<string, string>,
+  casosEvento: Set<string>,
+): Pick<PpdPfRow, "id_marca" | "marca"> {
+  const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
+  if (!marcaEsCasoComercial(r.marca, casoNorm, casosEvento)) {
+    return { id_marca: r.id_marca, marca: r.marca };
+  }
+  if (r.linea_marca_id != null && r.marca_linea) {
+    return { id_marca: r.linea_marca_id, marca: r.marca_linea };
+  }
+  return { id_marca: r.id_marca, marca: r.marca };
+}
+
 function buildPrefacturaMap(
   ppdRows: PpdPfRow[],
   icsRaw: PpIcVinculada[],
@@ -229,12 +246,14 @@ function buildPrefacturaMap(
 
   for (const r of ppdRows) {
     const idCliente = Number(r.shop) || 0;
-    const casoNorm = resolveCasoNorm(r, mapaCasoLinea, casosEvento);
-    const ic = pickIcForPpdRow(r, icsRaw, mapaCasoLinea, casosEvento);
-    const idMarca = ic?.id_marca ?? r.id_marca;
-    const marca = ic?.marca ?? r.marca;
+    const marcaFila = resolveMarcaPfFila(r, mapaCasoLinea, casosEvento);
+    const rMarca = { ...r, id_marca: marcaFila.id_marca, marca: marcaFila.marca };
+    const casoNorm = resolveCasoNorm(rMarca, mapaCasoLinea, casosEvento);
+    const ic = pickIcForPpdRow(rMarca, icsRaw, mapaCasoLinea, casosEvento);
+    const idMarca = ic?.id_marca ?? rMarca.id_marca;
+    const marca = ic?.marca ?? rMarca.marca;
     const pfKey = `${idCliente}|${idMarca}|${casoNorm}`;
-    const art = buildArticulo(r, defaultPfTier, casoNorm, { includeImages: false });
+    const art = buildArticulo(rMarca, defaultPfTier, casoNorm, { includeImages: false });
 
     const existing = pfMap.get(pfKey);
     if (existing) {
@@ -302,7 +321,9 @@ export async function loadAdministradorIcPp(pool: Pool, ppId: number): Promise<A
       ppd.id AS ppd_id,
       COALESCE(NULLIF(TRIM(ppd.grades_json->>'_shop'), ''), '0') AS shop,
       COALESCE(ppd.id_marca, l_eff.marca_id)::int AS id_marca,
-      COALESCE(mv_excel.descp_marca, mv_pilar.descp_marca, '—') AS marca,
+      COALESCE(mv_pilar.descp_marca, mv_excel.descp_marca, '—') AS marca,
+      l_eff.marca_id AS linea_marca_id,
+      COALESCE(mv_pilar.descp_marca, '—') AS marca_linea,
       COALESCE(
         NULLIF(TRIM(pl_fk.nombre_caso_aplicado), ''),
         NULLIF(TRIM(pec_fk.nombre_caso), ''),

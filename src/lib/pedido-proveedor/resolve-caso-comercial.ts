@@ -84,3 +84,40 @@ export function casoLineaFromMapa(mapa: Map<string, string>, lineaCod: string): 
   if (!cod || cod === "NaN") return "";
   return mapa.get(cod) ?? "";
 }
+
+/** Excel BRAND = nombre de caso comercial (ej. CHINELO), no marca real. */
+export function brandEsCasoComercial(brand: string, casosEvento: Set<string>): boolean {
+  const n = normAdminEtiqueta(String(brand ?? "").replace(/\*/g, ""));
+  return n !== "" && casosEvento.has(n);
+}
+
+export type LineaMarcaHit = { id_marca: number; nombre: string };
+
+/**
+ * R-MARCA-PF-1 — import proforma: marca PPD = marca línea (pilar), caso ≠ marca.
+ * Si BRAND del Excel es un caso del evento/biblioteca, no usar marcaLookup.
+ */
+export function resolveMarcaProformaImport(opts: {
+  brandExcel: string;
+  lineaCod: string;
+  marcaLookup: Map<string, number>;
+  casosEvento: Set<string>;
+  lineaMarcaByCod: Map<string, LineaMarcaHit>;
+}): { id_marca: number | null; brandParaJson: string } {
+  const brandRaw = String(opts.brandExcel ?? "").trim();
+  const brandKey = brandRaw.toUpperCase();
+  const lineaCod = String(opts.lineaCod ?? "").trim();
+  const lineaHit = opts.lineaMarcaByCod.get(lineaCod);
+
+  if (brandEsCasoComercial(brandKey, opts.casosEvento)) {
+    if (lineaHit) {
+      return { id_marca: lineaHit.id_marca, brandParaJson: lineaHit.nombre };
+    }
+    return { id_marca: null, brandParaJson: brandRaw };
+  }
+
+  const idFromBrand = brandKey ? opts.marcaLookup.get(brandKey) ?? null : null;
+  const id_marca = idFromBrand ?? lineaHit?.id_marca ?? null;
+  const brandParaJson = brandKey || lineaHit?.nombre || brandRaw;
+  return { id_marca, brandParaJson };
+}

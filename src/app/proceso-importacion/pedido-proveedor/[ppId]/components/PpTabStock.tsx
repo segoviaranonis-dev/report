@@ -84,6 +84,8 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [precioAudit, setPrecioAudit] = useState<ProformaPrecioAuditResumen | null>(null);
   const [pilaresImport, setPilaresImport] = useState<ProformaPilaresImportReport | null>(null);
   const [previewPares, setPreviewPares] = useState<number | null>(null);
+  const [previewParesIc, setPreviewParesIc] = useState<number | null>(null);
+  const [previewNIc, setPreviewNIc] = useState<number | null>(null);
   const [alzarPreview, setAlzarPreview] = useState<AlzarWebPreview | null>(null);
   const [alzarLoading, setAlzarLoading] = useState(false);
   const [borrarEstado, setBorrarEstado] = useState<BorrarImportEstado | null>(null);
@@ -259,43 +261,34 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       }
 
       const emparejamientos = (data.emparejamientos ?? []) as EmparejamientoShop[];
-      // Canon: Δ pares = aviso; bloquea solo si falta IC (ic_id=0) o error fatal.
-      const shopLinkedOk =
-        emparejamientos.length > 0 && emparejamientos.every((r) => Number(r.ic_id) > 0);
-      const nDeltaPares = emparejamientos.filter((r) => Number(r.ic_id) > 0 && !r.match).length;
+      const totalesOk = Boolean(data.totales_ok);
       setPreviewRows(emparejamientos);
-      setPreviewOk(Boolean(data.ok) && shopLinkedOk);
+      setPreviewOk(Boolean(data.ok) && totalesOk);
       setPreviewErrores(data.errores ?? []);
       setPreviewAvisos(data.avisos ?? []);
       setPrecioAudit(data.precio_audit ?? null);
       setPilaresImport((data.pilares_import as ProformaPilaresImportReport | undefined) ?? null);
       setPreviewPares(data.total_pares ?? null);
+      const paresIc = Number(data.total_pares_ic ?? 0);
+      const paresPf = Number(data.total_pares ?? 0);
+      const nIc = Number(data.n_ic ?? 0);
+      setPreviewParesIc(paresIc);
+      setPreviewNIc(nIc);
 
       if (!data.listado_vinculado) {
         onMsg("Preview OK parcial — vinculá el listado RIMEC antes de confirmar import.");
-      } else if (data.ok && shopLinkedOk) {
-        const nAvisos = data.avisos?.length ?? 0;
-        const audit = data.precio_audit as ProformaPrecioAuditResumen | undefined;
-        const precioWarn =
-          audit && (audit.n_sin_precio > 0 || audit.n_sin_caso > 0 || audit.n_pilares_faltantes > 0)
-            ? ` · ${audit.n_sin_precio} sin LPN · ${audit.n_sin_caso} sin caso · ${audit.n_pilares_faltantes} pilares`
-            : "";
-        const deltaWarn =
-          nDeltaPares > 0 ? ` · ${nDeltaPares} SHOP con Δ pares (aviso — no bloquea)` : "";
+      } else if (data.ok && totalesOk) {
         onMsg(
-          nAvisos > 0 || nDeltaPares > 0
-            ? `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares${deltaWarn} · ${nAvisos} aviso(s) pilares/precio${precioWarn}. Paso 2 habilitado.`
-            : `Emparejamiento OK · ${data.n_grupos_shop ?? "?"} SHOP · ${Number(data.total_pares ?? 0).toLocaleString("es-PY")} pares · precios OK. Paso 2 habilitado.`,
+          `Totales OK · ${nIc} IC · ${paresIc.toLocaleString("es-PY")} pares IC = ${paresPf.toLocaleString("es-PY")} pares proforma · ${data.n_grupos_shop ?? "?"} grupos SHOP×marca. Paso 2 habilitado — alineación en Admin IC.`,
         );
-      } else if (data.ok && !shopLinkedOk) {
-        const nBad = emparejamientos.filter((r) => Number(r.ic_id) <= 0).length;
+      } else if (!totalesOk) {
         onMsg(
-          `Preview: ${nBad} SHOP(s) sin IC (cliente×marca) — paso 2 bloqueado. Revisá tabla abajo.`,
+          `Totales distintos: IC ${paresIc.toLocaleString("es-PY")} pares (${nIc} IC) ≠ proforma ${paresPf.toLocaleString("es-PY")} pares. Paso 2 bloqueado.`,
         );
       } else {
         const nErr = data.errores?.length ?? 0;
         onMsg(
-          `Preview falló (${nErr} error(es) o HTTP ${res.status}): ${data.error ?? "corregí Excel/ICs"}. Paso 2 bloqueado.`,
+          `Preview falló (${nErr} error(es)): ${data.error ?? data.errores?.[0] ?? "corregí Excel"}. Paso 2 bloqueado.`,
         );
       }
     } catch (e) {
@@ -393,7 +386,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       return;
     }
     if (esProgramado && !previewOk) {
-      onMsg("Ejecutá Preview emparejamiento SHOP↔IC antes de confirmar.");
+      onMsg("Ejecutá preview y verificá que totales IC = proforma antes de confirmar.");
       return;
     }
     setBusy(true);
@@ -411,11 +404,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
 
       let data: Record<string, unknown>;
       if (esProgramado) {
-        setImportProgress("Paso 1/2 — cargando stock PPD (moléculas)…");
+        setImportProgress("Importando stock PPD (línea por línea)…");
         const fdPpd = baseFd({ borrarPrevio: true });
         fdPpd.append("phase", "ppd");
         data = await postProformaImport(fdPpd);
-        data = await runProgramadoFiLoop(baseFd, 0, Number(data.fi_total ?? 0));
       } else {
         data = await postProformaImport(baseFd({ borrarPrevio: true }));
       }
@@ -431,10 +423,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           : ` ⚠ ${importAvisos.length} aviso(s) pilares/precio.`;
       }
       if (esProgramado) {
-        const nFi = Number(data.n_fi ?? 0);
-        const fiTotal = Number(data.fi_total ?? 0);
-        if (nFi > 0) msg += ` ${nFi} FI programado.`;
-        else if (fiTotal > 0) msg += ` ⚠ Sin FI (${fiTotal} esperadas) — usá «Completar FI pendientes».`;
+        msg += " Alineá IC↔PF en tab Administrador IC.";
       }
       onMsg(msg);
       setProformaFile(null);
@@ -760,8 +749,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
             {esProgramado && (
               <>
                 <p className="mt-3 text-xs text-violet-900">
-                  Protocolo manual: (1) Preview SHOP↔IC · (2) Confirmar import · (3) 1 FI por IC con cabecera IC +
-                  detalle proforma.
+                  Protocolo manual: (1) Preview totales · (2) Import PPD · (3) Alineá IC↔PF en Administrador IC.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -770,7 +758,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     onClick={previewProformaProgramado}
                     className="rounded-lg border-2 border-violet-600 bg-white px-4 py-2 text-sm font-bold text-violet-800 hover:bg-violet-50 disabled:opacity-50"
                   >
-                    {busy ? "…" : "1 · Preview emparejamiento SHOP↔IC"}
+                    {busy ? "…" : "1 · Preview totales IC ↔ proforma"}
                   </button>
                   <button
                     type="button"
@@ -798,32 +786,28 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     <li>{draft.numero_proforma.trim() ? "✅" : "⬜"} Nro proforma en cabecera</li>
                     <li>{draft.quincena_arribo_id > 0 ? "✅" : "⬜"} Fecha de embarque (quincena)</li>
                     <li>
-                      {previewOk ? "✅" : "⬜"} Preview SHOP↔IC con IC vinculada (Δ pares = aviso)
+                      {previewOk ? "✅" : "⬜"} Totales IC = proforma (pares) — alineación manual en Admin IC
                     </li>
                   </ul>
                 )}
                 {(previewRows || previewErrores.length > 0 || previewAvisos.length > 0) && (
                   <div className="mt-4 overflow-x-auto rounded-lg border border-violet-200 bg-white">
-                    <table className="w-full min-w-[640px] text-left text-xs">
+                    <table className="w-full min-w-[520px] text-left text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 text-slate-500">
                           <th className="py-2 pl-3 pr-2">SHOP</th>
-                          <th className="py-2 pr-2">IC</th>
+                          <th className="py-2 pr-2">Marca Excel</th>
                           <th className="py-2 pr-2">Cliente</th>
-                          <th className="py-2 pr-2 text-right">Pares proforma</th>
-                          <th className="py-2 pr-3 text-right">Pares IC</th>
-                          <th className="py-2 pr-3">Match</th>
+                          <th className="py-2 pr-3 text-right">Pares</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(previewRows ?? []).map((r) => (
-                          <tr key={`${r.shop}-${r.ic_nro}`} className="border-b border-slate-100">
+                          <tr key={`${r.shop}-${r.brand}`} className="border-b border-slate-100">
                             <td className="py-2 pl-3 pr-2 font-mono">{r.shop}</td>
-                            <td className="py-2 pr-2 font-mono">{r.ic_nro}</td>
-                            <td className="py-2 pr-2">{r.cliente_nombre}</td>
-                            <td className="py-2 pr-2 text-right tabular-nums">{r.pares_proforma.toLocaleString("es-PY")}</td>
-                            <td className="py-2 pr-3 text-right tabular-nums">{r.pares_ic.toLocaleString("es-PY")}</td>
-                            <td className="py-2 pr-3">{r.match ? "✅" : "❌"}</td>
+                            <td className="py-2 pr-2">{r.brand}</td>
+                            <td className="py-2 pr-2">{r.cliente_nombre || "—"}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums">{r.pares_proforma.toLocaleString("es-PY")}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -831,10 +815,13 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                         <tfoot>
                           <tr className="font-bold text-violet-900">
                             <td colSpan={3} className="py-2 pl-3">
-                              Total
+                              Total proforma
+                              {previewNIc != null ? ` · ${previewNIc} IC · ${previewParesIc?.toLocaleString("es-PY") ?? "?"} pares IC` : ""}
                             </td>
-                            <td className="py-2 pr-2 text-right tabular-nums">{previewPares.toLocaleString("es-PY")}</td>
-                            <td colSpan={2} />
+                            <td className="py-2 pr-3 text-right tabular-nums">
+                              {previewPares.toLocaleString("es-PY")}
+                              {previewParesIc != null && previewParesIc === previewPares ? " ✅" : previewParesIc != null ? " ❌" : ""}
+                            </td>
                           </tr>
                         </tfoot>
                       )}

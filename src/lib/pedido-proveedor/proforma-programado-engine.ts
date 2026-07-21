@@ -35,6 +35,8 @@ import {
   casoLineaFromMapa,
   loadCasosEventoNombres,
   resolveCasoMotorPrecios,
+  resolveMarcaProformaImport,
+  type LineaMarcaHit,
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
 import {
@@ -84,6 +86,11 @@ export type ProformaPreviewResult = {
   programado?: boolean;
   pp_id?: number;
   total_pares?: number;
+  /** Suma pares de todas las IC vinculadas al PP. */
+  total_pares_ic?: number;
+  n_ic?: number;
+  /** Única puerta preview programado: pares IC = pares proforma. */
+  totales_ok?: boolean;
   n_filas?: number;
   n_grupos_shop?: number;
   emparejamientos?: EmparejamientoShop[];
@@ -635,15 +642,20 @@ export async function previewImportProformaProgramadoTs(
     grupos.set(key, { brand, shop, pares: (prev?.pares ?? 0) + p });
   }
 
-  const icByClienteMarca = indexIcsPorClienteMarca(ics);
-  const emparejamientos: EmparejamientoShop[] = [];
-  const errores: string[] = [];
-  const avisosMatch: string[] = [];
-  const matchedIcKeys = new Set<string>();
-
   const sortedGrupos = [...grupos.values()].sort(
     (a, b) => Number.parseInt(a.shop, 10) - Number.parseInt(b.shop, 10) || a.brand.localeCompare(b.brand),
   );
+
+  const clienteByShop = new Map<number, string>();
+  for (const ic of ics) {
+    const cid = normalizeClienteId(ic.id_cliente);
+    if (cid != null && !clienteByShop.has(cid)) {
+      clienteByShop.set(cid, ic.descp_cliente ?? "");
+    }
+  }
+
+  const emparejamientos: EmparejamientoShop[] = [];
+  const errores: string[] = [];
 
   for (const grupo of sortedGrupos) {
     const shopI = Number.parseInt(grupo.shop, 10);
@@ -651,49 +663,24 @@ export async function previewImportProformaProgramadoTs(
       errores.push(`SHOP no numérico: ${grupo.brand} / ${grupo.shop}`);
       continue;
     }
-    const icKey = icClienteMarcaKey(shopI, grupo.brand);
-    const icHit = icByClienteMarca.get(icKey);
-    if (!icHit) {
-      avisosMatch.push(`SHOP ${grupo.shop} · ${grupo.brand}: sin IC id_cliente=${shopI} + marca ${grupo.brand}`);
-      emparejamientos.push({
-        brand: grupo.brand,
-        shop: grupo.shop,
-        pares_proforma: grupo.pares,
-        ic_id: 0,
-        ic_nro: "—",
-        id_cliente: shopI,
-        cliente_nombre: "",
-        pares_ic: 0,
-        match: false,
-      });
-      continue;
-    }
-    matchedIcKeys.add(icKey);
-    const icPares = icHit.paresIc;
-    const okMatch = icPares === grupo.pares;
-    if (!okMatch) {
-      avisosMatch.push(
-        `SHOP ${grupo.shop} · ${grupo.brand} · IC [${icHit.icNros.join(", ")}]: proforma ${grupo.pares} ≠ IC ${icPares} pares`,
-      );
-    }
     emparejamientos.push({
       brand: grupo.brand,
       shop: grupo.shop,
       pares_proforma: grupo.pares,
-      ic_id: icHit.icIds[0],
-      ic_nro: icHit.icNros.join(", "),
+      ic_id: 0,
+      ic_nro: "—",
       id_cliente: shopI,
-      cliente_nombre: icHit.clienteNombre,
-      pares_ic: icPares,
-      match: okMatch,
+      cliente_nombre: clienteByShop.get(shopI) ?? "",
+      pares_ic: 0,
+      match: true,
     });
   }
 
-  for (const [, icHit] of icByClienteMarca) {
-    const key = icClienteMarcaKey(icHit.id_cliente, icHit.brand);
-    if (matchedIcKeys.has(key)) continue;
-    avisosMatch.push(
-      `IC [${icHit.icNros.join(", ")}] · cliente ${icHit.id_cliente} · ${icHit.brand}: sin filas SHOP×BRAND en proforma`,
+  const totalParesIc = ics.reduce((s, ic) => s + Number(ic.cantidad_total_pares ?? 0), 0);
+  const totalesOk = totalParesIc === parsed.totalPares;
+  if (!totalesOk) {
+    errores.push(
+      `Total pares IC (${totalParesIc.toLocaleString("es-PY")}) ≠ proforma (${parsed.totalPares.toLocaleString("es-PY")})`,
     );
   }
 
@@ -761,12 +748,15 @@ export async function previewImportProformaProgramadoTs(
     programado: true,
     pp_id: ppId,
     total_pares: parsed.totalPares,
+    total_pares_ic: totalParesIc,
+    n_ic: ics.length,
+    totales_ok: totalesOk,
     n_filas: parsed.rows.length,
     n_grupos_shop: grupos.size,
     evento_id: eventoId,
     emparejamientos,
     errores,
-    avisos: [...avisosMatch, ...pilaresPreview.avisos, ...avisosPrecio],
+    avisos: [...pilaresPreview.avisos, ...avisosPrecio],
     precio_audit: precioAudit,
     precio_audit_muestra: precioAuditMuestra,
     listado_vinculado: listadoOk,
@@ -832,7 +822,42 @@ async function populatePpFromProforma(
     if (m.nom) marcaLookup.set(m.nom, m.id_marca);
   }
 
-  const pilaresStats = await provisionPilaresFromProforma(client, provId, detalleRows, marcaLookup);
+  const pool = getRimecPool();
+  const { casosEvento } = await loadPpCasoContext(pool, ppId);
+
+  const lineaMarcaRes = await client.query<{ codigo: string; id_marca: number; nombre: string }>(
+    `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
+     FROM linea l
+     JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+     WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
+    [provId],
+  );
+  const lineaMarcaByCod = new Map<string, LineaMarcaHit>();
+  for (const row of lineaMarcaRes.rows) {
+    const cod = String(row.codigo ?? "").trim();
+    if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
+  }
+
+  const pilaresStats = await provisionPilaresFromProforma(
+    client,
+    provId,
+    detalleRows,
+    marcaLookup,
+    casosEvento,
+  );
+
+  // Refrescar marcas de línea tras provisión (líneas nuevas / enriquecidas).
+  const lineaMarcaPost = await client.query<{ codigo: string; id_marca: number; nombre: string }>(
+    `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
+     FROM linea l
+     JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+     WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
+    [provId],
+  );
+  for (const row of lineaMarcaPost.rows) {
+    const cod = String(row.codigo ?? "").trim();
+    if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
+  }
 
   const matRes = await client.query<{ id: number; codigo: string; descripcion: string | null }>(
     "SELECT id, codigo_proveedor::text AS codigo, descripcion FROM material WHERE proveedor_id = $1::bigint",
@@ -858,15 +883,21 @@ async function populatePpFromProforma(
     const fobUnit = r.unit_fob;
     const fobAj = calcFobAjustadoPct(fobUnit, pp.descuento_1, pp.descuento_2, pp.descuento_3, pp.descuento_4);
     const grades = r.grades_json;
-    const brandKey = r.brand.trim().toUpperCase();
-    const idMarca = marcaLookup.get(brandKey) ?? null;
+    const lineaCod = r.linea_codigo_proveedor || "";
+    const { id_marca: idMarca, brandParaJson } = resolveMarcaProformaImport({
+      brandExcel: r.brand,
+      lineaCod,
+      marcaLookup,
+      casosEvento,
+      lineaMarcaByCod,
+    });
     const matCode = String(r.material_code || "").trim();
     const colCode = String(r.color_code || "").trim();
     const matHit = matLookup.get(matCode);
     const colHit = colLookup.get(colCode);
     const { linea_id, referencia_id } = resolvePpdPilarIds(
       pilarFkLookups,
-      r.linea_codigo_proveedor || "",
+      lineaCod,
       r.referencia_codigo_proveedor || "",
     );
 
@@ -876,7 +907,7 @@ async function populatePpFromProforma(
       idMarca,
       r.ncm || "",
       r.style_code || "",
-      r.linea_codigo_proveedor || "",
+      lineaCod,
       r.referencia_codigo_proveedor || "",
       r.name || "",
       matHit?.id ?? null,
@@ -902,7 +933,8 @@ async function populatePpFromProforma(
       JSON.stringify({
         ...grades,
         _shop: r.shop.trim(),
-        _brand: r.brand.trim(),
+        _brand: brandParaJson,
+        _brand_excel: r.brand.trim(),
         _item: String(r.item ?? ""),
       }),
       Number.parseInt(r.item, 10) || 0,
@@ -940,11 +972,12 @@ async function populatePpFromProforma(
 
   await client.query(
     `UPDATE pedido_proveedor_detalle ppd
-     SET id_marca = COALESCE(l.marca_id, ppd.id_marca)
+     SET id_marca = l.marca_id
      FROM linea l
      WHERE ppd.pedido_proveedor_id = $1
        AND ppd.linea_id = l.id
-       AND l.marca_id IS NOT NULL`,
+       AND l.marca_id IS NOT NULL
+       AND (ppd.id_marca IS DISTINCT FROM l.marca_id)`,
     [ppId],
   );
 
