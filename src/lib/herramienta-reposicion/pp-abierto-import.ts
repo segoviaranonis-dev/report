@@ -10,14 +10,36 @@ export type PpAbiertoImportResult = {
   totalPares: number;
 };
 
+/** Busca cabecera tipo «FACTURA PROFORMA: 0004/2026» + FECHA (no la fila ITEM/STYLE). */
 function extraerFacturaMeta(raw: unknown[][]): { nro: string; fecha: string | null } {
-  const r0 = raw[0] ?? [];
-  const cell = String(r0[0] ?? "").trim();
-  const m = cell.match(/(\d{4}\/\d{4}|\d+\/\d+)/);
-  const nro = m?.[1] ?? (cell || "S/N");
-  const fechaCell = String(r0[5] ?? r0[4] ?? "").trim();
-  const fm = fechaCell.match(/(\d{2}\/\d{2}\/\d{4})/);
-  return { nro, fecha: fm?.[1] ?? null };
+  let nro: string | null = null;
+  let fecha: string | null = null;
+  const max = Math.min(raw.length, 40);
+  for (let i = 0; i < max; i++) {
+    const row = raw[i] ?? [];
+    for (let c = 0; c < Math.min(row.length, 12); c++) {
+      const cell = String(row[c] ?? "").trim();
+      if (!cell) continue;
+      const upper = cell.toUpperCase();
+      if (!nro && (upper.includes("FACTURA") || upper.includes("PROFORMA") || upper.includes("FATURA"))) {
+        const m = cell.match(/(\d{3,5}\s*\/\s*\d{4}|\d+\s*\/\s*\d+)/);
+        if (m) nro = m[1].replace(/\s+/g, "");
+      }
+      if (!fecha) {
+        const fm = cell.match(/(\d{2}\/\d{2}\/\d{4})/);
+        if (fm && (upper.includes("FECHA") || c >= 4)) fecha = fm[1];
+      }
+    }
+    if (nro && fecha) break;
+  }
+  if (!nro) {
+    const r0 = raw[0] ?? [];
+    const cell = String(r0[0] ?? "").trim();
+    const m = cell.match(/(\d{3,5}\s*\/\s*\d{4}|\d+\s*\/\s*\d+)/);
+    if (m) nro = m[1].replace(/\s+/g, "");
+    else if (cell && !/^ITEM$/i.test(cell) && !/^STYLE$/i.test(cell)) nro = cell;
+  }
+  return { nro: nro || "S/N", fecha };
 }
 
 function parseFechaIso(dmy: string | null): string | null {
@@ -42,11 +64,26 @@ export async function importPpAbiertoDesdeBuffer(
   try {
     const XLSX = await import("xlsx");
     const wb = XLSX.read(buffer, { type: "buffer", cellDates: false, raw: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true }) as unknown[][];
-    const meta = extraerFacturaMeta(raw);
-    metaNro = meta.nro;
-    metaFecha = parseFechaIso(meta.fecha);
+    // Prioridad: hoja con «FACTURA/FATURA PROFORMA»; si no, recorrer todas (hoja 0 a veces es solo ITEM).
+    const preferidas = wb.SheetNames.filter((n) =>
+      /fatura|factura|proforma/i.test(n),
+    );
+    const orden = [...preferidas, ...wb.SheetNames.filter((n) => !preferidas.includes(n))];
+    for (const name of orden) {
+      const ws = wb.Sheets[name];
+      if (!ws) continue;
+      const raw = XLSX.utils.sheet_to_json(ws, {
+        header: 1,
+        defval: null,
+        raw: true,
+      }) as unknown[][];
+      const meta = extraerFacturaMeta(raw);
+      if (meta.nro && meta.nro !== "S/N" && !/^ITEM$/i.test(meta.nro)) {
+        metaNro = meta.nro;
+        metaFecha = parseFechaIso(meta.fecha);
+        break;
+      }
+    }
   } catch {
     /* meta opcional */
   }
