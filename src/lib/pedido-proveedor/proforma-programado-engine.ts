@@ -26,7 +26,7 @@ import {
   backfillPpdShopFromSnapshot,
 } from "./proforma-snapshot";
 import { loadMapaCasoPorLineaEvento } from "@/lib/motor-precios/caso-linea-evento";
-import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
+import { loadPpCasoContext, type PpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
 import {
   casoDominanteDeNombres,
   resolveCasoDominanteParaFi,
@@ -785,6 +785,7 @@ async function populatePpFromProforma(
   pp: PpRow,
   proforma: string,
   detalleRows: ProformaRow[],
+  casosEvento: Set<string>,
 ): Promise<{ ok: boolean; message: string; pilaresStats: ProformaPilaresStats }> {
   const ppId = pp.id;
   const totalPares = detalleRows.reduce((s, r) => s + r.pairs, 0);
@@ -821,9 +822,6 @@ async function populatePpFromProforma(
   for (const m of marcaRes.rows) {
     if (m.nom) marcaLookup.set(m.nom, m.id_marca);
   }
-
-  const pool = getRimecPool();
-  const { casosEvento } = await loadPpCasoContext(pool, ppId);
 
   const lineaMarcaRes = await client.query<{ codigo: string; id_marca: number; nombre: string }>(
     `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
@@ -911,7 +909,7 @@ async function populatePpFromProforma(
       r.referencia_codigo_proveedor || "",
       r.name || "",
       matHit?.id ?? null,
-      matHit?.desc ?? (r.material || ""),
+      String(r.material_label ?? "").trim() || matHit?.desc || (r.material || ""),
       matCode,
       colHit?.id ?? null,
       colHit?.nombre ?? (r.color || ""),
@@ -1000,9 +998,13 @@ type SkuFi = SkuPrecioTiers & {
   caso: string | null;
 };
 
-async function getSkusConPrecioParaFi(client: PoolClient, ppId: number, eventoId: number): Promise<Map<number, SkuFi>> {
-  const pool = getRimecPool();
-  const { mapaCasoLinea, casosEvento } = await loadPpCasoContext(pool, ppId);
+async function getSkusConPrecioParaFi(
+  client: PoolClient,
+  ppId: number,
+  eventoId: number,
+  casoCtx: PpCasoContext,
+): Promise<Map<number, SkuFi>> {
+  const { mapaCasoLinea, casosEvento } = casoCtx;
 
   const { rows } = await client.query<
     SkuFi & {
@@ -1422,6 +1424,8 @@ export async function importProformaProgramadoPhased(
   const proforma = (opts.proforma || pp.numero_proforma || "").trim();
   if (!proforma) return { ok: false, error: "Nro proforma obligatorio.", programado: true, phase };
 
+  const casoCtx = await loadPpCasoContext(pool, ppId);
+
   let detalle: ProformaRow[];
   if (phase === "fi" && ppdExists) {
     const loaded = await loadProformaDetalleParaFi(pool, ppId);
@@ -1442,62 +1446,64 @@ export async function importProformaProgramadoPhased(
   let pilaresImportReport: ProformaPilaresImportReport | undefined;
 
   if (phase === "ppd" || phase === "all") {
+    let pop: Awaited<ReturnType<typeof populatePpFromProforma>> | null = null;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const pop = await populatePpFromProforma(client, pp, proforma, detalle);
+      pop = await populatePpFromProforma(client, pp, proforma, detalle, casoCtx.casosEvento);
       if (!pop.ok) {
         await client.query("ROLLBACK");
         return { ok: false, error: pop.message, programado: true, phase: "ppd" };
       }
       await client.query("COMMIT");
-      const provId = pp.proveedor_importacion_id ?? 654;
-      const postAvisos: string[] = [];
-      try {
-        importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
-        postAvisos.push(...importPrecioAudit.avisos);
-      } catch (e) {
-        postAvisos.push(
-          `Auditoría precio_lista falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
-        );
-      }
-      try {
-        pilaresImportReport = await buildProformaPilaresImportReport(pool, {
-          rows: detalle,
-          proveedorId: provId,
-          eventoId,
-          stats: pop.pilaresStats,
-        });
-        postAvisos.push(...pilaresImportReport.avisos);
-      } catch (e) {
-        postAvisos.push(
-          `Reporte pilares falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
-        );
-      }
-      if (phase === "ppd") {
-        return {
-          ok: true,
-          programado: true,
-          phase: "ppd",
-          done: false,
-          pp_id: ppId,
-          pares: parsed.totalPares,
-          n_articulos: detalle.length,
-          message: pop.message,
-          fi_total: (await loadIcsPpProgramado(pool, ppId)).length,
-          fi_offset: 0,
-          fi_offset_next: 0,
-          fi_batch: fiBatchSize,
-          import_avisos: postAvisos,
-          precio_audit: importPrecioAudit?.resumen,
-          pilares_import: pilaresImportReport,
-        };
-      }
     } catch (e) {
-      await client.query("ROLLBACK");
+      await client.query("ROLLBACK").catch(() => undefined);
       return { ok: false, error: e instanceof Error ? e.message : "Error PPD", programado: true, phase: "ppd" };
     } finally {
       client.release();
+    }
+
+    const provId = pp.proveedor_importacion_id ?? 654;
+    const postAvisos: string[] = [];
+    try {
+      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
+      postAvisos.push(...importPrecioAudit.avisos);
+    } catch (e) {
+      postAvisos.push(
+        `Auditoría precio_lista falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
+      );
+    }
+    try {
+      pilaresImportReport = await buildProformaPilaresImportReport(pool, {
+        rows: detalle,
+        proveedorId: provId,
+        eventoId,
+        stats: pop!.pilaresStats,
+      });
+      postAvisos.push(...pilaresImportReport.avisos);
+    } catch (e) {
+      postAvisos.push(
+        `Reporte pilares falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
+      );
+    }
+    if (phase === "ppd") {
+      return {
+        ok: true,
+        programado: true,
+        phase: "ppd",
+        done: false,
+        pp_id: ppId,
+        pares: parsed.totalPares,
+        n_articulos: detalle.length,
+        message: pop!.message,
+        fi_total: (await loadIcsPpProgramado(pool, ppId)).length,
+        fi_offset: 0,
+        fi_offset_next: 0,
+        fi_batch: fiBatchSize,
+        import_avisos: postAvisos,
+        precio_audit: importPrecioAudit?.resumen,
+        pilares_import: pilaresImportReport,
+      };
     }
   }
 
@@ -1519,7 +1525,7 @@ export async function importProformaProgramadoPhased(
 
   const client = await pool.connect();
   try {
-    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId);
+    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId, casoCtx);
     if (!skuByPpd.size) {
       return { ok: false, error: "Sin SKUs PPD tras import (listado/pilares).", programado: true, phase: "fi" };
     }
@@ -1735,6 +1741,7 @@ export async function completarFiProgramadoPhased(
     };
   }
   const eventoId = eventoIds[0];
+  const casoCtx = await loadPpCasoContext(pool, ppId);
 
   const ppdCount = await pool.query<{ c: number }>(
     "SELECT COUNT(*)::int AS c FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1",
@@ -1753,7 +1760,7 @@ export async function completarFiProgramadoPhased(
 
   const client = await pool.connect();
   try {
-    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId);
+    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoId, casoCtx);
     if (!skuByPpd.size) {
       return { ok: false, error: "Sin SKUs PPD tras import (listado/pilares).", programado: true, phase: "fi" };
     }
@@ -1904,25 +1911,27 @@ export async function previewProformaSimpleTs(fileBuffer: Buffer): Promise<Profo
   };
 }
 
-export async function importProformaCompraPreviaTs(
+/** Import CP desde filas ya parseadas (p. ej. Excel primavera 638). */
+export async function importProformaCompraPreviaFromRows(
   ppId: number,
-  fileBuffer: Buffer,
-  proformaOverride?: string,
+  proforma: string,
+  rows: ProformaRow[],
 ): Promise<ProformaImportResult> {
-  const parsed = parseProforma(fileBuffer);
-  if (parsed.error) return { ok: false, error: parsed.error, programado: false };
+  if (!rows.length) return { ok: false, error: "Sin filas para importar.", programado: false };
 
   const pool = getRimecPool();
   const pp = await loadPp(pool, ppId);
   if (!pp) return { ok: false, error: `PP ${ppId} no encontrado.` };
 
-  const proforma = (proformaOverride || pp.numero_proforma || "").trim();
-  if (!proforma) return { ok: false, error: "Nro proforma obligatorio." };
+  const proformaNro = proforma.trim();
+  if (!proformaNro) return { ok: false, error: "Nro proforma obligatorio." };
+
+  const casoCtx = await loadPpCasoContext(pool, ppId);
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const pop = await populatePpFromProforma(client, pp, proforma, parsed.rows);
+    const pop = await populatePpFromProforma(client, pp, proformaNro, rows, casoCtx.casosEvento);
     if (!pop.ok) {
       await client.query("ROLLBACK");
       return { ok: false, error: pop.message };
@@ -1939,22 +1948,23 @@ export async function importProformaCompraPreviaTs(
     );
     const eventoId = eventoRes.rows[0]?.evento_id ?? null;
     const pilaresImport = await buildProformaPilaresImportReport(pool, {
-      rows: parsed.rows,
+      rows,
       proveedorId: provId,
       eventoId,
       stats: pop.pilaresStats,
     });
     let importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null = null;
     if (eventoId != null) {
-      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, parsed.rows);
+      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, rows);
     }
 
+    const totalPares = rows.reduce((s, r) => s + r.pairs, 0);
     return {
       ok: true,
       programado: false,
       pp_id: ppId,
-      pares: parsed.totalPares,
-      n_articulos: parsed.rows.length,
+      pares: totalPares,
+      n_articulos: rows.length,
       message: pop.message,
       ...payloadImportAvisos(pilaresImport, importPrecioAudit),
     };
@@ -1964,6 +1974,24 @@ export async function importProformaCompraPreviaTs(
   } finally {
     client.release();
   }
+}
+
+export async function importProformaCompraPreviaTs(
+  ppId: number,
+  fileBuffer: Buffer,
+  proformaOverride?: string,
+): Promise<ProformaImportResult> {
+  const parsed = parseProforma(fileBuffer);
+  if (parsed.error) return { ok: false, error: parsed.error, programado: false };
+
+  const pool = getRimecPool();
+  const pp = await loadPp(pool, ppId);
+  if (!pp) return { ok: false, error: `PP ${ppId} no encontrado.` };
+
+  const proforma = (proformaOverride || pp.numero_proforma || "").trim();
+  if (!proforma) return { ok: false, error: "Nro proforma obligatorio." };
+
+  return importProformaCompraPreviaFromRows(ppId, proforma, parsed.rows);
 }
 
 /** Borra TODAS las FI del PP dentro de una transacción abierta (cambio biblioteca). */
@@ -2181,9 +2209,10 @@ export async function diagnoseProgramadoFiPlan(ppId: number): Promise<{
   if (eventoIds.length !== 1) {
     return { n_ic: ics.length, n_jobs: 0, ic_sin_fi: [], avisos: [], errores: ["Evento listado no único"] };
   }
+  const casoCtx = await loadPpCasoContext(pool, ppId);
   const client = await pool.connect();
   try {
-    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoIds[0]);
+    const skuByPpd = await getSkusConPrecioParaFi(client, ppId, eventoIds[0], casoCtx);
     const ppdByMol = await loadPpdByMol(client, ppId);
     const ppdMarcaById = await loadPpdMarcaById(client, ppId);
     const { jobs, errores, avisos } = buildProgramadoFiJobs(

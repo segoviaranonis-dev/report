@@ -117,6 +117,7 @@ export async function publicarLogisticaPp(
   }
 
   const client = await pool.connect();
+  let synced = 0;
   try {
     await client.query("BEGIN");
 
@@ -152,10 +153,9 @@ export async function publicarLogisticaPp(
     }
 
     await client.query("COMMIT");
-    const stats = await getLogisticaPpStats(pool, ppId);
-    return { ok: true, synced: sync.synced, n_fi: stats.n_fi, cajas: stats.cajas };
+    synced = sync.synced;
   } catch (e) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => undefined);
     const msg = e instanceof Error ? e.message : "Error al activar logística";
     if (/logistica_pendiente_confirmacion|cajas/.test(msg)) {
       return { ok: false, error: "Tabla logística incompleta — aplicar MIG-167 y MIG-168." };
@@ -164,6 +164,9 @@ export async function publicarLogisticaPp(
   } finally {
     client.release();
   }
+
+  const stats = await getLogisticaPpStats(pool, ppId);
+  return { ok: true, synced, n_fi: stats.n_fi, cajas: stats.cajas };
 }
 
 /** Alias histórico */
