@@ -760,7 +760,11 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                     msg.includes("guardad") ||
                     msg.includes("devuelta") ||
                     msg.includes("actualizado") ||
-                    msg.includes("aplicada")
+                    msg.includes("aplicada") ||
+                    msg.includes("importada") ||
+                    msg.includes("Proforma") ||
+                    msg.includes("Totales OK") ||
+                    msg.startsWith("✓")
                       ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                       : "border-red-200 bg-red-50 text-red-800"
                   }`}

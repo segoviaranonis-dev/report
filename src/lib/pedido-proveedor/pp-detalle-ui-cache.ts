@@ -38,6 +38,10 @@ export function writePpDetalleCache(ppId: string, snap: PpDetalleUiSnapshot): vo
   detailByPpId.set(ppId, snap);
 }
 
+export function clearPpDetalleCache(ppId: string): void {
+  detailByPpId.delete(ppId);
+}
+
 export function readAdminIcCache(ppId: string): AdminIcUiSnapshot | null {
   return adminIcByPpId.get(ppId) ?? null;
 }

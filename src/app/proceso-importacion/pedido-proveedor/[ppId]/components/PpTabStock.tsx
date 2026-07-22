@@ -23,6 +23,7 @@ import {
   ejecutarRatificarFiProgramado,
   resumenRatificarFi,
 } from "@/lib/pedido-proveedor/ratificar-fi-programado-client";
+import { clearPpDetalleCache } from "@/lib/pedido-proveedor/pp-detalle-ui-cache";
 
 /** Debe coincidir con PROFORMA_FI_BATCH_SIZE del engine (evitar import server-side en cliente). */
 const PROFORMA_FI_BATCH_SIZE = 12;
@@ -79,6 +80,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [proformaFile, setProformaFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<EmparejamientoShop[] | null>(null);
   const [previewOk, setPreviewOk] = useState(false);
+  const [previewListadoOk, setPreviewListadoOk] = useState(false);
   const [previewErrores, setPreviewErrores] = useState<string[]>([]);
   const [previewAvisos, setPreviewAvisos] = useState<string[]>([]);
   const [precioAudit, setPrecioAudit] = useState<ProformaPrecioAuditResumen | null>(null);
@@ -242,6 +244,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     onMsg(null);
     setPreviewRows(null);
     setPreviewOk(false);
+    setPreviewListadoOk(false);
     setPreviewErrores([]);
     setPreviewAvisos([]);
     setPrecioAudit(null);
@@ -262,8 +265,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
 
       const emparejamientos = (data.emparejamientos ?? []) as EmparejamientoShop[];
       const totalesOk = Boolean(data.totales_ok);
+      const listadoOk = Boolean(data.listado_vinculado);
       setPreviewRows(emparejamientos);
-      setPreviewOk(Boolean(data.ok) && totalesOk);
+      setPreviewListadoOk(listadoOk);
+      setPreviewOk(Boolean(data.ok) && totalesOk && listadoOk);
       setPreviewErrores(data.errores ?? []);
       setPreviewAvisos(data.avisos ?? []);
       setPrecioAudit(data.precio_audit ?? null);
@@ -299,14 +304,34 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     }
   }
 
+  function appendCabeceraFormData(fd: FormData) {
+    fd.append("numero_proforma", draft.numero_proforma.trim());
+    fd.append("nro_pedido_externo", draft.nro_pedido_externo.trim());
+    fd.append("quincena_arribo_id", String(draft.quincena_arribo_id));
+    fd.append("descuento_1", String(draft.descuento_1));
+    fd.append("descuento_2", String(draft.descuento_2));
+    fd.append("descuento_3", String(draft.descuento_3));
+    fd.append("descuento_4", String(draft.descuento_4));
+  }
+
   async function postProformaImport(fd: FormData) {
     const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/proforma`, {
       method: "POST",
       credentials: "same-origin",
       body: fd,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error al importar");
+    const raw = await res.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    } catch {
+      throw new Error(
+        res.ok
+          ? "Respuesta inválida del servidor"
+          : `Error ${res.status}${raw ? `: ${raw.slice(0, 200)}` : " — timeout o caída Vercel"}`,
+      );
+    }
+    if (!res.ok) throw new Error(String(data.error ?? `Error ${res.status} al importar`));
     return data;
   }
 
@@ -397,14 +422,14 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       const baseFd = (opts?: { borrarPrevio?: boolean }) => {
         const fd = new FormData();
         fd.append("file", proformaFile);
-        fd.append("numero_proforma", draft.numero_proforma.trim());
+        appendCabeceraFormData(fd);
         if (!sinStock && opts?.borrarPrevio) fd.append("borrar_previo", "1");
         return fd;
       };
 
       let data: Record<string, unknown>;
       if (esProgramado) {
-        setImportProgress("Importando stock PPD (línea por línea)…");
+        setImportProgress("Importando stock PPD (línea por línea)… puede tardar 1–3 min. No cierres la pestaña.");
         const fdPpd = baseFd({ borrarPrevio: true });
         fdPpd.append("phase", "ppd");
         data = await postProformaImport(fdPpd);
@@ -412,7 +437,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         data = await postProformaImport(baseFd({ borrarPrevio: true }));
       }
 
-      let msg = `Proforma importada · ${Number(data.pares ?? 0).toLocaleString("es-PY")} pares · ${data.n_articulos ?? "?"} moléculas.`;
+      let msg = `✓ Proforma importada · ${Number(data.pares ?? 0).toLocaleString("es-PY")} pares · ${data.n_articulos ?? "?"} moléculas.`;
       const pilaresReport = data.pilares_import as ProformaPilaresImportReport | undefined;
       if (pilaresReport) setPilaresImport(pilaresReport);
       const importAvisos = data.import_avisos as string[] | undefined;
@@ -423,15 +448,17 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           : ` ⚠ ${importAvisos.length} aviso(s) pilares/precio.`;
       }
       if (esProgramado) {
-        msg += " Alineá IC↔PF en tab Administrador IC.";
+        msg += " Siguiente paso: tab Administrador IC → alinear IC↔PF.";
       }
       onMsg(msg);
+      clearPpDetalleCache(ppId);
+      await onReload();
       setProformaFile(null);
       setPreviewRows(null);
       setPreviewOk(false);
+      setPreviewListadoOk(false);
       setPreviewAvisos([]);
       setPrecioAudit(null);
-      await onReload();
     } catch (e) {
       onMsg(e instanceof Error ? e.message : "Error");
     } finally {
@@ -579,12 +606,12 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         detail={
           importProgress ||
           (esProgramado
-            ? `${pp.numero_registro} · ${(previewPares ?? pp.pares_comprometidos).toLocaleString("es-PY")} pares · pilares · FI por IC`
+            ? `${pp.numero_registro} · PPD + pilares (sin FI automática)`
             : `${pp.numero_registro} · cargando PPD`)
         }
         hint={
           esProgramado
-            ? "Varias llamadas cortas (PPD + lotes FI). No cierres la pestaña."
+            ? "1–3 min en prod. Cabecera se guarda sola. Luego tab Administrador IC."
             : "Puede tardar 1–2 minutos. No cierres la pestaña."
         }
       />
@@ -743,6 +770,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                 setProformaFile(e.target.files?.[0] ?? null);
                 setPreviewRows(null);
                 setPreviewOk(false);
+    setPreviewListadoOk(false);
                 setPreviewErrores([]);
               }}
             />
@@ -785,6 +813,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     <li>{proformaFile ? "✅" : "⬜"} Archivo Excel seleccionado</li>
                     <li>{draft.numero_proforma.trim() ? "✅" : "⬜"} Nro proforma en cabecera</li>
                     <li>{draft.quincena_arribo_id > 0 ? "✅" : "⬜"} Fecha de embarque (quincena)</li>
+                    <li>{previewListadoOk ? "✅" : "⬜"} Listado RIMEC vinculado (precio_lista)</li>
                     <li>
                       {previewOk ? "✅" : "⬜"} Totales IC = proforma (pares) — alineación manual en Admin IC
                     </li>
