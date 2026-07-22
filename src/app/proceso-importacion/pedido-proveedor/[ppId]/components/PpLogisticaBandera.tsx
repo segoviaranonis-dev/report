@@ -24,22 +24,46 @@ export function PpLogisticaBandera({ ppId, pp, onActivated }: Props) {
     setErr(null);
     setMsg(null);
     try {
-      const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/activar-logistica`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fecha_entrega_real: fecha }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error");
-      const nFi = data.n_fi ?? data.synced ?? 0;
-      const cajas = data.cajas ?? 0;
-      setMsg(`Publicado: ${nFi} facturas · ${Number(cajas).toLocaleString("es-PY")} cajas (desde FI).`);
-      onActivated();
+      let lastErr: Error | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) {
+          setMsg(`Reintentando conexión BD (${attempt + 1}/4)…`);
+          await new Promise((r) => setTimeout(r, 4000 * attempt));
+        }
+        const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${ppId}/activar-logistica`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fecha_entrega_real: fecha }),
+        });
+        const raw = await res.text();
+        let data: { error?: string; n_fi?: number; synced?: number; cajas?: number; code?: string } = {};
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error(raw.slice(0, 180) || `Error ${res.status}`);
+        }
+        const retryable =
+          res.status === 503 ||
+          data.code === "EMAXCONN" ||
+          /timeout exceeded|too many clients|saturad/i.test(String(data.error ?? ""));
+        if (!res.ok && retryable && attempt < 3) {
+          lastErr = new Error(data.error || `Error ${res.status}`);
+          continue;
+        }
+        if (!res.ok) throw new Error(data.error || "Error");
+        const nFi = data.n_fi ?? data.synced ?? 0;
+        const cajas = data.cajas ?? 0;
+        setMsg(`Publicado: ${nFi} facturas · ${Number(cajas).toLocaleString("es-PY")} cajas (desde FI).`);
+        onActivated();
+        return;
+      }
+      throw lastErr ?? new Error("No se pudo conectar a la base de datos");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Error");
     } finally {
       setBusy(false);
+      setMsg(null);
     }
   }
 

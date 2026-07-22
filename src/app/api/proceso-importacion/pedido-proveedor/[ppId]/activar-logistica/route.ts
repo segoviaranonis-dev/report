@@ -3,6 +3,7 @@ import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { activarLogisticaPp } from "@/lib/logistica-ok/sync-pp";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isPoolSaturatedError, poolSaturatedResponse } from "@/lib/rimec/pool-saturated";
 
 type Params = { params: Promise<{ ppId: string }> };
 
@@ -36,6 +37,16 @@ export async function POST(req: Request, { params }: Params) {
       cajas: result.cajas,
     });
   } catch (e) {
+    if (isPoolSaturatedError(e)) {
+      return NextResponse.json(poolSaturatedResponse(e instanceof Error ? e.message : undefined), {
+        status: 503,
+        headers: { "Retry-After": "15" },
+      });
+    }
+    const msg = e instanceof Error ? e.message : "Error al activar logística";
+    if (/timeout exceeded when trying to connect/i.test(msg)) {
+      return NextResponse.json(poolSaturatedResponse(msg), { status: 503, headers: { "Retry-After": "15" } });
+    }
     return icApiErrorResponse(e, "Error al activar logística");
   }
 }
