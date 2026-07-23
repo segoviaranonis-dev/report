@@ -107,7 +107,8 @@ async function readPdfResponse(res: Response): Promise<{ blob: Blob; missingAler
   if (contentType.includes("application/json")) {
     try {
       const json = JSON.parse(bodyText) as { error?: string; message?: string };
-      throw new Error(json.error ?? json.message ?? "Error al generar PDF");
+      const msg = json.message ?? json.error ?? "Error al generar PDF";
+      throw new Error(msg);
     } catch (e) {
       if (e instanceof SyntaxError) {
         // respuesta mal formada
@@ -123,6 +124,20 @@ async function readPdfResponse(res: Response): Promise<{ blob: Blob; missingAler
   throw new Error(`PDF no disponible (${res.status}): ${snippet || "respuesta inválida"}`);
 }
 
+function buildPdfRequestBody(
+  data: VentasFotosResponse,
+  filters: VentasFotosFilters,
+): Record<string, unknown> | null {
+  if (!data.cliente || !data.marca || !data.rows?.length) return null;
+  return {
+    cliente: data.cliente,
+    marca: data.marca,
+    filtros: { fechaInicio: filters.fechaInicio, fechaFin: filters.fechaFin },
+    kpis: data.kpis,
+    pillarStats: data.pillarStats,
+    rows: data.rows,
+  };
+}
 
 function demoPillarStats(rows: VentaFotoRow[]): VentasFotosPillarStats {
   const totalPares = rows.reduce((s, r) => s + Math.abs(r.cantidad), 0);
@@ -268,9 +283,8 @@ export function VentasFotosClient() {
       }
       setData(json);
       if (json.error) setError(json.error);
-      if (json.rows && json.rows.length > 0) {
-        generarPDFBackground();
-      }
+      const pdfBody = buildPdfRequestBody(json, filters);
+      if (pdfBody) generarPDFBackground(pdfBody);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar ventas con fotos");
       setData(null);
@@ -279,16 +293,23 @@ export function VentasFotosClient() {
     }
   }
 
-  async function generarPDFBackground() {
+  async function generarPDFBackground(pdfBody?: Record<string, unknown> | null) {
     const currentRequestId = ++pdfRequestIdRef.current;
     setPdfState("generating");
     setPdfError(null);
     setPdfWarning(null);
+    const body =
+      pdfBody ?? (data ? buildPdfRequestBody(data, filters) : null);
+    if (!body) {
+      setPdfState("error");
+      setPdfError("No hay datos para generar PDF");
+      return;
+    }
     try {
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "filters", filters }),
+        body: JSON.stringify(body),
       });
       if (currentRequestId !== pdfRequestIdRef.current) return;
       const { blob, missingAlert } = await readPdfResponse(res);
@@ -322,10 +343,16 @@ export function VentasFotosClient() {
     setPdfError(null);
     setPdfWarning(null);
     try {
+      const pdfBody = data ? buildPdfRequestBody(data, filters) : null;
+      if (!pdfBody) {
+        setPdfError("No hay datos para generar PDF");
+        setPdfState("error");
+        return;
+      }
       const res = await fetch("/api/ventas-fotos/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "filters", filters }),
+        body: JSON.stringify(pdfBody),
       });
       const { blob, missingAlert } = await readPdfResponse(res);
       const url = window.URL.createObjectURL(blob);

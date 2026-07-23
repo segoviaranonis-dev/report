@@ -646,7 +646,16 @@ async function preloadVentasFotosImages(
       } else if (outcome.status === 'not_found') {
         missingInStorage.push(imagenKey)
       } else {
-        networkFails.push(`${imagenKey} (${outcome.detail})`)
+        const isVercelServerless =
+          typeof window === 'undefined' && Boolean(process.env.VERCEL)
+        if (isVercelServerless) {
+          missingInStorage.push(imagenKey)
+          console.warn(
+            `[PDF Ventas-Fotos] Red/timeout serverless — placeholder: ${imagenKey} (${outcome.detail})`,
+          )
+        } else {
+          networkFails.push(`${imagenKey} (${outcome.detail})`)
+        }
       }
     }
   }

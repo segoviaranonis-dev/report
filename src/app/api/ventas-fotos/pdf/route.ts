@@ -98,8 +98,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: resolved.error }, { status: resolved.status })
     }
     const body = resolved
-
-    // 3. Validaciones
     console.log('[API Ventas-Fotos PDF] Request recibido')
     console.log('[API Ventas-Fotos PDF] Filas recibidas:', body.rows?.length || 0)
     console.log('[API Ventas-Fotos PDF] Cliente:', body.cliente?.nombre)
@@ -164,7 +162,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Responder con PDF
-    const nombreArchivo = `ventas-fotos-${body.cliente.id}-${body.marca.descp_marca.replace(/\s+/g, '_')}-${body.filtros.fechaInicio}-${body.filtros.fechaFin}.pdf`
+    const nombreArchivo = `ventas-fotos-${body.cliente.id}-${(body.marca.descp_marca ?? 'marca').replace(/[^\w.-]+/g, '_')}-${body.filtros.fechaInicio}-${body.filtros.fechaFin}.pdf`
     const missingPreview = pdfResult.missingInStorage.slice(0, 8).join(', ')
     const headers: Record<string, string> = {
       'Content-Type': 'application/pdf',
@@ -189,7 +187,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        error: 'Error interno al generar el PDF',
+        error: error instanceof Error ? error.message : String(error),
         message: error instanceof Error ? error.message : String(error),
         details: error instanceof Error ? error.stack : undefined
       },

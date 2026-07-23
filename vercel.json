@@ -20,6 +20,9 @@
     },
     "src/app/api/motor-precios/eventos/**/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/ventas-fotos/pdf/route.ts": {
+      "maxDuration": 120
     }
   }
 }
