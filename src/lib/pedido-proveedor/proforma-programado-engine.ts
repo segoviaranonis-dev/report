@@ -162,11 +162,11 @@ type PpRow = {
   proveedor_importacion_id: number | null;
 };
 
-export type ProformaImportPhase = "ppd" | "fi" | "all";
+export type ProformaImportPhase = "ppd_plan" | "ppd" | "fi" | "all";
 
 export const PROFORMA_FI_BATCH_SIZE = 12;
-/** SKUs por request en confirmar import (proformas 8k+ pares · oficina RIMEC). */
-export const PROFORMA_PPD_BATCH_SIZE = 300;
+/** SKUs por request — lotes chicos evitan 504 (pilares solo del slice). */
+export const PROFORMA_PPD_BATCH_SIZE = 120;
 
 export type ProformaImportPhaseResult = ProformaImportResult & {
   phase?: ProformaImportPhase;
@@ -180,6 +180,10 @@ export type ProformaImportPhaseResult = ProformaImportResult & {
   ppd_total?: number;
   ppd_batch?: number;
   n_ppd?: number;
+  /** Fase ppd_plan — lotes calculados para cola UI. */
+  n_lotes?: number;
+  n_ic?: number;
+  n_pares?: number;
   fi_avisos?: string[];
   /** Avisos cruce proforma ↔ precio_lista al cargar PPD. */
   import_avisos?: string[];
@@ -273,7 +277,7 @@ async function loadMatColLookups(
   return { matLookup, colLookup };
 }
 
-/** Provisión pilares + lookups — **fuera** de la transacción PPD (commit incremental). */
+/** Provisión pilares del **slice** + lookups — fuera de TX (cada lote provisiona solo sus SKUs). */
 async function preparePpdImportLookups(
   db: PgQueryable,
   pp: PpRow,
@@ -307,32 +311,6 @@ async function preparePpdImportLookups(
   const pilarFkLookups = await loadPpdPilarFkLookups(db as unknown as PoolClient, provId);
 
   return { pilaresStats, marcaLookup, lineaMarcaByCod, matLookup, colLookup, pilarFkLookups };
-}
-
-/** Lookups post-lote 1 — pilares ya provisionados en offset 0. */
-async function loadPpdImportLookupsOnly(db: PgQueryable, pp: PpRow): Promise<PpdImportPrep> {
-  const provId = pp.proveedor_importacion_id ?? 654;
-  const { marcaLookup, lineaMarcaByCod } = await loadMarcaAndLineaLookups(db, provId);
-  const { matLookup, colLookup } = await loadMatColLookups(db, provId);
-  const pilarFkLookups = await loadPpdPilarFkLookups(db as unknown as PoolClient, provId);
-  return {
-    pilaresStats: {
-      lineas_nuevas: 0,
-      lineas_nuevas_codigos: [],
-      lineas_enriquecidas: 0,
-      referencias_nuevas: 0,
-      linea_referencia_nuevas: 0,
-      materiales_tocados: 0,
-      colores_tocados: 0,
-      tonos_asignados: 0,
-      duracion_ms: 0,
-    },
-    marcaLookup,
-    lineaMarcaByCod,
-    matLookup,
-    colLookup,
-    pilarFkLookups,
-  };
 }
 
 function buildPpdInsertRows(
@@ -1729,7 +1707,7 @@ export async function importProformaProgramadoPhased(
       : null;
   const ppdExists = ppdExistsRes?.rows[0]?.ok === true;
 
-  if (phase === "ppd") {
+  if (phase === "ppd" || phase === "ppd_plan") {
     const gate = await gateProgramadoPpdFast(pool0, ppId, parsed);
     if (!gate.ok) {
       return { ok: false, error: gate.error, programado: true, phase };
@@ -1798,6 +1776,41 @@ export async function importProformaProgramadoPhased(
   let importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null = null;
   let pilaresImportReport: ProformaPilaresImportReport | undefined;
 
+  if (phase === "ppd_plan") {
+    const totalSkus = detalle.length;
+    const icsPlan = await loadIcsPpProgramado(pool, ppId);
+    const ppdCountRes = await pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM pedido_proveedor_detalle
+       WHERE pedido_proveedor_id = $1 AND linea IS NOT NULL`,
+      [ppId],
+    );
+    const resumeOffset = Math.min(ppdCountRes.rows[0]?.c ?? 0, totalSkus);
+    const nLotes = totalSkus > 0 ? Math.ceil(totalSkus / ppdBatchSize) : 0;
+    const lotesRestantes =
+      totalSkus > resumeOffset ? Math.ceil((totalSkus - resumeOffset) / ppdBatchSize) : 0;
+
+    return {
+      ok: true,
+      programado: true,
+      phase: "ppd_plan",
+      done: true,
+      pp_id: ppId,
+      pares: parsed.totalPares,
+      n_pares: parsed.totalPares,
+      n_articulos: totalSkus,
+      ppd_total: totalSkus,
+      ppd_batch: ppdBatchSize,
+      ppd_offset: resumeOffset,
+      n_lotes: nLotes,
+      n_ic: icsPlan.length,
+      n_ppd: resumeOffset,
+      message:
+        resumeOffset > 0
+          ? `Retoma: ${resumeOffset}/${totalSkus} SKUs · ${lotesRestantes} lote(s) pendiente(s).`
+          : `Plan: ${totalSkus} SKUs · ${parsed.totalPares.toLocaleString("es-PY")} pares · ${icsPlan.length} IC · ${nLotes} lotes de ${ppdBatchSize}.`,
+    };
+  }
+
   if (phase === "ppd") {
     const totalSkus = detalle.length;
     if (ppdOffset >= totalSkus && totalSkus > 0) {
@@ -1819,10 +1832,27 @@ export async function importProformaProgramadoPhased(
       };
     }
 
-    const ppdPrep =
-      ppdOffset === 0
-        ? await preparePpdImportLookups(pool, pp, detalle, casoCtx.casosEvento)
-        : await loadPpdImportLookupsOnly(pool, pp);
+    const slice = detalle.slice(ppdOffset, ppdOffset + ppdBatchSize);
+    if (!slice.length) {
+      return {
+        ok: true,
+        programado: true,
+        phase: "ppd",
+        done: true,
+        pp_id: ppId,
+        pares: parsed.totalPares,
+        n_articulos: totalSkus,
+        n_ppd: ppdOffset,
+        ppd_offset: ppdOffset,
+        ppd_offset_next: ppdOffset,
+        ppd_total: totalSkus,
+        ppd_batch: ppdBatchSize,
+        message: "Sin filas en lote.",
+        import_avisos: ["ℹ Lote vacío — import PPD ya completo."],
+      };
+    }
+
+    const ppdPrep = await preparePpdImportLookups(pool, pp, slice, casoCtx.casosEvento);
 
     let pop: Awaited<ReturnType<typeof populatePpFromProformaBatch>> | null = null;
     const client = await pool.connect();
@@ -1848,6 +1878,8 @@ export async function importProformaProgramadoPhased(
 
     const ppdOffsetNext = ppdOffset + pop!.rowsInserted;
     const done = ppdOffsetNext >= totalSkus;
+    const lotNum = Math.floor(ppdOffset / ppdBatchSize) + 1;
+    const nLotes = Math.ceil(totalSkus / ppdBatchSize);
 
     return {
       ok: true,
@@ -1858,7 +1890,8 @@ export async function importProformaProgramadoPhased(
       pares: parsed.totalPares,
       n_articulos: totalSkus,
       n_ppd: ppdOffsetNext,
-      message: pop!.message,
+      n_lotes: nLotes,
+      message: done ? pop!.message : `Lote ${lotNum}/${nLotes} OK (${ppdOffsetNext}/${totalSkus} SKUs).`,
       ppd_offset: ppdOffset,
       ppd_offset_next: ppdOffsetNext,
       ppd_total: totalSkus,

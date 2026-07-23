@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ProcesoImportacionWaitOverlay } from "@/components/report/ProcesoImportacionWaitOverlay";
+import {
+  ProcesoImportacionQueueOverlay,
+  type ImportQueueStep,
+} from "@/components/report/ProcesoImportacionQueueOverlay";
 import type { PpAlaNorteRow, PpDetalleHeader } from "@/lib/pedido-proveedor/detail-query";
 import type { EventoPrecioOption, EventoPpDetalle } from "@/lib/pedido-proveedor/stock-listado";
 import { factorDescuentosFob } from "@/lib/pedido-proveedor/stock-listado";
@@ -27,8 +31,8 @@ import { clearPpDetalleCache } from "@/lib/pedido-proveedor/pp-detalle-ui-cache"
 
 /** Debe coincidir con PROFORMA_FI_BATCH_SIZE del engine (evitar import server-side en cliente). */
 const PROFORMA_FI_BATCH_SIZE = 12;
-/** SKUs por request — proformas grandes (8k pares · oficina RIMEC). */
-const PROFORMA_PPD_BATCH_SIZE = 300;
+/** SKUs por request — debe coincidir con PROFORMA_PPD_BATCH_SIZE del engine. */
+const PROFORMA_PPD_BATCH_SIZE = 120;
 
 function urlBibliotecaAsignar(bibliotecaId: number, codigos: string[]): string {
   const params = new URLSearchParams({ abrir: "1" });
@@ -79,6 +83,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
   const [busy, setBusy] = useState(false);
   const [waitPhase, setWaitPhase] = useState<"preview" | "import" | null>(null);
   const [importProgress, setImportProgress] = useState("");
+  const [importQueueSteps, setImportQueueSteps] = useState<ImportQueueStep[]>([]);
+  const [importQueueOpen, setImportQueueOpen] = useState(false);
+  const [importQueueSuccess, setImportQueueSuccess] = useState(false);
   const [proformaFile, setProformaFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<EmparejamientoShop[] | null>(null);
   const [previewOk, setPreviewOk] = useState(false);
@@ -387,56 +394,144 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     return data;
   }
 
+  async function fetchPpdImportPlan(baseFd: () => FormData): Promise<Record<string, unknown>> {
+    const fd = baseFd();
+    fd.append("phase", "ppd_plan");
+    return postProformaImport(fd);
+  }
+
   async function runProgramadoPpdLoop(
     baseFd: (opts?: { borrarPrevio?: boolean }) => FormData,
     startOffset = 0,
   ): Promise<Record<string, unknown>> {
-    let offset = startOffset;
-    const batch = PROFORMA_PPD_BATCH_SIZE;
-    let data: Record<string, unknown> = {
-      done: false,
-      ppd_total: 0,
+    setImportQueueOpen(true);
+    setImportQueueSuccess(false);
+    const steps: ImportQueueStep[] = [];
+    const emitQueue = () => setImportQueueSteps([...steps]);
+
+    steps.push({ id: "start", label: "Inicio de importación…", status: "running" });
+    emitQueue();
+    await new Promise((r) => setTimeout(r, 120));
+    steps[0] = { ...steps[0], status: "ok" };
+    emitQueue();
+
+    steps.push({ id: "analyze", label: "Analizando proforma…", status: "running" });
+    emitQueue();
+    setImportProgress("Analizando Excel · calculando lotes…");
+
+    let plan: Record<string, unknown>;
+    try {
+      plan = await fetchPpdImportPlan(() => baseFd());
+    } catch (e) {
+      steps[1] = { ...steps[1], status: "fail", detail: e instanceof Error ? e.message : "Error" };
+      emitQueue();
+      throw e;
+    }
+
+    const totalSkus = Number(plan.ppd_total ?? 0);
+    const batch = Number(plan.ppd_batch ?? PROFORMA_PPD_BATCH_SIZE);
+    const nLotes = Number(plan.n_lotes ?? (totalSkus > 0 ? Math.ceil(totalSkus / batch) : 0));
+    const nPares = Number(plan.n_pares ?? plan.pares ?? 0);
+    const nIc = Number(plan.n_ic ?? 0);
+    let offset = Number(plan.ppd_offset ?? startOffset);
+
+    steps[1] = {
+      ...steps[1],
+      status: "ok",
+      detail: `${totalSkus.toLocaleString("es-PY")} SKUs · ${nPares.toLocaleString("es-PY")} pares · ${nIc} IC · ${nLotes} lotes de ${batch} SKUs`,
     };
+    emitQueue();
 
-    while (!data.done) {
-      const total = Number(data.ppd_total ?? 0);
-      const labelTotal = total > 0 ? total : "?";
-      const labelDone = total > 0 ? Math.min(offset + batch, total) : offset + batch;
-      setImportProgress(
-        `Importando PPD lote ${labelDone}/${labelTotal} SKUs… red lenta OK — no cierres la pestaña.`,
-      );
+    if (offset > 0 && offset < totalSkus) {
+      onMsg(`Retomando desde SKU ${offset.toLocaleString("es-PY")}…`);
+    }
 
-      const fd = baseFd({ borrarPrevio: offset === 0 && startOffset === 0 });
-      fd.append("phase", "ppd");
-      fd.append("ppd_offset", String(offset));
-      fd.append("ppd_batch", String(batch));
+    let data: Record<string, unknown> = { done: false, ppd_total: totalSkus };
+    const firstLotIndex = batch > 0 ? Math.floor(offset / batch) : 0;
 
-      try {
-        data = await postProformaImport(fd);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("504")) {
-          await onReload();
+    try {
+      for (let lotIdx = firstLotIndex; lotIdx < nLotes; lotIdx++) {
+        const lotNum = lotIdx + 1;
+        const stepId = `lot-${lotNum}`;
+        steps.push({
+          id: stepId,
+          label: `Realizando importación ${lotNum}/${nLotes}`,
+          status: "running",
+        });
+        emitQueue();
+        setImportProgress(`Importación ${lotNum}/${nLotes}…`);
+
+        let lastErr: Error | null = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            if (attempt > 0) {
+              const idx = steps.findIndex((s) => s.id === stepId);
+              if (idx >= 0) {
+                steps[idx] = { ...steps[idx], detail: `Reintento ${attempt + 1}/3 tras timeout…` };
+                emitQueue();
+              }
+              const replan = await fetchPpdImportPlan(() => baseFd());
+              offset = Number(replan.ppd_offset ?? offset);
+            }
+
+            const fd = baseFd({ borrarPrevio: offset === 0 && startOffset === 0 && attempt === 0 });
+            fd.append("phase", "ppd");
+            fd.append("ppd_offset", String(offset));
+            fd.append("ppd_batch", String(batch));
+            data = await postProformaImport(fd);
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e instanceof Error ? e : new Error(String(e));
+            if (!lastErr.message.includes("504") || attempt >= 2) throw lastErr;
+            await onReload();
+          }
+        }
+        if (lastErr) throw lastErr;
+
+        const nextOff = Number(data.ppd_offset_next ?? offset);
+        const lotIdxStep = steps.findIndex((s) => s.id === stepId);
+        if (lotIdxStep >= 0) {
+          steps[lotIdxStep] = {
+            ...steps[lotIdxStep],
+            status: "ok",
+            detail: `${Math.min(nextOff, totalSkus).toLocaleString("es-PY")}/${totalSkus.toLocaleString("es-PY")} SKUs`,
+          };
+          emitQueue();
+        }
+
+        if (data.done) break;
+
+        if (!Number.isFinite(nextOff) || nextOff <= offset) {
           throw new Error(
-            `${msg} Si ya hay artículos F9 en el PP, volvé a Confirmar — retoma sin borrar lo importado.`,
+            totalSkus > 0
+              ? `PPD incompleto (${nextOff}/${totalSkus}). Reintentá Confirmar — retoma automático.`
+              : "Import PPD se detuvo — reintentá Confirmar.",
           );
         }
-        throw e;
+        offset = nextOff;
       }
 
-      if (data.done) break;
-
-      const nextOff = Number(data.ppd_offset_next);
-      const ppdTotal = Number(data.ppd_total ?? total);
-      if (!Number.isFinite(nextOff) || nextOff <= offset) {
-        throw new Error(
-          ppdTotal > 0
-            ? `PPD incompleto (${nextOff}/${ppdTotal}). Reintentá Confirmar — retoma automático.`
-            : "Import PPD se detuvo — reintentá Confirmar.",
-        );
+      steps.push({ id: "done", label: "Importación completa", status: "ok" });
+      emitQueue();
+      setImportQueueSuccess(true);
+      await new Promise((r) => setTimeout(r, 2500));
+    } catch (e) {
+      const runningIdx = steps.findIndex((s) => s.status === "running");
+      if (runningIdx >= 0) {
+        steps[runningIdx] = {
+          ...steps[runningIdx],
+          status: "fail",
+          detail: e instanceof Error ? e.message : "Error",
+        };
+        emitQueue();
       }
-      offset = nextOff;
+      throw e;
     }
+
+    setImportProgress("");
+    setImportQueueOpen(false);
+    setImportQueueSuccess(false);
 
     return data;
   }
@@ -456,6 +551,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       setBusy(false);
       setWaitPhase(null);
       setImportProgress("");
+      setImportQueueOpen(false);
+      setImportQueueSuccess(false);
+      setImportQueueSteps([]);
     }
   }
 
@@ -524,6 +622,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       setBusy(false);
       setWaitPhase(null);
       setImportProgress("");
+      setImportQueueOpen(false);
+      setImportQueueSuccess(false);
+      setImportQueueSteps([]);
     }
   }
 
@@ -655,8 +756,15 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         detail={`${pp.numero_registro} · leyendo Excel y cruzando con ICs`}
         hint="Suele tardar 30–90 segundos. No cierres la pestaña."
       />
+      <ProcesoImportacionQueueOverlay
+        open={importQueueOpen && esProgramado}
+        title="Importación proforma PROGRAMADO"
+        steps={importQueueSteps}
+        success={importQueueSuccess}
+        hint="Cada lote es un request corto. Si hay timeout, reintenta solo ese lote sin borrar lo ya importado."
+      />
       <ProcesoImportacionWaitOverlay
-        open={waitPhase === "import"}
+        open={waitPhase === "import" && !importQueueOpen}
         title={
           esProgramado
             ? "Importando proforma PROGRAMADO…"
@@ -670,7 +778,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
         }
         hint={
           esProgramado
-            ? "1–3 min en prod. Cabecera se guarda sola. Luego tab Administrador IC."
+            ? "Cola por lotes — no cierres la pestaña."
             : "Puede tardar 1–2 minutos. No cierres la pestaña."
         }
       />

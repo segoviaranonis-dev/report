@@ -72,7 +72,10 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const phaseRaw = String(form.get("phase") ?? "all");
-    const phase = phaseRaw === "ppd" || phaseRaw === "fi" || phaseRaw === "all" ? phaseRaw : "all";
+    const phase =
+      phaseRaw === "ppd_plan" || phaseRaw === "ppd" || phaseRaw === "fi" || phaseRaw === "all"
+        ? phaseRaw
+        : "all";
     const fiOffset = Number(form.get("fi_offset") ?? 0);
     const fiBatchRaw = Number(form.get("fi_batch") ?? 0);
     const ppdOffset = Number(form.get("ppd_offset") ?? 0);
