@@ -9,6 +9,11 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120 // Vercel Pro: PDF hasta 80 filas + precarga imágenes
 export const runtime = 'nodejs'
 
+/** Headers HTTP solo aceptan Latin-1; Vercel/Node falla con Unicode (ej. … U+2026). */
+function toAsciiHeader(value: string): string {
+  return value.replace(/[^\x20-\x7E]/g, (ch) => (ch === '…' ? '...' : '?'))
+}
+
 type PdfRequestBody =
   | PDFVentasFotosData
   | { source: 'filters'; filters: VentasFotosFilters }
@@ -172,8 +177,8 @@ export async function POST(req: NextRequest) {
     }
     if (pdfResult.missingInStorage.length > 0) {
       headers['X-PDF-Missing-Count'] = String(pdfResult.missingInStorage.length)
-      headers['X-PDF-Missing-Images'] =
-        missingPreview + (pdfResult.missingInStorage.length > 8 ? '…' : '')
+      const suffix = pdfResult.missingInStorage.length > 8 ? '...' : ''
+      headers['X-PDF-Missing-Images'] = toAsciiHeader(missingPreview + suffix)
     }
 
     return new NextResponse(new Uint8Array(pdfResult.buffer), {
