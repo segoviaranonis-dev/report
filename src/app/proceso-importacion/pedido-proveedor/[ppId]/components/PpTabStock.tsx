@@ -27,6 +27,8 @@ import { clearPpDetalleCache } from "@/lib/pedido-proveedor/pp-detalle-ui-cache"
 
 /** Debe coincidir con PROFORMA_FI_BATCH_SIZE del engine (evitar import server-side en cliente). */
 const PROFORMA_FI_BATCH_SIZE = 12;
+/** SKUs por request — proformas grandes (8k pares · oficina RIMEC). */
+const PROFORMA_PPD_BATCH_SIZE = 300;
 
 function urlBibliotecaAsignar(bibliotecaId: number, codigos: string[]): string {
   const params = new URLSearchParams({ abrir: "1" });
@@ -385,6 +387,60 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
     return data;
   }
 
+  async function runProgramadoPpdLoop(
+    baseFd: (opts?: { borrarPrevio?: boolean }) => FormData,
+    startOffset = 0,
+  ): Promise<Record<string, unknown>> {
+    let offset = startOffset;
+    const batch = PROFORMA_PPD_BATCH_SIZE;
+    let data: Record<string, unknown> = {
+      done: false,
+      ppd_total: 0,
+    };
+
+    while (!data.done) {
+      const total = Number(data.ppd_total ?? 0);
+      const labelTotal = total > 0 ? total : "?";
+      const labelDone = total > 0 ? Math.min(offset + batch, total) : offset + batch;
+      setImportProgress(
+        `Importando PPD lote ${labelDone}/${labelTotal} SKUs… red lenta OK — no cierres la pestaña.`,
+      );
+
+      const fd = baseFd({ borrarPrevio: offset === 0 && startOffset === 0 });
+      fd.append("phase", "ppd");
+      fd.append("ppd_offset", String(offset));
+      fd.append("ppd_batch", String(batch));
+
+      try {
+        data = await postProformaImport(fd);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("504")) {
+          await onReload();
+          throw new Error(
+            `${msg} Si ya hay artículos F9 en el PP, volvé a Confirmar — retoma sin borrar lo importado.`,
+          );
+        }
+        throw e;
+      }
+
+      if (data.done) break;
+
+      const nextOff = Number(data.ppd_offset_next);
+      const ppdTotal = Number(data.ppd_total ?? total);
+      if (!Number.isFinite(nextOff) || nextOff <= offset) {
+        throw new Error(
+          ppdTotal > 0
+            ? `PPD incompleto (${nextOff}/${ppdTotal}). Reintentá Confirmar — retoma automático.`
+            : "Import PPD se detuvo — reintentá Confirmar.",
+        );
+      }
+      offset = nextOff;
+    }
+
+    return data;
+  }
+
   async function completarFiPendientes() {
     setBusy(true);
     setWaitPhase("import");
@@ -431,10 +487,11 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
 
       let data: Record<string, unknown>;
       if (esProgramado) {
-        setImportProgress("Importando stock PPD (línea por línea)… puede tardar 1–3 min. No cierres la pestaña.");
-        const fdPpd = baseFd({ borrarPrevio: true });
-        fdPpd.append("phase", "ppd");
-        data = await postProformaImport(fdPpd);
+        const resumeOffset = pp.total_articulos > 0 ? pp.total_articulos : 0;
+        if (resumeOffset > 0) {
+          onMsg(`Retomando import PPD desde SKU ${resumeOffset}…`);
+        }
+        data = await runProgramadoPpdLoop(baseFd, resumeOffset);
       } else {
         data = await postProformaImport(baseFd({ borrarPrevio: true }));
       }

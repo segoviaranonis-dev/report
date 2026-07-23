@@ -165,6 +165,8 @@ type PpRow = {
 export type ProformaImportPhase = "ppd" | "fi" | "all";
 
 export const PROFORMA_FI_BATCH_SIZE = 12;
+/** SKUs por request en confirmar import (proformas 8k+ pares · oficina RIMEC). */
+export const PROFORMA_PPD_BATCH_SIZE = 300;
 
 export type ProformaImportPhaseResult = ProformaImportResult & {
   phase?: ProformaImportPhase;
@@ -173,6 +175,11 @@ export type ProformaImportPhaseResult = ProformaImportResult & {
   fi_offset_next?: number;
   fi_total?: number;
   fi_batch?: number;
+  ppd_offset?: number;
+  ppd_offset_next?: number;
+  ppd_total?: number;
+  ppd_batch?: number;
+  n_ppd?: number;
   fi_avisos?: string[];
   /** Avisos cruce proforma ↔ precio_lista al cargar PPD. */
   import_avisos?: string[];
@@ -300,6 +307,212 @@ async function preparePpdImportLookups(
   const pilarFkLookups = await loadPpdPilarFkLookups(db as unknown as PoolClient, provId);
 
   return { pilaresStats, marcaLookup, lineaMarcaByCod, matLookup, colLookup, pilarFkLookups };
+}
+
+/** Lookups post-lote 1 — pilares ya provisionados en offset 0. */
+async function loadPpdImportLookupsOnly(db: PgQueryable, pp: PpRow): Promise<PpdImportPrep> {
+  const provId = pp.proveedor_importacion_id ?? 654;
+  const { marcaLookup, lineaMarcaByCod } = await loadMarcaAndLineaLookups(db, provId);
+  const { matLookup, colLookup } = await loadMatColLookups(db, provId);
+  const pilarFkLookups = await loadPpdPilarFkLookups(db as unknown as PoolClient, provId);
+  return {
+    pilaresStats: {
+      lineas_nuevas: 0,
+      lineas_nuevas_codigos: [],
+      lineas_enriquecidas: 0,
+      referencias_nuevas: 0,
+      linea_referencia_nuevas: 0,
+      materiales_tocados: 0,
+      colores_tocados: 0,
+      tonos_asignados: 0,
+      duracion_ms: 0,
+    },
+    marcaLookup,
+    lineaMarcaByCod,
+    matLookup,
+    colLookup,
+    pilarFkLookups,
+  };
+}
+
+function buildPpdInsertRows(
+  pp: PpRow,
+  slice: ProformaRow[],
+  casosEvento: Set<string>,
+  prep: PpdImportPrep,
+): unknown[][] {
+  const { marcaLookup, lineaMarcaByCod, matLookup, colLookup, pilarFkLookups } = prep;
+  const insertRows: unknown[][] = [];
+  for (const r of slice) {
+    const fobUnit = r.unit_fob;
+    const fobAj = calcFobAjustadoPct(fobUnit, pp.descuento_1, pp.descuento_2, pp.descuento_3, pp.descuento_4);
+    const grades = r.grades_json;
+    const lineaCod = r.linea_codigo_proveedor || "";
+    const { id_marca: idMarca, brandParaJson } = resolveMarcaProformaImport({
+      brandExcel: r.brand,
+      lineaCod,
+      marcaLookup,
+      casosEvento,
+      lineaMarcaByCod,
+    });
+    const matCode = String(r.material_code || "").trim();
+    const colCode = String(r.color_code || "").trim();
+    const matHit = matLookup.get(matCode);
+    const colHit = colLookup.get(colCode);
+    const { linea_id, referencia_id } = resolvePpdPilarIds(
+      pilarFkLookups,
+      lineaCod,
+      r.referencia_codigo_proveedor || "",
+    );
+    insertRows.push([
+      pp.id,
+      r.pairs,
+      idMarca,
+      r.ncm || "",
+      r.style_code || "",
+      lineaCod,
+      r.referencia_codigo_proveedor || "",
+      r.name || "",
+      matHit?.id ?? null,
+      String(r.material_label ?? "").trim() || matHit?.desc || (r.material || ""),
+      matCode,
+      colHit?.id ?? null,
+      colHit?.nombre ?? (r.color || ""),
+      colCode,
+      r.grade_range || "",
+      grades["33"] ?? 0,
+      grades["34"] ?? 0,
+      grades["35"] ?? 0,
+      grades["36"] ?? 0,
+      grades["37"] ?? 0,
+      grades["38"] ?? 0,
+      grades["39"] ?? 0,
+      grades["40"] ?? 0,
+      r.boxes,
+      r.pairs,
+      fobUnit,
+      fobAj,
+      r.amount_fob,
+      JSON.stringify({
+        ...grades,
+        _shop: r.shop.trim(),
+        _brand: brandParaJson,
+        _brand_excel: r.brand.trim(),
+        _item: String(r.item ?? ""),
+      }),
+      Number.parseInt(r.item, 10) || 0,
+      linea_id,
+      referencia_id,
+    ]);
+  }
+  return insertRows;
+}
+
+async function flushPpdInsertRows(client: PoolClient, insertRows: unknown[][]): Promise<void> {
+  const colCount = 32;
+  for (let i = 0; i < insertRows.length; i += PPD_INSERT_CHUNK) {
+    const chunk = insertRows.slice(i, i + PPD_INSERT_CHUNK);
+    const values: unknown[] = [];
+    const tuples = chunk.map((row, rowIdx) => {
+      const base = rowIdx * colCount;
+      values.push(...row);
+      const ph = Array.from({ length: colCount }, (_, j) => {
+        const n = base + j + 1;
+        return j === 28 ? `$${n}::jsonb` : `$${n}`;
+      });
+      return `(${ph.join(", ")})`;
+    });
+    await client.query(
+      `INSERT INTO pedido_proveedor_detalle (
+         pedido_proveedor_id, cantidad, id_marca, ncm, style_code, linea, referencia, nombre,
+         id_material, descp_material, material_code, id_color, descp_color, color_code, grada,
+         t33, t34, t35, t36, t37, t38, t39, t40,
+         cantidad_cajas, cantidad_pares, unit_fob, unit_fob_ajustado, amount_fob, grades_json, fila_origen_f9,
+         linea_id, referencia_id
+       ) VALUES ${tuples.join(", ")}`,
+      values,
+    );
+  }
+}
+
+async function finalizePpdImport(
+  client: PoolClient,
+  ppId: number,
+  detalleAll: ProformaRow[],
+): Promise<void> {
+  await backfillPpdPilarFks(client, ppId);
+  await client.query(
+    `UPDATE pedido_proveedor_detalle ppd
+     SET id_marca = l.marca_id
+     FROM linea l
+     WHERE ppd.pedido_proveedor_id = $1
+       AND ppd.linea_id = l.id
+       AND l.marca_id IS NOT NULL
+       AND (ppd.id_marca IS DISTINCT FROM l.marca_id)`,
+    [ppId],
+  );
+  await saveProformaFilas(client, ppId, detalleAll);
+  await backfillPpdShopFromSnapshot(client, ppId);
+}
+
+async function populatePpFromProformaBatch(
+  client: PoolClient,
+  pp: PpRow,
+  proforma: string,
+  detalleAll: ProformaRow[],
+  casosEvento: Set<string>,
+  prep: PpdImportPrep,
+  offset: number,
+  batchSize: number,
+): Promise<{ ok: true; message: string; pilaresStats: ProformaPilaresStats; rowsInserted: number }> {
+  const ppId = pp.id;
+  const slice = detalleAll.slice(offset, offset + batchSize);
+  if (!slice.length) {
+    return { ok: true, message: "Sin filas en lote", pilaresStats: prep.pilaresStats, rowsInserted: 0 };
+  }
+
+  if (offset === 0) {
+    const totalPares = detalleAll.reduce((s, r) => s + r.pairs, 0);
+    await client.query(
+      `UPDATE pedido_proveedor
+       SET numero_proforma = $1, nro_pedido_externo = $2,
+           descuento_1 = $3, descuento_2 = $4, descuento_3 = $5, descuento_4 = $6,
+           fecha_arribo_estimada = $7, pares_comprometidos = $8,
+           categoria_id = COALESCE(categoria_id, $9), fecha_pedido = CURRENT_DATE
+       WHERE id = $10`,
+      [
+        proforma.trim() || null,
+        pp.nro_pedido_externo?.trim()
+          ? formatNumeroPreventaCarlos(pp.nro_pedido_externo)
+          : null,
+        pp.descuento_1,
+        pp.descuento_2,
+        pp.descuento_3,
+        pp.descuento_4,
+        pp.fecha_arribo_estimada,
+        totalPares,
+        pp.categoria_id,
+        ppId,
+      ],
+    );
+    await client.query("DELETE FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1", [ppId]);
+  }
+
+  const insertRows = buildPpdInsertRows(pp, slice, casosEvento, prep);
+  await flushPpdInsertRows(client, insertRows);
+
+  const isLast = offset + slice.length >= detalleAll.length;
+  if (isLast) {
+    await finalizePpdImport(client, ppId, detalleAll);
+  }
+
+  const totalPares = detalleAll.reduce((s, r) => s + r.pairs, 0);
+  const totalFob = Math.round(detalleAll.reduce((s, r) => s + r.amount_fob, 0) * 100) / 100;
+  const message = isLast
+    ? `${totalPares.toLocaleString("es-PY")} pares · ${detalleAll.length} SKUs · USD ${totalFob.toLocaleString("es-PY")}`
+    : `Lote PPD ${Math.min(offset + slice.length, detalleAll.length)}/${detalleAll.length} SKUs`;
+
+  return { ok: true, message, pilaresStats: prep.pilaresStats, rowsInserted: slice.length };
 }
 
 /** Gate rápido paso 2 — no repite preview ni auditoría (ya hechos en UI paso 1). */
@@ -1488,11 +1701,15 @@ export async function importProformaProgramadoPhased(
     phase?: ProformaImportPhase;
     fiOffset?: number;
     fiBatchSize?: number;
+    ppdOffset?: number;
+    ppdBatchSize?: number;
   } = {},
 ): Promise<ProformaImportPhaseResult> {
   const phase = opts.phase ?? "all";
   const fiBatchSize = Math.max(1, Math.min(30, opts.fiBatchSize ?? PROFORMA_FI_BATCH_SIZE));
   let fiOffset = Math.max(0, opts.fiOffset ?? 0);
+  const ppdBatchSize = Math.max(50, Math.min(500, opts.ppdBatchSize ?? PROFORMA_PPD_BATCH_SIZE));
+  let ppdOffset = Math.max(0, opts.ppdOffset ?? 0);
 
   const parsed = parseProforma(fileBuffer);
   if (parsed.error) return { ok: false, error: parsed.error, programado: true, phase };
@@ -1581,7 +1798,94 @@ export async function importProformaProgramadoPhased(
   let importPrecioAudit: Awaited<ReturnType<typeof auditProformaVsPrecioLista>> | null = null;
   let pilaresImportReport: ProformaPilaresImportReport | undefined;
 
-  if (phase === "ppd" || phase === "all") {
+  if (phase === "ppd") {
+    const totalSkus = detalle.length;
+    if (ppdOffset >= totalSkus && totalSkus > 0) {
+      return {
+        ok: true,
+        programado: true,
+        phase: "ppd",
+        done: true,
+        pp_id: ppId,
+        pares: parsed.totalPares,
+        n_articulos: totalSkus,
+        n_ppd: totalSkus,
+        ppd_offset: ppdOffset,
+        ppd_offset_next: totalSkus,
+        ppd_total: totalSkus,
+        ppd_batch: ppdBatchSize,
+        message: "PPD ya completo.",
+        import_avisos: ["ℹ Import PPD ya estaba completo."],
+      };
+    }
+
+    const ppdPrep =
+      ppdOffset === 0
+        ? await preparePpdImportLookups(pool, pp, detalle, casoCtx.casosEvento)
+        : await loadPpdImportLookupsOnly(pool, pp);
+
+    let pop: Awaited<ReturnType<typeof populatePpFromProformaBatch>> | null = null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      pop = await populatePpFromProformaBatch(
+        client,
+        pp,
+        proforma,
+        detalle,
+        casoCtx.casosEvento,
+        ppdPrep,
+        ppdOffset,
+        ppdBatchSize,
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      return { ok: false, error: e instanceof Error ? e.message : "Error PPD", programado: true, phase: "ppd" };
+    } finally {
+      client.release();
+    }
+
+    const ppdOffsetNext = ppdOffset + pop!.rowsInserted;
+    const done = ppdOffsetNext >= totalSkus;
+
+    return {
+      ok: true,
+      programado: true,
+      phase: "ppd",
+      done,
+      pp_id: ppId,
+      pares: parsed.totalPares,
+      n_articulos: totalSkus,
+      n_ppd: ppdOffsetNext,
+      message: pop!.message,
+      ppd_offset: ppdOffset,
+      ppd_offset_next: ppdOffsetNext,
+      ppd_total: totalSkus,
+      ppd_batch: ppdBatchSize,
+      fi_total: (await loadIcsPpProgramado(pool, ppId)).length,
+      fi_offset: 0,
+      fi_offset_next: 0,
+      fi_batch: fiBatchSize,
+      import_avisos: done
+        ? ["ℹ Pilares×biblioteca ya auditados en preview (paso 1). Import PPD completado."]
+        : [`ℹ Lote PPD guardado — continuá con el siguiente lote (${ppdOffsetNext}/${totalSkus}).`],
+      pilares_import: done
+        ? {
+            stats: ppdPrep.pilaresStats,
+            lineas_proforma: [],
+            lineas_sin_pilar: [],
+            lineas_sin_biblioteca: [],
+            lineas_en_biblioteca: [],
+            biblioteca_id: casoCtx.bibliotecaId,
+            biblioteca_nombre: null,
+            avisos: [],
+          }
+        : undefined,
+    };
+  }
+
+  if (phase === "all") {
     let pop: Awaited<ReturnType<typeof populatePpFromProforma>> | null = null;
     const ppdPrep = await preparePpdImportLookups(pool, pp, detalle, casoCtx.casosEvento);
     const client = await pool.connect();
@@ -1600,53 +1904,21 @@ export async function importProformaProgramadoPhased(
       client.release();
     }
 
-    if (phase === "ppd") {
-      return {
-        ok: true,
-        programado: true,
-        phase: "ppd",
-        done: false,
-        pp_id: ppId,
-        pares: parsed.totalPares,
-        n_articulos: detalle.length,
-        message: pop!.message,
-        fi_total: (await loadIcsPpProgramado(pool, ppId)).length,
-        fi_offset: 0,
-        fi_offset_next: 0,
-        fi_batch: fiBatchSize,
-        import_avisos: [
-          "ℹ Pilares×biblioteca ya auditados en preview (paso 1). Import PPD completado.",
-        ],
-        pilares_import: {
-          stats: ppdPrep.pilaresStats,
-          lineas_proforma: [],
-          lineas_sin_pilar: [],
-          lineas_sin_biblioteca: [],
-          lineas_en_biblioteca: [],
-          biblioteca_id: casoCtx.bibliotecaId,
-          biblioteca_nombre: null,
-          avisos: [],
-        },
-      };
+    const provId = pp.proveedor_importacion_id ?? 654;
+    try {
+      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
+    } catch {
+      /* PPD ya guardado — no bloquea fase FI */
     }
-
-    if (phase === "all") {
-      const provId = pp.proveedor_importacion_id ?? 654;
-      try {
-        importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
-      } catch {
-        /* PPD ya guardado — no bloquea fase FI */
-      }
-      try {
-        pilaresImportReport = await buildProformaPilaresImportReport(pool, {
-          rows: detalle,
-          proveedorId: provId,
-          eventoId,
-          stats: pop!.pilaresStats,
-        });
-      } catch {
-        /* idem */
-      }
+    try {
+      pilaresImportReport = await buildProformaPilaresImportReport(pool, {
+        rows: detalle,
+        proveedorId: provId,
+        eventoId,
+        stats: pop!.pilaresStats,
+      });
+    } catch {
+      /* idem */
     }
   }
 
@@ -1815,13 +2087,21 @@ export async function importProformaProgramadoTs(
   ppId: number,
   fileBuffer: Buffer,
   proformaOverride?: string,
-  importOpts?: { phase?: ProformaImportPhase; fiOffset?: number; fiBatchSize?: number },
+  importOpts?: {
+    phase?: ProformaImportPhase;
+    fiOffset?: number;
+    fiBatchSize?: number;
+    ppdOffset?: number;
+    ppdBatchSize?: number;
+  },
 ): Promise<ProformaImportPhaseResult> {
   return importProformaProgramadoPhased(ppId, fileBuffer, {
     proforma: proformaOverride,
     phase: importOpts?.phase ?? "all",
     fiOffset: importOpts?.fiOffset,
     fiBatchSize: importOpts?.fiBatchSize,
+    ppdOffset: importOpts?.ppdOffset,
+    ppdBatchSize: importOpts?.ppdBatchSize,
   });
 }
 

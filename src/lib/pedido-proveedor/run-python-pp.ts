@@ -12,6 +12,7 @@ import {
   previewImportProformaProgramadoTs,
   previewProformaSimpleTs,
   PROFORMA_FI_BATCH_SIZE,
+  PROFORMA_PPD_BATCH_SIZE,
   type EmparejamientoShop,
   type FiCreadaProgramado,
   type ProformaImportPhase,
@@ -21,7 +22,7 @@ import {
 } from "./proforma-programado-engine";
 
 export type { EmparejamientoShop, FiCreadaProgramado, ProformaImportResult, ProformaImportPhaseResult, ProformaPreviewResult };
-export { PROFORMA_FI_BATCH_SIZE } from "./proforma-programado-engine";
+export { PROFORMA_FI_BATCH_SIZE, PROFORMA_PPD_BATCH_SIZE } from "./proforma-programado-engine";
 
 const execFileAsync = promisify(execFile);
 
@@ -152,6 +153,8 @@ export async function runProformaImportPython(
     phase?: ProformaImportPhase;
     fiOffset?: number;
     fiBatchSize?: number;
+    ppdOffset?: number;
+    ppdBatchSize?: number;
   },
 ): Promise<ProformaImportPhaseResult> {
   const categoria = await loadPpCategoria(ppId);
@@ -160,6 +163,8 @@ export async function runProformaImportPython(
       phase: opts.phase,
       fiOffset: opts.fiOffset,
       fiBatchSize: opts.fiBatchSize,
+      ppdOffset: opts.ppdOffset,
+      ppdBatchSize: opts.ppdBatchSize,
     });
   }
   if (shouldUseTsEngine()) {

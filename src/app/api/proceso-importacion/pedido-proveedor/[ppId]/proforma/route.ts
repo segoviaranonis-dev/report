@@ -75,6 +75,8 @@ export async function POST(req: Request, { params }: Params) {
     const phase = phaseRaw === "ppd" || phaseRaw === "fi" || phaseRaw === "all" ? phaseRaw : "all";
     const fiOffset = Number(form.get("fi_offset") ?? 0);
     const fiBatchRaw = Number(form.get("fi_batch") ?? 0);
+    const ppdOffset = Number(form.get("ppd_offset") ?? 0);
+    const ppdBatchRaw = Number(form.get("ppd_batch") ?? 0);
 
     const result = await runProformaImportPython(ppId, buffer, name, {
       proforma,
@@ -82,6 +84,8 @@ export async function POST(req: Request, { params }: Params) {
       phase,
       fiOffset: Number.isFinite(fiOffset) ? fiOffset : 0,
       fiBatchSize: Number.isFinite(fiBatchRaw) && fiBatchRaw > 0 ? fiBatchRaw : undefined,
+      ppdOffset: Number.isFinite(ppdOffset) ? ppdOffset : 0,
+      ppdBatchSize: Number.isFinite(ppdBatchRaw) && ppdBatchRaw > 0 ? ppdBatchRaw : undefined,
     });
     if (!result.ok) {
       return NextResponse.json(result, { status: 400 });
