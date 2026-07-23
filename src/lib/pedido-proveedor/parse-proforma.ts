@@ -19,6 +19,8 @@ export type ProformaRow = {
   amount_fob: number;
   grade_range: string;
   grades_json: Record<string, number>;
+  /** CP confecciones 638 — col J Descripción (BLUSA, CONJ FEM) para catálogo Web. */
+  material_label?: string;
 };
 
 function parsearLineaReferencia(valor: unknown): { linea: number; referencia: number | null } | null {
