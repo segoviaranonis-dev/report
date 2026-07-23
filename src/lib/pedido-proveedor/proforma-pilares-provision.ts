@@ -424,25 +424,8 @@ export async function provisionPilaresFromProforma(
   }
 
   for (const [code, desc] of colMap) {
-    const tonoAntes = await client.query<{ sin: string }>(
-      `SELECT 1 AS sin FROM color
-       WHERE proveedor_id = $1 AND codigo_proveedor::text = $2
-         AND (tono_canon IS NULL OR btrim(tono_canon->>'etiqueta') = '')
-       LIMIT 1`,
-      [proveedorId, code],
-    );
     await upsertColorProforma(client, code, proveedorId, desc);
     stats.colores_tocados += 1;
-    if (tonoAntes.rowCount) {
-      const tonoDesp = await client.query(
-        `SELECT 1 FROM color
-         WHERE proveedor_id = $1 AND codigo_proveedor::text = $2
-           AND tono_canon IS NOT NULL AND btrim(tono_canon->>'etiqueta') <> ''
-         LIMIT 1`,
-        [proveedorId, code],
-      );
-      if (tonoDesp.rowCount) stats.tonos_asignados += 1;
-    }
   }
 
   const lineaIdCache = new Map<string, number>();

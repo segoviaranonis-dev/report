@@ -1,5 +1,8 @@
 {
   "functions": {
+    "src/app/api/proceso-importacion/pedido-proveedor/**/route.ts": {
+      "maxDuration": 300
+    },
     "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/proforma/route.ts": {
       "maxDuration": 300
     },
@@ -13,6 +16,9 @@
       "maxDuration": 300
     },
     "src/app/api/proceso-importacion/pedido-proveedor/[ppId]/administrador-ic/generar-fi-lote/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/motor-precios/eventos/**/route.ts": {
       "maxDuration": 300
     }
   }

@@ -328,7 +328,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       throw new Error(
         res.ok
           ? "Respuesta inválida del servidor"
-          : `Error ${res.status}${raw ? `: ${raw.slice(0, 200)}` : " — timeout o caída Vercel"}`,
+          : res.status === 504
+            ? "Error 504 — Vercel timeout. El import puede estar procesando: recargá el PP en 1 min. Si no hay PPD, reintentá confirmar (no cierres la pestaña)."
+            : `Error ${res.status}${raw ? `: ${raw.slice(0, 200)}` : " — timeout o caída Vercel"}`,
       );
     }
     if (!res.ok) throw new Error(String(data.error ?? `Error ${res.status} al importar`));

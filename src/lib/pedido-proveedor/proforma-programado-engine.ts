@@ -6,6 +6,7 @@ import {
   categoriaEsProgramado,
   upsertColorProforma,
   upsertMaterialProforma,
+  type PgQueryable,
 } from "./pilares-proforma-upsert";
 import { provisionPilaresFromProforma, type ProformaPilaresStats } from "./proforma-pilares-provision";
 import {
@@ -43,6 +44,7 @@ import {
   backfillPpdPilarFks,
   loadPpdPilarFkLookups,
   resolvePpdPilarIds,
+  type PpdPilarFkLookups,
 } from "@/lib/pedido-proveedor/ppd-pilares-fk";
 export type EmparejamientoShop = {
   brand: string;
@@ -203,6 +205,145 @@ type FiLineItem = {
 type FiJob = { shop: string; icRow: IcRow; items: FiLineItem[] };
 
 const PPD_INSERT_CHUNK = 150;
+
+/** Lookups precalculados fuera de TX — evita 504 Vercel (pilares + auditoría duplicada). */
+type PpdImportPrep = {
+  pilaresStats: ProformaPilaresStats;
+  marcaLookup: Map<string, number>;
+  lineaMarcaByCod: Map<string, LineaMarcaHit>;
+  matLookup: Map<string, { id: number; desc: string }>;
+  colLookup: Map<string, { id: number; nombre: string }>;
+  pilarFkLookups: PpdPilarFkLookups;
+};
+
+async function loadMarcaAndLineaLookups(
+  db: PgQueryable,
+  provId: number,
+): Promise<{ marcaLookup: Map<string, number>; lineaMarcaByCod: Map<string, LineaMarcaHit> }> {
+  const marcaRes = await db.query<{ id_marca: number; nom: string }>(
+    "SELECT id_marca, UPPER(descp_marca) AS nom FROM marca_v2",
+  );
+  const marcaLookup = new Map<string, number>();
+  for (const m of marcaRes.rows) {
+    if (m.nom) marcaLookup.set(m.nom, m.id_marca);
+  }
+
+  const lineaMarcaRes = await db.query<{ codigo: string; id_marca: number; nombre: string }>(
+    `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
+     FROM linea l
+     JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+     WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
+    [provId],
+  );
+  const lineaMarcaByCod = new Map<string, LineaMarcaHit>();
+  for (const row of lineaMarcaRes.rows) {
+    const cod = String(row.codigo ?? "").trim();
+    if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
+  }
+  return { marcaLookup, lineaMarcaByCod };
+}
+
+async function loadMatColLookups(
+  db: PgQueryable,
+  provId: number,
+): Promise<{
+  matLookup: Map<string, { id: number; desc: string }>;
+  colLookup: Map<string, { id: number; nombre: string }>;
+}> {
+  const matRes = await db.query<{ id: number; codigo: string; descripcion: string | null }>(
+    "SELECT id, codigo_proveedor::text AS codigo, descripcion FROM material WHERE proveedor_id = $1::bigint",
+    [provId],
+  );
+  const matLookup = new Map<string, { id: number; desc: string }>();
+  for (const m of matRes.rows) matLookup.set(m.codigo, { id: m.id, desc: m.descripcion ?? "" });
+
+  const colRes = await db.query<{ id: number; codigo: string; nombre: string | null }>(
+    "SELECT id, codigo_proveedor::text AS codigo, nombre FROM color WHERE proveedor_id = $1::bigint",
+    [provId],
+  );
+  const colLookup = new Map<string, { id: number; nombre: string }>();
+  for (const c of colRes.rows) colLookup.set(c.codigo, { id: c.id, nombre: c.nombre ?? "" });
+  return { matLookup, colLookup };
+}
+
+/** Provisión pilares + lookups — **fuera** de la transacción PPD (commit incremental). */
+async function preparePpdImportLookups(
+  db: PgQueryable,
+  pp: PpRow,
+  detalleRows: ProformaRow[],
+  casosEvento: Set<string>,
+): Promise<PpdImportPrep> {
+  const provId = pp.proveedor_importacion_id ?? 654;
+  const { marcaLookup, lineaMarcaByCod } = await loadMarcaAndLineaLookups(db, provId);
+
+  const pilaresStats = await provisionPilaresFromProforma(
+    db,
+    provId,
+    detalleRows,
+    marcaLookup,
+    casosEvento,
+  );
+
+  const lineaMarcaPost = await db.query<{ codigo: string; id_marca: number; nombre: string }>(
+    `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
+     FROM linea l
+     JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+     WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
+    [provId],
+  );
+  for (const row of lineaMarcaPost.rows) {
+    const cod = String(row.codigo ?? "").trim();
+    if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
+  }
+
+  const { matLookup, colLookup } = await loadMatColLookups(db, provId);
+  const pilarFkLookups = await loadPpdPilarFkLookups(db as unknown as PoolClient, provId);
+
+  return { pilaresStats, marcaLookup, lineaMarcaByCod, matLookup, colLookup, pilarFkLookups };
+}
+
+/** Gate rápido paso 2 — no repite preview ni auditoría (ya hechos en UI paso 1). */
+async function gateProgramadoPpdFast(
+  pool: Pool,
+  ppId: number,
+  parsed: { totalPares: number },
+): Promise<{ ok: true; eventoId: number } | { ok: false; error: string }> {
+  const ics = await loadIcsPpProgramado(pool, ppId);
+  if (!ics.length) return { ok: false, error: "El PP no tiene ICs vinculadas." };
+
+  const eventoIds = [
+    ...new Set(
+      ics
+        .map((i) => {
+          const n = Number(i.precio_evento_id);
+          return Number.isFinite(n) ? n : null;
+        })
+        .filter((x): x is number => x != null),
+    ),
+  ];
+  if (eventoIds.length !== 1) {
+    return { ok: false, error: "Las ICs del PP deben compartir un único listado de precios vinculado." };
+  }
+  const eventoId = eventoIds[0];
+
+  const plRes = await pool.query<{ c: number }>(
+    "SELECT COUNT(*)::int AS c FROM precio_lista WHERE evento_id = $1",
+    [eventoId],
+  );
+  if ((plRes.rows[0]?.c ?? 0) === 0) {
+    return { ok: false, error: "Vinculá el listado de precios RIMEC antes de importar programado." };
+  }
+
+  const totalParesIc = ics.reduce((s, ic) => s + Number(ic.cantidad_total_pares ?? 0), 0);
+  if (totalParesIc !== parsed.totalPares) {
+    return {
+      ok: false,
+      error: `Total pares IC (${totalParesIc.toLocaleString("es-PY")}) ≠ proforma (${parsed.totalPares.toLocaleString("es-PY")}). Ejecutá preview.`,
+    };
+  }
+
+  return { ok: true, eventoId };
+}
 
 function molKeyProformaRow(r: ProformaRow): string {
   return canonicalMolKey(
@@ -786,11 +927,57 @@ async function populatePpFromProforma(
   proforma: string,
   detalleRows: ProformaRow[],
   casosEvento: Set<string>,
+  prep?: PpdImportPrep | null,
 ): Promise<{ ok: boolean; message: string; pilaresStats: ProformaPilaresStats }> {
   const ppId = pp.id;
   const totalPares = detalleRows.reduce((s, r) => s + r.pairs, 0);
   const totalFob = Math.round(detalleRows.reduce((s, r) => s + r.amount_fob, 0) * 100) / 100;
   const provId = pp.proveedor_importacion_id ?? 654;
+
+  let pilaresStats: ProformaPilaresStats;
+  let marcaLookup: Map<string, number>;
+  let lineaMarcaByCod: Map<string, LineaMarcaHit>;
+  let matLookup: Map<string, { id: number; desc: string }>;
+  let colLookup: Map<string, { id: number; nombre: string }>;
+  let pilarFkLookups: PpdPilarFkLookups;
+
+  if (prep) {
+    pilaresStats = prep.pilaresStats;
+    marcaLookup = prep.marcaLookup;
+    lineaMarcaByCod = prep.lineaMarcaByCod;
+    matLookup = prep.matLookup;
+    colLookup = prep.colLookup;
+    pilarFkLookups = prep.pilarFkLookups;
+  } else {
+    const loaded = await loadMarcaAndLineaLookups(client, provId);
+    marcaLookup = loaded.marcaLookup;
+    lineaMarcaByCod = loaded.lineaMarcaByCod;
+
+    pilaresStats = await provisionPilaresFromProforma(
+      client,
+      provId,
+      detalleRows,
+      marcaLookup,
+      casosEvento,
+    );
+
+    const lineaMarcaPost = await client.query<{ codigo: string; id_marca: number; nombre: string }>(
+      `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
+       FROM linea l
+       JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+       WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
+      [provId],
+    );
+    for (const row of lineaMarcaPost.rows) {
+      const cod = String(row.codigo ?? "").trim();
+      if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
+    }
+
+    const matCol = await loadMatColLookups(client, provId);
+    matLookup = matCol.matLookup;
+    colLookup = matCol.colLookup;
+    pilarFkLookups = await loadPpdPilarFkLookups(client, provId);
+  }
 
   await client.query(
     `UPDATE pedido_proveedor
@@ -814,64 +1001,6 @@ async function populatePpFromProforma(
       ppId,
     ],
   );
-
-  const marcaRes = await client.query<{ id_marca: number; nom: string }>(
-    "SELECT id_marca, UPPER(descp_marca) AS nom FROM marca_v2",
-  );
-  const marcaLookup = new Map<string, number>();
-  for (const m of marcaRes.rows) {
-    if (m.nom) marcaLookup.set(m.nom, m.id_marca);
-  }
-
-  const lineaMarcaRes = await client.query<{ codigo: string; id_marca: number; nombre: string }>(
-    `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
-     FROM linea l
-     JOIN marca_v2 mv ON mv.id_marca = l.marca_id
-     WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
-    [provId],
-  );
-  const lineaMarcaByCod = new Map<string, LineaMarcaHit>();
-  for (const row of lineaMarcaRes.rows) {
-    const cod = String(row.codigo ?? "").trim();
-    if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
-  }
-
-  const pilaresStats = await provisionPilaresFromProforma(
-    client,
-    provId,
-    detalleRows,
-    marcaLookup,
-    casosEvento,
-  );
-
-  // Refrescar marcas de línea tras provisión (líneas nuevas / enriquecidas).
-  const lineaMarcaPost = await client.query<{ codigo: string; id_marca: number; nombre: string }>(
-    `SELECT l.codigo_proveedor::text AS codigo, l.marca_id AS id_marca, UPPER(mv.descp_marca) AS nombre
-     FROM linea l
-     JOIN marca_v2 mv ON mv.id_marca = l.marca_id
-     WHERE l.proveedor_id = $1 AND l.marca_id IS NOT NULL`,
-    [provId],
-  );
-  for (const row of lineaMarcaPost.rows) {
-    const cod = String(row.codigo ?? "").trim();
-    if (cod) lineaMarcaByCod.set(cod, { id_marca: row.id_marca, nombre: row.nombre });
-  }
-
-  const matRes = await client.query<{ id: number; codigo: string; descripcion: string | null }>(
-    "SELECT id, codigo_proveedor::text AS codigo, descripcion FROM material WHERE proveedor_id = $1::bigint",
-    [provId],
-  );
-  const matLookup = new Map<string, { id: number; desc: string }>();
-  for (const m of matRes.rows) matLookup.set(m.codigo, { id: m.id, desc: m.descripcion ?? "" });
-
-  const colRes = await client.query<{ id: number; codigo: string; nombre: string | null }>(
-    "SELECT id, codigo_proveedor::text AS codigo, nombre FROM color WHERE proveedor_id = $1::bigint",
-    [provId],
-  );
-  const colLookup = new Map<string, { id: number; nombre: string }>();
-  for (const c of colRes.rows) colLookup.set(c.codigo, { id: c.id, nombre: c.nombre ?? "" });
-
-  const pilarFkLookups = await loadPpdPilarFkLookups(client, provId);
 
   await client.query("DELETE FROM pedido_proveedor_detalle WHERE pedido_proveedor_id = $1", [ppId]);
 
@@ -1383,7 +1512,14 @@ export async function importProformaProgramadoPhased(
       : null;
   const ppdExists = ppdExistsRes?.rows[0]?.ok === true;
 
-  if (phase === "fi" && (fiOffset > 0 || ppdExists)) {
+  if (phase === "ppd") {
+    const gate = await gateProgramadoPpdFast(pool0, ppId, parsed);
+    if (!gate.ok) {
+      return { ok: false, error: gate.error, programado: true, phase };
+    }
+    eventoId = gate.eventoId;
+    preview = { ok: true, listado_vinculado: true, evento_id: eventoId, totales_ok: true };
+  } else if (phase === "fi" && (fiOffset > 0 || ppdExists)) {
     const ics0 = await loadIcsPpProgramado(pool0, ppId);
     const eventoIds = [
       ...new Set(
@@ -1447,10 +1583,11 @@ export async function importProformaProgramadoPhased(
 
   if (phase === "ppd" || phase === "all") {
     let pop: Awaited<ReturnType<typeof populatePpFromProforma>> | null = null;
+    const ppdPrep = await preparePpdImportLookups(pool, pp, detalle, casoCtx.casosEvento);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      pop = await populatePpFromProforma(client, pp, proforma, detalle, casoCtx.casosEvento);
+      pop = await populatePpFromProforma(client, pp, proforma, detalle, casoCtx.casosEvento, ppdPrep);
       if (!pop.ok) {
         await client.query("ROLLBACK");
         return { ok: false, error: pop.message, programado: true, phase: "ppd" };
@@ -1463,29 +1600,6 @@ export async function importProformaProgramadoPhased(
       client.release();
     }
 
-    const provId = pp.proveedor_importacion_id ?? 654;
-    const postAvisos: string[] = [];
-    try {
-      importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
-      postAvisos.push(...importPrecioAudit.avisos);
-    } catch (e) {
-      postAvisos.push(
-        `Auditoría precio_lista falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
-      );
-    }
-    try {
-      pilaresImportReport = await buildProformaPilaresImportReport(pool, {
-        rows: detalle,
-        proveedorId: provId,
-        eventoId,
-        stats: pop!.pilaresStats,
-      });
-      postAvisos.push(...pilaresImportReport.avisos);
-    } catch (e) {
-      postAvisos.push(
-        `Reporte pilares falló (PPD ya guardado): ${e instanceof Error ? e.message : "error"}`,
-      );
-    }
     if (phase === "ppd") {
       return {
         ok: true,
@@ -1500,10 +1614,39 @@ export async function importProformaProgramadoPhased(
         fi_offset: 0,
         fi_offset_next: 0,
         fi_batch: fiBatchSize,
-        import_avisos: postAvisos,
-        precio_audit: importPrecioAudit?.resumen,
-        pilares_import: pilaresImportReport,
+        import_avisos: [
+          "ℹ Pilares×biblioteca ya auditados en preview (paso 1). Import PPD completado.",
+        ],
+        pilares_import: {
+          stats: ppdPrep.pilaresStats,
+          lineas_proforma: [],
+          lineas_sin_pilar: [],
+          lineas_sin_biblioteca: [],
+          lineas_en_biblioteca: [],
+          biblioteca_id: casoCtx.bibliotecaId,
+          biblioteca_nombre: null,
+          avisos: [],
+        },
       };
+    }
+
+    if (phase === "all") {
+      const provId = pp.proveedor_importacion_id ?? 654;
+      try {
+        importPrecioAudit = await auditProformaVsPrecioLista(pool, eventoId, provId, detalle);
+      } catch {
+        /* PPD ya guardado — no bloquea fase FI */
+      }
+      try {
+        pilaresImportReport = await buildProformaPilaresImportReport(pool, {
+          rows: detalle,
+          proveedorId: provId,
+          eventoId,
+          stats: pop!.pilaresStats,
+        });
+      } catch {
+        /* idem */
+      }
     }
   }
 
