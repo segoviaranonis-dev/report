@@ -10,7 +10,8 @@
     "dev:clean:3000": "node -e \"const fs=require('fs');for(const p of ['.next','node_modules/.cache']){try{fs.rmSync(p,{recursive:true,force:true})}catch(e){}}\" && next dev -p 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "audit:encajar-filtros": "npx tsx scripts/audit_encajar_filtros.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
