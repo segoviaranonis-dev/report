@@ -26,6 +26,34 @@ export function IcPendientesPanel() {
   const [catalogos, setCatalogos] = useState<IcCatalogos | null>(null);
   const [quincenaLookup, setQuincenaLookup] = useState<Record<number, string>>({});
   const [stats, setStats] = useState({ pares: 0, neto: 0 });
+  const [descargandoCsv, setDescargandoCsv] = useState(false);
+
+  async function descargarCsvProveedor() {
+    setDescargandoCsv(true);
+    try {
+      const res = await fetch("/api/proceso-importacion/intencion-compra/export-csv", {
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Error al generar CSV");
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition") || "";
+      const match = /filename="([^"]+)"/.exec(dispo);
+      const filename = match?.[1] || "ic_pendientes_por_proveedor.csv";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descargar el CSV");
+    } finally {
+      setDescargandoCsv(false);
+    }
+  }
 
   const removeIc = useCallback((icId: number) => {
     setIcs((prev) => {
@@ -133,12 +161,22 @@ export function IcPendientesPanel() {
             </p>
           </div>
         </div>
-        <Link
-          href={INTENCION_COMPRA_NUEVA}
-          className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
-        >
-          + Nueva Intención
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={descargandoCsv || ics.length === 0}
+            onClick={() => void descargarCsvProveedor()}
+            className="rounded-lg border-2 border-rimec-azul bg-white px-4 py-2.5 text-sm font-bold text-rimec-azul hover:bg-rimec-azul/5 disabled:opacity-50"
+          >
+            {descargandoCsv ? "Generando CSV…" : "↓ CSV por proveedor"}
+          </button>
+          <Link
+            href={INTENCION_COMPRA_NUEVA}
+            className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+          >
+            + Nueva Intención
+          </Link>
+        </div>
       </div>
 
       <p className="mb-3 text-xs text-slate-600">

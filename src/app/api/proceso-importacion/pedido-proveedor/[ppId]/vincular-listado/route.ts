@@ -4,6 +4,7 @@ import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { recalcularFisPp } from "@/lib/pedido-proveedor/recalcular-fis-pp";
 import { runVincularListadoPython } from "@/lib/pedido-proveedor/run-python-listado";
 import { vincularListadoAPp } from "@/lib/pedido-proveedor/stock-listado";
+import { formatCertificacionPreciosCp } from "@/lib/pedido-proveedor/certificar-precios-cp";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 type Params = { params: Promise<{ ppId: string }> };
@@ -84,8 +85,14 @@ export async function POST(req: Request, { params }: Params) {
             : "Listado vinculado — solo tránsito (motor TS)"),
         stats: {
           snapshot: { ...(result.detalle ?? {}), actualizados: result.actualizados ?? 0 },
+          certificacion: result.certificacion ?? null,
           ...recalcStats,
         },
+        certificacion: result.certificacion ?? null,
+        certificacion_ok: result.certificacion?.ok ?? null,
+        certificacion_msg: result.certificacion
+          ? formatCertificacionPreciosCp(result.certificacion)
+          : undefined,
         actualizados: result.actualizados,
       });
     }

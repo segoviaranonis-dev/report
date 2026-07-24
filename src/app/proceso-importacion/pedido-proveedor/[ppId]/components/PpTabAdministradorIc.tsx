@@ -149,6 +149,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
   const [splitSelections, setSplitSelections] = useState<Map<number, number>>(new Map());
   const [splitCliente, setSplitCliente] = useState("");
   const [splitBusy, setSplitBusy] = useState(false);
+  const [descargandoCsv, setDescargandoCsv] = useState(false);
   const loadedOnceRef = useRef(Boolean(cachedAdmin));
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -176,6 +177,36 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
       setLoading(false);
     }
   }, [ppId, onMsg]);
+
+  async function descargarCsvIc() {
+    setDescargandoCsv(true);
+    try {
+      const qs = filtroCliente ? `?cliente_id=${encodeURIComponent(filtroCliente)}` : "";
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/export-csv${qs}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || "Error al generar CSV");
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition") || "";
+      const match = /filename="([^"]+)"/.exec(dispo);
+      const filename = match?.[1] || `ic_pp_${pp.numero_registro}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      onMsg("CSV IC descargado");
+    } catch (e) {
+      onMsg(msgFromUnknown(e));
+    } finally {
+      setDescargandoCsv(false);
+    }
+  }
 
   useEffect(() => {
     const c = readAdminIcCache(ppId);
@@ -710,6 +741,14 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          disabled={descargandoCsv || (ics.length === 0 && prefacturas.length === 0)}
+          onClick={() => void descargarCsvIc()}
+          className="rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-1.5 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+        >
+          {descargandoCsv ? "Generando CSV…" : "↓ Descargar IC (CSV por proveedor)"}
+        </button>
       </div>
 
       {/* Acción única — lote Chusa */}
