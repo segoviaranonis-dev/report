@@ -316,6 +316,36 @@ function PpExpander({ pp, onRefresh }: { pp: PpEnProceso; onRefresh: () => void 
   const [nroFactura, setNroFactura] = useState(pp.nro_factura_importacion ?? "");
   const [cerrando, setCerrando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [csvIcLoading, setCsvIcLoading] = useState(false);
+
+  async function descargarCsvIcPp() {
+    setCsvIcLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${pp.id}/ic-export-csv?_=${Date.now()}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error CSV IC");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      const filename = match?.[1] ?? `${pp.numero_registro}_ic.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg(`CSV descargado · ${pp.n_ics} IC`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error CSV IC");
+    } finally {
+      setCsvIcLoading(false);
+    }
+  }
 
   async function loadIcs() {
     setLoadingIcs(true);
@@ -407,6 +437,16 @@ function PpExpander({ pp, onRefresh }: { pp: PpEnProceso; onRefresh: () => void 
           )}
 
           <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            {pp.n_ics > 0 && (
+              <button
+                type="button"
+                disabled={csvIcLoading}
+                onClick={() => void descargarCsvIcPp()}
+                className="rounded-lg border-2 border-violet-900 bg-violet-700 px-4 py-2 text-sm font-black text-white hover:bg-violet-800 disabled:opacity-50"
+              >
+                {csvIcLoading ? "CSV…" : `↓ CSV IC (${pp.n_ics})`}
+              </button>
+            )}
             <div className="flex-1 min-w-[200px]">
               <label className="text-xs font-bold uppercase text-slate-500">Nro. factura importación</label>
               <input

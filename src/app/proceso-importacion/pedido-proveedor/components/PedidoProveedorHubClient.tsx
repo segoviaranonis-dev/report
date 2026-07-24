@@ -48,13 +48,44 @@ function IcListaAcordeon({
   ics,
   ppId,
   nroFabrica,
+  nIcs,
 }: {
   ics: string;
   ppId: number;
   nroFabrica: string;
+  nIcs: number;
 }) {
   const list = useMemo(() => parseIcList(ics), [ics]);
   const [open, setOpen] = useState(false);
+  const [csvIcLoading, setCsvIcLoading] = useState(false);
+
+  async function descargarCsvIc() {
+    setCsvIcLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/ic-export-csv?_=${Date.now()}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error CSV IC");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      const filename = match?.[1] ?? `pp_${ppId}_ic.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Error CSV IC");
+    } finally {
+      setCsvIcLoading(false);
+    }
+  }
 
   if (list.length === 0) {
     return <p className="mt-1 font-mono text-[11px] text-slate-400">Sin IC asignada</p>;
@@ -64,6 +95,16 @@ function IcListaAcordeon({
     return (
       <div className="mt-1">
         <p className="font-mono text-[11px] font-semibold text-slate-700">{list[0]}</p>
+        {nIcs > 0 && (
+          <button
+            type="button"
+            disabled={csvIcLoading}
+            onClick={() => void descargarCsvIc()}
+            className="mt-1 rounded border-2 border-violet-800 bg-violet-700 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+          >
+            {csvIcLoading ? "…" : `↓ CSV IC (${nIcs})`}
+          </button>
+        )}
         {nroFabrica !== "—" && (
           <p className="mt-0.5 font-mono text-[10px] text-slate-500">Fábrica: {nroFabrica}</p>
         )}
@@ -125,13 +166,28 @@ function IcListaAcordeon({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-2 py-1.5">
             <span className="text-[10px] text-slate-500">{list.length} intenciones · orden alfabético</span>
-            <Link
-              href={pedidoProveedorDetalle(ppId, "ics")}
-              className="text-[10px] font-bold text-rimec-azul hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Abrir ICs →
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {nIcs > 0 && (
+                <button
+                  type="button"
+                  disabled={csvIcLoading}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void descargarCsvIc();
+                  }}
+                  className="rounded border-2 border-violet-800 bg-violet-700 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+                >
+                  {csvIcLoading ? "…" : `↓ CSV IC (${nIcs})`}
+                </button>
+              )}
+              <Link
+                href={pedidoProveedorDetalle(ppId, "ics")}
+                className="text-[10px] font-bold text-rimec-azul hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Abrir ICs →
+              </Link>
+            </div>
           </div>
         </div>
       )}
@@ -146,11 +202,40 @@ function IcListaAcordeon({
 function AccesoRapidoPp({ p }: { p: PpListaRow }) {
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
+  const [csvIcLoading, setCsvIcLoading] = useState(false);
   const [fiBusy, setFiBusy] = useState(false);
   const esProgramado = p.categoria_id === CATEGORIA_PROGRAMADO_ID;
   const puedeCsvVentas = esProgramado ? p.n_facturas_internas > 0 : p.n_fi_confirmadas > 0;
   const puedeRatificarFi =
     esProgramado && p.total_articulos > 0 && p.estado !== "ENVIADO";
+
+  async function descargarCsvIcPp() {
+    setCsvIcLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${p.id}/ic-export-csv?_=${Date.now()}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error al generar CSV IC");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      const filename = match?.[1] ?? `${p.numero_registro}_ic.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error CSV IC");
+    } finally {
+      setCsvIcLoading(false);
+    }
+  }
 
   async function descargarCsv(endpoint: "csv-ventas" | "csv-inicial", fallback: string) {
     const setLoading = endpoint === "csv-ventas" ? setCsvVentasLoading : setCsvInicialLoading;
@@ -205,6 +290,17 @@ function AccesoRapidoPp({ p }: { p: PpListaRow }) {
 
   return (
     <div className="flex min-w-[7.5rem] flex-col gap-1">
+      {p.n_ics > 0 && (
+        <button
+          type="button"
+          disabled={csvIcLoading}
+          onClick={() => void descargarCsvIcPp()}
+          title={`Descargar ${p.n_ics} IC del PP · CSV por proveedor`}
+          className="rounded-md border-2 border-violet-900 bg-violet-700 px-2 py-2 text-center text-xs font-black uppercase tracking-wide text-white hover:bg-violet-800 disabled:opacity-50"
+        >
+          {csvIcLoading ? "CSV…" : `↓ IC (${p.n_ics})`}
+        </button>
+      )}
       <Link
         href={pedidoProveedorDetalle(p.id)}
         className="rounded-md bg-rimec-azul px-2 py-1.5 text-center text-xs font-bold text-white hover:bg-rimec-azul-dark"
@@ -382,13 +478,13 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
             {proformaMostrar && p.nro_fabrica !== "—" && p.nro_fabrica !== proformaMostrar && (
               <p className="mt-0.5 font-mono text-[10px] text-slate-500">Fábrica: {p.nro_fabrica}</p>
             )}
-            <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica="—" />
+            <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica="—" nIcs={p.n_ics} />
           </>
         ) : (
           <>
             <p className="font-medium text-amber-900">{p.cliente}</p>
             <p className="text-slate-500">{p.vendedor}</p>
-            <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica={p.nro_fabrica} />
+            <IcListaAcordeon ics={p.ics} ppId={p.id} nroFabrica={p.nro_fabrica} nIcs={p.n_ics} />
           </>
         )}
       </div>

@@ -655,7 +655,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
               </div>
             </div>
 
-            {ics.length > 0 && (
+            {pp && (
               <div className="mt-4 flex justify-center">
                 <button
                   type="button"
@@ -663,7 +663,9 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   onClick={() => void descargarCsvIcPp()}
                   className="inline-flex min-h-12 items-center gap-2 rounded-xl border-4 border-violet-900 bg-violet-700 px-8 py-3 text-base font-black uppercase tracking-wide text-white shadow-lg hover:bg-violet-800 disabled:opacity-50"
                 >
-                  {csvIcLoading ? "Generando CSV…" : `↓ Descargar todas las IC (${ics.length}) · CSV por proveedor`}
+                  {csvIcLoading
+                    ? "Generando CSV…"
+                    : `↓ Descargar IC del PP (${ics.length}) · CSV por proveedor`}
                 </button>
               </div>
             )}
@@ -851,16 +853,14 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-1">
-              {ics.length > 0 && (
-                <button
-                  type="button"
-                  disabled={csvIcLoading}
-                  onClick={() => void descargarCsvIcPp()}
-                  className="order-first mb-1 rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50 sm:order-none sm:mb-0 sm:mr-auto"
-                >
-                  {csvIcLoading ? "CSV…" : `↓ CSV IC (${ics.length})`}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={csvIcLoading}
+                onClick={() => void descargarCsvIcPp()}
+                className="order-first mb-1 rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50 sm:order-none sm:mb-0 sm:mr-auto"
+              >
+                {csvIcLoading ? "CSV…" : `↓ CSV IC (${ics.length})`}
+              </button>
               {TABS.filter(
                 (t) => t.id !== "admin-ic" || pp.categoria_id === CATEGORIA_PROGRAMADO_ID,
               ).map((t) => {
@@ -918,16 +918,14 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
               <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-sm font-bold text-rimec-azul-dark">ICs vinculadas ({ics.length})</h2>
-                  {ics.length > 0 && (
-                    <button
-                      type="button"
-                      disabled={csvIcLoading}
-                      onClick={() => void descargarCsvIcPp()}
-                      className="rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
-                    >
-                      {csvIcLoading ? "Generando…" : "↓ Descargar todas las IC (CSV)"}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    disabled={csvIcLoading}
+                    onClick={() => void descargarCsvIcPp()}
+                    className="rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+                  >
+                    {csvIcLoading ? "Generando…" : "↓ Descargar todas las IC (CSV)"}
+                  </button>
                 </div>
                 {pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
                   <div className="mt-3">
