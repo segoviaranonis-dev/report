@@ -13,7 +13,7 @@ export const ALIAS_TARGET_VALUE = "Monto Obj";
 export const ALIAS_VARIATION = "Variación %";
 
 /** Versión sellada del Sales Report web (snapshot + mundos inmersivos). */
-export const SALES_REPORT_WEB_VERSION = "1.0.1";
+export const SALES_REPORT_WEB_VERSION = "1.0.2";
 
 export const MES_MAP: Record<string, number> = {
   Enero: 1,
