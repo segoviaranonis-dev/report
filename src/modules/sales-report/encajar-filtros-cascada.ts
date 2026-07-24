@@ -24,6 +24,10 @@ function sameStrArray(a: string[], b: string[]): boolean {
   return sa.every((v, i) => v === sb[i]);
 }
 
+function normCatIds(ids: number[]): number[] {
+  return [...new Set(ids.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))];
+}
+
 /**
  * Ajusta filtros al dominio cascada devuelto por el servidor.
  *
@@ -41,8 +45,8 @@ export function encajarFiltrosCascada(
   const depOk = c.departamentos.some((x) => x.trim().toUpperCase() === dep);
   const departamento = depOk ? f.departamento : (c.departamentos[0] ?? f.departamento);
 
-  const catSet = new Set(c.categorias.map((x) => x.id_categoria));
-  const catFiltered = f.categoria_ids.filter((id) => catSet.has(id));
+  const catSet = new Set(c.categorias.map((x) => Number(x.id_categoria)));
+  const catFiltered = normCatIds(f.categoria_ids).filter((id) => catSet.has(id));
   const calzadosDefault = defaultCalzadosCategoriaIds(c.categorias);
 
   let categoria_ids: number[];
@@ -96,7 +100,20 @@ export function encajarFiltrosCascada(
   return next;
 }
 
-/** True si el encaje alteró selección explícita del usuario (auditoría). */
+/**
+ * Tras Sincronizar manual: encaja dominios pero **nunca** toca categorías elegidas.
+ */
+export function encajarFiltrosTrasSyncUsuario(
+  f: SalesReportFilters,
+  c: CascadaDominios,
+): SalesReportFilters {
+  const catsUsuario = normCatIds(f.categoria_ids);
+  const encajado = encajarFiltrosCascada(f, c);
+  if (catsUsuario.length === 0) return encajado;
+  if (sameNumArray(encajado.categoria_ids, catsUsuario)) return encajado;
+  return { ...encajado, categoria_ids: catsUsuario };
+}
+
 export function encajeAlteroSeleccion(prev: SalesReportFilters, next: SalesReportFilters): boolean {
   const sameCats = sameNumArray(prev.categoria_ids, next.categoria_ids);
   const sameMeses = sameStrArray(prev.meses, next.meses);

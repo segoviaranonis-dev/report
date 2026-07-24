@@ -227,7 +227,7 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
                 }
                 className={`rounded-full border px-2.5 py-1 text-[10px] uppercase transition ${
                   on
-                    ? "border-rimec-azul bg-rimec-azul/10 text-rimec-azul"
+                    ? "animate-rimec-attention-pulse border-rimec-azul/50 bg-rimec-azul/10 font-semibold text-rimec-azul ring-2 ring-rimec-azul/30"
                     : "border-rimec-azul/15 bg-app-bg text-neutral-ink-muted hover:border-rimec-azul/25"
                 }`}
               >

@@ -12,7 +12,7 @@ import { defaultSalesReportFilters, type SalesReportFilters } from "@/modules/sa
 import {
   SALES_REPORT_WEB_VERSION,
 } from "@/modules/sales-report/constants";
-import { encajarFiltrosCascada } from "@/modules/sales-report/encajar-filtros-cascada";
+import { encajarFiltrosCascada, encajarFiltrosTrasSyncUsuario } from "@/modules/sales-report/encajar-filtros-cascada";
 import { filtrosToFullSnapshotBody, isFullSnapshotApiPayload } from "@/lib/rimec/snapshot-to-pkg";
 import {
   markDashboardPaint,
@@ -90,6 +90,14 @@ export function ImmersiveClient() {
   const [hasSyncedOnce, setHasSyncedOnce] = useState(() => initialPrefetch.snapshot !== null);
   const [syncShell, setSyncShell] = useState(false);
   const filtrosRef = useRef(filtros);
+  /** Actualiza ref en el mismo tick que setState — evita stale al pulsar Sincronizar rápido. */
+  const setFiltrosSync = useCallback((update: React.SetStateAction<SalesReportFilters>) => {
+    setFiltros((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      filtrosRef.current = next;
+      return next;
+    });
+  }, []);
   filtrosRef.current = filtros;
   /** Tras Sincronizar manual: no dejar que prefetch tardío pise snapshot/filtros. */
   const userConsultoRef = useRef(false);
@@ -190,7 +198,7 @@ export function ImmersiveClient() {
       const snap = normalizeSnapshot(j);
       setSnapshot(snap);
       if (snap.cascada) {
-        setFiltros(encajarFiltrosCascada(fConsulta, snap.cascada));
+        setFiltrosSync(encajarFiltrosTrasSyncUsuario(fConsulta, snap.cascada));
       }
       setHasSyncedOnce(true);
     } catch (e) {
@@ -285,7 +293,7 @@ export function ImmersiveClient() {
               min={0}
               max={200}
               value={filtros.objetivo_pct}
-              onChange={(e) => setFiltros({ ...filtros, objetivo_pct: Number(e.target.value) })}
+              onChange={(e) => setFiltrosSync({ ...filtros, objetivo_pct: Number(e.target.value) })}
               className="mt-2 w-full accent-rimec-azul-light"
             />
             <div className="mt-1 text-right font-serif text-lg text-rimec-azul">{filtros.objetivo_pct}%</div>
@@ -301,7 +309,7 @@ export function ImmersiveClient() {
 
           <ImmersiveFiltersPanel
             filtros={filtros}
-            setFiltros={setFiltros}
+            setFiltros={setFiltrosSync}
             cascada={snapshot?.cascada ?? null}
             hasSyncedOnce={hasSyncedOnce}
           />

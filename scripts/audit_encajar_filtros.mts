@@ -4,6 +4,7 @@
  */
 import {
   encajarFiltrosCascada,
+  encajarFiltrosTrasSyncUsuario,
   encajeAlteroSeleccion,
 } from "../src/modules/sales-report/encajar-filtros-cascada.ts";
 import { defaultSalesReportFilters } from "../src/modules/sales-report/types.ts";
@@ -124,6 +125,18 @@ run("Depto inválido → primer del dominio", () => {
 });
 
 // —— Idempotencia ——
+run("Tras sync usuario: PROGRAMADO solo aunque encaje quiera default", () => {
+  const f = { ...base, categoria_ids: [3], meses: ["Julio"] };
+  const out = encajarFiltrosTrasSyncUsuario(f, CASCADA);
+  assert(out.categoria_ids.join(",") === "3", "sync usuario preserva PROGRAMADO");
+});
+
+run("Ids string normalizados", () => {
+  const f = { ...base, categoria_ids: ["3" as unknown as number] };
+  const out = encajarFiltrosCascada(f, CASCADA);
+  assert(out.categoria_ids.join(",") === "3", "coerce string id");
+});
+
 run("Segunda pasada idempotente", () => {
   const f = { ...base, categoria_ids: [3], meses: ["Julio"] };
   const once = encajarFiltrosCascada(f, CASCADA);
