@@ -85,6 +85,8 @@ type IcFormDraft = {
   listado_precio_id: ListadoPrecioTierId | null;
 };
 
+type IcObsMsg = { id: number; usuario_nombre: string; texto: string };
+
 function fmtGs(n: number) {
   return n.toLocaleString("es-PY", { maximumFractionDigits: 0 });
 }
@@ -168,12 +170,16 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     return drafts;
   });
   const [catalogos, setCatalogos] = useState<IcCatalogos | null>(null);
+  const [icObsNueva, setIcObsNueva] = useState<Record<number, string>>({});
+  const [icObsThreads, setIcObsThreads] = useState<Record<number, IcObsMsg[]>>({});
+  const [icObsLoading, setIcObsLoading] = useState<number | null>(null);
   const [icBusy, setIcBusy] = useState<number | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [adminIcBump, setAdminIcBump] = useState(0);
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
+  const [csvIcLoading, setCsvIcLoading] = useState(false);
   const loadedOnceRef = useRef(Boolean(cached));
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -345,6 +351,30 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     });
   }
 
+  async function cargarObsIc(icId: number) {
+    setIcObsLoading(icId);
+    try {
+      const res = await fetch(`/api/logistica-ok/observaciones?ic_id=${icId}`, {
+        credentials: "same-origin",
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.items)) {
+        setIcObsThreads((t) => ({
+          ...t,
+          [icId]: data.items.map((it: IcObsMsg) => ({
+            id: it.id,
+            usuario_nombre: it.usuario_nombre,
+            texto: it.texto,
+          })),
+        }));
+      }
+    } catch {
+      /* silencioso */
+    } finally {
+      setIcObsLoading(null);
+    }
+  }
+
   async function guardarIc(icId: number) {
     if (!pp) return;
     const draft = icDrafts[icId];
@@ -374,11 +404,14 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
             precio_evento_id: draft.precio_evento_id,
             listado_precio_id:
               draft.categoria_id === CATEGORIA_PROGRAMADO_ID ? draft.listado_precio_id : null,
+            observacion_logistica_nueva: icObsNueva[icId]?.trim() || undefined,
           }),
         },
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al guardar IC");
+      setIcObsNueva((o) => ({ ...o, [icId]: "" }));
+      await cargarObsIc(icId);
       setMsg("IC actualizada.");
       await load();
     } catch (e) {
@@ -428,6 +461,36 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       setMsg(e instanceof Error ? e.message : "Error");
     } finally {
       setCerrando(false);
+    }
+  }
+
+  async function descargarCsvIcPp() {
+    if (!pp) return;
+    setCsvIcLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${pp.id}/ic-export-csv?_=${Date.now()}`,
+        { credentials: "same-origin" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error CSV IC");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      const filename = match?.[1] ?? `${pp.numero_registro}_ic.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg(`CSV descargado · ${ics.length} IC`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error CSV IC");
+    } finally {
+      setCsvIcLoading(false);
     }
   }
 
@@ -591,6 +654,19 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                 </div>
               </div>
             </div>
+
+            {ics.length > 0 && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  disabled={csvIcLoading}
+                  onClick={() => void descargarCsvIcPp()}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-xl border-4 border-violet-900 bg-violet-700 px-8 py-3 text-base font-black uppercase tracking-wide text-white shadow-lg hover:bg-violet-800 disabled:opacity-50"
+                >
+                  {csvIcLoading ? "Generando CSV…" : `↓ Descargar todas las IC (${ics.length}) · CSV por proveedor`}
+                </button>
+              </div>
+            )}
 
             <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -774,7 +850,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-1">
+            <div className="mt-6 flex flex-wrap items-center gap-2 border-b border-slate-200 pb-1">
+              {ics.length > 0 && (
+                <button
+                  type="button"
+                  disabled={csvIcLoading}
+                  onClick={() => void descargarCsvIcPp()}
+                  className="order-first mb-1 rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50 sm:order-none sm:mb-0 sm:mr-auto"
+                >
+                  {csvIcLoading ? "CSV…" : `↓ CSV IC (${ics.length})`}
+                </button>
+              )}
               {TABS.filter(
                 (t) => t.id !== "admin-ic" || pp.categoria_id === CATEGORIA_PROGRAMADO_ID,
               ).map((t) => {
@@ -830,7 +916,19 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
 
             {tab === "ics" && (
               <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-sm font-bold text-rimec-azul-dark">ICs vinculadas ({ics.length})</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-sm font-bold text-rimec-azul-dark">ICs vinculadas ({ics.length})</h2>
+                  {ics.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={csvIcLoading}
+                      onClick={() => void descargarCsvIcPp()}
+                      className="rounded-lg border-2 border-violet-800 bg-violet-700 px-4 py-2 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+                    >
+                      {csvIcLoading ? "Generando…" : "↓ Descargar todas las IC (CSV)"}
+                    </button>
+                  )}
+                </div>
                 {pp.categoria_id === CATEGORIA_PROGRAMADO_ID && (
                   <div className="mt-3">
                     <IcProgramadoCabeceraGuide compact />
@@ -1045,6 +1143,39 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                                     </label>
                                   ))}
                                 </div>
+                              </div>
+                              <div className="sm:col-span-2 lg:col-span-3 rounded border border-emerald-200 bg-emerald-50/60 p-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] font-bold uppercase text-emerald-800">
+                                    Obs. Logística
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className="text-[10px] font-semibold text-rimec-azul hover:underline"
+                                    onClick={() => cargarObsIc(ic.ic_id)}
+                                  >
+                                    {icObsLoading === ic.ic_id ? "…" : "Actualizar"}
+                                  </button>
+                                </div>
+                                {(icObsThreads[ic.ic_id]?.length ?? 0) > 0 && (
+                                  <ul className="mt-1 max-h-24 space-y-1 overflow-auto text-[11px]">
+                                    {icObsThreads[ic.ic_id]!.map((m) => (
+                                      <li key={m.id}>
+                                        <span className="font-bold text-emerald-900">{m.usuario_nombre}:</span>{" "}
+                                        {m.texto}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                                <textarea
+                                  rows={2}
+                                  className={`${inputCls} mt-1 border-emerald-300 bg-white`}
+                                  placeholder="Agregar mensaje (admin)…"
+                                  value={icObsNueva[ic.ic_id] ?? ""}
+                                  onChange={(e) =>
+                                    setIcObsNueva((o) => ({ ...o, [ic.ic_id]: e.target.value }))
+                                  }
+                                />
                               </div>
                               <label className="text-xs">
                                 <span className="font-semibold text-slate-500">

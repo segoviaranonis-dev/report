@@ -183,7 +183,7 @@ export function PpTabAdministradorIc({ pp, ppId, adminIcBump = 0, onMsg, onReloa
     try {
       const qs = filtroCliente ? `?cliente_id=${encodeURIComponent(filtroCliente)}` : "";
       const res = await fetch(
-        `/api/proceso-importacion/pedido-proveedor/${ppId}/administrador-ic/export-csv${qs}`,
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/ic-export-csv${qs}`,
         { credentials: "same-origin" },
       );
       if (!res.ok) {

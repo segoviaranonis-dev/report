@@ -1,5 +1,5 @@
 import type { AdministradorIcPayload } from "./administrador-ic-query";
-import type { PpDetalleHeader } from "./detail-query";
+import type { PpDetalleHeader, PpIcVinculada } from "./detail-query";
 
 const IC_PP_HEADERS = [
   "Proveedor",
@@ -166,6 +166,84 @@ export function buildIcPpCsvExport(
           String(art.pares),
           String(art.lpn),
           String(art.subtotal),
+        ]
+          .map(escCsv)
+          .join(","),
+      );
+    }
+  }
+
+  return "\uFEFF" + lines.join("\r\n");
+}
+
+const IC_VINCULADAS_HEADERS = [
+  "Proveedor",
+  "PP",
+  "Nro IC",
+  "Cód cliente",
+  "Cliente",
+  "Marca",
+  "Vendedor",
+  "Categoría",
+  "Pares",
+  "Monto bruto",
+  "Monto neto",
+  "D1",
+  "D2",
+  "D3",
+  "D4",
+  "Plazo",
+  "Evento precio",
+  "Listado LP",
+  "Nro pedido fábrica",
+] as const;
+
+/** Todas las IC vinculadas al PP — agrupado por proveedor de cada IC. */
+export function buildIcVinculadasPpCsv(
+  pp: Pick<PpDetalleHeader, "numero_registro" | "proveedor">,
+  ics: PpIcVinculada[],
+): string {
+  const byProveedor = new Map<string, PpIcVinculada[]>();
+  for (const ic of ics) {
+    const key = ic.proveedor.trim() || pp.proveedor.trim() || "—";
+    const list = byProveedor.get(key) ?? [];
+    list.push(ic);
+    byProveedor.set(key, list);
+  }
+
+  const proveedores = [...byProveedor.keys()].sort((a, b) => a.localeCompare(b, "es"));
+  const lines: string[] = [];
+
+  lines.push(escCsv(`# PP ${pp.numero_registro} · ${ics.length} IC vinculadas · agrupado por proveedor`));
+  lines.push(IC_VINCULADAS_HEADERS.join(","));
+
+  for (const prov of proveedores) {
+    const group = byProveedor.get(prov) ?? [];
+    group.sort((a, b) => a.nro_ic.localeCompare(b.nro_ic));
+    const totalPares = group.reduce((s, x) => s + x.pares, 0);
+    lines.push(escCsv(`# PROVEEDOR: ${prov} (${group.length} IC · ${totalPares} pares)`));
+    for (const ic of group) {
+      lines.push(
+        [
+          ic.proveedor,
+          pp.numero_registro,
+          ic.nro_ic,
+          String(ic.id_cliente),
+          ic.cliente,
+          ic.marca,
+          ic.vendedor,
+          ic.categoria,
+          String(ic.pares),
+          String(ic.monto_bruto),
+          String(ic.monto_neto),
+          String(ic.descuento_1),
+          String(ic.descuento_2),
+          String(ic.descuento_3),
+          String(ic.descuento_4),
+          ic.plazo_nombre ?? "",
+          ic.evento_nombre ?? "",
+          ic.listado_precio_id != null ? String(ic.listado_precio_id) : "",
+          ic.nro_pedido_fabrica ?? "",
         ]
           .map(escCsv)
           .join(","),
