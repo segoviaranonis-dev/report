@@ -67,10 +67,10 @@ run("Sin selección → default calzados", () => {
   assert(out.categoria_ids.length === 3, "vacío → default [1,2,3]");
 });
 
-run("Id inválido explícito → vacío (no inflar a 3)", () => {
+run("Id inválido explícito → se conserva (no inflar a 3)", () => {
   const f = { ...base, categoria_ids: [99] };
   const out = encajarFiltrosCascada(f, CASCADA);
-  assert(out.categoria_ids.length === 0, "id inválido no debe expandir a las 3");
+  assert(out.categoria_ids.join(",") === "99", "id inválido aislado no expande");
 });
 
 // —— Meses ——
@@ -135,6 +135,34 @@ run("Ids string normalizados", () => {
   const f = { ...base, categoria_ids: ["3" as unknown as number] };
   const out = encajarFiltrosCascada(f, CASCADA);
   assert(out.categoria_ids.join(",") === "3", "coerce string id");
+});
+
+run("Legacy 1-2-3 sin match → ids reales cascada", () => {
+  const CASCADA_REAL = {
+    ...CASCADA,
+    categorias: [
+      { id_categoria: 10, nombre: "STOCK" },
+      { id_categoria: 20, nombre: "PREVENTA" },
+      { id_categoria: 30, nombre: "PROGRAMADO" },
+    ],
+  };
+  const f = { ...base, categoria_ids: [1, 2, 3] };
+  const out = encajarFiltrosCascada(f, CASCADA_REAL);
+  assert(out.categoria_ids.join(",") === "10,20,30", "remap legacy default");
+});
+
+run("PROGRAMADO real id 30 preservado tras sync", () => {
+  const CASCADA_REAL = {
+    ...CASCADA,
+    categorias: [
+      { id_categoria: 10, nombre: "STOCK" },
+      { id_categoria: 20, nombre: "PREVENTA" },
+      { id_categoria: 30, nombre: "PROGRAMADO" },
+    ],
+  };
+  const f = { ...base, categoria_ids: [30] };
+  const out = encajarFiltrosTrasSyncUsuario(f, CASCADA_REAL);
+  assert(out.categoria_ids.join(",") === "30", "solo PROGRAMADO id real");
 });
 
 run("Segunda pasada idempotente", () => {

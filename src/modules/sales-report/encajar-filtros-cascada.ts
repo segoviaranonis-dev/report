@@ -1,4 +1,5 @@
 import { defaultCalzadosCategoriaIds, MESES_LISTA } from "./constants";
+import { normCatIds, resolveCategoriaIdsUi } from "./categoria-id-utils";
 import type { SalesReportFilters } from "./types";
 
 export type CascadaDominios = {
@@ -24,8 +25,8 @@ function sameStrArray(a: string[], b: string[]): boolean {
   return sa.every((v, i) => v === sb[i]);
 }
 
-function normCatIds(ids: number[]): number[] {
-  return [...new Set(ids.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))];
+function normCatIdsLocal(ids: number[]): number[] {
+  return normCatIds(ids);
 }
 
 /**
@@ -46,19 +47,22 @@ export function encajarFiltrosCascada(
   const departamento = depOk ? f.departamento : (c.departamentos[0] ?? f.departamento);
 
   const catSet = new Set(c.categorias.map((x) => Number(x.id_categoria)));
-  const catFiltered = normCatIds(f.categoria_ids).filter((id) => catSet.has(id));
+  const catFiltered = normCatIdsLocal(f.categoria_ids).filter((id) => catSet.has(id));
   const calzadosDefault = defaultCalzadosCategoriaIds(c.categorias);
 
   let categoria_ids: number[];
   if (c.categorias.length === 0) {
-    categoria_ids = f.categoria_ids.length ? f.categoria_ids : calzadosDefault;
+    categoria_ids = f.categoria_ids.length ? normCatIdsLocal(f.categoria_ids) : calzadosDefault;
   } else if (catFiltered.length > 0) {
     categoria_ids = catFiltered;
   } else if (f.categoria_ids.length === 0) {
     categoria_ids = calzadosDefault;
   } else {
-    // Selección explícita pero ids fuera del dominio — no inflar a las 3
-    categoria_ids = [];
+    categoria_ids = resolveCategoriaIdsUi(f.categoria_ids, c);
+  }
+
+  if (c.categorias.length > 0 && categoria_ids.length === 0) {
+    categoria_ids = calzadosDefault;
   }
 
   const monthPool = c.meses_nombres.length > 0 ? c.meses_nombres : MESES_LISTA;
@@ -107,8 +111,8 @@ export function encajarFiltrosTrasSyncUsuario(
   f: SalesReportFilters,
   c: CascadaDominios,
 ): SalesReportFilters {
-  const catsUsuario = normCatIds(f.categoria_ids);
   const encajado = encajarFiltrosCascada(f, c);
+  const catsUsuario = resolveCategoriaIdsUi(f.categoria_ids, c);
   if (catsUsuario.length === 0) return encajado;
   if (sameNumArray(encajado.categoria_ids, catsUsuario)) return encajado;
   return { ...encajado, categoria_ids: catsUsuario };

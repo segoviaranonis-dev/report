@@ -13,6 +13,8 @@ import {
   SALES_REPORT_WEB_VERSION,
 } from "@/modules/sales-report/constants";
 import { encajarFiltrosCascada, encajarFiltrosTrasSyncUsuario } from "@/modules/sales-report/encajar-filtros-cascada";
+import { normalizeCascadaCategorias, normCatIds, resolveCategoriaIdsUi } from "@/modules/sales-report/categoria-id-utils";
+import type { FullSnapshotCascada } from "@/lib/rimec/full-snapshot-types";
 import { filtrosToFullSnapshotBody, isFullSnapshotApiPayload } from "@/lib/rimec/snapshot-to-pkg";
 import {
   markDashboardPaint,
@@ -61,11 +63,17 @@ function parseMundoParam(raw: string | null): MundoId | null {
 
 type MetaApi = SalesReportMeta;
 
+function normalizeCascada(c: FullSnapshotCascada | undefined): FullSnapshotCascada | undefined {
+  if (!c) return c;
+  return { ...c, categorias: normalizeCascadaCategorias(c.categorias ?? []) };
+}
+
 function normalizeSnapshot(j: Record<string, unknown>): FullSnapshotResponse {
   const snap = j as FullSnapshotResponse;
   return {
     ...snap,
     jerarquia_clientes: Array.isArray(snap.jerarquia_clientes) ? snap.jerarquia_clientes : [],
+    cascada: snap.cascada ? normalizeCascada(snap.cascada)! : snap.cascada,
   };
 }
 
@@ -93,7 +101,8 @@ export function ImmersiveClient() {
   /** Actualiza ref en el mismo tick que setState — evita stale al pulsar Sincronizar rápido. */
   const setFiltrosSync = useCallback((update: React.SetStateAction<SalesReportFilters>) => {
     setFiltros((prev) => {
-      const next = typeof update === "function" ? update(prev) : update;
+      const nextRaw = typeof update === "function" ? update(prev) : update;
+      const next = { ...nextRaw, categoria_ids: normCatIds(nextRaw.categoria_ids) };
       filtrosRef.current = next;
       return next;
     });
@@ -167,7 +176,13 @@ export function ImmersiveClient() {
 
   const consultar = useCallback(async () => {
     if (!dataLive || loading) return;
-    const fConsulta = filtrosRef.current;
+    let fConsulta = filtrosRef.current;
+    if (snapshot?.cascada) {
+      fConsulta = {
+        ...fConsulta,
+        categoria_ids: resolveCategoriaIdsUi(fConsulta.categoria_ids, snapshot.cascada),
+      };
+    }
     userConsultoRef.current = true;
     setSyncShell(true);
     setLoading(true);
@@ -208,7 +223,7 @@ export function ImmersiveClient() {
       setSyncShell(false);
       setLoading(false);
     }
-  }, [dataLive, loading]);
+  }, [dataLive, loading, snapshot?.cascada]);
 
   const handleDemo = useCallback(() => {
     setBootLoading(false);

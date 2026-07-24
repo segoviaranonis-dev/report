@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { FullSnapshotCascada } from "@/lib/rimec/full-snapshot-types";
 import type { SalesReportFilters } from "@/modules/sales-report/types";
 import { MESES_LISTA } from "@/modules/sales-report/constants";
+import { catIdEq, catIdsInclude, normalizeCascadaCategorias } from "@/modules/sales-report/categoria-id-utils";
 import { mesesSemestre, periodoRapidoActivo } from "../rimec-view-utils";
 
 function summarizeList(items: string[], max = 2): string {
@@ -14,8 +15,9 @@ function summarizeList(items: string[], max = 2): string {
 
 function summarizeCats(ids: number[], cascada: FullSnapshotCascada): string {
   if (!ids.length) return "—";
+  const cats = normalizeCascadaCategorias(cascada.categorias ?? []);
   const names = ids
-    .map((id) => cascada.categorias.find((c) => c.id_categoria === id)?.nombre ?? `#${id}`)
+    .map((id) => cats.find((c) => catIdEq(c.id_categoria, id))?.nombre ?? `#${id}`)
     .slice(0, 2);
   return ids.length > 2 ? `${names.join(", ")} +${ids.length - 2}` : names.join(", ");
 }
@@ -209,58 +211,34 @@ export function ImmersiveFiltersPanel({ filtros, setFiltros, cascada, hasSyncedO
         onOpen={() => toggleOpen("cat")}
         disabled={!canPick || !cascada?.categorias.length}
       >
-        <p className="mb-2 text-[9px] leading-relaxed text-neutral-ink-muted">
-          Solo se listan las categorías <strong className="text-rimec-azul">activas</strong> en el informe. Para
-          quitar una, pulsala; para sumar una excluida, usá Agregar.
-        </p>
         <div className="flex flex-wrap gap-1.5">
-          {cascada?.categorias
-            .filter((c) => filtros.categoria_ids.includes(c.id_categoria))
-            .map((c) => (
+          {normalizeCascadaCategorias(cascada?.categorias ?? []).map((c) => {
+            const id = Number(c.id_categoria);
+            const on = catIdsInclude(filtros.categoria_ids, id);
+            return (
               <button
-                key={c.id_categoria}
+                key={id}
                 type="button"
-                title="Quitar del informe"
                 onClick={() =>
                   setFiltros((f) => {
-                    const rest = f.categoria_ids.filter((x) => x !== c.id_categoria);
-                    return { ...f, categoria_ids: rest.length ? rest : [c.id_categoria] };
+                    const has = catIdsInclude(f.categoria_ids, id);
+                    const categoria_ids = has
+                      ? f.categoria_ids.filter((x) => !catIdEq(x, id))
+                      : [...f.categoria_ids, id];
+                    return { ...f, categoria_ids: categoria_ids.length ? categoria_ids : [id] };
                   })
                 }
-                className="animate-rimec-attention-pulse rounded-full border border-rimec-azul/50 bg-rimec-azul/10 px-2.5 py-1 text-[10px] font-semibold uppercase text-rimec-azul ring-2 ring-rimec-azul/30 transition hover:bg-rimec-azul/20"
+                className={`rounded-full border px-2.5 py-1 text-[10px] uppercase transition ${
+                  on
+                    ? "animate-rimec-attention-pulse border-rimec-azul/50 bg-rimec-azul/10 font-semibold text-rimec-azul ring-2 ring-rimec-azul/30"
+                    : "border-rimec-azul/15 bg-app-bg text-neutral-ink-muted opacity-45 hover:border-rimec-azul/25 hover:opacity-80"
+                }`}
               >
                 {c.nombre}
               </button>
-            ))}
+            );
+          })}
         </div>
-        {cascada &&
-        cascada.categorias.some((c) => !filtros.categoria_ids.includes(c.id_categoria)) ? (
-          <div className="mt-3 border-t border-rimec-azul/10 pt-2">
-            <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-neutral-ink-muted">
-              Agregar
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {cascada.categorias
-                .filter((c) => !filtros.categoria_ids.includes(c.id_categoria))
-                .map((c) => (
-                  <button
-                    key={c.id_categoria}
-                    type="button"
-                    title="Incluir en el informe"
-                    onClick={() =>
-                      setFiltros((f) => ({
-                        ...f,
-                        categoria_ids: [...f.categoria_ids, c.id_categoria].sort((a, b) => a - b),
-                      }))
-                    }
-                    className="rounded-full border border-dashed border-rimec-azul/25 bg-white px-2.5 py-1 text-[10px] uppercase text-neutral-ink-muted transition hover:border-rimec-azul/50 hover:text-rimec-azul"
-                  >
-                    + {c.nombre}
-                  </button>
-                ))}
-            </div>
-          </div>
-        ) : null}
       </CascadeBlock>
 
       <CascadeBlock
