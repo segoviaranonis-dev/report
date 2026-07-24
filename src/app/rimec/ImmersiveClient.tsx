@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,10 +10,9 @@ import { getMockFullSnapshot } from "@/lib/rimec/build-full-snapshot";
 import type { FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
 import { defaultSalesReportFilters, type SalesReportFilters } from "@/modules/sales-report/types";
 import {
-  defaultCalzadosCategoriaIds,
-  MESES_LISTA,
   SALES_REPORT_WEB_VERSION,
 } from "@/modules/sales-report/constants";
+import { encajarFiltrosCascada } from "@/modules/sales-report/encajar-filtros-cascada";
 import { filtrosToFullSnapshotBody, isFullSnapshotApiPayload } from "@/lib/rimec/snapshot-to-pkg";
 import {
   markDashboardPaint,
@@ -75,7 +74,11 @@ export function ImmersiveClient() {
   const searchParams = useSearchParams();
   const initialPrefetch = getSalesReportPrefetchState();
   const [meta, setMeta] = useState<MetaApi | null>(() => initialPrefetch.meta);
-  const [filtros, setFiltros] = useState<SalesReportFilters>(() => defaultSalesReportFilters());
+  const [filtros, setFiltros] = useState<SalesReportFilters>(() => {
+    const f0 = defaultSalesReportFilters();
+    const cascada = initialPrefetch.snapshot?.cascada;
+    return cascada ? encajarFiltrosCascada(f0, cascada) : f0;
+  });
   const [snapshot, setSnapshot] = useState<FullSnapshotResponse | null>(() => initialPrefetch.snapshot);
   const [bootLoading, setBootLoading] = useState(() => {
     if (initialPrefetch.snapshot) return false;
@@ -86,6 +89,10 @@ export function ImmersiveClient() {
   const [mundo, setMundo] = useState<MundoId>(() => parseMundoParam(searchParams.get("mundo")) ?? "dashboard");
   const [hasSyncedOnce, setHasSyncedOnce] = useState(() => initialPrefetch.snapshot !== null);
   const [syncShell, setSyncShell] = useState(false);
+  const filtrosRef = useRef(filtros);
+  filtrosRef.current = filtros;
+  /** Tras Sincronizar manual: no dejar que prefetch tardío pise snapshot/filtros. */
+  const userConsultoRef = useRef(false);
 
   useEffect(() => {
     const fromUrl = parseMundoParam(searchParams.get("mundo"));
@@ -124,10 +131,13 @@ export function ImmersiveClient() {
       if (cancelled) return;
       const state = getSalesReportPrefetchState();
       if (state.meta) setMeta(state.meta);
-      if (state.snapshot) {
+      if (state.snapshot && !userConsultoRef.current) {
         setSnapshot(state.snapshot);
         setHasSyncedOnce(true);
         markSnapshotApplied();
+        if (state.snapshot.cascada) {
+          setFiltros(encajarFiltrosCascada(filtrosRef.current, state.snapshot.cascada));
+        }
       }
       if (state.error) setErr(state.error);
       if (state.status === "ready" || state.status === "error") {
@@ -149,6 +159,8 @@ export function ImmersiveClient() {
 
   const consultar = useCallback(async () => {
     if (!dataLive || loading) return;
+    const fConsulta = filtrosRef.current;
+    userConsultoRef.current = true;
     setSyncShell(true);
     setLoading(true);
     setErr(null);
@@ -157,7 +169,7 @@ export function ImmersiveClient() {
       const r = await fetch("/api/rimec/full-snapshot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(filtrosToFullSnapshotBody(filtros)),
+        body: JSON.stringify(filtrosToFullSnapshotBody(fConsulta)),
       });
       const j = (await r.json()) as Record<string, unknown>;
       recordPrefetchSnapshotMs(performance.now() - snapStarted, parseServerTiming(j));
@@ -175,7 +187,11 @@ export function ImmersiveClient() {
       }
       if (!r.ok) throw new Error(String(j.error ?? "Consulta error"));
       if (!isFullSnapshotApiPayload(j)) throw new Error("Respuesta inválida");
-      setSnapshot(normalizeSnapshot(j));
+      const snap = normalizeSnapshot(j);
+      setSnapshot(snap);
+      if (snap.cascada) {
+        setFiltros(encajarFiltrosCascada(fConsulta, snap.cascada));
+      }
       setHasSyncedOnce(true);
     } catch (e) {
       setSnapshot(null);
@@ -184,7 +200,7 @@ export function ImmersiveClient() {
       setSyncShell(false);
       setLoading(false);
     }
-  }, [filtros, dataLive, loading]);
+  }, [dataLive, loading]);
 
   const handleDemo = useCallback(() => {
     setBootLoading(false);
@@ -196,44 +212,6 @@ export function ImmersiveClient() {
       setErr(null);
     }, 400);
   }, [filtros]);
-
-  /** Tras cada snapshot: encajar selección al dominio devuelto (cascada tipo Streamlit). */
-  useEffect(() => {
-    if (!snapshot?.cascada) return;
-    const c = snapshot.cascada;
-    setFiltros((f) => {
-      const dep = f.departamento.trim().toUpperCase();
-      const depOk = c.departamentos.some((x) => x.trim().toUpperCase() === dep);
-      const departamento = depOk ? f.departamento : (c.departamentos[0] ?? f.departamento);
-
-      const catSet = new Set(c.categorias.map((x) => x.id_categoria));
-      const catFiltered = f.categoria_ids.filter((id) => catSet.has(id));
-      const calzadosDefault = defaultCalzadosCategoriaIds(c.categorias);
-      const categoria_ids =
-        c.categorias.length === 0
-          ? f.categoria_ids.length
-            ? f.categoria_ids
-            : calzadosDefault
-          : catFiltered.length >= 2
-            ? catFiltered
-            : calzadosDefault;
-
-      const monthPool = c.meses_nombres.length > 0 ? c.meses_nombres : MESES_LISTA;
-      const mesFiltered = f.meses.filter((m) => monthPool.includes(m));
-      const meses =
-        mesFiltered.length > 0 ? mesFiltered : monthPool.slice(0, Math.min(6, monthPool.length));
-
-      return {
-        ...f,
-        departamento,
-        categoria_ids,
-        meses: meses.length ? meses : f.meses,
-        marcas: f.marcas.filter((x) => c.marcas.includes(x)),
-        cadenas: f.cadenas.filter((x) => c.cadenas.includes(x)),
-        vendedores: f.vendedores.filter((x) => c.vendedores.includes(x)),
-      };
-    });
-  }, [snapshot]);
 
   const renderMundo = () => {
     switch (mundo) {
