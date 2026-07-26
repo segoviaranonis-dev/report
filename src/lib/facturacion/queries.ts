@@ -160,12 +160,11 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
   return mapRows(rows);
 }
 
-/** Bandeja Pronta entrega — FI enlazada a PP PE · orden por Fecha de entrega Real. */
+/** Bandeja Pronta entrega — lo más reciente arriba · el primero que entró abajo. */
 export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
   const pool = getRimecPool();
 
-  const { rows } = await pool.query<FacturaListItem>(
-    `
+  const sqlBase = `
     SELECT
       CASE WHEN fi.pv_global IS NOT NULL THEN 'PV' || LPAD(fi.pv_global::text, 6, '0') ELSE fi.nro_factura END AS factura,
       fi.nro_factura AS factura_legacy,
@@ -202,16 +201,41 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
     LEFT JOIN usuario_v2 vv ON vv.id_usuario = fi.vendedor_id
     WHERE fi.estado IN ('CONFIRMADA', 'RESERVADA')
       AND ${SQL_FI_ES_PE}
+  `;
+
+  const groupOrder = `
     GROUP BY fi.id, fi.pv_global, fi.nro_factura, pp.numero_registro, pp.numero_proforma,
              pp.fecha_arribo_real, mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente,
              fi.created_at, fi.fecha_confirmacion, fi.estado, fi.total_monto,
              vv.descp_usuario, fi.lista_precio_id,
              fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4, fi.pp_id
-    ORDER BY pp.fecha_arribo_real ASC NULLS LAST, fi.created_at::date DESC NULLS LAST, fi.nro_factura DESC
-    `,
-  );
+    ORDER BY
+      (COALESCE(fi.created_at, fi.fecha_confirmacion)::date = CURRENT_DATE) DESC,
+      COALESCE(fi.created_at, fi.fecha_confirmacion) DESC NULLS LAST,
+      fi.id DESC
+  `;
 
-  return mapRows(rows);
+  const filtroBoveda = `
+      AND NOT EXISTS (
+        SELECT 1 FROM facturacion_boveda_rimec b
+        WHERE b.factura_interna_id = fi.id
+      )
+  `;
+
+  try {
+    const { rows } = await pool.query<FacturaListItem>(
+      `${sqlBase}${filtroBoveda}${groupOrder}`,
+    );
+    return mapRows(rows);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/does not exist|relation.*boveda/i.test(msg)) {
+      console.warn("[getFacturasProntaEntrega] MIG-186 pendiente — bandeja sin filtro bóveda");
+      const { rows } = await pool.query<FacturaListItem>(`${sqlBase}${groupOrder}`);
+      return mapRows(rows);
+    }
+    throw e;
+  }
 }
 
 export async function getFacturas(

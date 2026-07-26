@@ -2,7 +2,9 @@ import type { FacturaListItem } from "./types";
 
 export function agruparFacturasPorFecha(
   items: FacturaListItem[],
+  opts?: { ordenFecha?: "asc" | "desc" },
 ): Array<{ fecha: string; facturas: FacturaListItem[] }> {
+  const orden = opts?.ordenFecha ?? "asc";
   const map = new Map<string, FacturaListItem[]>();
   for (const f of items) {
     const key = f.fecha_entrega_real?.slice(0, 10) || f.fecha || "Sin fecha";
@@ -15,6 +17,7 @@ export function agruparFacturasPorFecha(
     .sort((a, b) => {
       if (a.fecha === "Sin fecha") return 1;
       if (b.fecha === "Sin fecha") return -1;
-      return a.fecha.localeCompare(b.fecha);
+      const cmp = a.fecha.localeCompare(b.fecha);
+      return orden === "desc" ? -cmp : cmp;
     });
 }

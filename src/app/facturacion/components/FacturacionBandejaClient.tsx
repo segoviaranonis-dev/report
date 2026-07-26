@@ -13,7 +13,7 @@ import type { FacturaKpis, FacturaListItem } from "@/lib/facturacion/types";
 import { TERMINO_FI } from "@/lib/facturacion/types";
 import { FECHA_ENTREGA_REAL_LABEL } from "@/lib/logistica-ok/constants";
 import type { FiDetalleCanonico, FiRegistroRow } from "@/lib/bazzar-web/compra-web/types";
-import { FACTURACION } from "@/lib/report/routes";
+import { FACTURACION, FACTURACION_BOVEDA } from "@/lib/report/routes";
 import { fiDisplayId } from "@/app/aprobaciones/lib/aprobaciones-utils";
 
 type Props = {
@@ -67,6 +67,7 @@ export function FacturacionBandejaClient({
     display: string;
     motivo: string;
   } | null>(null);
+  const [enviandoBoveda, setEnviandoBoveda] = useState<string | null>(null);
   const [fiDetail, setFiDetail] = useState<{
     fi: FiRegistroRow;
     detalles: FiDetalleCanonico[];
@@ -113,8 +114,14 @@ export function FacturacionBandejaClient({
   }, []);
 
   const grupos = useMemo(
-    () => (groupByDate ? agruparFacturasPorFecha(facturas) : [{ fecha: "", facturas }]),
-    [facturas, groupByDate],
+    () =>
+      groupByDate
+        ? agruparFacturasPorFecha(facturas, {
+            // PE: último en entrar / fecha más reciente arriba
+            ordenFecha: origen === "pronta-entrega" ? "desc" : "asc",
+          })
+        : [{ fecha: "", facturas }],
+    [facturas, groupByDate, origen],
   );
 
   async function loadFiDetail(facturaLegacy: string) {
@@ -167,6 +174,41 @@ export function FacturacionBandejaClient({
   const puedeCsv = (f: FacturaListItem) =>
     f.fi_id != null && (f.fi_estado === "CONFIRMADA" || f.fi_estado === "RESERVADA");
 
+  /** Tras imprimir legal Carlos → PROCESAR = sale de bandeja → bóveda RIMEC. */
+  async function procesarFi(f: FacturaListItem) {
+    const displayId = fiDisplayId({ pv_global: f.pv_global, nro_factura: f.factura_legacy });
+    if (
+      !confirm(
+        `¿PROCESAR ${displayId}?\n\nCuando terminaste de imprimir el legal de Carlos: sale de esta bandeja y queda en bóveda RIMEC.\nLa FI no se anula.`,
+      )
+    ) {
+      return;
+    }
+    setEnviandoBoveda(f.factura_legacy);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch("/api/facturacion/boveda", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fi_id: f.fi_id,
+          nro_factura: f.factura_legacy,
+          origen: "pronta-entrega",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al procesar");
+      setFacturas((prev) => prev.filter((x) => x.factura_legacy !== f.factura_legacy));
+      setSuccess(`${displayId} procesada — fuera de bandeja (bóveda RIMEC).`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al procesar");
+    } finally {
+      setEnviandoBoveda(null);
+    }
+  }
+
   async function confirmarAnularReintegrar() {
     if (!modalAnular) return;
     const motivo = modalAnular.motivo.trim();
@@ -215,42 +257,56 @@ export function FacturacionBandejaClient({
             setModalAnular({ nro: f.factura_legacy, display: displayId, motivo: "" })
           }
         />
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 sm:px-5">
-          <span
-            className="rounded-full px-3 py-1 text-xs font-bold"
-            style={{ backgroundColor: badge.bg, color: badge.fg }}
-          >
-            {TRP_ESTADO_LABEL[f.traspaso_estado] ?? f.traspaso_estado}
-          </span>
-          <div className="flex flex-wrap items-center gap-2">
-            {puedeCsv(f) && (
+        <div className="bg-white px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-bold"
+              style={{ backgroundColor: badge.bg, color: badge.fg }}
+            >
+              {TRP_ESTADO_LABEL[f.traspaso_estado] ?? f.traspaso_estado}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {puedeCsv(f) && (
+                <button
+                  type="button"
+                  disabled={descargandoCsv === f.factura_legacy}
+                  onClick={() => onDescargarCsv(f)}
+                  className="rounded-lg border-2 border-rimec-azul bg-rimec-azul/5 px-4 py-2 text-xs font-bold text-rimec-azul-dark hover:bg-rimec-azul/10 disabled:opacity-50"
+                >
+                  {descargandoCsv === f.factura_legacy ? "Generando…" : "Descargar CSV"}
+                </button>
+              )}
               <button
                 type="button"
-                disabled={descargandoCsv === f.factura_legacy}
-                onClick={() => onDescargarCsv(f)}
-                className="rounded-lg border-2 border-rimec-azul bg-rimec-azul/5 px-4 py-2 text-xs font-bold text-rimec-azul-dark hover:bg-rimec-azul/10 disabled:opacity-50"
+                onClick={() => (isOpen ? setExpanded(null) : loadFiDetail(f.factura_legacy))}
+                className="rounded-lg border border-neutral-400 px-3 py-2 text-xs font-semibold hover:bg-neutral-50"
               >
-                {descargandoCsv === f.factura_legacy ? "Generando…" : "Descargar CSV"}
+                {isOpen ? "Cerrar detalle" : `Ver ${TERMINO_FI}`}
               </button>
-            )}
+              {puedeEnviar(f.traspaso_estado) && (
+                <button
+                  type="button"
+                  disabled={enviando === f.factura_legacy}
+                  onClick={() => enviarWeb(f)}
+                  className="rounded-lg bg-[#F97316] px-4 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+                >
+                  {enviando === f.factura_legacy ? "Enviando…" : "Enviar Web Bazar"}
+                </button>
+              )}
+            </div>
+          </div>
+          {origen === "pronta-entrega" && f.fi_id != null && (
             <button
               type="button"
-              onClick={() => (isOpen ? setExpanded(null) : loadFiDetail(f.factura_legacy))}
-              className="rounded-lg border border-neutral-400 px-3 py-2 text-xs font-semibold hover:bg-neutral-50"
+              disabled={enviandoBoveda === f.factura_legacy}
+              onClick={() => procesarFi(f)}
+              className="mt-3 w-full rounded-xl bg-emerald-700 px-4 py-4 text-base font-black uppercase tracking-wide text-white shadow-md hover:bg-emerald-800 disabled:opacity-50 sm:text-lg"
             >
-              {isOpen ? "Cerrar detalle" : `Ver ${TERMINO_FI}`}
+              {enviandoBoveda === f.factura_legacy
+                ? "Procesando…"
+                : "Procesar — sale de bandeja"}
             </button>
-            {puedeEnviar(f.traspaso_estado) && (
-              <button
-                type="button"
-                disabled={enviando === f.factura_legacy}
-                onClick={() => enviarWeb(f)}
-                className="rounded-lg bg-[#F97316] px-4 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50"
-              >
-                {enviando === f.factura_legacy ? "Enviando…" : "Enviar Web Bazar"}
-              </button>
-            )}
-          </div>
+          )}
         </div>
         {isOpen && fiDetail && fiDetail.fi.nro_factura === f.factura_legacy && (
           <div className="border-t border-neutral-300 p-4">
@@ -265,9 +321,19 @@ export function FacturacionBandejaClient({
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader active="facturacion" />
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <Link href={FACTURACION} className="text-sm font-semibold text-rimec-azul hover:underline">
-          ← Facturación (hub)
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href={FACTURACION} className="text-sm font-semibold text-rimec-azul hover:underline">
+            ← Facturación (hub)
+          </Link>
+          {origen === "pronta-entrega" && (
+            <Link
+              href={FACTURACION_BOVEDA}
+              className="rounded-lg border-2 border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50"
+            >
+              Ver bóveda RIMEC →
+            </Link>
+          )}
+        </div>
         <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">
           2.3.1.9 · {badgeOrigen}
         </p>

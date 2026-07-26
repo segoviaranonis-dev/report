@@ -29,6 +29,13 @@ export function cajaRimecPathAllowed(pathname: string): boolean {
   ) {
     return true;
   }
+  // Bóveda RIMEC — archivo operativo PE (consulta + link desde bandeja)
+  if (
+    pathname === "/facturacion/boveda" ||
+    pathname.startsWith("/facturacion/boveda/")
+  ) {
+    return true;
+  }
   return false;
 }
 
