@@ -1,7 +1,10 @@
 /**
  * Persistencia v1 local — Asignación descuentos PE (dictador).
- * Sync Web = siguiente iteración.
+ * Clave = molécula comercial L-R-mat-color (misma que grilla / Web).
+ * Sync BD + Web + FI = siguiente iteración.
  */
+
+import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 
 export type PeAsignacionDescuentoPayload = {
   batch_label: string;
@@ -11,6 +14,20 @@ export type PeAsignacionDescuentoPayload = {
 };
 
 const key = (batch: string) => `pe_asig_descuento_v1_${batch}`;
+
+export function moleculeKeyDescuentoPe(p: {
+  linea_codigo_proveedor?: string | null;
+  referencia_codigo_proveedor?: string | null;
+  material_code?: string | null;
+  color_code?: string | null;
+}): string {
+  return moleculeKeyVentas(
+    p.linea_codigo_proveedor ?? "",
+    p.referencia_codigo_proveedor ?? "",
+    p.material_code ?? "",
+    p.color_code ?? "",
+  );
+}
 
 export function savePeAsignacionDescuentoLocal(
   payload: PeAsignacionDescuentoPayload,
@@ -30,6 +47,15 @@ export function loadPeAsignacionDescuentoLocal(
   } catch {
     return null;
   }
+}
+
+/** Mapa molécula → % para pintar grilla. */
+export function mapDescuentoPeLocal(batchLabel: string): Map<string, number> {
+  const payload = loadPeAsignacionDescuentoLocal(batchLabel);
+  const map = new Map<string, number>();
+  if (!payload) return map;
+  for (const k of payload.molecule_keys) map.set(k, payload.pct);
+  return map;
 }
 
 export function parsePctDescuento(raw: string): number | null {

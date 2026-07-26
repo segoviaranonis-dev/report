@@ -18,6 +18,8 @@ type Props = {
   ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
   /** unitario = 30 tarjetas · pe-dual-ramo = 30 calzado + 30 confecciones */
   loteModo?: GrillaLoteModo;
+  /** molécula L-R-mat-color → % dictado */
+  descuentoPctPorMol?: Map<string, number> | null;
 };
 
 export function GrillaPeImportadora({
@@ -28,6 +30,7 @@ export function GrillaPeImportadora({
   ventasPorMol = null,
   loteModo = "unitario",
   showDiccionarioBadge = false,
+  descuentoPctPorMol = null,
 }: Props) {
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
@@ -87,6 +90,7 @@ export function GrillaPeImportadora({
             showDiccionarioBadge={showDiccionarioBadge}
             showLlegada={showLlegada}
             showVentas={showVentas}
+            descuentoPct={descuentoPctPorMol?.get(card.key) ?? null}
           />
         ))}
       </div>

@@ -24,6 +24,8 @@ type Props = {
   expanded: boolean;
   showCasoBadge?: boolean;
   showDiccionarioBadge?: boolean;
+  /** % descuento dictado · se pinta junto al precio (slate). */
+  descuentoPct?: number | null;
   /** Tránsito — chip quincena_arribo.descripcion */
   showLlegada?: boolean;
   /** Tránsito / programado — vendido + saldo en tarjeta */
@@ -44,6 +46,7 @@ export function PeCardMiniatura({
   expanded,
   showCasoBadge = false,
   showDiccionarioBadge = false,
+  descuentoPct = null,
   showLlegada = false,
   showVentas = false,
 }: Props) {
@@ -173,17 +176,25 @@ export function PeCardMiniatura({
             </div>
           )}
 
-          <p className="min-h-[16px] truncate text-xs font-bold tabular-nums text-bazzar-naranja-dark">
+          <p className="flex min-h-[16px] flex-wrap items-baseline gap-x-1.5 truncate text-xs font-bold tabular-nums text-bazzar-naranja-dark">
             {card.precioVenta != null ? (
               <>
                 {formatPrecioGs(card.precioVenta)}
-                <span className="ml-1 text-[9px] font-semibold text-slate-500">
+                <span className="text-[9px] font-semibold text-slate-500">
                   / {esConf ? "prenda" : "par"}
                 </span>
               </>
             ) : (
               <span className="text-[9px] font-semibold text-slate-400">Sin precio</span>
             )}
+            {descuentoPct != null && descuentoPct > 0 ? (
+              <span
+                className="text-[9px] font-medium tabular-nums text-slate-500"
+                title="Descuento comercial dictado"
+              >
+                −{descuentoPct}%
+              </span>
+            ) : null}
           </p>
 
           {showVentas ? (

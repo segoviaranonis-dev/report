@@ -102,9 +102,16 @@ export async function syncLogisticaPp(
       ${cajasSql},
       fi.total_monto,
       fi.nro_factura,
-      fi.fecha_entrega_cliente,
       CASE
-        WHEN fi.fecha_entrega_cliente IS NOT NULL THEN 'CONFIRMADA'
+        WHEN fi.fecha_entrega_cliente IS NOT NULL
+         AND EXTRACT(YEAR FROM fi.fecha_entrega_cliente::timestamp) >= 2000
+        THEN fi.fecha_entrega_cliente
+        ELSE NULL
+      END,
+      CASE
+        WHEN fi.fecha_entrega_cliente IS NOT NULL
+         AND EXTRACT(YEAR FROM fi.fecha_entrega_cliente::timestamp) >= 2000
+        THEN 'CONFIRMADA'
         ELSE 'PENDIENTE'
       END,
       now()
@@ -273,3 +280,73 @@ export async function syncLogisticaPpIfBandera(pool: Pool, ppId: number): Promis
 
   await syncLogisticaPp(pool, ppId, r.fecha.slice(0, 10));
 }
+
+/** Fecha orden logística: rechaza años basura (ej. 0020-07-27 del carrito). */
+function fechaOrdenLogisticaValida(...cands: Array<string | null | undefined>): string {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const c of cands) {
+    const d = String(c ?? "").trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && Number(d.slice(0, 4)) >= 2000) return d;
+  }
+  return today;
+}
+
+/**
+ * Post-Confirmar FI en Aprobaciones.
+ * · CP / PROGRAMADO: solo si bandera + Fecha de entrega Real (mismo que syncLogisticaPpIfBandera).
+ * · PE: stock local — entra a Logística OK al confirmar (sin exigir bandera previa).
+ *   Activa bandera + fecha_arribo_real si faltaban. PE siempre sortPriority 0 en bandeja.
+ */
+export async function syncLogisticaTrasConfirmarFi(
+  pool: Pool,
+  fiId: number,
+  ppId: number,
+): Promise<{ ok: true; entidad: EntidadAmLogistica; synced?: number } | { ok: false; error: string }> {
+  const entidad = await resolverEntidadAm(pool, ppId);
+
+  if (entidad !== "PE") {
+    await syncLogisticaPpIfBandera(pool, ppId);
+    return { ok: true, entidad };
+  }
+
+  const { rows } = await pool.query<{
+    fecha_pp: string | null;
+    fecha_fi: string | null;
+    nro_factura: string | null;
+  }>(
+    `
+    SELECT pp.fecha_arribo_real::text AS fecha_pp,
+           fi.fecha_entrega_cliente::text AS fecha_fi,
+           fi.nro_factura
+    FROM factura_interna fi
+    JOIN pedido_proveedor pp ON pp.id = fi.pp_id
+    WHERE fi.id = $1
+    `,
+    [fiId],
+  );
+  const row = rows[0];
+  const fecha = fechaOrdenLogisticaValida(row?.fecha_pp, row?.fecha_fi);
+
+  const rigor = rigorFiPeLogistica({
+    nro_factura: row?.nro_factura ?? "PE-SYNC",
+    pp_id: ppId,
+    fecha_arribo_real: fecha,
+  });
+  if (!rigor.ok) return rigor;
+
+  await pool.query(
+    `
+    UPDATE pedido_proveedor SET
+      fecha_arribo_real = COALESCE(fecha_arribo_real, $2::date),
+      logistica_bandera_activa = true,
+      logistica_activada_at = COALESCE(logistica_activada_at, now())
+    WHERE id = $1
+    `,
+    [ppId, fecha],
+  );
+
+  const sync = await syncLogisticaPp(pool, ppId, fecha);
+  if (!sync.ok) return sync;
+  return { ok: true, entidad, synced: sync.synced };
+}
+

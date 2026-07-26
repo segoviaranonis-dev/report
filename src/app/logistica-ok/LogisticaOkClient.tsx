@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { Skeleton } from "@/components/ui/LoadingState";
 import {
@@ -41,7 +49,58 @@ import { ObsLogisticaGrupoIcon, ObsLogisticaIcon } from "./ObsLogisticaIcon";
 
 function formatGs(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
-  return n.toLocaleString("es-PY");
+  return Math.round(Number(n)).toLocaleString("es-PY");
+}
+
+/** Pedido externo legible: PE no muestra el batch pe-import completo en la fila. */
+function labelPedidoExternoUi(g: Pick<
+  LogisticaGrupoPedidoDuro,
+  "entidad_am" | "preventa_label" | "nro_pedido_externo" | "pp_numero"
+>): { corto: string; title: string } {
+  const raw = String(g.preventa_label || g.nro_pedido_externo || g.pp_numero || "—").trim();
+  const pp = String(g.pp_numero ?? "").trim();
+  const title = pp && pp !== raw ? `${raw} · ${pp}` : raw;
+
+  if (g.entidad_am === "PE") {
+    const src = pp || raw;
+    const dep = src.match(/PE-D(\d+)/i)?.[1];
+    const tail = src.match(/-(\d{3,})\s*$/)?.[1];
+    if (dep) {
+      return {
+        corto: tail ? `PE · D${dep} · ${tail}` : `PE · D${dep}`,
+        title,
+      };
+    }
+    if (raw.length > 22) {
+      return { corto: `${raw.slice(0, 10)}…${raw.slice(-6)}`, title };
+    }
+  }
+
+  if (raw.length > 16) return { corto: `${raw.slice(0, 12)}…`, title };
+  return { corto: raw || "—", title };
+}
+
+function MetricChip({
+  label,
+  children,
+  accent,
+}: {
+  label: string;
+  children: ReactNode;
+  accent?: "emerald" | "amber" | "slate";
+}) {
+  const valueCls =
+    accent === "emerald"
+      ? "text-emerald-800"
+      : accent === "amber"
+        ? "text-amber-800"
+        : "text-slate-900";
+  return (
+    <div className="min-w-[4.5rem] rounded-lg border border-slate-200/80 bg-white/70 px-2.5 py-1.5 shadow-sm">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <div className={`mt-0.5 text-sm font-bold tabular-nums leading-tight ${valueCls}`}>{children}</div>
+    </div>
+  );
 }
 
 /** Multi-select compacto NIIF (filtros General). */
@@ -457,93 +516,88 @@ function AcordeonPedidoDuro({
       {grupos.map((g) => {
         const open = openPedido[g.key] ?? true;
         const color = ENTIDAD_AM_META[g.entidad_am]?.color ?? "#002B4E";
+        const pedidoUi = labelPedidoExternoUi(g);
         return (
           <div key={g.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-2 px-4 py-3.5 lg:flex-row lg:items-end" style={{ backgroundColor: `${color}14` }}>
+            <div
+              className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:gap-4"
+              style={{ backgroundColor: `${color}14` }}
+            >
               <button
                 type="button"
                 onClick={() => setOpenPedido((o) => ({ ...o, [g.key]: !open }))}
                 className="min-w-0 flex-1 text-left hover:opacity-95"
               >
-                <div className="grid w-full grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-9 xl:grid-cols-10">
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Categoría</p>
-                    <span
-                      className="mt-1 inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase text-white"
-                      style={{ backgroundColor: color }}
-                    >
-                      {g.categoria_label}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className="inline-flex shrink-0 items-center rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white"
+                    style={{ backgroundColor: color }}
+                  >
+                    {g.categoria_label}
+                  </span>
+                  <div className="min-w-0 max-w-[13rem]">
                     <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Pedido externo</p>
-                    <p className="mt-0.5 font-mono text-lg font-bold leading-tight text-rimec-azul-dark">{g.preventa_label}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Dato duro</p>
-                    <p className="mt-0.5 text-base font-semibold leading-tight text-slate-800">{g.quincena_corta}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Atraso PP</p>
                     <p
-                      className="mt-0.5 text-base font-bold tabular-nums leading-tight text-amber-800"
-                      title={g.pp_publicado_at ? `Publicado ${g.pp_publicado_at}` : undefined}
+                      className="truncate font-mono text-base font-bold text-rimec-azul-dark"
+                      title={pedidoUi.title}
                     >
+                      {pedidoUi.corto}
+                    </p>
+                  </div>
+                  <div className="min-w-[5.5rem] max-w-[9rem]">
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Dato duro</p>
+                    <p className="truncate text-sm font-semibold text-slate-800" title={g.quincena_corta}>
+                      {g.quincena_corta}
+                    </p>
+                  </div>
+                  <span className="ml-auto text-xs text-slate-500 lg:hidden">{open ? "▲" : "▼"}</span>
+                </div>
+
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  <MetricChip
+                    label="Atraso PP"
+                    accent="amber"
+                  >
+                    <span title={g.pp_publicado_at ? `Publicado ${g.pp_publicado_at}` : undefined}>
                       {g.dias_atraso} d
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Inicial</p>
-                    <p className="mt-0.5 text-sm font-bold tabular-nums leading-tight text-slate-800">
-                      {g.n_inicial} FI · {(g.cajas_inicial ?? g.cajas).toLocaleString("es-PY")} c
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-emerald-700">Ejecución</p>
-                    <p className="mt-0.5 text-base font-bold tabular-nums leading-tight text-emerald-800">
-                      {g.pct_ejecucion ?? 0}%
-                      <span className="ml-1 text-[10px] font-semibold text-emerald-700">
-                        ({g.n_exitosas ?? 0}/{g.n_inicial} FI)
-                      </span>
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Cajas vista/inicial</p>
-                    <p className="mt-0.5 text-base font-bold tabular-nums leading-tight text-slate-900">
-                      {g.cajas.toLocaleString("es-PY")}
-                      <span className="text-slate-400">/</span>
-                      {(g.cajas_inicial ?? g.cajas).toLocaleString("es-PY")}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">% cajas · pares</p>
-                    <p className="mt-0.5 text-base font-bold tabular-nums leading-tight text-slate-900">
-                      <span className="text-emerald-800">{g.pct_cajas ?? 0}%</span>
-                      <span className="ml-1 text-xs font-semibold text-slate-600">
-                        · {g.pares.toLocaleString("es-PY")} p
-                      </span>
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Monto neto</p>
-                    <p className="mt-0.5 text-base font-bold tabular-nums leading-tight text-emerald-800">
-                      {formatGs(g.monto)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">FI · Clientes</p>
-                    <p className="mt-0.5 text-base font-semibold tabular-nums leading-tight text-slate-800">
-                      {g.n_fi}/{g.n_inicial} · {g.n_clientes}
-                      <span className="ml-2 text-xs text-slate-500">{open ? "▲" : "▼"}</span>
-                    </p>
-                  </div>
+                    </span>
+                  </MetricChip>
+                  <MetricChip label="Inicial">
+                    {g.n_inicial} FI · {(g.cajas_inicial ?? g.cajas).toLocaleString("es-PY")} c
+                  </MetricChip>
+                  <MetricChip label="Ejecución" accent="emerald">
+                    {g.pct_ejecucion ?? 0}%
+                    <span className="ml-1 text-[10px] font-semibold text-emerald-700">
+                      ({g.n_exitosas ?? 0}/{g.n_inicial})
+                    </span>
+                  </MetricChip>
+                  <MetricChip label="Cajas">
+                    {g.cajas.toLocaleString("es-PY")}
+                    <span className="text-slate-400">/</span>
+                    {(g.cajas_inicial ?? g.cajas).toLocaleString("es-PY")}
+                  </MetricChip>
+                  <MetricChip label="% · pares" accent="emerald">
+                    {g.pct_cajas ?? 0}%
+                    <span className="ml-1 text-[11px] font-semibold text-slate-600">
+                      · {g.pares.toLocaleString("es-PY")} p
+                    </span>
+                  </MetricChip>
+                  <MetricChip label="Monto neto" accent="emerald">
+                    {formatGs(g.monto)}
+                  </MetricChip>
+                  <MetricChip label="FI · clientes">
+                    {g.n_fi}/{g.n_inicial} · {g.n_clientes}
+                    <span className="ml-1.5 hidden text-xs font-normal text-slate-500 lg:inline">
+                      {open ? "▲" : "▼"}
+                    </span>
+                  </MetricChip>
                 </div>
               </button>
               <button
                 type="button"
                 disabled={pdfBusyId === g.pedido_proveedor_id}
                 onClick={() => onPdf(g.pedido_proveedor_id)}
-                className="shrink-0 rounded-xl bg-rimec-azul px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-rimec-azul-dark disabled:opacity-50"
+                className="shrink-0 self-stretch rounded-xl bg-rimec-azul px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-rimec-azul-dark disabled:opacity-50 lg:self-center"
               >
                 {pdfBusyId === g.pedido_proveedor_id ? "Generando PDF…" : "Generar PDF listado"}
               </button>

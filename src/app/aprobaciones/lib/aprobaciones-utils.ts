@@ -60,6 +60,30 @@ export function badgeProntaEntrega(): { bg: string; fg: string; label: string } 
   return { bg: "#C2410C", fg: "#FFFFFF", label: "PRONTA ENTREGA" };
 }
 
+/**
+ * CASO en UI Aprobaciones (PE) — badges cortos.
+ * No muta `factura_interna.caso` (sigue siendo batch/cadena larga en BD).
+ * Paridad carrito: rimec-web `etiquetaCasoUiCarrito` / `etiquetaUiPeCorta`.
+ */
+export function etiquetaCasoUiAprobaciones(
+  caso: string | null | undefined,
+  fi?: Partial<Pick<FiRecord, "origen_pe" | "pp_id" | "nro_factura">>,
+): string {
+  const raw = String(caso ?? "").trim();
+  const pe =
+    (fi != null && esProntaEntregaFi(fi)) ||
+    /^PE\b/i.test(raw) ||
+    /pe-import/i.test(raw) ||
+    /pronta\s*entrega/i.test(raw);
+  if (!pe) return raw || "—";
+  if (/^PE-(LIQ|NORMAL|PROMO|COMUN)$/i.test(raw)) return raw.toUpperCase();
+  const up = raw.toUpperCase();
+  if (up.includes("LIQUID")) return "PE-LIQ";
+  if (up.includes("PROMO")) return "PE-PROMO";
+  if (up.includes("COMUN") || up.includes("COMÚN")) return "PE-COMUN";
+  return "PE-NORMAL";
+}
+
 /** Badge sky CP — tránsito PP (paridad catálogo RIMEC Web). */
 export function badgeCompraPrevia(): { bg: string; fg: string; label: string } {
   return { bg: "#0284C7", fg: "#FFFFFF", label: "COMPRA PREVIA" };

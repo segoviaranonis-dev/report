@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VitalesStockDeposito } from "@/app/depositos-bazzar/components/operativa/VitalesStockDeposito";
 import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
 import { SinImagenCabeceraChip } from "@/components/panel-control/SinImagenCabeceraChip";
@@ -14,12 +14,31 @@ import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeI
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
-import { EMPTY_OPERATIVA_FILTERS } from "@/lib/depositos/operativa-filters";
+import {
+  EMPTY_OPERATIVA_FILTERS,
+  type OperativaFilterState,
+} from "@/lib/depositos/operativa-filters";
 import { moleculeKeyFromDepRow } from "@/lib/retail/product-image-presence";
 import {
+  mapDescuentoPeLocal,
+  moleculeKeyDescuentoPe,
   parsePctDescuento,
   savePeAsignacionDescuentoLocal,
 } from "@/lib/stock-pronta-entrega/asignacion-descuento-local";
+
+async function fetchDescuentosBd(batch: string): Promise<Map<string, number>> {
+  try {
+    const res = await fetch(
+      `/api/stock-pronta-entrega/asignacion-descuento?batch=${encodeURIComponent(batch)}`,
+      { cache: "no-store" },
+    );
+    const json = (await res.json()) as { ok?: boolean; descuentos?: Record<string, number> };
+    if (!json.ok || !json.descuentos) return new Map();
+    return new Map(Object.entries(json.descuentos));
+  } catch {
+    return new Map();
+  }
+}
 import {
   claveDiccionarioFromTipoIds,
   parsePeTipoSelected,
@@ -30,6 +49,13 @@ import type { StockProntaEntregaResumen } from "@/lib/stock-pronta-entrega/queri
 type Props = {
   resumenInicial: StockProntaEntregaResumen;
 };
+
+function fingerprintFiltros(
+  filtros: OperativaFilterState,
+  depositoLegal: string,
+): string {
+  return JSON.stringify({ f: filtros, d: depositoLegal });
+}
 
 function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
   const {
@@ -71,10 +97,32 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
   const [soloSinImagen, setSoloSinImagen] = useState(false);
   const [faltantes, setFaltantes] = useState<Set<string>>(() => new Set());
   const [modoAsignacion, setModoAsignacion] = useState(false);
+  /** Área vacía hasta que el usuario cambia filtros (carga intencional). */
+  const [areaCargada, setAreaCargada] = useState(false);
+  const baselineFpRef = useRef<string | null>(null);
   const [pctDraft, setPctDraft] = useState("");
   const [asigBusy, setAsigBusy] = useState(false);
   const [asigErr, setAsigErr] = useState<string | null>(null);
   const [asigOk, setAsigOk] = useState<string | null>(null);
+  const [descuentoPctPorMol, setDescuentoPctPorMol] = useState<Map<string, number>>(
+    () => new Map(),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const fromBd = await fetchDescuentosBd(batchLabel);
+      if (cancelled) return;
+      if (fromBd.size > 0) {
+        setDescuentoPctPorMol(fromBd);
+        return;
+      }
+      setDescuentoPctPorMol(mapDescuentoPeLocal(batchLabel));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [batchLabel]);
 
   const onFaltantesChange = useCallback((keys: Set<string>) => {
     setFaltantes(keys);
@@ -86,17 +134,70 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
     return filtradas.filter((p) => faltantes.has(moleculeKeyFromDepRow(p)));
   }, [filtradas, soloSinImagen, faltantes]);
 
-  const moleculasAsignacion = useMemo(() => {
-    const keys = new Set<string>();
-    for (const p of filtradas) keys.add(moleculeKeyFromDepRow(p));
-    return keys;
-  }, [filtradas]);
+  const filtrosFp = useMemo(
+    () => fingerprintFiltros(filtros, depositoLegal),
+    [filtros, depositoLegal],
+  );
 
-  const onToggleAsignacion = useCallback(() => {
-    setModoAsignacion((v) => !v);
+  /** Entrar al modo: vaciar área + reset tipo diccionario (fuerza carga manual). */
+  const entrarModoAsignacion = useCallback(() => {
+    setAsigErr(null);
+    setAsigOk(null);
+    setPctDraft("");
+    setAreaCargada(false);
+    baselineFpRef.current = null;
+    setFiltros((prev) => ({
+      ...prev,
+      tipoGrupos: [],
+      cadenaComercial: null,
+    }));
+    setModoAsignacion(true);
+  }, [setFiltros]);
+
+  const salirModoAsignacion = useCallback(() => {
+    setModoAsignacion(false);
+    setAreaCargada(false);
+    baselineFpRef.current = null;
     setAsigErr(null);
     setAsigOk(null);
   }, []);
+
+  const vaciarArea = useCallback(() => {
+    setAreaCargada(false);
+    baselineFpRef.current = filtrosFp;
+    setAsigErr(null);
+    setAsigOk(null);
+  }, [filtrosFp]);
+
+  const onToggleAsignacion = useCallback(() => {
+    if (modoAsignacion) salirModoAsignacion();
+    else entrarModoAsignacion();
+  }, [entrarModoAsignacion, modoAsignacion, salirModoAsignacion]);
+
+  // Baseline tras reset · cualquier cambio de filtro puebla el área.
+  useEffect(() => {
+    if (!modoAsignacion) return;
+    if (baselineFpRef.current === null) {
+      baselineFpRef.current = filtrosFp;
+      return;
+    }
+    if (filtrosFp !== baselineFpRef.current) {
+      setAreaCargada(true);
+    }
+  }, [modoAsignacion, filtrosFp]);
+
+  const productosArea = modoAsignacion
+    ? areaCargada
+      ? filtradasGrid
+      : []
+    : filtradasGrid;
+
+  const moleculasArea = useMemo(() => {
+    if (!modoAsignacion || !areaCargada) return new Set<string>();
+    const keys = new Set<string>();
+    for (const p of filtradasGrid) keys.add(moleculeKeyDescuentoPe(p));
+    return keys;
+  }, [modoAsignacion, areaCargada, filtradasGrid]);
 
   const onAsignarDescuento = useCallback(() => {
     setAsigErr(null);
@@ -106,25 +207,44 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
       setAsigErr("Porcentaje inválido (0–100, entero o decimal).");
       return;
     }
-    if (moleculasAsignacion.size === 0) {
-      setAsigErr("No hay moléculas en el filtro actual.");
+    if (!areaCargada || moleculasArea.size === 0) {
+      setAsigErr("Área vacía · elegí filtros para cargar calzados antes de asignar.");
       return;
     }
     setAsigBusy(true);
-    try {
-      savePeAsignacionDescuentoLocal({
-        batch_label: batchLabel,
-        pct,
-        molecule_keys: [...moleculasAsignacion],
-        assigned_at: new Date().toISOString(),
-      });
-      setAsigOk(
-        `Asignado ${pct}% a ${moleculasAsignacion.size.toLocaleString("es-PY")} moléculas (sesión local).`,
-      );
-    } finally {
-      setAsigBusy(false);
-    }
-  }, [batchLabel, moleculasAsignacion, pctDraft]);
+    void (async () => {
+      try {
+        const keys = [...moleculasArea];
+        savePeAsignacionDescuentoLocal({
+          batch_label: batchLabel,
+          pct,
+          molecule_keys: keys,
+          assigned_at: new Date().toISOString(),
+        });
+        const res = await fetch("/api/stock-pronta-entrega/asignacion-descuento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batch: batchLabel, pct, molecule_keys: keys }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string; upserted?: number };
+        if (!res.ok || !json.ok) {
+          setAsigErr(json.error ?? "No se pudo guardar en BD (queda en sesión local).");
+          setDescuentoPctPorMol(mapDescuentoPeLocal(batchLabel));
+          return;
+        }
+        const fromBd = await fetchDescuentosBd(batchLabel);
+        setDescuentoPctPorMol(fromBd.size > 0 ? fromBd : mapDescuentoPeLocal(batchLabel));
+        setAsigOk(
+          `Asignado ${pct}% a ${(json.upserted ?? keys.length).toLocaleString("es-PY")} moléculas · guardado en BD.`,
+        );
+      } catch (e) {
+        setAsigErr(e instanceof Error ? e.message : "Error de red al guardar");
+        setDescuentoPctPorMol(mapDescuentoPeLocal(batchLabel));
+      } finally {
+        setAsigBusy(false);
+      }
+    })();
+  }, [areaCargada, batchLabel, moleculasArea, pctDraft]);
 
   const sidebar = (
     <ReposicionFiltrosSidebar
@@ -160,15 +280,13 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
         <div className="min-w-0 flex-1 space-y-3 pr-1 sm:pr-2">
           {modoAsignacion ? (
             <PeAsignacionDescuentoPanel
-              moleculas={moleculasAsignacion.size}
+              moleculas={moleculasArea.size}
+              areaCargada={areaCargada}
               pct={pctDraft}
               onPctChange={setPctDraft}
               onAsignar={onAsignarDescuento}
-              onSalir={() => {
-                setModoAsignacion(false);
-                setAsigErr(null);
-                setAsigOk(null);
-              }}
+              onSalir={salirModoAsignacion}
+              onVaciarArea={vaciarArea}
               busy={asigBusy}
               err={asigErr}
               okMsg={asigOk}
@@ -205,14 +323,23 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
             onClaveChange={onDiccionarioChange}
           />
 
-          {!modoAsignacion ? (
+          {modoAsignacion && !areaCargada ? (
+            <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+              <p className="text-sm font-semibold text-slate-800">Área de trabajo vacía</p>
+              <p className="mt-2 text-xs text-slate-600">
+                Elegí una combinación de filtros (ej. LIQUIDACION · marca · estilo) para cargar
+                calzados acá. Luego asigná el % a ese grupo.
+              </p>
+            </div>
+          ) : (
             <GrillaPeImportadora
-              productos={filtradasGrid}
-              showVentas
+              productos={productosArea}
+              showVentas={!modoAsignacion}
               loteModo="pe-dual-ramo"
               showDiccionarioBadge
+              descuentoPctPorMol={descuentoPctPorMol}
             />
-          ) : null}
+          )}
         </div>
       </div>
     </>

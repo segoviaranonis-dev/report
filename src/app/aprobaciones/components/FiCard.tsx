@@ -13,6 +13,7 @@ import {
   listaPrecioLabel,
   esCompraPreviaFi,
   esProntaEntregaFi,
+  etiquetaCasoUiAprobaciones,
 } from "../lib/aprobaciones-utils";
 import { OrigenVentaChips } from "./OrigenVentaChips";
 import {
@@ -160,7 +161,9 @@ export function FiCard({
           />
           <div className="rounded-lg border-2 border-rimec-azul/40 bg-rimec-azul/10 px-3 py-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">Caso</p>
-            <p className="mt-0.5 text-lg font-semibold text-rimec-azul-dark">{fi.caso || "—"}</p>
+            <p className="mt-0.5 text-lg font-semibold text-rimec-azul-dark">
+              {etiquetaCasoUiAprobaciones(fi.caso, fi)}
+            </p>
           </div>
           <PlazoEditor
             fi={fi}

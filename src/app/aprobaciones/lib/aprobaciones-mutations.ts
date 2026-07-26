@@ -1,6 +1,6 @@
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { anularYReintegrarFi } from "@/lib/facturacion/anular-reintegrar-fi";
-import { syncLogisticaPpIfBandera } from "@/lib/logistica-ok/sync-pp";
+import { syncLogisticaTrasConfirmarFi } from "@/lib/logistica-ok/sync-pp";
 import { listaPrecioLabel, precioNetoCascada } from "./aprobaciones-utils";
 import {
   sumFiTotalesDesdeDetalle,
@@ -81,10 +81,10 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
 
     await client.query("COMMIT");
 
-    // Puente Logística OK: si el PP tiene bandera + Fecha de entrega Real, entra a bandeja
+    // Puente Logística OK: PE entra al confirmar; CP/PROGRAMADO solo con bandera + Fecha Real
     if (ppIdLogistica != null) {
       try {
-        await syncLogisticaPpIfBandera(pool, ppIdLogistica);
+        await syncLogisticaTrasConfirmarFi(pool, fiId, ppIdLogistica);
       } catch {
         /* no tumba la confirmación — bandera/MIG puede faltar en local */
       }
