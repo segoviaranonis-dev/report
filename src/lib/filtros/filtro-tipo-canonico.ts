@@ -9,11 +9,18 @@
  *
  * Fix 2026-07-20: snapshot puede ser Normal (BR-VZ…) mientras SDRM marca promo
  * (línea 1395). Badge y filtro deben coincidir — es_promo gana sobre caso.
+ *
+ * Fix 2026-07-24 Mario Bros (4.01.04.003): Calzado excluye carteras por defecto;
+ * carteras viven en Categoría «Carteras y accesorios» / chip Tipo → Carteras.
  */
 import {
   lookupCasoLinea,
   normalizeCasoNombre,
 } from "@/lib/depositos/caso-biblioteca";
+import {
+  esFilaModuloAccesorios,
+  esRamoAccesorios,
+} from "@/lib/filtros/modulo-accesorios";
 
 export type TipoGrupoId = "normal" | "carteras" | "promo" | "liquidacion";
 
@@ -116,3 +123,54 @@ export function toggleTipoGrupo(
 ): TipoGrupoId[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 }
+
+/** Mario Bros / grupo uno · Calzado → TIPO solo Normal · Promo · Liquidación. ACCESORIOS → sin chip Tipo. */
+export function tipoGrupoOpcionesVisibles(ramo_tipo?: string): typeof TIPO_GRUPO_OPCIONES {
+  const ramo = String(ramo_tipo ?? "").trim().toUpperCase();
+  if (ramo === "ACCESORIOS") return [];
+  if (ramo === "CALZADO") return TIPO_GRUPO_OPCIONES.filter((o) => o.id !== "carteras");
+  return TIPO_GRUPO_OPCIONES;
+}
+
+export function sanitizeTipoGruposParaRamo(
+  tipo_grupos: readonly TipoGrupoId[] | undefined,
+  ramo_tipo?: string,
+): TipoGrupoId[] {
+  const list = [...(tipo_grupos ?? [])];
+  if (esRamoAccesorios(ramo_tipo)) return [];
+  if (String(ramo_tipo ?? "").trim().toUpperCase() !== "CALZADO") return list;
+  return list.filter((g) => g !== "carteras");
+}
+
+/** @deprecated usar esFilaModuloAccesorios */
+export function esFilaCarteraCatalogo(
+  row: RowTipoSignals & {
+    estilo?: string | null;
+    tipo_1?: string | null;
+    descp_grupo_estilo?: string | null;
+    descp_tipo_1?: string | null;
+  },
+  lineaCasoMap?: Map<string, string> | null,
+): boolean {
+  return esFilaModuloAccesorios(row, lineaCasoMap);
+}
+
+/**
+ * Calzado por defecto = calzado puro; carteras solo con chip Tipo explícito
+ * o categoría «Carteras y accesorios».
+ */
+export function calzadoExcluyeCarterasPorDefecto(filters: {
+  ramoTipo?: string | null;
+  tipoV2Ids?: number[];
+  tipoGrupos?: readonly TipoGrupoId[];
+}): boolean {
+  const ramo = String(filters.ramoTipo ?? "").trim().toUpperCase();
+  if (ramo === "ACCESORIOS" || ramo === "CONFECCIONES") return false;
+  const isCalzado =
+    ramo === "CALZADO" ||
+    ((filters.tipoV2Ids?.length ?? 0) === 1 && filters.tipoV2Ids![0] === 1);
+  if (!isCalzado) return false;
+  return !(filters.tipoGrupos ?? []).includes("carteras");
+}
+
+export { normalizeCasoNombre };

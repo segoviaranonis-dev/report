@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
+import {
+  appendObservacionLogistica,
+  vincularObsIcAFisExistentes,
+} from "@/lib/logistica-ok/observaciones-logistica";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { desasignarIcDePp, updateIcVinculadaPp, type UpdateIcVinculadaInput } from "@/lib/pedido-proveedor/cabecera-actions";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
@@ -28,8 +32,32 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   try {
-    const result = await updateIcVinculadaPp(getRimecPool(), ppId, icId, body);
+    const pool = getRimecPool();
+    const obsNueva = body.observacion_logistica_nueva?.trim();
+    const { observacion_logistica_nueva: _drop, ...fields } = body;
+    const result = await updateIcVinculadaPp(pool, ppId, icId, fields);
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+
+    if (obsNueva) {
+      const session = gate.session!;
+      const append = await appendObservacionLogistica(pool, {
+        texto: obsNueva,
+        origen: "PP",
+        usuarioId: session.id_usuario,
+        usuarioNombre: session.name,
+        intencionCompraId: icId,
+        pedidoProveedorId: ppId,
+      });
+      if (!append.ok) {
+        return NextResponse.json({ ok: false, error: append.error }, { status: 400 });
+      }
+      await pool.query(`UPDATE intencion_compra SET observaciones = $1 WHERE id = $2`, [
+        obsNueva.slice(0, 2000),
+        icId,
+      ]);
+      await vincularObsIcAFisExistentes(pool, icId, ppId);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     return icApiErrorResponse(e, "Error al actualizar IC vinculada");

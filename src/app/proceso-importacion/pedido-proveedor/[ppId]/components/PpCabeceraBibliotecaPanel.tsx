@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
+import { CATEGORIA_COMPRA_PREVIA_ID, CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
 
 type BibliotecaOpt = { id: number; nombre: string; casos_count: number };
 
@@ -54,6 +54,9 @@ export function PpCabeceraBibliotecaPanel({
     void loadOpciones();
   }, [loadOpciones]);
 
+  const isProgramado = categoriaId === CATEGORIA_PROGRAMADO_ID;
+  const isCompraPrevia = categoriaId === CATEGORIA_COMPRA_PREVIA_ID;
+
   async function ejecutarCambio(confirmarDestructivo: boolean) {
     if (!selId || selId === bibliotecaPrecioId) return;
     setBusy(true);
@@ -84,8 +87,14 @@ export function PpCabeceraBibliotecaPanel({
         return;
       }
       setConfirmStep(0);
-      const tab =
-        categoriaId === CATEGORIA_PROGRAMADO_ID ? "admin-ic" : "ics";
+      const tab = isProgramado ? "admin-ic" : "fi";
+      if (j.modo === "compra_previa") {
+        onChanged(
+          `Biblioteca CP «${j.biblioteca_nombre}» · ${j.n_fi_intactas ?? 0} FI intacta(s) · ${j.ppd_caso_actualizados ?? 0} molécula(s) con caso BCL · ${j.ppd_vendidos_sin_tocar ?? 0} vendida(s) sin tocar`,
+          tab,
+        );
+        return;
+      }
       const casos = (j.casos_pf as string[] | undefined)?.join(", ") ?? "—";
       onChanged(
         `Biblioteca «${j.biblioteca_nombre}» · ${j.n_fi_borradas ?? 0} FI eliminada(s) · ${j.n_pf ?? 0} pre-facturas (BCL) · snapshot ${j.proforma_snapshot ? "OK" : "PPD"} · casos: ${casos}`,
@@ -135,16 +144,7 @@ export function PpCabeceraBibliotecaPanel({
                 </option>
               ))}
             </select>
-            {confirmStep === 0 ? (
-              <button
-                type="button"
-                disabled={busy || !selId || selId === bibliotecaPrecioId}
-                onClick={() => void ejecutarCambio(false)}
-                className="rounded-lg border-2 border-violet-600 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-950 hover:bg-violet-100 disabled:opacity-50"
-              >
-                {busy ? "Procesando…" : "Cambiar biblioteca"}
-              </button>
-            ) : (
+            {isProgramado && confirmStep === 1 ? (
               <button
                 type="button"
                 disabled={busy}
@@ -153,16 +153,37 @@ export function PpCabeceraBibliotecaPanel({
               >
                 {busy ? "Borrando FI…" : "Confirmar · borrar FI y recalcular proforma"}
               </button>
+            ) : (
+              <button
+                type="button"
+                disabled={busy || !selId || selId === bibliotecaPrecioId}
+                onClick={() => void ejecutarCambio(false)}
+                className={
+                  isCompraPrevia
+                    ? "rounded-lg border-2 border-emerald-700 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-100 disabled:opacity-50"
+                    : "rounded-lg border-2 border-violet-600 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-950 hover:bg-violet-100 disabled:opacity-50"
+                }
+              >
+                {busy
+                  ? "Procesando…"
+                  : isCompraPrevia
+                    ? bibliotecaPrecioId
+                      ? "Cambiar biblioteca CP"
+                      : "Vincular biblioteca CP"
+                    : "Cambiar biblioteca"}
+              </button>
             )}
           </div>
         ) : null}
-        {confirmStep === 1 ? (
+        {isProgramado && confirmStep === 1 ? (
           <p className="rounded-lg border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-900">
             La biblioteca aún no cambió — confirmá para borrar todas las FI y recalcular pre-facturas con la BCL nueva.
           </p>
         ) : null}
         <p className="text-[10px] leading-snug text-slate-500">
-          Política (Corazón 1). El listado de precios se asigna manualmente por IC / pre-factura / FI — no en cabecera.
+          {isCompraPrevia
+            ? "Compra previa: vincula casos BCL en moléculas sin venta. No borra FI ni toca lo vendido en Web. Cambiar biblioteca con ventas o FI confirmadas está bloqueado."
+            : "Programado: política (Corazón 1). Cambio total borra FI y recalcula pre-facturas. Listado manual por IC / PF / FI."}
         </p>
       </dd>
     </div>

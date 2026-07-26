@@ -6,15 +6,24 @@ import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
 import { productImageCandidatesForRow } from "@/lib/retail/product-image";
 import { isConfecciones638, etiquetaUnidadStock } from "@/lib/deposito-rimec/grada-abierta-638";
+import { cadenaPeDeRow, etiquetaCadenaPeUi } from "@/lib/stock-pronta-entrega/diccionario-pe";
+import {
+  peGrupoUnoShellClass,
+  resolvePeGrupoUnoShell,
+} from "@/lib/stock-pronta-entrega/pe-grupo-uno-visual";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 import { CompradoresVentasSlot } from "./CompradoresVentasSlot";
 import { GradaImportadoraAcordeon } from "./GradaImportadoraAcordeon";
 import { ImagenAmpliadaOverlay } from "./ImagenAmpliadaOverlay";
+import { PeLiqBadge } from "./PeLiqBadge";
+import { PeProBadge } from "./PeProBadge";
+import { descpColorUiPe, descpMaterialUiPe } from "@/lib/stock-pronta-entrega/pe-filtro-pilar-638";
 
 type Props = {
   card: PeImportadoraCard;
   expanded: boolean;
   showCasoBadge?: boolean;
+  showDiccionarioBadge?: boolean;
   /** Tránsito — chip quincena_arribo.descripcion */
   showLlegada?: boolean;
   /** Tránsito / programado — vendido + saldo en tarjeta */
@@ -34,13 +43,18 @@ export function PeCardMiniatura({
   card,
   expanded,
   showCasoBadge = false,
+  showDiccionarioBadge = false,
   showLlegada = false,
   showVentas = false,
 }: Props) {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const p = card.producto;
   const esConf = isConfecciones638(p.tipo_v2_id);
+  const matUi = descpMaterialUiPe(p);
+  const colUi = descpColorUiPe(p);
   const uStock = etiquetaUnidadStock(p.tipo_v2_id);
+  const shell = resolvePeGrupoUnoShell(p);
+  const shellClass = peGrupoUnoShellClass(shell);
 
   const imageCtx = useMemo(
     () => ({
@@ -64,15 +78,33 @@ export function PeCardMiniatura({
     [p, imageCtx],
   );
 
+  const stockPos = shell === "liquidacion" ? "bottom-1.5" : "top-1.5";
+
+  const stockBadge = showVentas ? (
+    card.totalPares > 0 ? (
+      <span
+        className={`absolute right-1.5 ${stockPos} rounded-full bg-bazzar-naranja px-2 py-0.5 text-[10px] font-bold text-white shadow-sm`}
+      >
+        {Math.round(card.totalPares)} {uStock}
+      </span>
+    ) : card.totalVendidos <= 0 ? (
+      <span
+        className={`absolute right-1.5 ${stockPos} rounded-full bg-slate-400 px-2 py-0.5 text-[10px] font-bold text-white`}
+      >
+        0 p
+      </span>
+    ) : null
+  ) : (
+    <span
+      className={`absolute right-1.5 ${stockPos} rounded-full bg-bazzar-naranja px-2 py-0.5 text-[10px] font-bold text-white shadow-sm`}
+    >
+      {Math.round(card.totalPares)} p
+    </span>
+  );
+
   return (
     <>
-      <article
-        className={`flex h-full min-h-0 flex-col rounded-xl border bg-white shadow-sm ${
-          p.es_liquidacion
-            ? "catalog-card-liquidacion-pulse border-2 border-emerald-500"
-            : "border-slate-200"
-        }`}
-      >
+      <article className={`flex h-full min-h-0 flex-col rounded-xl border shadow-sm ${shellClass}`}>
         <button
           type="button"
           className="relative aspect-square w-full shrink-0 overflow-hidden rounded-t-xl bg-slate-100"
@@ -89,35 +121,22 @@ export function PeCardMiniatura({
             variant="frame"
           />
           {showVentas && card.totalVendidos > 0 ? (
-            <span className={`absolute left-1.5 top-1.5 rounded-full ${VENTA_VISUAL.badge} px-2 py-0.5 text-[10px] font-bold ${VENTA_VISUAL.badgeFg} shadow-sm`}>
+            <span
+              className={`absolute left-1.5 top-1.5 rounded-full ${VENTA_VISUAL.badge} px-2 py-0.5 text-[10px] font-bold ${VENTA_VISUAL.badgeFg} shadow-sm`}
+            >
               {Math.round(card.totalVendidos)} v
             </span>
           ) : null}
-          {showVentas ? (
-            card.totalPares > 0 ? (
-              <span className="absolute right-1.5 top-1.5 rounded-full bg-bazzar-naranja px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                {Math.round(card.totalPares)} {uStock}
-              </span>
-            ) : card.totalVendidos <= 0 ? (
-              <span className="absolute right-1.5 top-1.5 rounded-full bg-slate-400 px-2 py-0.5 text-[10px] font-bold text-white">
-                0 p
-              </span>
-            ) : null
-          ) : (
-            <span className="absolute right-1.5 top-1.5 rounded-full bg-bazzar-naranja px-2 py-0.5 text-[10px] font-bold text-white">
-              {Math.round(card.totalPares)} p
-            </span>
-          )}
+          {shell === "liquidacion" ? <PeLiqBadge /> : null}
+          {stockBadge}
         </button>
 
         <div className="flex min-h-0 flex-1 flex-col gap-1 p-2">
           <div className="flex min-h-[14px] items-start justify-between gap-1">
-            <p className="min-w-0 truncate text-[10px] font-bold uppercase text-rimec-azul">{p.marca}</p>
-            {p.es_liquidacion ? (
-              <span className="shrink-0 rounded-full border border-emerald-600 bg-emerald-600 px-1.5 py-0.5 text-[7px] font-bold uppercase text-white">
-                LIQ
-              </span>
-            ) : null}
+            <div className="flex min-w-0 items-center gap-1">
+              <p className="min-w-0 truncate text-[10px] font-bold uppercase text-rimec-azul">{p.marca}</p>
+              {shell === "promo" ? <PeProBadge /> : null}
+            </div>
             {showLlegada ? (
               <span
                 className={`max-w-[52%] shrink-0 truncate rounded border px-1.5 py-0.5 text-[7px] font-bold leading-tight ${
@@ -137,8 +156,8 @@ export function PeCardMiniatura({
 
           {!expanded ? (
             <p className="line-clamp-1 min-h-[14px] text-[10px] text-slate-600">
-              {[p.descp_material, p.descp_color].filter(Boolean).join(" · ") ||
-                `${p.material_code} / ${p.color_code}`}
+              {[matUi, colUi].filter(Boolean).join(" · ") ||
+                (esConf ? "—" : `${p.material_code} / ${p.color_code}`)}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-x-1 gap-y-px">
@@ -146,8 +165,8 @@ export function PeCardMiniatura({
               <Dato label="Estilo" value={p.estilo} />
               <Dato label="Tipo 1" value={p.tipo_1} />
               <Dato label="Categoría" value={p.tipo_v2} />
-              <Dato label="Material" value={p.descp_material ?? p.material_code} />
-              <Dato label="Color" value={p.descp_color ?? p.color_code} />
+              <Dato label="Material" value={matUi ?? (esConf ? null : p.material_code)} />
+              <Dato label="Color" value={colUi ?? (esConf ? null : p.color_code)} />
               <Dato label="Tono" value={p.tono_etiqueta} />
               <Dato label="Depósito" value={p.columna_stock_legal ?? p.deposito_codigo} />
               {showLlegada ? <Dato label="Llegada" value={card.llegadaDesc} /> : null}
@@ -158,7 +177,9 @@ export function PeCardMiniatura({
             {card.precioVenta != null ? (
               <>
                 {formatPrecioGs(card.precioVenta)}
-                <span className="ml-1 text-[9px] font-semibold text-slate-500">/ {esConf ? "prenda" : "par"}</span>
+                <span className="ml-1 text-[9px] font-semibold text-slate-500">
+                  / {esConf ? "prenda" : "par"}
+                </span>
               </>
             ) : (
               <span className="text-[9px] font-semibold text-slate-400">Sin precio</span>
@@ -194,6 +215,20 @@ export function PeCardMiniatura({
               visible={expanded}
               resetKey={!expanded}
             />
+          ) : null}
+
+          {showDiccionarioBadge ? (
+            <p
+              className={`rounded-md border px-2 py-0.5 text-center text-[9px] font-bold uppercase leading-tight ${
+                shell === "liquidacion"
+                  ? "border-amber-500/50 bg-amber-50 text-amber-950"
+                  : shell === "promo"
+                    ? "border-fuchsia-400/60 bg-fuchsia-50 text-fuchsia-900"
+                    : "border-slate-300 bg-slate-50 text-slate-700"
+              }`}
+            >
+              {etiquetaCadenaPeUi(cadenaPeDeRow(p))}
+            </p>
           ) : null}
 
           {showCasoBadge && card.casoComercial ? (

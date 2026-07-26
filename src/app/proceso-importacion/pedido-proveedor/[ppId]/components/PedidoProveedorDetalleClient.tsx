@@ -14,6 +14,7 @@ import type {
   PpFacturaInternaRow,
   PpIcVinculada,
 } from "@/lib/pedido-proveedor/detail-query";
+import type { EventoCoberturaPp } from "@/lib/pedido-proveedor/listado-motor-cobertura";
 import type { EventoPrecioOption, EventoPpDetalle } from "@/lib/pedido-proveedor/stock-listado";
 import { DIGITACION, INTENCION_COMPRA_BANDEJA, PEDIDO_PROVEEDOR, type PpDetalleTab, pedidoProveedorDetalle } from "@/lib/report/routes";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
@@ -152,6 +153,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     cached?.eventoDetalle ?? null,
   );
   const [eventos, setEventos] = useState<EventoPrecioOption[]>(cached?.eventos ?? []);
+  const [listadoMotorCobertura, setListadoMotorCobertura] = useState<EventoCoberturaPp[]>([]);
   const [nroFactura, setNroFactura] = useState(cached?.pp?.nro_factura_importacion ?? "");
   const [proforma, setProforma] = useState(cached?.pp?.numero_proforma ?? "");
   const [nroPedidoExterno, setNroPedidoExterno] = useState(
@@ -212,6 +214,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       setDetallesPorFi(snap.detallesPorFi);
       setEventoDetalle(snap.eventoDetalle);
       setEventos(snap.eventos);
+      setListadoMotorCobertura((data.listadoMotorCobertura ?? []) as EventoCoberturaPp[]);
       setNroFactura(data.pp?.nro_factura_importacion ?? "");
       setProforma(data.pp?.numero_proforma ?? "");
       setNroPedidoExterno(data.pp?.nro_pedido_externo ?? "");
@@ -1325,6 +1328,8 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   ppId={ppId}
                   facturas={facturas}
                   detallesPorFi={detallesPorFi}
+                  eventos={catalogos?.eventos ?? []}
+                  listadoMotorCobertura={listadoMotorCobertura}
                   vendedores={catalogos?.vendedores ?? []}
                   plazos={catalogos?.plazos ?? []}
                   onReload={load}

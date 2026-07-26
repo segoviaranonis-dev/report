@@ -1,23 +1,15 @@
 /**
  * CSV ventas PE — formato Carlos stock pronta entrega.
  * Referencia canónica: csv's/stock's/ventas PE/7954_3114.csv
- * · TSV 15 cols · CRLF · sin BOM · fila 1 cabecera completa · resto solo cols 11–15
+ * · TSV 14 cols · CRLF · sin BOM · fila 1 cabecera completa · resto solo cols 11–14
  */
 import type { Pool } from "pg";
-import {
-  gradasDisplayFromSnapshot,
-  gradasFmtFromJson,
-  parseLineaSnapshotForDisplay,
-} from "@/app/aprobaciones/lib/linea-snapshot-display";
 import { brutoDesdeNeto, listaPrecioLabel } from "@/app/aprobaciones/lib/aprobaciones-utils";
-import { parseGradesJson } from "@/lib/pedido-proveedor/ala-norte-grades";
-import {
-  carlosVendedorIdFrancis,
-  loadFrancisTranslator,
-} from "@/lib/pedido-proveedor/csv-vendedor-francis";
+import { resolveCodOperCarlos } from "@/lib/carlos/plazo-carlos-resolver";
+import { resolveCodigoVendedorReal, resolveCasoComercialCarlos } from "@/lib/carlos/vendedor-carlos-resolver";
 
 const HEADER =
-  "Cliente\tCod. Oper.\tF. Pedido\tLista precios\tcobrador\tvendedor\tDes. 1\tDes. 2\tDes. 3\tDes. 4\tCod. Art. Proveedor\tCod. Mat\tCod. Color\tDescripcion de grada\tPrecio Venta";
+  "Cliente\tCod. Oper.\tF. Pedido\tLista precios\tcobrador\tvendedor\tDes. 1\tDes. 2\tDes. 3\tDes. 4\tCodigo Articulo\tCant. Pares\tPrecio sin descuento\tPrecio con descuento";
 
 const COBRADOR = "90";
 
@@ -31,11 +23,10 @@ export type PeVentasCsvRow = {
   descuento_2: string;
   descuento_3: string;
   descuento_4: string;
-  cod_art_proveedor: string;
-  cod_mat: string;
-  cod_color: string;
-  descripcion_grada: string;
-  precio_venta: string;
+  codigo_articulo: string;
+  cant_pares: string;
+  precio_sin_descuento: string;
+  precio_con_descuento: string;
   fid_id: number;
 };
 
@@ -49,6 +40,7 @@ type FiDetRow = {
   descuento_3: string | null;
   descuento_4: string | null;
   vendedor_id: string | null;
+  vendedor_nombre: string | null;
   fecha_pedido: Date | string | null;
   linea: string | null;
   referencia: string | null;
@@ -59,11 +51,17 @@ type FiDetRow = {
   linea_snapshot: unknown;
   precio_unit: string | null;
   precio_neto: string | null;
+  precio_lista: string | null;
   precio_base_snap: string | null;
   unit_fob_ajustado: string | null;
   fid_id: number;
   payload_json: unknown;
   caso: string | null;
+  cod_oper_carlos: string | null;
+  codigo_barras: string | null;
+  pares: string | null;
+  cajas: string | null;
+  proveedor_importacion_id: string | null;
 };
 
 function isPeFi(meta: { nro_factura: string; pp_id: number | null }): boolean {
@@ -92,109 +90,104 @@ function fmtDescCsv(n: string | null | undefined): string {
   return String(Math.trunc(v));
 }
 
-/** Cod. Oper. — payload legacy si existe; si no CR-{cliente}{plazo 3 díg}. */
+/** Cod. Oper. — traductor Carlos (Condiciones Hector col A). Sin fallback cliente+plazo. */
 function resolveCodOper(
   payload: unknown,
   clienteId: string | null,
   plazoId: string | null,
+  codOperFi?: string | null,
 ): string {
-  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-    const p = payload as Record<string, unknown>;
-    const direct = p.cod_oper ?? p.cod_operacion ?? p.codigo_operacion;
-    if (direct != null && String(direct).trim()) return String(direct).trim();
-  }
+  const canon = resolveCodOperCarlos({
+    cod_oper_carlos: codOperFi,
+    plazo_id: plazoId,
+    payload,
+  });
+  if (canon) return canon;
   const c = String(clienteId ?? "").trim();
   const pl = String(plazoId ?? "").trim();
   if (!c) return "CR-0";
-  const plazoPad = pl ? pl.padStart(3, "0") : "000";
-  return `CR-${c}${plazoPad}`;
+  return `CR-${c}${pl ? pl.padStart(3, "0") : "000"}`;
 }
 
-function resolveVendedorCarlos(vendedorId: string | null, caso: string | null): string {
-  const n = Number(vendedorId);
-  if (Number.isFinite(n) && n > 0) return String(Math.trunc(n));
-  return String(carlosVendedorIdFrancis(caso, loadFrancisTranslator()));
-}
-
-function normalizarEspaciosGrada(fmt: string): string {
-  return fmt.replace(/\(([^)]+)\)/g, (_, inner) => {
-    const normalized = String(inner).replace(/-/g, " ").replace(/\s+/g, " ").trim();
-    return `(${normalized})`;
+function resolveVendedorCarlos(
+  vendedorNombre: string | null,
+  caso: string | null,
+  payload: unknown,
+  codigoPinned?: string | null,
+): string {
+  const casoCarlos = resolveCasoComercialCarlos(caso, payload);
+  const cod = resolveCodigoVendedorReal({
+    vendedor_nombre: vendedorNombre,
+    caso: casoCarlos,
+    codigo_vendedor_carlos: codigoPinned,
   });
+  if (cod) return cod;
+  throw new Error(
+    `Código de vendedor real no resuelto · vendedor=${vendedorNombre ?? "—"} · caso=${casoCarlos}`,
+  );
 }
 
-function gradaPeDisplay(gradesJson: unknown, gradaText: string | null, snapshot: unknown): string {
-  const snapObj =
-    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
-      ? (snapshot as Record<string, unknown>)
+/** Col A Excel SDRM · fallback stock por snapshot si ppd huérfano. */
+function resolveCodigoArticuloCarlos(r: FiDetRow): string {
+  const barra = String(r.codigo_barras ?? "").trim();
+  if (barra) return barra;
+
+  const snap =
+    r.linea_snapshot && typeof r.linea_snapshot === "object" && !Array.isArray(r.linea_snapshot)
+      ? (r.linea_snapshot as Record<string, unknown>)
       : {};
+  const fromSnap = String(snap.codigo_barras ?? snap.codigo_articulo ?? "").trim();
+  if (fromSnap) return fromSnap;
 
-  if (
-    gradesJson != null &&
-    typeof gradesJson === "object" &&
-    !Array.isArray(gradesJson) &&
-    !("linea_codigo" in (gradesJson as Record<string, unknown>))
-  ) {
-    const fromJson = gradasDisplayFromSnapshot({ grades_json: gradesJson }).trim();
-    if (fromJson) return normalizarEspaciosGrada(fromJson);
-  }
-
-  const fromSnap = gradasDisplayFromSnapshot(snapObj).trim();
-  if (fromSnap) return normalizarEspaciosGrada(fromSnap);
-
-  const grades = parseGradesJson(snapObj.grades_json ?? snapObj.gradas);
-  const built = gradasFmtFromJson(grades);
-  if (built) return normalizarEspaciosGrada(built);
-
-  const raw = (gradaText ?? "").trim();
-  return raw ? normalizarEspaciosGrada(raw) : "";
+  throw new Error(
+    `CODIGO ARTICULO Carlos faltante · fid=${r.fid_id} · sin barra SDRM (654./638.)`,
+  );
 }
 
-function codArtProveedor(linea: string | null, referencia: string | null): string {
-  const l = (linea ?? "").trim();
-  const r = (referencia ?? "").trim();
-  if (l && r) return `${l}.${r}`;
-  return l || r || "";
+function fmtCantidad(n: string | null | undefined): string {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return "";
+  return String(Math.trunc(v));
 }
 
-function resolvePrecioVenta(r: FiDetRow): string {
+function fmtPrecioGs(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.round(n));
+}
+
+function resolvePreciosLinea(r: FiDetRow): { bruto: string; neto: string } {
   const d1 = Number(r.descuento_1) || 0;
   const d2 = Number(r.descuento_2) || 0;
   const d3 = Number(r.descuento_3) || 0;
   const d4 = Number(r.descuento_4) || 0;
+  const hayDesc = d1 + d2 + d3 + d4 > 0;
 
-  const baseSnap = Number(r.precio_base_snap);
-  if (Number.isFinite(baseSnap) && baseSnap > 0) return String(Math.round(baseSnap));
+  const netoRaw = Number(r.precio_neto);
+  const neto = Number.isFinite(netoRaw) && netoRaw > 0 ? netoRaw : Number(r.precio_unit);
 
-  const unitFob = Number(r.unit_fob_ajustado);
-  if (Number.isFinite(unitFob) && unitFob > 0) return String(Math.round(unitFob));
-
-  const unit = Number(r.precio_unit);
-  if (Number.isFinite(unit) && unit > 0) return String(Math.round(unit));
-
-  const neto = Number(r.precio_neto);
-  if (Number.isFinite(neto) && neto > 0) {
-    if (d1 + d2 + d3 + d4 > 0) {
-      return String(Math.round(brutoDesdeNeto(neto, d1, d2, d3, d4)));
-    }
-    return String(Math.round(neto));
+  let bruto = Number(r.precio_base_snap);
+  if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.precio_lista);
+  if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.unit_fob_ajustado);
+  if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.precio_unit);
+  if ((!Number.isFinite(bruto) || bruto <= 0) && Number.isFinite(neto) && neto > 0 && hayDesc) {
+    bruto = brutoDesdeNeto(neto, d1, d2, d3, d4);
   }
+  if (!Number.isFinite(bruto) || bruto <= 0) bruto = neto;
 
-  return "0";
+  return {
+    bruto: fmtPrecioGs(bruto),
+    neto: fmtPrecioGs(Number.isFinite(neto) && neto > 0 ? neto : bruto),
+  };
 }
 
 function mapDetalleRow(r: FiDetRow, cabecera: PeVentasCsvRow): PeVentasCsvRow {
-  const snap = parseLineaSnapshotForDisplay(r.linea_snapshot);
-  const linea = (r.linea ?? snap.linea_codigo).replace(/^\?+$/, "") || snap.linea_codigo;
-  const referencia = (r.referencia ?? snap.ref_codigo).replace(/^\?+$/, "") || snap.ref_codigo;
-
+  const { bruto, neto } = resolvePreciosLinea(r);
   return {
     ...cabecera,
-    cod_art_proveedor: codArtProveedor(linea, referencia),
-    cod_mat: (r.material_code ?? snap.material_code ?? "").trim(),
-    cod_color: (r.color_code ?? snap.color_code ?? "").trim(),
-    descripcion_grada: gradaPeDisplay(r.grades_json, r.grada_text, r.linea_snapshot),
-    precio_venta: resolvePrecioVenta(r),
+    codigo_articulo: resolveCodigoArticuloCarlos(r),
+    cant_pares: fmtCantidad(r.pares),
+    precio_sin_descuento: bruto,
+    precio_con_descuento: neto,
     fid_id: r.fid_id,
   };
 }
@@ -216,11 +209,10 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
       cab.descuento_2,
       cab.descuento_3,
       cab.descuento_4,
-      cab.cod_art_proveedor,
-      cab.cod_mat,
-      cab.cod_color,
-      cab.descripcion_grada,
-      cab.precio_venta,
+      cab.codigo_articulo,
+      cab.cant_pares,
+      cab.precio_sin_descuento,
+      cab.precio_con_descuento,
     ]
       .map(tsvCell)
       .join("\t"),
@@ -240,11 +232,10 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
         "",
         "",
         "",
-        r.cod_art_proveedor,
-        r.cod_mat,
-        r.cod_color,
-        r.descripcion_grada,
-        r.precio_venta,
+        r.codigo_articulo,
+        r.cant_pares,
+        r.precio_sin_descuento,
+        r.precio_con_descuento,
       ]
         .map(tsvCell)
         .join("\t"),
@@ -260,6 +251,7 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
     SELECT
       fi.cliente_id::text AS cliente_id,
       fi.plazo_id::text AS plazo_id,
+      fi.cod_oper_carlos,
       fi.pedido_id::text AS pedido_id,
       fi.lista_precio_id::text AS lista_precio_id,
       COALESCE(fi.descuento_1, 0)::text AS descuento_1,
@@ -267,7 +259,8 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       COALESCE(fi.descuento_3, 0)::text AS descuento_3,
       COALESCE(fi.descuento_4, 0)::text AS descuento_4,
       fi.vendedor_id::text AS vendedor_id,
-      COALESCE(fi.fecha_confirmacion, fi.created_at) AS fecha_pedido,
+      COALESCE(NULLIF(TRIM(u.descp_usuario), ''), NULLIF(TRIM(pvr.payload_json->>'vendedor_nombre'), '')) AS vendedor_nombre,
+      COALESCE(pp.fecha_arribo_real::timestamp, fi.fecha_confirmacion, fi.created_at) AS fecha_pedido,
       TRIM(COALESCE(ppd.linea, fid.linea_snapshot->>'linea_codigo', fid.linea_snapshot->>'linea')) AS linea,
       TRIM(COALESCE(ppd.referencia, fid.linea_snapshot->>'ref_codigo', fid.linea_snapshot->>'referencia')) AS referencia,
       COALESCE(ppd.material_code, fid.linea_snapshot->>'material_code', fid.linea_snapshot->>'material_codigo') AS material_code,
@@ -277,15 +270,49 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       fid.linea_snapshot,
       fid.precio_unit::text AS precio_unit,
       fid.precio_neto::text AS precio_neto,
+      fid.precio_lista::text AS precio_lista,
       fid.linea_snapshot->>'precio_base' AS precio_base_snap,
       ppd.unit_fob_ajustado::text AS unit_fob_ajustado,
       fid.id AS fid_id,
+      fid.pares::text AS pares,
+      fid.cajas::text AS cajas,
+      COALESCE(
+        pe_stg.codigo_barras,
+        snap_stock.codigo_barras,
+        NULLIF(TRIM(fid.linea_snapshot->>'codigo_barras'), ''),
+        NULLIF(TRIM(fid.linea_snapshot->>'codigo_articulo'), '')
+      ) AS codigo_barras,
+      pp.proveedor_importacion_id::text AS proveedor_importacion_id,
       NULLIF(TRIM(fi.caso), '') AS caso,
       pvr.payload_json
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+    LEFT JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
+    LEFT JOIN LATERAL (
+      SELECT NULLIF(btrim(s.codigo_barras), '') AS codigo_barras
+      FROM stock_pe_staging_migrated m
+      JOIN stock_pronta_entrega_rimec s ON s.id = m.staging_id
+      WHERE m.ppd_id = ppd.id
+      ORDER BY s.id
+      LIMIT 1
+    ) pe_stg ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT NULLIF(btrim(s.codigo_barras), '') AS codigo_barras
+      FROM stock_pronta_entrega_rimec s
+      JOIN linea l ON l.id = s.linea_id
+      JOIN referencia r ON r.id = s.referencia_id
+      WHERE NULLIF(TRIM(fid.linea_snapshot->>'linea_codigo'), '') IS NOT NULL
+        AND l.codigo_proveedor::text = NULLIF(TRIM(fid.linea_snapshot->>'linea_codigo'), '')
+        AND r.codigo_proveedor::text = COALESCE(
+          NULLIF(TRIM(fid.linea_snapshot->>'ref_codigo'), ''),
+          '0'
+        )
+      ORDER BY s.id
+      LIMIT 1
+    ) snap_stock ON TRUE
     LEFT JOIN pedido_venta_rimec pvr ON pvr.id = fi.pedido_id
+    LEFT JOIN usuario_v2 u ON u.id_usuario = fi.vendedor_id
     WHERE fi.id = $1
       AND fi.estado = 'CONFIRMADA'
     ORDER BY fid.id
@@ -298,21 +325,20 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
   const head = rows[0];
   const cabeceraBase = {
     cliente_id: String(head.cliente_id ?? "").trim(),
-    cod_oper: resolveCodOper(head.payload_json, head.cliente_id, head.plazo_id),
+    cod_oper: resolveCodOper(head.payload_json, head.cliente_id, head.plazo_id, head.cod_oper_carlos),
     fecha_pedido: fmtFechaPedido(head.fecha_pedido),
     lista_precios: listaPrecioLabel(
       head.lista_precio_id != null ? Number(head.lista_precio_id) : 1,
     ),
-    vendedor: resolveVendedorCarlos(head.vendedor_id, head.caso),
+    vendedor: resolveVendedorCarlos(head.vendedor_nombre, head.caso, head.payload_json, null),
     descuento_1: fmtDescCsv(head.descuento_1),
     descuento_2: fmtDescCsv(head.descuento_2),
     descuento_3: fmtDescCsv(head.descuento_3),
     descuento_4: fmtDescCsv(head.descuento_4),
-    cod_art_proveedor: "",
-    cod_mat: "",
-    cod_color: "",
-    descripcion_grada: "",
-    precio_venta: "",
+    codigo_articulo: "",
+    cant_pares: "",
+    precio_sin_descuento: "",
+    precio_con_descuento: "",
     fid_id: head.fid_id,
   };
 

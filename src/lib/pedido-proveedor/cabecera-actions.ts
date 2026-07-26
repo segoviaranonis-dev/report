@@ -140,6 +140,8 @@ export type UpdateIcVinculadaInput = {
   descuento_2?: number;
   descuento_3?: number;
   descuento_4?: number;
+  /** Nuevo mensaje Obs. Logística (append al hilo). */
+  observacion_logistica_nueva?: string;
 };
 
 export async function updateIcVinculadaPp(

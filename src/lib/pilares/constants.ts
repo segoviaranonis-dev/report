@@ -34,14 +34,14 @@ export const TIPO1_POR_TIPO_V2: Record<1 | 2, readonly string[]> = {
 
 /** Etiqueta UI cabecera filtros — Kyly 638 usa TEMPORADA (col G Excel). */
 export const TIPO1_UI_LABEL: Record<1 | 2, string> = {
-  1: "Tipo 1",
-  2: "Temporada",
+  1: "TIPO 1",
+  2: "TEMPORADA",
 };
 
 export function tipo1UiLabelForFiltros(tipoV2Ids: number[]): string {
   if (tipoV2Ids.length === 1 && tipoV2Ids[0] === 2) return TIPO1_UI_LABEL[2];
   if (tipoV2Ids.length === 1 && tipoV2Ids[0] === 1) return TIPO1_UI_LABEL[1];
-  return "Tipo 1 / Temporada";
+  return "TIPO 1 / TEMPORADA";
 }
 
 export function normMaestraLabel(raw: string | null | undefined): string {

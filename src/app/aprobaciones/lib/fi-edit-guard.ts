@@ -30,9 +30,10 @@ type FiRow = {
 export async function lockFiEditable(
   client: PoolClient,
   fiId: number,
-  options?: { flipConfirmada?: boolean },
+  options?: { flipConfirmada?: boolean; allowPpEnviado?: boolean },
 ): Promise<{ ok: true; lock: FiHeaderLock } | { ok: false; msg: string }> {
   const flip = options?.flipConfirmada !== false;
+  const allowEnviado = Boolean(options?.allowPpEnviado);
 
   const fiRes = await client.query<FiRow>(
     `
@@ -58,7 +59,7 @@ export async function lockFiEditable(
   if (estado !== "RESERVADA" && estado !== "CONFIRMADA") {
     return { ok: false, msg: `FI en estado ${estado} — no editable.` };
   }
-  if ((fi.pp_estado || "").toUpperCase() === "ENVIADO") {
+  if ((fi.pp_estado || "").toUpperCase() === "ENVIADO" && !allowEnviado) {
     return { ok: false, msg: "PP enviado a compra — edición cerrada." };
   }
 

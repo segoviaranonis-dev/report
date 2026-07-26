@@ -11,6 +11,7 @@ import { agruparFacturasPorFecha } from "@/lib/facturacion/utils";
 import type { OrigenFacturacion } from "@/lib/facturacion/filters";
 import type { FacturaKpis, FacturaListItem } from "@/lib/facturacion/types";
 import { TERMINO_FI } from "@/lib/facturacion/types";
+import { FECHA_ENTREGA_REAL_LABEL } from "@/lib/logistica-ok/constants";
 import type { FiDetalleCanonico, FiRegistroRow } from "@/lib/bazzar-web/compra-web/types";
 import { FACTURACION } from "@/lib/report/routes";
 import { fiDisplayId } from "@/app/aprobaciones/lib/aprobaciones-utils";
@@ -315,7 +316,7 @@ export function FacturacionBandejaClient({
               <section key={g.fecha || "all"}>
                 {groupByDate && g.fecha && g.facturas.length > 1 && (
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                    Agrupado · {g.fecha} · {g.facturas.length} {TERMINO_FI}
+                    Agrupado · {FECHA_ENTREGA_REAL_LABEL} {g.fecha} · {g.facturas.length} {TERMINO_FI}
                     {g.facturas.length === 1 ? "" : "s"}
                   </p>
                 )}

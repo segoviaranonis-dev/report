@@ -88,6 +88,11 @@ export async function POST(req: Request, { params }: Params) {
       fiBatchSize,
     });
 
+    if (result.ok) {
+      const { syncLogisticaPpIfBandera } = await import("@/lib/logistica-ok/sync-pp");
+      await syncLogisticaPpIfBandera(getRimecPool(), ppId).catch(() => undefined);
+    }
+
     if (!result.ok) {
       return NextResponse.json(result, { status: 400 });
     }

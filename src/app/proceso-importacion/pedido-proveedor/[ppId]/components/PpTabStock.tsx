@@ -1099,6 +1099,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                     <p className="mt-0.5 text-xs text-slate-600">
                       {eventoDetalle.n_precios} precios · {eventoDetalle.estado} · evento #{eventoDetalle.evento_id}
                       {eventoDetalle.biblioteca ? ` · ${eventoDetalle.biblioteca}` : ""}
+                      {pp.biblioteca_precio_id && eventoDetalle.biblioteca_id && pp.biblioteca_precio_id !== eventoDetalle.biblioteca_id ? (
+                        <span className="text-amber-800"> · ⚠ bib cabecera ≠ bib listado</span>
+                      ) : null}
                     </p>
                   </>
                 ) : (
@@ -1240,10 +1243,9 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
           <details className="rounded-lg border border-slate-200 bg-white">
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-rimec-azul-dark [&::-webkit-details-marker]:hidden">
               <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span>Ala Norte · F9 / Proforma</span>
+                <span>Ala Norte · Stock importado (F9)</span>
                 <span className="text-xs font-normal text-slate-600">
-                  {alaNorte.length} moléculas · {totalStockPares.toLocaleString("es-PY")} pares iniciales ·{" "}
-                  {pp.total_vendido.toLocaleString("es-PY")} vendidos · {pp.saldo.toLocaleString("es-PY")} disponibles
+                  {alaNorte.length} moléculas · precio vinculado único · listado #{eventoDetalle?.evento_id ?? "—"}
                 </span>
               </span>
             </summary>
@@ -1274,7 +1276,7 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                 </details>
               )}
               <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                <table className="w-full min-w-[1200px] text-left text-xs">
+                <table className="w-full min-w-[1560px] text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-500">
                       <th className="sticky left-0 z-10 bg-white py-2 pl-3 pr-2">Marca</th>
@@ -1285,6 +1287,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                       <th className="py-2 pr-2">Material</th>
                       <th className="py-2 pr-2">Cód.Col</th>
                       <th className="py-2 pr-2">Color</th>
+                      <th className="py-2 pr-2">Caso</th>
+                      <th className="py-2 pr-2 text-right">LPN vinc.</th>
+                      <th className="py-2 pr-2 text-right">LPC03</th>
+                      <th className="py-2 pr-2 text-right">TC</th>
                       <th className="py-2 pr-2">Tallas</th>
                       <th className="py-2 pr-2 text-center">x Caja</th>
                       {gradeColumns.map((g) => (
@@ -1312,6 +1318,24 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                           <td className="py-1.5 pr-2">{r.material}</td>
                           <td className="py-1.5 pr-2 font-mono">{r.color_code ?? "—"}</td>
                           <td className="py-1.5 pr-2">{r.color}</td>
+                          <td className="max-w-[8rem] truncate py-1.5 pr-2 text-[10px] font-semibold text-violet-900" title={r.caso ?? undefined}>
+                            {r.caso ?? "—"}
+                          </td>
+                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-emerald-900">
+                            {r.precio_lpn != null && r.precio_lpn > 0
+                              ? r.precio_lpn.toLocaleString("es-PY")
+                              : "—"}
+                          </td>
+                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-slate-700">
+                            {r.precio_lpc03 != null && r.precio_lpc03 > 0
+                              ? r.precio_lpc03.toLocaleString("es-PY")
+                              : "—"}
+                          </td>
+                          <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-slate-600">
+                            {r.precio_dolar_origen != null && r.precio_dolar_origen > 0
+                              ? r.precio_dolar_origen.toLocaleString("es-PY", { maximumFractionDigits: 0 })
+                              : "—"}
+                          </td>
                           <td className="py-1.5 pr-2 font-mono text-slate-600">{r.grada ?? "—"}</td>
                           <td className="py-1.5 pr-2 text-center tabular-nums">{xCaja ?? "—"}</td>
                           {gradeColumns.map((g) => {
@@ -1335,8 +1359,10 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
                 </table>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                1 fila = 1 molécula (L+R+mat+color+grada). Columnas numéricas = unidades por talla en{" "}
-                <code className="rounded bg-slate-100 px-1">grades_json</code>.
+                Proforma = moléculas y pares (Excel, sin LPN). <strong>Motor/listado = unidad de mando</strong> (ajustás
+                estrategias). <strong>Este PP = unidad de dirección</strong>: un solo precio de venta — el{" "}
+                <strong>LPN vinculado</strong> en PPD · Web · FI. Cambiás listado → re-vinculás; nunca dos orígenes en el
+                mismo PP.
               </p>
             </div>
           </details>
@@ -1346,13 +1372,18 @@ export function PpTabStock({ pp, ppId, alaNorte, eventoDetalle, eventos, onReloa
       <div className={`${sectionCls} border-sky-200`}>
         <h3 className="text-sm font-bold text-rimec-azul-dark">Listado de precios RIMEC</h3>
         <p className="mt-1 text-xs text-slate-600">
-          Biblioteca + listado Excel = un evento. Acompaña el PP y alimenta FI hasta Compra Legal.
+          Biblioteca + listado Excel = un evento (unidad de mando). Al vincular copiás precios al PP (unidad de dirección).
         </p>
         {eventoDetalle ? (
           <p className="mt-2 rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
             Listado vigente: <strong>{eventoDetalle.nombre_evento}</strong> · {eventoDetalle.n_precios} precios · estado{" "}
             {eventoDetalle.estado} · evento #{eventoDetalle.evento_id}
-            {eventoDetalle.biblioteca ? ` · biblioteca ${eventoDetalle.biblioteca}` : ""}
+                {eventoDetalle.biblioteca ? ` · biblioteca listado: ${eventoDetalle.biblioteca}` : ""}
+                {pp.biblioteca_precio_id && eventoDetalle.biblioteca_id && pp.biblioteca_precio_id !== eventoDetalle.biblioteca_id ? (
+                  <span className="ml-1 font-bold text-amber-800">
+                    · ⚠ cabecera PP bib #{pp.biblioteca_precio_id} ≠ bib listado #{eventoDetalle.biblioteca_id}
+                  </span>
+                ) : null}
           </p>
         ) : (
           <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">

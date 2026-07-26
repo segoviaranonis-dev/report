@@ -79,6 +79,11 @@ export type PpFacturaInternaRow = {
   descuento_3: number;
   descuento_4: number;
   item_count: number;
+  factura_carlos: string | null;
+  pv_global: number | null;
+  factura_carlos_at: string | null;
+  precio_evento_id: number | null;
+  precio_evento_nombre: string | null;
 };
 
 export type PpIcVinculada = IcDePp & {
@@ -374,6 +379,11 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
     cantidad_inicial: string;
     vendido: string;
     saldo: string;
+    precio_lpn: string | null;
+    precio_lpc03: string | null;
+    precio_dolar_origen: string | null;
+    descp_caso_snapshot: string | null;
+    listado_precio_id: string | null;
   }>(
     `
     SELECT
@@ -399,8 +409,14 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
           COALESCE(ppd.pares_vendidos, 0),
           COALESCE(SUM(vt.cantidad_vendida), 0)
         )
-      )::text AS saldo
+      )::text AS saldo,
+      ppd.precio_lpn::text AS precio_lpn,
+      ppd.precio_lpc03::text AS precio_lpc03,
+      ppd.precio_dolar_origen::text AS precio_dolar_origen,
+      NULLIF(TRIM(ppd.descp_caso_snapshot), '') AS descp_caso_snapshot,
+      ppd.listado_precio_id::text AS listado_precio_id
     FROM pedido_proveedor_detalle ppd
+    JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
     LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN venta_transito vt ON vt.pedido_proveedor_detalle_id = ppd.id
     WHERE ppd.pedido_proveedor_id = $1
@@ -408,7 +424,9 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
     GROUP BY ppd.id, mv.descp_marca, ppd.linea, ppd.referencia,
              ppd.style_code, ppd.material_code, ppd.descp_material,
              ppd.color_code, ppd.descp_color, ppd.grada, ppd.grades_json,
-             ppd.cantidad_cajas, ppd.cantidad_pares, ppd.pares_vendidos
+             ppd.cantidad_cajas, ppd.cantidad_pares, ppd.pares_vendidos,
+             ppd.precio_lpn, ppd.precio_lpc03, ppd.precio_dolar_origen,
+             ppd.descp_caso_snapshot, ppd.listado_precio_id
     ORDER BY ppd.id
     `,
     [ppId],
@@ -430,6 +448,11 @@ export async function listAlaNortePp(pool: Pool, ppId: number): Promise<PpAlaNor
     cantidad_inicial: Number(r.cantidad_inicial ?? 0),
     vendido: Number(r.vendido ?? 0),
     saldo: Number(r.saldo ?? 0),
+    precio_lpn: r.precio_lpn != null ? Number(r.precio_lpn) : null,
+    precio_lpc03: r.precio_lpc03 != null ? Number(r.precio_lpc03) : null,
+    precio_dolar_origen: r.precio_dolar_origen != null ? Number(r.precio_dolar_origen) : null,
+    caso: r.descp_caso_snapshot,
+    listado_evento_id: r.listado_precio_id != null ? Number(r.listado_precio_id) : null,
   }));
 }
 
@@ -457,6 +480,11 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
     descuento_3: string;
     descuento_4: string;
     item_count: string;
+    factura_carlos: string | null;
+    pv_global: string | null;
+    factura_carlos_at: string | null;
+    precio_evento_id: string | null;
+    precio_evento_nombre: string | null;
   }>(
     `
     SELECT fi.id, fi.nro_factura, fi.estado,
@@ -486,13 +514,19 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
            COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
            COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
            COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
-           (SELECT COUNT(*)::text FROM factura_interna_detalle d WHERE d.factura_id = fi.id) AS item_count
+           (SELECT COUNT(*)::text FROM factura_interna_detalle d WHERE d.factura_id = fi.id) AS item_count,
+           fi.factura_carlos,
+           fi.pv_global::text AS pv_global,
+           fi.factura_carlos_at::text AS factura_carlos_at,
+           ic.precio_evento_id::text AS precio_evento_id,
+           pe.nombre_evento AS precio_evento_nombre
     FROM factura_interna fi
     LEFT JOIN cliente_v2 cv ON cv.id_cliente = fi.cliente_id
     LEFT JOIN plazo_v2 pl ON pl.id_plazo = fi.plazo_id
     LEFT JOIN LATERAL (
       SELECT ic.id_vendedor, ic.listado_precio_id, ic.id_plazo, ic.id_marca,
-             ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
+             ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4,
+             ic.precio_evento_id
       FROM intencion_compra_pedido icp
       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
       WHERE icp.pedido_proveedor_id = fi.pp_id
@@ -500,6 +534,7 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
       ORDER BY ABS(ic.cantidad_total_pares - COALESCE(fi.total_pares, 0)) ASC, ic.id ASC
       LIMIT 1
     ) ic ON true
+    LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id
     LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
     LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)
@@ -541,6 +576,11 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
     descuento_3: Number(r.descuento_3 ?? 0),
     descuento_4: Number(r.descuento_4 ?? 0),
     item_count: Number(r.item_count ?? 0),
+    factura_carlos: r.factura_carlos?.trim() || null,
+    pv_global: r.pv_global != null ? Number(r.pv_global) : null,
+    factura_carlos_at: r.factura_carlos_at,
+    precio_evento_id: r.precio_evento_id != null ? Number(r.precio_evento_id) : null,
+    precio_evento_nombre: r.precio_evento_nombre?.trim() || null,
   }));
 }
 

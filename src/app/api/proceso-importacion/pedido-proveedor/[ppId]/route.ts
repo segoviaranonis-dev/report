@@ -6,6 +6,7 @@ import { patchPpCabecera } from "@/lib/pedido-proveedor/cabecera-actions";
 import { syncFiEncabezadoDesdeIc } from "@/lib/pedido-proveedor/fi-pp-actions";
 import { getPpDetalle, listAlaNortePp, listFacturasInternasPp, listIcsVinculadasPp } from "@/lib/pedido-proveedor/detail-query";
 import { getEventoPpDetalle, listEventosPrecioPp } from "@/lib/pedido-proveedor/stock-listado";
+import { listEventoCoberturaPp } from "@/lib/pedido-proveedor/listado-motor-cobertura";
 import { fetchFiDetallesBatch } from "@/app/aprobaciones/lib/aprobaciones-queries";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
@@ -36,7 +37,18 @@ export async function GET(_req: Request, { params }: Params) {
     const detallesPorFi = await fetchFiDetallesBatch(facturas.map((f) => f.id));
     const eventoDetalle = await getEventoPpDetalle(pool, ppId);
     const eventos = await listEventosPrecioPp(pool, ppId);
-    return NextResponse.json({ ok: true, pp: header, ics, alaNorte, facturas, detallesPorFi, eventoDetalle, eventos });
+    const listadoMotorCobertura = await listEventoCoberturaPp(pool, ppId);
+    return NextResponse.json({
+      ok: true,
+      pp: header,
+      ics,
+      alaNorte,
+      facturas,
+      detallesPorFi,
+      eventoDetalle,
+      eventos,
+      listadoMotorCobertura,
+    });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Error" }, { status: 500 });
   }

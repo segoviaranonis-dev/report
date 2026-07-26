@@ -1,7 +1,16 @@
 import type { Pool } from "pg";
-import { actualizarEncabezadoFi, actualizarListaPrecioFi } from "@/app/aprobaciones/lib/aprobaciones-mutations";
+import type { ListadoMotorFiReport } from "@/lib/pedido-proveedor/listado-motor-fi-types";
+import { actualizarEncabezadoFi, actualizarListaPrecioFi, resincronizarFiDesdeListadoPp } from "@/app/aprobaciones/lib/aprobaciones-mutations";
 import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
 import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
+import {
+  FACTURA_CARLOS_MAX_LEN,
+  FACTURA_CARLOS_MIN_LEN,
+  normalizeFacturaCarlosDigits,
+  resolveFacturaCarlosImport,
+} from "@/lib/logistica-ok/factura-real";
+import { syncLogisticaPpIfBandera } from "@/lib/logistica-ok/sync-pp";
+import { syncLogisticaMontosDesdeFi } from "@/lib/logistica-ok/sync-fi-montos";
 
 /** Rellena plazo/LP/descuentos FI desde IC vinculada (SHOP = id_cliente). */
 export async function syncFiEncabezadoDesdeIc(pool: Pool, ppId: number): Promise<void> {
@@ -67,6 +76,137 @@ export async function actualizarListaPrecioFiDesdePp(
   );
 
   return { ok: true, totalMonto: result.totalMonto };
+}
+
+/** Impone evento motor (#27, #28…) por FI · recalc L+R+material · sync Logística OK. */
+export async function actualizarListadoMotorFiDesdePp(
+  pool: Pool,
+  ppId: number,
+  fiId: number,
+  eventoId: number,
+): Promise<{ ok: true; report: ListadoMotorFiReport } | { ok: false; error: string }> {
+  const t0 = Date.now();
+  if (!Number.isFinite(eventoId) || eventoId <= 0) {
+    return { ok: false, error: "Evento motor inválido." };
+  }
+
+  const ev = await pool.query<{ id: string }>(
+    `SELECT id::text FROM precio_evento WHERE id = $1`,
+    [eventoId],
+  );
+  if (!ev.rowCount) {
+    return { ok: false, error: `Evento motor #${eventoId} no existe.` };
+  }
+
+  const fiRes = await pool.query<{ estado: string; cliente_id: string | null; nro_factura: string }>(
+    `SELECT estado, cliente_id::text, nro_factura FROM factura_interna WHERE id = $1 AND pp_id = $2`,
+    [fiId, ppId],
+  );
+  const fi = fiRes.rows[0];
+  if (!fi) {
+    return { ok: false, error: "FI no pertenece a este PP." };
+  }
+
+  const estado = (fi.estado || "").toUpperCase();
+  if (estado !== "RESERVADA" && estado !== "CONFIRMADA") {
+    return { ok: false, error: `FI ${estado} — no recalculable.` };
+  }
+  if (fi.cliente_id == null) {
+    return { ok: false, error: "FI sin cliente SHOP — no hay IC para vincular listado." };
+  }
+
+  const evAntesRes = await pool.query<{ evento_id: string | null }>(
+    `SELECT ic.precio_evento_id::text AS evento_id
+     FROM intencion_compra ic
+     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id
+     WHERE icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2
+     ORDER BY ic.id LIMIT 1`,
+    [ppId, Number(fi.cliente_id)],
+  );
+  const eventoIdAntes =
+    evAntesRes.rows[0]?.evento_id != null ? Number(evAntesRes.rows[0].evento_id) : null;
+
+  const updIc = await pool.query(
+    `UPDATE intencion_compra ic
+     SET precio_evento_id = $3
+     FROM intencion_compra_pedido icp
+     WHERE ic.id = icp.intencion_compra_id
+       AND icp.pedido_proveedor_id = $1
+       AND ic.id_cliente = $2`,
+    [ppId, Number(fi.cliente_id), eventoId],
+  );
+  if ((updIc.rowCount ?? 0) === 0) {
+    return { ok: false, error: "Sin IC vinculada a este cliente en el PP." };
+  }
+
+  await pool.query(
+    `UPDATE intencion_compra_pedido icp
+     SET precio_evento_id = $3
+     FROM intencion_compra ic
+     WHERE icp.intencion_compra_id = ic.id
+       AND icp.pedido_proveedor_id = $1
+       AND ic.id_cliente = $2`,
+    [ppId, Number(fi.cliente_id), eventoId],
+  );
+
+  const resync = await resincronizarFiDesdeListadoPp(fiId, {
+    usarRedondeoComercial: true,
+    allowPpEnviado: true,
+    forzarSoloPrecioLista: true,
+    precioEventoIdOverride: eventoId,
+  });
+  if (!resync.ok) {
+    if (eventoIdAntes != null) {
+      await pool.query(
+        `UPDATE intencion_compra ic SET precio_evento_id = $3
+         FROM intencion_compra_pedido icp
+         WHERE ic.id = icp.intencion_compra_id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
+        [ppId, Number(fi.cliente_id), eventoIdAntes],
+      );
+      await pool.query(
+        `UPDATE intencion_compra_pedido icp SET precio_evento_id = $3
+         FROM intencion_compra ic
+         WHERE icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
+        [ppId, Number(fi.cliente_id), eventoIdAntes],
+      );
+    } else {
+      await pool.query(
+        `UPDATE intencion_compra ic SET precio_evento_id = NULL
+         FROM intencion_compra_pedido icp
+         WHERE ic.id = icp.intencion_compra_id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
+        [ppId, Number(fi.cliente_id)],
+      );
+      await pool.query(
+        `UPDATE intencion_compra_pedido icp SET precio_evento_id = NULL
+         FROM intencion_compra ic
+         WHERE icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
+        [ppId, Number(fi.cliente_id)],
+      );
+    }
+    return { ok: false, error: resync.msg };
+  }
+  if (!resync.stats) {
+    return { ok: false, error: "Resync sin estadísticas — reintentar." };
+  }
+
+  const logSync = await syncLogisticaMontosDesdeFi(pool, fiId);
+  try {
+    await syncLogisticaPpIfBandera(pool, ppId);
+  } catch {
+    /* bandera/MIG puede faltar en local */
+  }
+
+  return {
+    ok: true,
+    report: {
+      ...resync.stats,
+      evento_id: eventoId,
+      evento_id_antes: eventoIdAntes,
+      logistica_sync: logSync.updated,
+      ms_server: Date.now() - t0,
+      nro_factura: fi.nro_factura,
+    },
+  };
 }
 
 export async function actualizarVendedorFiDesdePp(
@@ -212,4 +352,111 @@ export async function actualizarEncabezadoFiDesdePp(
   }
 
   return { ok: true, totalMonto: result.totalMonto ?? 0 };
+}
+
+export type FacturaCarlosFiInput = {
+  facturaCarlosRaw: string;
+};
+
+function pgUniqueViolation(msg: string): string | null {
+  if (!msg.includes("unique") && !msg.includes("duplicate")) return null;
+  if (msg.includes("uq_fi_pp_factura_carlos")) {
+    return "Ese número Carlos ya está asignado a otra FI de este PP.";
+  }
+  if (msg.includes("uq_fi_factura_carlos_global")) {
+    return "Ese número Carlos ya existe en otra FI del holding.";
+  }
+  return "Número Carlos duplicado.";
+}
+
+/** Asignación manual Factura Carlos (CP + PROGRAMADO) — sync Logística si PP PUBLICADO. */
+export async function actualizarFacturaCarlosFiDesdePp(
+  pool: Pool,
+  ppId: number,
+  fiId: number,
+  input: FacturaCarlosFiInput,
+): Promise<
+  | { ok: true; factura_carlos: string | null; pv_global: number | null }
+  | { ok: false; error: string }
+> {
+  const raw = String(input.facturaCarlosRaw ?? "").trim();
+  let facturaCarlos: string | null = null;
+  let pvGlobal: number | null = null;
+
+  if (raw) {
+    const normalized = normalizeFacturaCarlosDigits(raw);
+    if (!normalized) {
+      return {
+        ok: false,
+        error: `Factura Carlos inválida — use ${FACTURA_CARLOS_MIN_LEN}–${FACTURA_CARLOS_MAX_LEN} dígitos.`,
+      };
+    }
+    const resolved = resolveFacturaCarlosImport(normalized);
+    if (!resolved.factura_carlos) {
+      return { ok: false, error: "Factura Carlos inválida." };
+    }
+    facturaCarlos = resolved.factura_carlos;
+    pvGlobal = resolved.pv_global;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const ppRes = await client.query<{ estado: string; logistica_on: boolean }>(
+      `SELECT estado,
+              COALESCE(logistica_bandera_activa, false) AS logistica_on
+       FROM pedido_proveedor WHERE id = $1 FOR UPDATE`,
+      [ppId],
+    );
+    if (!ppRes.rows[0]) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "PP no encontrado." };
+    }
+    if (ppRes.rows[0].estado === "ENVIADO") {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "PP ENVIADO — Factura Carlos en solo lectura." };
+    }
+
+    const fiRes = await client.query<{ estado: string }>(
+      `SELECT estado FROM factura_interna WHERE id = $1 AND pp_id = $2 FOR UPDATE`,
+      [fiId, ppId],
+    );
+    if (!fiRes.rows[0]) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "FI no pertenece a este PP." };
+    }
+    if (!["RESERVADA", "CONFIRMADA"].includes(fiRes.rows[0].estado)) {
+      await client.query("ROLLBACK");
+      return { ok: false, error: "FI no editable en este estado." };
+    }
+
+    await client.query(
+      `UPDATE factura_interna
+       SET factura_carlos = $2,
+           pv_global = $3,
+           factura_carlos_at = CASE WHEN $2 IS NULL THEN NULL ELSE now() END
+       WHERE id = $1`,
+      [fiId, facturaCarlos, pvGlobal],
+    );
+
+    await client.query("COMMIT");
+
+    if (ppRes.rows[0].logistica_on) {
+      await syncLogisticaPpIfBandera(pool, ppId);
+    }
+
+    return { ok: true, factura_carlos: facturaCarlos, pv_global: pvGlobal };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    const msg = e instanceof Error ? e.message : String(e);
+    const dup = pgUniqueViolation(msg);
+    if (dup) return { ok: false, error: dup };
+    if (msg.includes("chk_fi_factura_carlos_digits")) {
+      return { ok: false, error: "Formato Factura Carlos rechazado por BD." };
+    }
+    return { ok: false, error: msg };
+  } finally {
+    client.release();
+  }
 }

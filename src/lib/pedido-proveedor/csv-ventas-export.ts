@@ -12,6 +12,11 @@ import {
   loadFrancisTranslator,
   type FrancisTranslator,
 } from "./csv-vendedor-francis";
+import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
+import {
+  casoLineaFromMapa,
+  resolverEstiloListadoMotor,
+} from "@/lib/pedido-proveedor/resolve-caso-comercial";
 
 /** Header único — sin fila instructiva (formato final Director). */
 const HEADER_FILA =
@@ -38,6 +43,8 @@ type CsvCarlosRow = {
   caso: string | null;
   biblioteca: string | null;
   estilo: string | null;
+  /** Pilar linea_referencia.tipo_1 — fuente canónica col ABoCR (no grades_json por color). */
+  tipo_1_pilar: string | null;
   pares: string | null;
   plazo: string | null;
   lista_precio_id: string | null;
@@ -47,6 +54,10 @@ type CsvCarlosRow = {
   descuento_4: string | null;
   /** PE / override — id numérico Carlos; si null → matriz Francis por caso */
   vendedor_carlos?: string | null;
+  /** FI cabecera · vendedor_v2.id_vendedor (Nexus) */
+  vendedor_nexus_id?: string | null;
+  /** Col ABoCR ya normalizada por L+R (pilares) */
+  abocr?: string | null;
 };
 
 export type { CsvCarlosRow };
@@ -65,7 +76,19 @@ function gradaFromJson(raw: unknown): string {
   return gradasDisplayFromSnapshot({ grades_json: gradesJsonSoloTallas(raw) }).trim() || "";
 }
 
-/** Col K · caja cerrada canónica 1-2-3-3-2-1 → cerrado; resto → abierto. */
+/** Col ABoCR — calzado: tipo_1 pilar CERRADO/ABIERTO; confecciones: temporada; fallback grades_json. */
+export function resolveCsvAbocr(tipo1Pilar: string | null | undefined, gradesJson: unknown): string {
+  const t = (tipo1Pilar ?? "").trim();
+  if (t) {
+    const u = t.toUpperCase();
+    if (u.includes("CERRADO")) return "cerrado";
+    if (u.includes("ABIERTO")) return "abierto";
+    return t.toLowerCase();
+  }
+  return gradaAbiertoCerrado(gradesJson);
+}
+
+/** @deprecated Preferir resolveCsvAbocr(tipo_1 pilar). Inferencia legacy por matriz tallas. */
 export function gradaAbiertoCerrado(raw: unknown): "abierto" | "cerrado" {
   const grades = parseGradesJson(gradesJsonSoloTallas(raw));
   const keys = Object.keys(grades).sort(
@@ -77,11 +100,151 @@ export function gradaAbiertoCerrado(raw: unknown): "abierto" | "cerrado" {
   return cerrada ? "cerrado" : "abierto";
 }
 
-function formatoCaso(caso: string | null, biblioteca: string | null): string {
+/** Col CASO CSV — caso comercial (BCL/PELE) + sufijo evento listado. Caso ≠ precio_lista SKU. */
+function formatoCaso(caso: string | null, eventoListado: string | null): string {
   const c = (caso ?? "").trim();
-  const b = (biblioteca ?? "").trim();
-  if (c && b) return `${c} - ${b}`;
-  return c || b || "";
+  const ev = (eventoListado ?? "").trim();
+  if (c && ev) return `${c} - ${ev}`;
+  return c || ev || "";
+}
+
+/** Ley dos corazones: caso por línea desde biblioteca cabecera PP o PELE — nunca precio_lista. */
+export async function enrichCsvCasoBiblioteca(
+  pool: Pool,
+  ppId: number,
+  rows: CsvCarlosRow[],
+): Promise<CsvCarlosRow[]> {
+  const ctx = await loadPpCasoContext(pool, ppId);
+  if (!ctx.mapaCasoLinea.size) return rows;
+  return rows.map((r) => ({
+    ...r,
+    caso: casoLineaFromMapa(ctx.mapaCasoLinea, r.linea ?? "") || null,
+  }));
+}
+
+type PilarLrRow = {
+  linea: string;
+  referencia: string;
+  tipo_1: string | null;
+  estilo_lr: string | null;
+  estilo_linea: string | null;
+};
+
+function lrKeyCsv(linea: string | null | undefined, referencia: string | null | undefined): string {
+  return `${String(linea ?? "").trim()}.${String(referencia ?? "").trim()}`;
+}
+
+/** Mapa L+R → pilares (tipo_1 · estilo) — paridad joins administrador IC. */
+async function loadMapaPilarLrPp(pool: Pool, ppId: number): Promise<Map<string, PilarLrRow>> {
+  const { rows } = await pool.query<PilarLrRow>(
+    `
+    SELECT DISTINCT ON (TRIM(ppd.linea), TRIM(ppd.referencia))
+      TRIM(ppd.linea) AS linea,
+      TRIM(ppd.referencia) AS referencia,
+      NULLIF(TRIM(t1.descp_tipo_1), '') AS tipo_1,
+      COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), NULLIF(TRIM(lr.descp_grupo_estilo), ''), '') AS estilo_lr,
+      COALESCE(NULLIF(TRIM(ge_linea.descp_grupo_estilo), ''), '') AS estilo_linea
+    FROM pedido_proveedor_detalle ppd
+    JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
+    LEFT JOIN linea l ON l.id = ppd.linea_id
+    LEFT JOIN linea l_cod
+      ON l_cod.proveedor_id = pp.proveedor_importacion_id
+     AND l_cod.codigo_proveedor::text = TRIM(ppd.linea)
+     AND l.id IS NULL
+    LEFT JOIN linea l_eff ON l_eff.id = COALESCE(l.id, l_cod.id)
+    LEFT JOIN referencia ref ON ref.id = ppd.referencia_id
+    LEFT JOIN referencia ref_cod
+      ON ref_cod.linea_id = l_eff.id
+     AND ref_cod.codigo_proveedor::text = TRIM(COALESCE(ppd.referencia, '0'))
+     AND ref.id IS NULL
+    LEFT JOIN referencia ref_eff ON ref_eff.id = COALESCE(ref.id, ref_cod.id)
+    LEFT JOIN linea_referencia lr
+      ON lr.linea_id = l_eff.id
+     AND lr.referencia_id = ref_eff.id
+     AND lr.proveedor_id = pp.proveedor_importacion_id
+    LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN grupo_estilo_v2 ge_linea ON ge_linea.id_grupo_estilo = l_eff.grupo_estilo_id
+    LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
+    WHERE ppd.pedido_proveedor_id = $1
+      AND ppd.linea IS NOT NULL
+    ORDER BY TRIM(ppd.linea), TRIM(ppd.referencia), ppd.id
+    `,
+    [ppId],
+  );
+  const map = new Map<string, PilarLrRow>();
+  for (const r of rows) map.set(lrKeyCsv(r.linea, r.referencia), r);
+  return map;
+}
+
+/** Moda ABoCR por grades_json cuando tipo_1 pilar vacío — garantiza 1 valor por L+R. */
+function abocrModaGrades(filas: CsvCarlosRow[]): "abierto" | "cerrado" {
+  const counts = { abierto: 0, cerrado: 0 };
+  for (const r of filas) counts[gradaAbiertoCerrado(r.grades_json)]++;
+  return counts.cerrado >= counts.abierto ? "cerrado" : "abierto";
+}
+
+/** Pilares + ABoCR único por L+R + estilo texto (nunca id numérico). */
+export async function enrichCsvPilaresCanonical(
+  pool: Pool,
+  ppId: number,
+  rows: CsvCarlosRow[],
+): Promise<CsvCarlosRow[]> {
+  if (!rows.length) return rows;
+  const mapaLr = await loadMapaPilarLrPp(pool, ppId);
+
+  const byLr = new Map<string, CsvCarlosRow[]>();
+  for (const r of rows) {
+    const k = lrKeyCsv(r.linea, r.referencia);
+    if (!byLr.has(k)) byLr.set(k, []);
+    byLr.get(k)!.push(r);
+  }
+
+  const abocrCanon = new Map<string, string>();
+  for (const [k, grupo] of byLr) {
+    const pilar = mapaLr.get(k);
+    const tipo1 = pilar?.tipo_1 ?? grupo.find((g) => (g.tipo_1_pilar ?? "").trim())?.tipo_1_pilar ?? null;
+    abocrCanon.set(
+      k,
+      tipo1 ? resolveCsvAbocr(tipo1, null) : abocrModaGrades(grupo),
+    );
+  }
+
+  return rows.map((r) => {
+    const k = lrKeyCsv(r.linea, r.referencia);
+    const pilar = mapaLr.get(k);
+    const estilo = resolverEstiloListadoMotor(pilar?.estilo_lr ?? "", pilar?.estilo_linea ?? "");
+    return {
+      ...r,
+      tipo_1_pilar: pilar?.tipo_1 ?? r.tipo_1_pilar ?? null,
+      estilo: estilo || r.estilo || null,
+      abocr: abocrCanon.get(k) ?? resolveCsvAbocr(r.tipo_1_pilar, r.grades_json),
+    };
+  });
+}
+
+/** Vendedor Carlos: FI cabecera manda; Francis (Nexus #9) → matriz por caso. */
+export function resolveCsvVendedorCarlos(
+  vendedorNexusId: string | null | undefined,
+  caso: string | null | undefined,
+  translator: FrancisTranslator = loadFrancisTranslator(),
+): string {
+  const n = Number(vendedorNexusId);
+  if (Number.isFinite(n) && n > 0) {
+    if (n === translator.nexusVendedorId) {
+      return String(carlosVendedorIdFrancis(caso, translator));
+    }
+    return String(Math.trunc(n));
+  }
+  return String(carlosVendedorIdFrancis(caso, translator));
+}
+
+export async function enrichCsvFilasCompletas(
+  pool: Pool,
+  ppId: number,
+  rows: CsvCarlosRow[],
+): Promise<CsvCarlosRow[]> {
+  const conCaso = await enrichCsvCasoBiblioteca(pool, ppId, rows);
+  return enrichCsvPilaresCanonical(pool, ppId, conCaso);
 }
 
 function fmtDesc(n: string | null): string {
@@ -138,9 +301,9 @@ export async function fetchCsvCarlosRows(
       ppd.color_code,
       ppd.descp_color,
       ppd.grades_json,
-      pl.nombre_caso_aplicado AS caso,
       pe_evt.evento_nombre AS biblioteca,
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS estilo,
+      NULLIF(TRIM(t1.descp_tipo_1), '') AS tipo_1_pilar,
       fid.pares::text AS pares,
       COALESCE(
         NULLIF(TRIM(pl_fi.descp_plazo), ''),
@@ -151,7 +314,8 @@ export async function fetchCsvCarlosRows(
       COALESCE(fi.descuento_1, ic.descuento_1, 0)::text AS descuento_1,
       COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
-      COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4
+      COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
+      fi.vendedor_id::text AS vendedor_nexus_id
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
@@ -169,9 +333,6 @@ export async function fetchCsvCarlosRows(
       LIMIT 1
     ) ic ON TRUE
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
-    LEFT JOIN material m
-      ON m.proveedor_id = pp.proveedor_importacion_id
-     AND m.codigo_proveedor::text = ppd.material_code
     LEFT JOIN linea l
       ON l.proveedor_id = pp.proveedor_importacion_id
      AND l.codigo_proveedor::text = ppd.linea
@@ -181,6 +342,7 @@ export async function fetchCsvCarlosRows(
     LEFT JOIN linea_referencia lr
       ON lr.linea_id = l.id AND lr.referencia_id = ref.id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
     LEFT JOIN LATERAL (
       SELECT icp.precio_evento_id
       FROM intencion_compra_pedido icp
@@ -195,18 +357,13 @@ export async function fetchCsvCarlosRows(
       WHERE pe.id = icp.precio_evento_id
       LIMIT 1
     ) pe_evt ON TRUE
-    LEFT JOIN precio_lista pl
-      ON pl.evento_id = icp.precio_evento_id
-     AND pl.linea_id = l.id
-     AND pl.referencia_id = ref.id
-     AND pl.material_id = m.id
     WHERE fi.pp_id = $1
       AND fi.estado = ANY($2::text[])
     ORDER BY fi.id, fid.id
     `,
       [ppId, estados],
     );
-    return rows;
+    return enrichCsvFilasCompletas(pool, ppId, rows);
   }
 
   const { rows } = await pool.query<CsvCarlosRow>(
@@ -224,9 +381,9 @@ export async function fetchCsvCarlosRows(
       ppd.color_code,
       ppd.descp_color,
       ppd.grades_json,
-      pl.nombre_caso_aplicado AS caso,
       pe_evt.evento_nombre AS biblioteca,
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS estilo,
+      NULLIF(TRIM(t1.descp_tipo_1), '') AS tipo_1_pilar,
       fid.pares::text AS pares,
       COALESCE(
         NULLIF(TRIM(pl_fi.descp_plazo), ''),
@@ -237,7 +394,8 @@ export async function fetchCsvCarlosRows(
       COALESCE(fi.descuento_1, ic.descuento_1, 0)::text AS descuento_1,
       COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
-      COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4
+      COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
+      fi.vendedor_id::text AS vendedor_nexus_id
     FROM factura_interna fi
     LEFT JOIN intencion_compra ic
       ON ic.numero_registro = TRIM(fi.notas)
@@ -251,9 +409,6 @@ export async function fetchCsvCarlosRows(
     LEFT JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN plazo_v2 pl_fi ON pl_fi.id_plazo = fi.plazo_id
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
-    LEFT JOIN material m
-      ON m.proveedor_id = pp.proveedor_importacion_id
-     AND m.codigo_proveedor::text = ppd.material_code
     LEFT JOIN linea l
       ON l.proveedor_id = pp.proveedor_importacion_id
      AND l.codigo_proveedor::text = ppd.linea
@@ -263,6 +418,7 @@ export async function fetchCsvCarlosRows(
     LEFT JOIN linea_referencia lr
       ON lr.linea_id = l.id AND lr.referencia_id = ref.id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
     LEFT JOIN LATERAL (
       SELECT icp.precio_evento_id
       FROM intencion_compra_pedido icp
@@ -277,18 +433,13 @@ export async function fetchCsvCarlosRows(
       WHERE pe.id = icp.precio_evento_id
       LIMIT 1
     ) pe_evt ON TRUE
-    LEFT JOIN precio_lista pl
-      ON pl.evento_id = icp.precio_evento_id
-     AND pl.linea_id = l.id
-     AND pl.referencia_id = ref.id
-     AND pl.material_id = m.id
     WHERE fi.pp_id = $1
       AND fi.estado = ANY($2::text[])
     ORDER BY fi.id, fid.id NULLS FIRST
     `,
     [ppId, estados],
   );
-  return rows;
+  return enrichCsvFilasCompletas(pool, ppId, rows);
 }
 
 export function buildCsvCarlosContent(
@@ -321,7 +472,7 @@ export function buildCsvCarlosContent(
         gradaFromJson(r.grades_json),
         formatoCaso(r.caso, r.biblioteca),
         r.estilo ?? "",
-        gradaAbiertoCerrado(r.grades_json),
+        r.abocr ?? resolveCsvAbocr(r.tipo_1_pilar, r.grades_json),
         r.pares ?? "0",
         r.plazo ?? "N/A",
         listaPrecioLabel(r.lista_precio_id != null ? Number(r.lista_precio_id) : 1),
@@ -331,7 +482,7 @@ export function buildCsvCarlosContent(
         fmtDesc(r.descuento_4),
         r.vendedor_carlos != null && r.vendedor_carlos !== ""
           ? r.vendedor_carlos
-          : carlosVendedorIdFrancis(r.caso, translator),
+          : resolveCsvVendedorCarlos(r.vendedor_nexus_id, r.caso, translator),
         COBRADOR,
       ]),
     );
@@ -385,9 +536,9 @@ export async function fetchCsvCarlosRowsInicial(
       ppd.color_code,
       ppd.descp_color,
       ppd.grades_json,
-      pl.nombre_caso_aplicado AS caso,
       pe_evt.evento_nombre AS biblioteca,
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS estilo,
+      NULLIF(TRIM(t1.descp_tipo_1), '') AS tipo_1_pilar,
       ppd.cantidad_pares::text AS pares,
       COALESCE(
         NULLIF(TRIM(pl_ic.descp_plazo), ''),
@@ -425,9 +576,6 @@ export async function fetchCsvCarlosRowsInicial(
     ) ic0 ON TRUE
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
     LEFT JOIN plazo_v2 pl_ic0 ON pl_ic0.id_plazo = ic0.id_plazo
-    LEFT JOIN material m
-      ON m.proveedor_id = pp.proveedor_importacion_id
-     AND m.codigo_proveedor::text = ppd.material_code
     LEFT JOIN linea l
       ON l.proveedor_id = pp.proveedor_importacion_id
      AND l.codigo_proveedor::text = ppd.linea
@@ -437,6 +585,7 @@ export async function fetchCsvCarlosRowsInicial(
     LEFT JOIN linea_referencia lr
       ON lr.linea_id = l.id AND lr.referencia_id = ref.id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
     LEFT JOIN LATERAL (
       SELECT icp.precio_evento_id
       FROM intencion_compra_pedido icp
@@ -451,11 +600,6 @@ export async function fetchCsvCarlosRowsInicial(
       WHERE pe.id = icp.precio_evento_id
       LIMIT 1
     ) pe_evt ON TRUE
-    LEFT JOIN precio_lista pl
-      ON pl.evento_id = icp.precio_evento_id
-     AND pl.linea_id = l.id
-     AND pl.referencia_id = ref.id
-     AND pl.material_id = m.id
     WHERE ppd.pedido_proveedor_id = $1
       AND ppd.linea IS NOT NULL
       AND COALESCE(ppd.cantidad_pares, 0) > 0
@@ -463,7 +607,7 @@ export async function fetchCsvCarlosRowsInicial(
     `,
     [ppId, programado],
   );
-  return rows;
+  return enrichCsvFilasCompletas(pool, ppId, rows);
 }
 
 export async function exportCsvInicialPp(

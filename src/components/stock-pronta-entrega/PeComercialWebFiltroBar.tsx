@@ -79,9 +79,9 @@ export function PeComercialWebFiltroBar({ batchLabel, onCadenaChange }: Props) {
   const activa = String(filtro?.cadena_comercial ?? "").toUpperCase() === "LIQUIDACION";
 
   return (
-    <div className="rounded-xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/80 to-white px-3 py-2.5">
+    <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50/80 to-white px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900">
           Filtro Web · catálogo PE
         </span>
         <button
@@ -90,8 +90,8 @@ export function PeComercialWebFiltroBar({ batchLabel, onCadenaChange }: Props) {
           onClick={() => void guardar(activa ? null : "LIQUIDACION")}
           className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
             activa
-              ? "catalog-card-liquidacion-pulse border-emerald-600 bg-emerald-600 text-white"
-              : "border-emerald-300 bg-white text-emerald-800 hover:border-emerald-500"
+              ? "catalog-card-casino-oro border-amber-600 bg-amber-500 text-amber-950"
+              : "border-amber-300 bg-white text-amber-900 hover:border-amber-500"
           }`}
         >
           {activa ? "LIQUIDACIÓN activa en Web" : "Activar LIQUIDACIÓN en Web"}
@@ -99,8 +99,8 @@ export function PeComercialWebFiltroBar({ batchLabel, onCadenaChange }: Props) {
         {loading ? (
           <span className="text-[10px] text-slate-500">…</span>
         ) : activa ? (
-          <span className="text-[10px] font-semibold text-emerald-700">
-            Latido verde · 1.35s · solo artículos LIQUIDACIÓN
+          <span className="text-[10px] font-semibold text-amber-800">
+            Latido oro · 1.65s · solo artículos LIQUIDACIÓN · trillizo Web
           </span>
         ) : (
           <span className="text-[10px] text-slate-500">Sin filtro comercial en catálogo Web</span>

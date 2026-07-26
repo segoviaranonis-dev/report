@@ -8,7 +8,7 @@ export default function FacturacionProntaEntregaPage() {
     <FacturacionBandejaClient
       origen="pronta-entrega"
       titulo="Facturación Pronta entrega"
-      subtitulo={`Ventas PE agrupadas por fecha · ${TERMINO_FI} enlazada a pedido_proveedor_detalle (import CSV / stock local). Sin Compra Legal · traspaso directo a Web Bazar (5000). Misma Ley FI que Programado.`}
+      subtitulo={`Ventas PE agrupadas por Fecha de llegada / entrega cliente · ${TERMINO_FI} con pp_id al PP PE · sin Compra Legal · traspaso Web Bazar (5000).`}
       badgeOrigen="STOCK_IMPORTADO"
       groupByDate
       footerNote="Facturación Pronta entrega · 2.3.1.9.B · STOCK_IMPORTADO · PPD"

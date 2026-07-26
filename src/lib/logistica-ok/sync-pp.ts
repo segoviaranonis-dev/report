@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import type { EntidadAmLogistica } from "./constants";
 import { FECHA_ENTREGA_REAL_LABEL } from "./constants";
 import { getLogisticaPpStats, sqlFiCajasSubquery } from "./fi-cajas";
+import { rigorFiPeLogistica } from "./pe-pp-contrato";
 
 export type LogisticaPublishResult =
   | { ok: true; synced: number; n_fi: number; cajas: number }
@@ -53,13 +54,41 @@ export async function syncLogisticaPp(
 
   const entidad = await resolverEntidadAm(client, ppId);
 
+  if (entidad === "PE") {
+    const rigor = rigorFiPeLogistica({
+      nro_factura: "PE-SYNC",
+      pp_id: ppId,
+      fecha_arribo_real: fecha,
+    });
+    if (!rigor.ok) return rigor;
+
+    const orphans = await client.query<{ n: string }>(
+      `
+      SELECT COUNT(*)::text AS n
+      FROM factura_interna fi
+      WHERE fi.pp_id = $1
+        AND TRIM(COALESCE(fi.nro_factura, '')) LIKE 'PE-%'
+        AND fi.estado IN ('CONFIRMADA', 'RESERVADA')
+        AND fi.cliente_id IS NULL
+      `,
+      [ppId],
+    );
+    if (Number(orphans.rows[0]?.n ?? 0) > 0) {
+      return {
+        ok: false,
+        error: `FI PE del PP ${ppId} sin cliente_id — no se publica a Logística OK.`,
+      };
+    }
+  }
+
   const cajasSql = sqlFiCajasSubquery("fi");
 
   const { rowCount } = await client.query(
     `
     INSERT INTO logistica_pendiente_confirmacion (
       factura_interna_id, pedido_proveedor_id, entidad_am, fecha_orden,
-      id_cliente, id_cadena, id_vendedor, pares, cajas, monto_neto, nro_factura, updated_at
+      id_cliente, id_cadena, id_vendedor, pares, cajas, monto_neto, nro_factura,
+      fecha_entrega_vendedor, estado, updated_at
     )
     SELECT
       fi.id,
@@ -73,6 +102,11 @@ export async function syncLogisticaPp(
       ${cajasSql},
       fi.total_monto,
       fi.nro_factura,
+      fi.fecha_entrega_cliente,
+      CASE
+        WHEN fi.fecha_entrega_cliente IS NOT NULL THEN 'CONFIRMADA'
+        ELSE 'PENDIENTE'
+      END,
       now()
     FROM factura_interna fi
     LEFT JOIN LATERAL (
@@ -83,7 +117,7 @@ export async function syncLogisticaPp(
       LIMIT 1
     ) cad ON true
     WHERE fi.pp_id = $1
-      AND fi.estado = 'CONFIRMADA'
+      AND fi.estado IN ('CONFIRMADA', 'RESERVADA')
       AND fi.cliente_id IS NOT NULL
     ON CONFLICT (factura_interna_id) DO UPDATE SET
       pedido_proveedor_id = EXCLUDED.pedido_proveedor_id,
@@ -96,6 +130,14 @@ export async function syncLogisticaPp(
       cajas = EXCLUDED.cajas,
       monto_neto = EXCLUDED.monto_neto,
       nro_factura = EXCLUDED.nro_factura,
+      fecha_entrega_vendedor = COALESCE(
+        EXCLUDED.fecha_entrega_vendedor,
+        logistica_pendiente_confirmacion.fecha_entrega_vendedor
+      ),
+      estado = CASE
+        WHEN EXCLUDED.fecha_entrega_vendedor IS NOT NULL THEN 'CONFIRMADA'
+        ELSE logistica_pendiente_confirmacion.estado
+      END,
       updated_at = now()
     WHERE logistica_pendiente_confirmacion.estado = 'PENDIENTE'
     `,
@@ -206,7 +248,7 @@ export async function despublicarLogisticaPp(
   }
 }
 
-/** Llamar tras generar FI si PP tiene bandera ON */
+/** Llamar tras generar / confirmar FI si PP tiene bandera ON + Fecha de entrega Real. */
 export async function syncLogisticaPpIfBandera(pool: Pool, ppId: number): Promise<void> {
   const { rows } = await pool.query<{ fecha: string | null; activa: boolean }>(
     `SELECT fecha_arribo_real::text AS fecha, logistica_bandera_activa AS activa
@@ -215,5 +257,19 @@ export async function syncLogisticaPpIfBandera(pool: Pool, ppId: number): Promis
   );
   const r = rows[0];
   if (!r?.activa || !r.fecha) return;
+
+  const entidad = await resolverEntidadAm(pool, ppId);
+  if (entidad === "PE") {
+    const rigor = rigorFiPeLogistica({
+      nro_factura: "PE-SYNC",
+      pp_id: ppId,
+      fecha_arribo_real: r.fecha,
+    });
+    if (!rigor.ok) {
+      console.warn(`[logistica] sync PE omitido PP ${ppId}:`, rigor.error);
+      return;
+    }
+  }
+
   await syncLogisticaPp(pool, ppId, r.fecha.slice(0, 10));
 }

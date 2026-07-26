@@ -107,7 +107,10 @@ export async function vincularListadoAPp(
   eventoId: number,
   usuarioId: number | null,
   incluirVendidos = false,
-): Promise<{ ok: true; actualizados?: number; detalle?: Record<string, unknown> } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; actualizados?: number; detalle?: Record<string, unknown> }
+  | { ok: false; error: string }
+> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -145,6 +148,7 @@ export async function vincularListadoAPp(
     }
 
     await client.query("COMMIT");
+
     return { ok: true, actualizados: result.actualizados, detalle: result };
   } catch (e) {
     await client.query("ROLLBACK");

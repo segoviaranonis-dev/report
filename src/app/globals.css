@@ -164,6 +164,104 @@ body {
   animation: catalog-liquidacion-pulse 1.2s ease-in-out infinite;
 }
 
+/* Grupo uno PE — latido casino unificado (trillizo Web · Stock PE · 1.65s) */
+@keyframes catalog-casino-pulse-fucsia {
+  0%,
+  100% {
+    border-color: rgba(232, 121, 249, 0.45);
+    box-shadow:
+      0 0 0 0 rgba(217, 70, 239, 0.18),
+      0 0 0 0 rgba(192, 38, 211, 0.08);
+  }
+  50% {
+    border-color: rgba(192, 38, 211, 0.75);
+    box-shadow:
+      0 0 0 3px rgba(232, 121, 249, 0.28),
+      0 0 12px 2px rgba(192, 38, 211, 0.22);
+  }
+}
+
+@keyframes catalog-casino-pulse-oro {
+  0%,
+  100% {
+    border-color: rgba(251, 191, 36, 0.5);
+    box-shadow:
+      0 0 0 0 rgba(245, 158, 11, 0.2),
+      0 0 0 0 rgba(217, 119, 6, 0.1);
+  }
+  50% {
+    border-color: rgba(217, 119, 6, 0.82);
+    box-shadow:
+      0 0 0 3px rgba(251, 191, 36, 0.32),
+      0 0 14px 2px rgba(245, 158, 11, 0.28);
+  }
+}
+
+@keyframes catalog-pe-liq-badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.45);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 10px 2px rgba(245, 158, 11, 0.55);
+  }
+}
+
+.catalog-card-casino-fucsia {
+  animation: catalog-casino-pulse-fucsia 1.65s ease-in-out infinite;
+}
+
+.catalog-card-casino-oro {
+  animation: catalog-casino-pulse-oro 1.65s ease-in-out infinite;
+}
+
+.catalog-pe-liq-badge {
+  color: #78350f;
+  background: linear-gradient(145deg, #fef3c7 0%, #fde68a 45%, #fbbf24 100%);
+  border: 1px solid rgba(217, 119, 6, 0.65);
+  animation: catalog-pe-liq-badge-pulse 1.65s ease-in-out infinite;
+}
+
+@keyframes catalog-pe-pro-badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(192, 38, 211, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px 2px rgba(217, 70, 239, 0.5);
+  }
+}
+
+.catalog-pe-pro-badge {
+  color: #86198f;
+  background: linear-gradient(145deg, #fdf4ff 0%, #f5d0fe 45%, #e879f9 100%);
+  border: 1px solid rgba(192, 38, 211, 0.65);
+  animation: catalog-pe-pro-badge-pulse 1.65s ease-in-out infinite;
+}
+
+@keyframes catalog-cp-promo-badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(134, 25, 143, 0.35);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px 2px rgba(162, 28, 175, 0.45);
+  }
+}
+
+.catalog-cp-promo-badge {
+  color: #581c87;
+  background: linear-gradient(145deg, #fce7f3 0%, #f0abfc 50%, #e879f9 100%);
+  border: 2px solid #a21caf;
+  animation: catalog-cp-promo-badge-pulse 1.65s ease-in-out infinite;
+}
+
 /* Caso PROMOCIONAL — latido más suave / lento */
 @keyframes catalog-promo-pulse {
   0%, 100% {

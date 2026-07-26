@@ -21,14 +21,15 @@ type GrillaOpts = {
   showVentas?: boolean;
   ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
   loteModo?: GrillaLoteModo;
+  showDiccionarioBadge?: boolean;
 };
 
 type Props = {
-  bibliotecaIndicePath: string;
-  bibliotecaId: number | null;
-  casoActivo: string | null;
-  onBibliotecaChange: (id: number | null) => void;
-  onCasoChange: (caso: string | null) => void;
+  bibliotecaIndicePath?: string;
+  bibliotecaId?: number | null;
+  casoActivo?: string | null;
+  onBibliotecaChange?: (id: number | null) => void;
+  onCasoChange?: (caso: string | null) => void;
   onCasosLoaded?: (casos: CasoBibliotecaLite[]) => void;
   vincularBibliotecaPath?: string;
   batchLabel?: string;
@@ -37,6 +38,8 @@ type Props = {
     promocionales: number;
     biblioteca_nombre: string;
   }) => void;
+  /** PE — reemplaza biblioteca motor precios */
+  diccionarioBar?: ReactNode;
   filtros: OperativaFilterState;
   onFiltrosChange: React.Dispatch<React.SetStateAction<OperativaFilterState>>;
   opciones: OperativaOpciones;
@@ -64,6 +67,7 @@ export function PanelControlGrillaStack({
   vincularBibliotecaPath,
   batchLabel,
   onBibliotecaVinculada,
+  diccionarioBar,
   filtros,
   onFiltrosChange,
   opciones,
@@ -83,6 +87,7 @@ export function PanelControlGrillaStack({
     showVentas = false,
     ventasPorMol = null,
     loteModo = "unitario",
+    showDiccionarioBadge = false,
   } = grilla;
 
   const [soloSinImagen, setSoloSinImagen] = useState(false);
@@ -117,17 +122,20 @@ export function PanelControlGrillaStack({
 
   return (
     <div className="space-y-3">
-      <BibliotecaCasoBar
-        indiceApiPath={bibliotecaIndicePath}
-        vincularBibliotecaPath={vincularBibliotecaPath}
-        batchLabel={batchLabel}
-        bibliotecaId={bibliotecaId}
-        casoActivo={casoActivo}
-        onBibliotecaChange={onBibliotecaChange}
-        onCasoChange={onCasoChange}
-        onCasosLoaded={onCasosLoaded ?? (() => {})}
-        onVinculado={onBibliotecaVinculada}
-      />
+      {diccionarioBar}
+      {bibliotecaIndicePath ? (
+        <BibliotecaCasoBar
+          indiceApiPath={bibliotecaIndicePath}
+          vincularBibliotecaPath={vincularBibliotecaPath}
+          batchLabel={batchLabel}
+          bibliotecaId={bibliotecaId ?? null}
+          casoActivo={casoActivo ?? null}
+          onBibliotecaChange={onBibliotecaChange ?? (() => {})}
+          onCasoChange={onCasoChange ?? (() => {})}
+          onCasosLoaded={onCasosLoaded ?? (() => {})}
+          onVinculado={onBibliotecaVinculada}
+        />
+      ) : null}
       <PanelControlTrianguloHeader
         filtros={filtros}
         onChange={onFiltrosChange}
@@ -147,6 +155,7 @@ export function PanelControlGrillaStack({
         showVentas={showVentas}
         ventasPorMol={ventasPorMol}
         loteModo={loteModo}
+        showDiccionarioBadge={showDiccionarioBadge}
       />
       {footer}
     </div>

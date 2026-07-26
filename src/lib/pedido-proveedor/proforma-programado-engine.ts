@@ -40,6 +40,7 @@ import {
   type LineaMarcaHit,
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
+import { vincularObservacionesIcAFi } from "@/lib/logistica-ok/observaciones-logistica";
 import {
   backfillPpdPilarFks,
   loadPpdPilarFkLookups,
@@ -1502,6 +1503,8 @@ async function crearFacturaInterna(
       }
     }
   }
+
+  await vincularObservacionesIcAFi(client, ic.ic_id, fiId, ppId);
 
   return { ok: true, nro };
 }

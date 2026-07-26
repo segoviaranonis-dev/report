@@ -1,0 +1,1336 @@
+{
+  "version": "2026-07-24",
+  "total_grupos": 133,
+  "grupos": [
+    {
+      "cod_grupo": "1002010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 905,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "1001010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 736,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "1102010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 611,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "1002020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 590,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "1001020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 517,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "1102020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 477,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0402010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 431,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0202010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 382,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0101010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 332,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0102010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 331,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "1101020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 328,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0401010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 323,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0201010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 317,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "1101010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 314,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0502010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 295,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0302010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 293,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0602010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 289,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "0301010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 270,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0201040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 237,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "1002010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 227,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "0401040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 224,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "1501010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 200,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "PIPA"
+    },
+    {
+      "cod_grupo": "1101010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 160,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0501010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 147,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0101040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 136,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "1102020400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 126,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "1501020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 119,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "PIPA"
+    },
+    {
+      "cod_grupo": "0601010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 118,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "1102010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 107,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "1001010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 86,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "0203010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": true,
+      "articulos": 82,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0702010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 79,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0705010101",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 77,
+      "tipo0_moda": "PRENDAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "1401010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 76,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "NANAI"
+    },
+    {
+      "cod_grupo": "0201020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 73,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0401020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 73,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "1002020400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 72,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "1202010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 68,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "AMORA"
+    },
+    {
+      "cod_grupo": "0702010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 60,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0502020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 60,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0202040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 59,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0705010201",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 59,
+      "tipo0_moda": "PRENDAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "1101010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 55,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "1301020400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 54,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "LEMON"
+    },
+    {
+      "cod_grupo": "1001020200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 51,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "0301020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 50,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0102020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 45,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0101020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 45,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0901010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 43,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "CHINELO"
+    },
+    {
+      "cod_grupo": "0403010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": true,
+      "articulos": 43,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0705010102",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 42,
+      "tipo0_moda": "PRENDAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "1402010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 41,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "NANAI"
+    },
+    {
+      "cod_grupo": "0802010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 41,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BR SPORT"
+    },
+    {
+      "cod_grupo": "0602020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 39,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "0402040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 38,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0501040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 38,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0601020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 36,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "1201010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 35,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "AMORA"
+    },
+    {
+      "cod_grupo": "0302020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 35,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0402060000",
+      "cadena_pe": "COMUN",
+      "excluir_carteras": false,
+      "articulos": 32,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "COMUN",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "1001010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 31,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "0402010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 31,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "1102010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 30,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "1101020200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 29,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0601040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 27,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "1101020400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 26,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "1102020200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 26,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0801010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 26,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BR SPORT"
+    },
+    {
+      "cod_grupo": "1401010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 25,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "NANAI"
+    },
+    {
+      "cod_grupo": "0502080000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 25,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "ESCOLAR",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0102040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 24,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0801040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 22,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BR SPORT"
+    },
+    {
+      "cod_grupo": "1202010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 21,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "AMORA"
+    },
+    {
+      "cod_grupo": "0704010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 20,
+      "tipo0_moda": "MEDIAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0303010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": true,
+      "articulos": 20,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "1502010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 19,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "PIPA"
+    },
+    {
+      "cod_grupo": "0203020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": true,
+      "articulos": 19,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0402020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 19,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0102010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 18,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0402020100",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 18,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0501020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 17,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0102020100",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 16,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0602080000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 16,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "ESCOLAR",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "0102040100",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 16,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "1402010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 15,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "NANAI"
+    },
+    {
+      "cod_grupo": "1001020400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 15,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "KYLY"
+    },
+    {
+      "cod_grupo": "0503020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": true,
+      "articulos": 15,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0704010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 14,
+      "tipo0_moda": "MEDIAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0403020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": true,
+      "articulos": 14,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0705010202",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 14,
+      "tipo0_moda": "PRENDAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "1302020400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 13,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "LEMON"
+    },
+    {
+      "cod_grupo": "0402040100",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 13,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0602040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 12,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "0202010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 12,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0504010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 12,
+      "tipo0_moda": "MEDIAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0302010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 12,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0702020200",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 12,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0202020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 11,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0202040100",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 10,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0604010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 10,
+      "tipo0_moda": "MEDIAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLEKINHO"
+    },
+    {
+      "cod_grupo": "0702020100",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 10,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0301040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 9,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0702040200",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 9,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0802020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 9,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BR SPORT"
+    },
+    {
+      "cod_grupo": "1201010400",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 8,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "LIQUIDACION",
+      "marca_moda": "AMORA"
+    },
+    {
+      "cod_grupo": "1102010300",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 8,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "PROMOCIONAL",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0802040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 8,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BR SPORT"
+    },
+    {
+      "cod_grupo": "1201010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 7,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "AMORA"
+    },
+    {
+      "cod_grupo": "0302020100",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 7,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0203019000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": true,
+      "articulos": 7,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "LENTES",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0202020100",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 7,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "VIZZANO"
+    },
+    {
+      "cod_grupo": "0303020000",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": true,
+      "articulos": 6,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "1502020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 5,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "PIPA"
+    },
+    {
+      "cod_grupo": "1301020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 5,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "LEMON"
+    },
+    {
+      "cod_grupo": "0302040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 5,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "0502040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 4,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "1302020200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 3,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "LEMON"
+    },
+    {
+      "cod_grupo": "0503010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": true,
+      "articulos": 3,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0404010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 3,
+      "tipo0_moda": "MEDIAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLECA"
+    },
+    {
+      "cod_grupo": "0103010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": true,
+      "articulos": 3,
+      "tipo0_moda": "CARTERAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "NADA",
+      "marca_moda": "BEIRA RIO"
+    },
+    {
+      "cod_grupo": "0701010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 3,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0701010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 3,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "1501010200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 2,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "PIPA"
+    },
+    {
+      "cod_grupo": "1102020300",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 2,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "PROMOCIONAL",
+      "marca_moda": "MILON"
+    },
+    {
+      "cod_grupo": "0502020100",
+      "cadena_pe": "PROMOCIONAL",
+      "excluir_carteras": false,
+      "articulos": 2,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "PROMO",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MOLEKINHA"
+    },
+    {
+      "cod_grupo": "0304010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 2,
+      "tipo0_moda": "MEDIAS",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "BOTA",
+      "marca_moda": "MODARE"
+    },
+    {
+      "cod_grupo": "1501020200",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "FEM",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ANTERIOR",
+      "marca_moda": "PIPA"
+    },
+    {
+      "cod_grupo": "1202010100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "INVIERNO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "AMORA"
+    },
+    {
+      "cod_grupo": "1302020100",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "MASC",
+      "tipo1_moda": "VERANO",
+      "tipo2_moda": "ACTUAL",
+      "marca_moda": "LEMON"
+    },
+    {
+      "cod_grupo": "0701040200",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0901040000",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "NADA",
+      "marca_moda": "CHINELO"
+    },
+    {
+      "cod_grupo": "0702040100",
+      "cadena_pe": "LIQUIDACION",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "CERRADO",
+      "tipo1_moda": "LIQUIDACION",
+      "tipo2_moda": "FEM",
+      "marca_moda": "ACTVITTA"
+    },
+    {
+      "cod_grupo": "0701010000",
+      "cadena_pe": "REGULAR",
+      "excluir_carteras": false,
+      "articulos": 1,
+      "tipo0_moda": "ABIERTO",
+      "tipo1_moda": "NORMAL",
+      "tipo2_moda": "MASC",
+      "marca_moda": "ACTVITTA"
+    }
+  ]
+}

@@ -29,6 +29,11 @@ export type FacturaListItem = {
   /** Estado canónico factura_interna */
   fi_estado: string;
   total_monto: number | null;
+  /**
+   * PE · Fecha de entrega Real (pedido_proveedor.fecha_arribo_real).
+   * Null = PP sin activar logística / FI sin pp_id.
+   */
+  fecha_entrega_real?: string | null;
 };
 
 export type FacturaKpis = {

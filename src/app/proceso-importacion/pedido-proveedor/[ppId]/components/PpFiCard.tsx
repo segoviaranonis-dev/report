@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
 import {
   brutoDesdeNeto,
@@ -28,6 +28,12 @@ import {
   triggerBlobDownload,
 } from "@/lib/pedido-proveedor/fi-download-cache";
 import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
+import { PpFacturaCarlosContenedor } from "./PpFacturaCarlosContenedor";
+import { PpListadoMotorReportePanel } from "./PpListadoMotorReportePanel";
+import type { ListadoMotorFiReport } from "@/lib/pedido-proveedor/listado-motor-fi-types";
+import { fmtReporteListadoMotor } from "@/lib/pedido-proveedor/listado-motor-fi-types";
+import type { EventoCoberturaPp } from "@/lib/pedido-proveedor/listado-motor-cobertura";
+import { coberturaEventoMap } from "@/lib/pedido-proveedor/listado-motor-cobertura";
 
 const ESTADO_STYLE: Record<string, string> = {
   RESERVADA: "bg-violet-100 text-violet-900",
@@ -41,6 +47,9 @@ type Props = {
   ppId: number;
   programado: boolean;
   editable: boolean;
+  soloRecalcPostCompras?: boolean;
+  eventos: { id: number | null; label: string }[];
+  listadoMotorCobertura: EventoCoberturaPp[];
   vendedores: IcCatalogos["vendedores"];
   plazos: IcCatalogos["plazos"];
   onUpdated: () => void;
@@ -56,8 +65,11 @@ function MetaCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores, plazos, onUpdated, onMsg }: Props) {
+export function PpFiCard({ fi, detalles, ppId, programado, editable, soloRecalcPostCompras = false, eventos, listadoMotorCobertura, vendedores, plazos, onUpdated, onMsg }: Props) {
   const [open, setOpen] = useState(false);
+  const [eventoId, setEventoId] = useState<number | "">(fi.precio_evento_id ?? "");
+  const [listadoBusy, setListadoBusy] = useState(false);
+  const [listadoReport, setListadoReport] = useState<ListadoMotorFiReport | null>(null);
   const [lp, setLp] = useState<ListadoPrecioTierId | null>(
     esListadoPrecioValido(fi.lista_precio_id) ? fi.lista_precio_id : null,
   );
@@ -71,6 +83,10 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
   const [vendBusy, setVendBusy] = useState(false);
   const [encBusy, setEncBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+
+  useEffect(() => {
+    setEventoId(fi.precio_evento_id ?? "");
+  }, [fi.id, fi.precio_evento_id]);
 
   useEffect(() => {
     setLp(esListadoPrecioValido(fi.lista_precio_id) ? fi.lista_precio_id : null);
@@ -93,6 +109,24 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
   }, [open, ppId, fi.id]);
 
   const fiEditable = editable && (fi.estado === "RESERVADA" || fi.estado === "CONFIRMADA");
+  const fiRecalcListado =
+    (fi.estado === "RESERVADA" || fi.estado === "CONFIRMADA") && eventos.some((e) => e.id != null);
+
+  const coberturaMap = useMemo(
+    () => coberturaEventoMap(listadoMotorCobertura),
+    [listadoMotorCobertura],
+  );
+
+  const eventosOrdenados = useMemo(() => {
+    return eventos
+      .filter((ev) => ev.id != null)
+      .slice()
+      .sort((a, b) => {
+        const pctA = coberturaMap.get(a.id!)?.pct ?? 0;
+        const pctB = coberturaMap.get(b.id!)?.pct ?? 0;
+        return pctB - pctA;
+      });
+  }, [eventos, coberturaMap]);
 
   const descuentos: [number, number, number, number] = [
     fi.descuento_1,
@@ -192,6 +226,36 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
     }
   }
 
+  async function aplicarListadoMotor(nextEventoId: number) {
+    if (!Number.isFinite(nextEventoId) || nextEventoId <= 0) return;
+    if (nextEventoId === fi.precio_evento_id) return;
+    setListadoBusy(true);
+    onMsg("");
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${ppId}/fi/${fi.id}/listado-motor`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ evento_id: nextEventoId }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al imponer listado");
+      const report = data.report as ListadoMotorFiReport | undefined;
+      if (report) setListadoReport(report);
+      setEventoId(nextEventoId);
+      onMsg(`✓ FI ${fi.nro_factura} · ${report ? fmtReporteListadoMotor(report) : "recalculada"}`);
+      onUpdated();
+    } catch (err) {
+      setEventoId(fi.precio_evento_id ?? "");
+      onMsg(err instanceof Error ? err.message : "Error");
+    } finally {
+      setListadoBusy(false);
+    }
+  }
+
   async function guardarLp() {
     if (!esListadoPrecioValido(lp)) {
       onMsg("Elegí LPN, LPC02, LPC03 o LPC04.");
@@ -251,12 +315,66 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
                 {lineasSinLpn} sin LPN
               </span>
             )}
+            {(fi.factura_carlos || fi.pv_global) && (
+              <PpFacturaCarlosContenedor
+                ppId={ppId}
+                fiId={fi.id}
+                nroFactura={fi.nro_factura}
+                facturaCarlos={fi.factura_carlos}
+                pvGlobal={fi.pv_global}
+                editable={false}
+                compact
+                onSaved={onUpdated}
+                onMsg={onMsg}
+              />
+            )}
           </div>
           <p className="mt-1 text-sm font-semibold text-slate-900">{fi.cliente}</p>
           <p className="text-xs text-slate-600">
             {vendedorNombre} · {fiLp} · {plazoNombre}
             {fi.marca !== "—" ? ` · ${fi.marca}` : ""}
           </p>
+          {fiRecalcListado && (
+            <label className="mt-2 block max-w-xl text-left" onClick={(e) => e.stopPropagation()}>
+              <span className="text-[10px] font-black uppercase tracking-wider text-violet-900">
+                Listado motor · recalc inmediato → Logística OK
+              </span>
+              <select
+                className="mt-1 w-full rounded-lg border-2 border-violet-400 bg-white px-2 py-1.5 text-xs font-semibold text-slate-900 disabled:opacity-50"
+                value={eventoId}
+                disabled={listadoBusy}
+                onChange={(e) => {
+                  const v = e.target.value ? Number(e.target.value) : "";
+                  if (v === "" || !Number.isFinite(v)) return;
+                  setEventoId(v);
+                  void aplicarListadoMotor(v);
+                }}
+              >
+                {!fi.precio_evento_id && <option value="">— Elegir listado motor —</option>}
+                {eventosOrdenados.map((ev) => {
+                  const cov = coberturaMap.get(ev.id!);
+                  const pct = cov?.pct ?? 0;
+                  const suffix = cov
+                    ? ` · PP ${pct}% (${cov.skus_match}/${cov.skus_total})`
+                    : " · PP 0%";
+                  return (
+                    <option key={String(ev.id)} value={ev.id ?? ""}>
+                      {ev.label}{suffix}
+                    </option>
+                  );
+                })}
+              </select>
+              {listadoBusy && (
+                <span className="mt-1 block text-[10px] font-bold text-violet-800">Recalculando precios…</span>
+              )}
+              {listadoReport && !listadoBusy && <PpListadoMotorReportePanel report={listadoReport} />}
+              {fi.precio_evento_nombre && !listadoBusy && !listadoReport && (
+                <span className="mt-1 block text-[10px] text-slate-500">
+                  Vigente: #{fi.precio_evento_id} · {fi.precio_evento_nombre}
+                </span>
+              )}
+            </label>
+          )}
           <p className="text-[10px] text-slate-500">
             Cod. {fi.cliente_id ?? "—"} · {fmtFechaDoc(fi.created_at)} · {fi.item_count} SKUs
           </p>
@@ -282,6 +400,18 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
 
       {open && (
         <>
+          <div className="border-b border-amber-200 bg-amber-50/60 px-4 py-3">
+            <PpFacturaCarlosContenedor
+              ppId={ppId}
+              fiId={fi.id}
+              nroFactura={fi.nro_factura}
+              facturaCarlos={fi.factura_carlos}
+              pvGlobal={fi.pv_global}
+              editable={fiEditable && !soloRecalcPostCompras}
+              onSaved={onUpdated}
+              onMsg={onMsg}
+            />
+          </div>
           <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {fiEditable && vendedores.length > 0 ? (
@@ -368,6 +498,8 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
           </div>
 
           <div className="space-y-4 p-4">
+            {!soloRecalcPostCompras && (
+              <>
             <SelectorPoliticaLp
               required={fiEditable}
               disabled={!fiEditable || busy}
@@ -389,6 +521,8 @@ export function PpFiCard({ fi, detalles, ppId, programado, editable, vendedores,
               >
                 {busy ? "Recalculando…" : `Aplicar ${labelListadoPrecio(lp)} y recalcular FI`}
               </button>
+            )}
+              </>
             )}
 
             <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">

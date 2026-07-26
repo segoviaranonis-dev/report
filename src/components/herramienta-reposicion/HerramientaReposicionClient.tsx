@@ -646,7 +646,7 @@ export function HerramientaReposicionClient() {
 
             <div className="mt-6 flex w-full flex-col gap-3 lg:flex-row lg:items-start lg:gap-2">
               {/* Margen izquierdo de pantalla · filtros pegados al borde */}
-              <div className="w-full shrink-0 pl-1 pr-1 lg:sticky lg:top-2 lg:w-auto lg:max-w-[32rem] lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto lg:pl-1 lg:pr-0">
+              <div className="w-full shrink-0 self-start pl-1 pr-1 lg:sticky lg:top-2 lg:w-auto lg:max-w-[32rem] lg:pl-1 lg:pr-0">
                 <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm lg:hidden" open>
                   <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-rimec-azul [&::-webkit-details-marker]:hidden">
                     ▾ Filtros · dimensiones + molécula

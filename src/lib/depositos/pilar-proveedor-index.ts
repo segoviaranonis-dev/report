@@ -206,7 +206,9 @@ export function resolvePilaresCodigos(input: {
 }
 
 export function marcaHintFromGrupo(codGrupo: string): number | null {
-  const g = canon(codGrupo).padStart(2, "0");
+  const digits = canon(codGrupo).replace(/\D/g, "");
+  if (!digits) return null;
+  const g = (digits.length >= 2 ? digits.slice(0, 2) : digits).padStart(2, "0");
   return GRUPO_ID_MARCA[g] ?? null;
 }
 

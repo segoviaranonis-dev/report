@@ -309,6 +309,16 @@ export function filterHubModules(
       return m.href === "/facturacion";
     }
 
+    // VENDEDOR RIMEC: Ventas con fotos + Logística OK (pestaña Vendedor)
+    if (rolId === 1 && cat === "VENDEDOR") {
+      return m.href === "/ventas-fotos" || m.href === "/logistica-ok";
+    }
+
+    // LOGISTICA / DEPOSITO: solo Logística OK
+    if (rolId === 1 && (cat === "LOGISTICA" || cat === "DEPOSITO")) {
+      return m.href === "/logistica-ok";
+    }
+
     // Matriz: rol 2 = solo columna BAZZAR tienda (retail · depósitos · caja)
     if (rolId === 2) {
       if (m.group !== "bazzar") return false;

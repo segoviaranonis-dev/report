@@ -10,6 +10,8 @@ import {
 import type { FacturaListItem } from "@/lib/facturacion/types";
 import { TERMINO_FI } from "@/lib/facturacion/types";
 import type { OrigenFacturacion } from "@/lib/facturacion/filters";
+import { FECHA_ENTREGA_REAL_LABEL } from "@/lib/logistica-ok/constants";
+import { fmtFechaEntregaReal } from "@/lib/logistica-ok/pe-pp-contrato";
 
 type Props = {
   f: FacturaListItem;
@@ -100,7 +102,9 @@ export function FacturaInternaCabecera({
         {cel("Vendedor", f.vendedor || "—")}
         {cel("Listado", listaPrecioLabel(f.lista_precio_id))}
         {cel("Descuentos", descuentos)}
-        {cel("Fecha", fmtFecha(f.fecha))}
+        {esPe
+          ? cel(FECHA_ENTREGA_REAL_LABEL, fmtFechaEntregaReal(f.fecha_entrega_real ?? f.fecha))
+          : cel("Fecha", fmtFecha(f.fecha))}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-rimec-azul/10 pt-3">

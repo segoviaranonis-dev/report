@@ -36,11 +36,25 @@ export function stampFamiliaPilares(rows: DepositoRow[]): DepositoRow[] {
 }
 import { normalizePrecioUnitario } from "@/lib/depositos/precio-venta";
 import {
+  calzadoExcluyeCarterasPorDefecto,
   rowMatchesTipoGrupos,
   type TipoGrupoId,
 } from "@/lib/filtros/filtro-tipo-canonico";
+import {
+  esFilaModuloAccesorios,
+  esLabelModuloAccesorios,
+  esRamoAccesorios,
+  accesoriosSubtipoFromSyntheticId,
+  rowMatchesAccesoriosSubtipo,
+  tiposMetaModuloAccesorios,
+} from "@/lib/filtros/modulo-accesorios";
+import { esFilaMedias, PE_TIPO1_MEDIAS_ID } from "@/lib/filtros/pe-modulo-medias";
+import { TIPO_V2_CALZADO, TIPO_V2_CONFECCIONES } from "@/lib/retail/product-image-protocol";
 
 export type CantidadOp = "gt" | "lt" | null;
+
+/** Paridad RIMEC Web `ramo_tipo` — Carteras viven aquí, no en ESTILO. */
+export type OperativaRamoTipo = "" | "CALZADO" | "CONFECCIONES" | "ACCESORIOS";
 
 export type OperativaFilterState = {
   generoIds: number[];
@@ -67,6 +81,8 @@ export type OperativaFilterState = {
    */
   materialFamilias: string[];
   colorFamilias: string[];
+  /** Categoría UI · Calzado | Confecciones | Carteras y accesorios */
+  ramoTipo: OperativaRamoTipo;
 };
 
 export type ExcluirDimension = keyof OperativaFilterState;
@@ -88,6 +104,7 @@ export const EMPTY_OPERATIVA_FILTERS: OperativaFilterState = {
   tipoGrupos: [],
   materialFamilias: [],
   colorFamilias: [],
+  ramoTipo: "",
 };
 
 /** node-pg devuelve bigint como string — normalizar siempre. */
@@ -153,7 +170,8 @@ export function hayFiltrosActivos(f: OperativaFilterState): boolean {
     !!f.cadenaComercial ||
     f.tipoGrupos.length > 0 ||
     f.materialFamilias.length > 0 ||
-    f.colorFamilias.length > 0
+    f.colorFamilias.length > 0 ||
+    !!f.ramoTipo
   );
 }
 
@@ -215,6 +233,8 @@ function emptyForExcluir(excluir: ExcluirDimension): OperativaFilterState[Exclui
   if (excluir === "q") return "";
   if (excluir === "cantidadOp") return null;
   if (excluir === "cantidadValor") return null;
+  if (excluir === "cadenaComercial") return null;
+  if (excluir === "ramoTipo") return "";
   return [];
 }
 
@@ -243,8 +263,36 @@ export function rowMatchesOperativaFilters(
   if (eff.generoIds.length && !matchFk(r.genero_id, eff.generoIds)) return false
   if (eff.marcaIds.length && !matchFk(r.marca_id, eff.marcaIds)) return false
   if (eff.grupoEstiloIds.length && !matchFk(r.grupo_estilo_id, eff.grupoEstiloIds)) return false
-  if (eff.tipo1Ids.length && !matchFk(r.tipo_1_id, eff.tipo1Ids)) return false
-  if (eff.tipoV2Ids.length && !matchFk(r.tipo_v2_id, eff.tipoV2Ids)) return false
+  if (eff.tipo1Ids.length) {
+    const synthKeys = eff.tipo1Ids
+      .filter((id) => id < 0)
+      .map((id) => accesoriosSubtipoFromSyntheticId(id))
+      .filter((k): k is string => Boolean(k));
+    const fkIds = eff.tipo1Ids.filter((id) => id > 0);
+    if (synthKeys.length && !rowMatchesAccesoriosSubtipo(r, synthKeys)) return false;
+    if (fkIds.length) {
+      const fkOk = fkIds.some((id) => {
+        if (id === PE_TIPO1_MEDIAS_ID) return esFilaMedias(r);
+        return matchFk(r.tipo_1_id, [id]);
+      });
+      if (!fkOk) return false;
+    }
+  }
+
+  const ramo = String(eff.ramoTipo ?? "").trim().toUpperCase()
+  if (ramo === "ACCESORIOS") {
+    if (!esFilaModuloAccesorios(r)) return false
+  } else if (ramo === "CALZADO") {
+    if (!matchFk(r.tipo_v2_id, [TIPO_V2_CALZADO])) return false
+    if (calzadoExcluyeCarterasPorDefecto(eff) && esFilaModuloAccesorios(r)) return false
+  } else if (ramo === "CONFECCIONES") {
+    if (!matchFk(r.tipo_v2_id, [TIPO_V2_CONFECCIONES])) return false
+  } else if (eff.tipoV2Ids.length && !matchFk(r.tipo_v2_id, eff.tipoV2Ids)) {
+    return false
+  } else if (calzadoExcluyeCarterasPorDefecto(eff) && esFilaModuloAccesorios(r)) {
+    return false
+  }
+
   if (eff.lineaIds.length && !matchFk(r.linea_id, eff.lineaIds)) return false
   if (eff.tipoGrupos.length && !rowMatchesTipoGrupos(r, eff.tipoGrupos)) return false
 
@@ -382,9 +430,16 @@ export function esMarcaFantasmaFiltro(label: string): boolean {
   );
 }
 
+/** Tokens pilar PE (638 estilo · color humano) — opcional en buildOperativaOpciones. */
+export type PePilarTokenFns = {
+  materialToken?: (row: DepositoRow) => string | null;
+  colorToken?: (row: DepositoRow) => string | null;
+};
+
 export function buildOperativaOpciones(
   rows: DepositoRow[],
   filtros: OperativaFilterState,
+  peTokens?: PePilarTokenFns,
 ): OperativaOpciones {
   const generos = new Map<number, DepositoFilterItem>()
   const marcas = new Map<number, DepositoFilterItem>()
@@ -437,12 +492,16 @@ export function buildOperativaOpciones(
       if (te) tonos.add(te)
     }
     if (rowMatchesOperativaFilters(r, filtros, 'materialFamilias')) {
-      const t = r.familia_material ?? primeraPalabraPilar(r.descp_material)
-      if (t) matTokens.push(t)
+      const t = peTokens?.materialToken
+        ? peTokens.materialToken(r)
+        : (r.familia_material ?? primeraPalabraPilar(r.descp_material));
+      if (t) matTokens.push(t);
     }
     if (rowMatchesOperativaFilters(r, filtros, 'colorFamilias')) {
-      const t = r.familia_color ?? primeraPalabraPilar(r.descp_color)
-      if (t) colTokens.push(t)
+      const t = peTokens?.colorToken
+        ? peTokens.colorToken(r)
+        : (r.familia_color ?? primeraPalabraPilar(r.descp_color));
+      if (t) colTokens.push(t);
     }
     if (rowMatchesOperativaFilters(r, filtros, 'gradas')) {
       const g = normalizeGradaLabel(r.grada)
@@ -453,11 +512,25 @@ export function buildOperativaOpciones(
   const sortItems = (m: Map<number, DepositoFilterItem>) =>
     Array.from(m.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
 
+  let estilosOut = sortItems(estilos)
+  let tipo1Out = sortItems(tipo1)
+  if (esRamoAccesorios(filtros.ramoTipo)) {
+    estilosOut = estilosOut.filter((e) => esLabelModuloAccesorios(e.label));
+    tipo1Out = tiposMetaModuloAccesorios(tipo1Out);
+  } else {
+    // Mario Bros · 4.01.04.003 — CARTERAS no es estilo; vive en Categoría Accesorios / Tipo
+    estilosOut = estilosOut.filter((e) => !esLabelModuloAccesorios(e.label));
+    tipo1Out = tipo1Out.filter((t) => !esLabelModuloAccesorios(t.label));
+    if (calzadoExcluyeCarterasPorDefecto(filtros)) {
+      tipo1Out = tipo1Out.filter((t) => !esLabelModuloAccesorios(t.label));
+    }
+  }
+
   return {
     generos: sortItems(generos),
     marcas: sortItems(marcas),
-    estilos: sortItems(estilos),
-    tipo1: sortItems(tipo1),
+    estilos: estilosOut,
+    tipo1: tipo1Out,
     tipoV2: sortItems(tipoV2),
     lineas: sortItems(lineas),
     materiales: buildFamiliaItems(matTokens),

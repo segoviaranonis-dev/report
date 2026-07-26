@@ -37,6 +37,7 @@ function mapRows(rows: FacturaListItem[]): FacturaListItem[] {
     descuento_3: num(r.descuento_3),
     descuento_4: num(r.descuento_4),
     traspaso_id: r.traspaso_id != null ? num(r.traspaso_id) : null,
+    fecha_entrega_real: r.fecha_entrega_real != null ? String(r.fecha_entrega_real).slice(0, 10) : null,
   }));
 }
 
@@ -159,7 +160,7 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
   return mapRows(rows);
 }
 
-/** Bandeja Pronta entrega — FI enlazada a pedido_proveedor_detalle · sin Compra Legal. */
+/** Bandeja Pronta entrega — FI enlazada a PP PE · orden por Fecha de entrega Real. */
 export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
   const pool = getRimecPool();
 
@@ -174,7 +175,8 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
       COALESCE(pp.numero_registro, 'Pronta entrega') AS pedido,
       COALESCE(pp.numero_proforma, '—') AS proforma,
       COALESCE(mv.descp_marca, fi.marca, '—') AS marca,
-      COALESCE(fi.fecha_confirmacion, fi.created_at)::date::text AS fecha,
+      COALESCE(pp.fecha_arribo_real, fi.fecha_confirmacion::date, fi.created_at::date)::text AS fecha,
+      pp.fecha_arribo_real::text AS fecha_entrega_real,
       COALESCE(cv.descp_cliente, fi.cliente_id::text) AS cliente,
       fi.cliente_id::text AS codigo_cliente,
       COALESCE(vv.descp_usuario, '—') AS vendedor,
@@ -201,11 +203,11 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
     WHERE fi.estado IN ('CONFIRMADA', 'RESERVADA')
       AND ${SQL_FI_ES_PE}
     GROUP BY fi.id, fi.pv_global, fi.nro_factura, pp.numero_registro, pp.numero_proforma,
-             mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente,
+             pp.fecha_arribo_real, mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente,
              fi.created_at, fi.fecha_confirmacion, fi.estado, fi.total_monto,
              vv.descp_usuario, fi.lista_precio_id,
-             fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4
-    ORDER BY fi.created_at::date DESC NULLS LAST, fi.nro_factura DESC
+             fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4, fi.pp_id
+    ORDER BY pp.fecha_arribo_real ASC NULLS LAST, fi.created_at::date DESC NULLS LAST, fi.nro_factura DESC
     `,
   );
 

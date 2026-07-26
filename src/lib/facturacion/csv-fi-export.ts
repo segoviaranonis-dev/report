@@ -3,6 +3,7 @@ import { fiDisplayId } from "@/app/aprobaciones/lib/aprobaciones-utils";
 import {
   buildCsvCarlosContent,
   csvCarlosFilename,
+  enrichCsvFilasCompletas,
   type CsvCarlosRow,
 } from "@/lib/pedido-proveedor/csv-ventas-export";
 import { loadFrancisTranslator } from "@/lib/pedido-proveedor/csv-vendedor-francis";
@@ -10,9 +11,10 @@ import { exportCsvPeVentasFi, isPeFi } from "@/lib/facturacion/csv-pe-ventas-exp
 
 /** Filas CSV Carlos — FI tránsito / PP (no PE). */
 export async function fetchCsvCarlosRowsByFiId(pool: Pool, fiId: number): Promise<CsvCarlosRow[]> {
-  const { rows } = await pool.query<CsvCarlosRow>(
+  const { rows } = await pool.query<CsvCarlosRow & { pp_id: number }>(
     `
     SELECT
+      fi.pp_id,
       fi.cliente_id::text AS cliente_id,
       fi.plazo_id::text AS plazo_id,
       TRIM(ppd.linea) AS linea,
@@ -23,25 +25,23 @@ export async function fetchCsvCarlosRowsByFiId(pool: Pool, fiId: number): Promis
       ppd.color_code,
       ppd.descp_color,
       ppd.grades_json,
-      COALESCE(pl.nombre_caso_aplicado, NULLIF(TRIM(fi.caso), ''), '—') AS caso,
       pe_evt.evento_nombre AS biblioteca,
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS estilo,
+      NULLIF(TRIM(t1.descp_tipo_1), '') AS tipo_1_pilar,
       fid.pares::text AS pares,
       COALESCE(NULLIF(TRIM(pl_fi.descp_plazo), ''), 'N/A') AS plazo,
       fi.lista_precio_id::text AS lista_precio_id,
       COALESCE(fi.descuento_1, 0)::text AS descuento_1,
       COALESCE(fi.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, 0)::text AS descuento_3,
-      COALESCE(fi.descuento_4, 0)::text AS descuento_4
+      COALESCE(fi.descuento_4, 0)::text AS descuento_4,
+      fi.vendedor_id::text AS vendedor_nexus_id
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
     JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN plazo_v2 pl_fi ON pl_fi.id_plazo = fi.plazo_id
-    LEFT JOIN material m
-      ON m.proveedor_id = pp.proveedor_importacion_id
-     AND m.codigo_proveedor::text = ppd.material_code
     LEFT JOIN linea l
       ON l.proveedor_id = pp.proveedor_importacion_id
      AND l.codigo_proveedor::text = ppd.linea
@@ -51,6 +51,7 @@ export async function fetchCsvCarlosRowsByFiId(pool: Pool, fiId: number): Promis
     LEFT JOIN linea_referencia lr
       ON lr.linea_id = l.id AND lr.referencia_id = ref.id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
     LEFT JOIN LATERAL (
       SELECT icp.precio_evento_id
       FROM intencion_compra_pedido icp
@@ -65,18 +66,15 @@ export async function fetchCsvCarlosRowsByFiId(pool: Pool, fiId: number): Promis
       WHERE pe.id = icp.precio_evento_id
       LIMIT 1
     ) pe_evt ON TRUE
-    LEFT JOIN precio_lista pl
-      ON pl.evento_id = icp.precio_evento_id
-     AND pl.linea_id = l.id
-     AND pl.referencia_id = ref.id
-     AND pl.material_id = m.id
     WHERE fi.id = $1
       AND fi.estado IN ('CONFIRMADA', 'RESERVADA')
     ORDER BY fid.id
     `,
     [fiId],
   );
-  return rows;
+  const ppId = rows[0]?.pp_id;
+  if (!ppId) return rows;
+  return enrichCsvFilasCompletas(pool, ppId, rows);
 }
 
 export async function exportCsvVentasFi(

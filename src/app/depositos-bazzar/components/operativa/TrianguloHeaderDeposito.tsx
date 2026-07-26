@@ -87,7 +87,7 @@ function FilaChips({
 
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-      <span className="w-20 shrink-0 pt-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+      <span className="w-20 shrink-0 pt-2 text-xs font-bold uppercase tracking-wider text-gray-500">
         {label}
       </span>
       <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5 snap-x">
@@ -211,7 +211,7 @@ export function TrianguloHeaderDeposito({
   const filaCategoria =
     !hideCategoria && !categoriaEnCabecera ? (
     <FilaChips
-      label="Categoría"
+      label="CATEGORÍA"
       todosLabel="Todos"
       items={opciones.tipoV2}
       selected={filtros.tipoV2Ids}
@@ -350,26 +350,15 @@ export function TrianguloHeaderDeposito({
 
           {showComercialFilter ? (
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-              <span className="w-20 shrink-0 pt-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Comercial
+              <span className="w-20 shrink-0 pt-2 text-xs font-bold uppercase tracking-wider text-gray-500">
+                COMERCIAL
               </span>
               <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                 <Pill
                   active={!filtros.cadenaComercial}
                   onClick={() => patch({ cadenaComercial: null })}
                 >
-                  Todos
-                </Pill>
-                <Pill
-                  active={filtros.cadenaComercial === "LIQUIDACION"}
-                  onClick={() =>
-                    patch({
-                      cadenaComercial:
-                        filtros.cadenaComercial === "LIQUIDACION" ? null : "LIQUIDACION",
-                    })
-                  }
-                >
-                  Liquidación
+                  TODOS
                 </Pill>
                 <Pill
                   active={filtros.cadenaComercial === "REGULAR"}
@@ -380,14 +369,47 @@ export function TrianguloHeaderDeposito({
                     })
                   }
                 >
-                  Regular
+                  NORMAL
+                </Pill>
+                <Pill
+                  active={filtros.cadenaComercial === "PROMOCIONAL"}
+                  onClick={() =>
+                    patch({
+                      cadenaComercial:
+                        filtros.cadenaComercial === "PROMOCIONAL" ? null : "PROMOCIONAL",
+                    })
+                  }
+                >
+                  PROMOCIONAL
+                </Pill>
+                <Pill
+                  active={filtros.cadenaComercial === "LIQUIDACION"}
+                  onClick={() =>
+                    patch({
+                      cadenaComercial:
+                        filtros.cadenaComercial === "LIQUIDACION" ? null : "LIQUIDACION",
+                    })
+                  }
+                >
+                  LIQUIDACION
+                </Pill>
+                <Pill
+                  active={filtros.cadenaComercial === "COMUN"}
+                  onClick={() =>
+                    patch({
+                      cadenaComercial:
+                        filtros.cadenaComercial === "COMUN" ? null : "COMUN",
+                    })
+                  }
+                >
+                  COMUN
                 </Pill>
               </div>
             </div>
           ) : null}
 
           <FilaChips
-            label="Género"
+            label="GÉNERO"
             todosLabel="Todos"
             items={opciones.generos.map((g) => ({ ...g, label: cap(g.label) }))}
             selected={filtros.generoIds}
@@ -400,7 +422,7 @@ export function TrianguloHeaderDeposito({
             onClear={() => patch({ generoIds: [] })}
           />
           <FilaChips
-            label="Marca"
+            label="MARCA"
             todosLabel="Todas"
             items={opciones.marcas.map((m) => ({ ...m, label: cap(m.label) }))}
             selected={filtros.marcaIds}
@@ -413,7 +435,7 @@ export function TrianguloHeaderDeposito({
             onClear={() => patch({ marcaIds: [] })}
           />
           <FilaChips
-            label="Estilo"
+            label="ESTILO"
             todosLabel="Todos"
             items={opciones.estilos}
             selected={filtros.grupoEstiloIds}
@@ -440,7 +462,7 @@ export function TrianguloHeaderDeposito({
           />
           {!categoriaFirst && !categoriaEnCabecera ? filaCategoria : null}
           <FilaChips
-            label="Línea"
+            label="LÍNEA"
             todosLabel="Todas"
             items={opciones.lineas}
             selected={filtros.lineaIds}
@@ -454,8 +476,8 @@ export function TrianguloHeaderDeposito({
           />
 
           <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Buscar
+            <span className="w-20 shrink-0 text-xs font-bold uppercase tracking-wider text-gray-500">
+              BUSCAR
             </span>
             <input
               type="search"

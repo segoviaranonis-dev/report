@@ -560,7 +560,7 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
                   )}
                 </div>
 
-                <Field label="Observaciones">
+                <Field label="Logística">
                   <textarea
                     value={obs}
                     onChange={(e) => setObs(e.target.value)}
@@ -717,7 +717,7 @@ export function IntencionCompraNuevaClient({ initialCatalogos = null }: Props) {
                   </div>
                 </div>
 
-                <Field label="Observaciones">
+                <Field label="Logística">
                   <textarea
                     value={obs}
                     onChange={(e) => setObs(e.target.value)}

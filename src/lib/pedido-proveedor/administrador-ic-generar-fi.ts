@@ -6,6 +6,7 @@ import {
 import type { ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
 import { buildLineaSnapshotForFi } from "@/lib/pedido-proveedor/linea-snapshot-fi";
 import { resolveCasoDominanteParaFi } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
+import { vincularObservacionesIcAFi } from "@/lib/logistica-ok/observaciones-logistica";
 
 type SkuFi = {
   ppd_id: number;
@@ -370,6 +371,8 @@ export async function generarFiDesdeAdministradorIc(
         await client.query("SELECT descontar_stock_pp($1, $2)", [item.ppd_id, item.pares]);
       }
     }
+
+    await vincularObservacionesIcAFi(client, ic.ic_id, fiId, ppId);
 
     await client.query("COMMIT");
 

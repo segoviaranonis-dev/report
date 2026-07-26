@@ -96,8 +96,26 @@ export function llegadaDescFromRows(rows: DepositoRow[]): string | null {
   return `${labels[0]} · +${labels.length - 1}`;
 }
 
+function compareDepositoLineaReferenciaAz(a: DepositoRow, b: DepositoRow): number {
+  const la = String(a.linea_codigo_proveedor ?? "").trim();
+  const lb = String(b.linea_codigo_proveedor ?? "").trim();
+  const byLinea = la.localeCompare(lb, "es", { numeric: true, sensitivity: "base" });
+  if (byLinea !== 0) return byLinea;
+  const ra = String(a.referencia_codigo_proveedor ?? "").trim();
+  const rb = String(b.referencia_codigo_proveedor ?? "").trim();
+  const byRef = ra.localeCompare(rb, "es", { numeric: true, sensitivity: "base" });
+  if (byRef !== 0) return byRef;
+  const ma = String(a.material_code ?? "").trim();
+  const mb = String(b.material_code ?? "").trim();
+  const byMat = ma.localeCompare(mb, "es", { numeric: true, sensitivity: "base" });
+  if (byMat !== 0) return byMat;
+  const ca = String(a.color_code ?? "").trim();
+  const cb = String(b.color_code ?? "").trim();
+  return ca.localeCompare(cb, "es", { numeric: true, sensitivity: "base" });
+}
+
 type AgruparPeOpts = {
-  /** Tránsito / programado — prioriza vendido en orden de tarjetas. */
+  /** Tránsito / programado — desempate por vendido tras línea·referencia. */
   ordenVentas?: boolean;
   /** Map molécula → compradores (cadena/cliente). */
   ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
@@ -181,12 +199,12 @@ export function agruparPeImportadora(
       };
     })
     .sort((a, b) => {
+      const cmpLr = compareDepositoLineaReferenciaAz(a.producto, b.producto);
+      if (cmpLr !== 0) return cmpLr;
       if (opts?.ordenVentas) {
         const dv = b.totalVendidos - a.totalVendidos;
         if (dv !== 0) return dv;
       }
-      const dp = b.totalPares - a.totalPares;
-      if (dp !== 0) return dp;
       return a.key.localeCompare(b.key, "es");
     });
 }

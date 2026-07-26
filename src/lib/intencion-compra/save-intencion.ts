@@ -1,8 +1,14 @@
 import type { Pool } from "pg";
+import { appendObservacionLogistica } from "@/lib/logistica-ok/observaciones-logistica";
 import { calcularNeto } from "./calcular-neto";
 import { getNextNumeroRegistro } from "./numeracion";
 import { quincenaDbValue } from "./quincena-arribo";
 import { esListadoPrecioValido, ID_CATEGORIA_PROGRAMADO } from "./listado-precio-tiers";
+
+export type SaveIntencionUsuario = {
+  id: number;
+  name: string;
+};
 
 export type SaveIntencionInput = {
   id_proveedor: number;
@@ -31,6 +37,7 @@ export type SaveIntencionInput = {
 export async function saveIntencion(
   pool: Pool,
   data: SaveIntencionInput,
+  usuario?: SaveIntencionUsuario | null,
 ): Promise<{ ok: true; numero_registro: string; id: number } | { ok: false; error: string }> {
   if (!data.cantidad_total_pares || data.cantidad_total_pares <= 0) {
     return { ok: false, error: "Ingresá la cantidad de pares antes de registrar." };
@@ -100,7 +107,18 @@ export async function saveIntencion(
         data.comision_porcentaje_snap ?? null,
       ],
     );
-    return { ok: true, numero_registro: numero, id: Number(rows[0].id) };
+    const icId = Number(rows[0].id);
+    const obsText = data.observaciones?.trim();
+    if (obsText && usuario) {
+      await appendObservacionLogistica(pool, {
+        texto: obsText,
+        origen: "IC",
+        usuarioId: usuario.id,
+        usuarioNombre: usuario.name,
+        intencionCompraId: icId,
+      });
+    }
+    return { ok: true, numero_registro: numero, id: icId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error en INSERT";
     return { ok: false, error: msg };

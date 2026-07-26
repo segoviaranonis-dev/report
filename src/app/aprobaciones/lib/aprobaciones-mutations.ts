@@ -1,5 +1,6 @@
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { anularYReintegrarFi } from "@/lib/facturacion/anular-reintegrar-fi";
+import { syncLogisticaPpIfBandera } from "@/lib/logistica-ok/sync-pp";
 import { listaPrecioLabel, precioNetoCascada } from "./aprobaciones-utils";
 import {
   sumFiTotalesDesdeDetalle,
@@ -15,10 +16,13 @@ import {
 import {
   sqlPrecioBaseFiDetalle,
   sqlPrecioBaseFiDetalleConFallbackPe,
+  sqlPrecioBaseFiDetalleSoloEvento,
+  sqlFromFiDetallePrecioEventoOverride,
   SQL_FROM_FI_DETALLE_PRECIO,
   sqlPrecioComercialDesdePl,
 } from "./fi-precio-evento-lookup";
 import { resolveCasoDominanteDesdePpd } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
+import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
 
 export type MutationResult = { ok: boolean; msg: string };
 
@@ -30,14 +34,19 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
 
   const pool = getRimecPool();
   const client = await pool.connect();
+  let ppIdLogistica: number | null = null;
   try {
     await client.query("BEGIN");
 
-    const pedidoRes = await client.query<{ pedido_id: number | null }>(
-      `SELECT pedido_id FROM public.factura_interna WHERE id = $1 LIMIT 1`,
+    const pedidoRes = await client.query<{ pedido_id: number | null; pp_id: number | null }>(
+      `SELECT pedido_id, pp_id FROM public.factura_interna WHERE id = $1 LIMIT 1`,
       [fiId]
     );
     const pedidoId = pedidoRes.rows[0]?.pedido_id ?? null;
+    ppIdLogistica =
+      pedidoRes.rows[0]?.pp_id != null && Number(pedidoRes.rows[0].pp_id) > 0
+        ? Number(pedidoRes.rows[0].pp_id)
+        : null;
 
     const updateRes = await client.query(
       `UPDATE public.factura_interna
@@ -71,6 +80,15 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
     }
 
     await client.query("COMMIT");
+
+    // Puente Logística OK: si el PP tiene bandera + Fecha de entrega Real, entra a bandeja
+    if (ppIdLogistica != null) {
+      try {
+        await syncLogisticaPpIfBandera(pool, ppIdLogistica);
+      } catch {
+        /* no tumba la confirmación — bandera/MIG puede faltar en local */
+      }
+    }
 
     let msg = "FI confirmada exitosamente.";
     if (pedidoCompleto) {
@@ -155,6 +173,7 @@ type DetallePrecioRow = {
 export async function actualizarListaPrecioFi(
   fiId: number,
   listaPrecioId: number,
+  opts?: { allowPpEnviado?: boolean },
 ): Promise<MutationResult & { totalMonto?: number }> {
   if (!isRimecDatabaseConfigured()) {
     return { ok: false, msg: "DATABASE_URL no configurada." };
@@ -194,7 +213,7 @@ export async function actualizarListaPrecioFi(
       await client.query("ROLLBACK");
       return { ok: false, msg: `FI en estado ${estado} — no editable.` };
     }
-    if ((fi.pp_estado || "").toUpperCase() === "ENVIADO") {
+    if ((fi.pp_estado || "").toUpperCase() === "ENVIADO" && !opts?.allowPpEnviado) {
       await client.query("ROLLBACK");
       return { ok: false, msg: "PP enviado a compra — edición cerrada." };
     }
@@ -812,11 +831,37 @@ type ResyncLineRow = {
   evento_id: number | null;
 };
 
+export type ResyncFiStats = {
+  skus_total: number;
+  skus_ok: number;
+  skus_sin_match: number;
+  skus_sin_cambio_precio: number;
+  skus_cambiados: number;
+  sin_match: string[];
+  sin_cambio_precio: string[];
+  monto_antes: number;
+  monto_despues: number;
+  delta_monto: number;
+  evento_id: number | null;
+  tier: number;
+  todos_skus_ok: boolean;
+  hubo_cambio_monto: boolean;
+};
+
 /** Rescate: FI + PPD desde listado ICP (incluye CONFIRMADA / PPD vendido). */
 export async function resincronizarFiDesdeListadoPp(
   fiId: number,
-  opts?: { usarRedondeoComercial?: boolean },
-): Promise<MutationResult & { totalMonto?: number; lineas?: string[] }> {
+  opts?: {
+    usarRedondeoComercial?: boolean;
+    allowPpEnviado?: boolean;
+    /** Botón impositor — tier impuesto (ignora biblioteca/caso BCL). */
+    listaPrecioIdOverride?: number;
+    /** Listado motor FI — solo precio_lista del evento; prohibido snapshot PPD. */
+    forzarSoloPrecioLista?: boolean;
+    /** Evento motor impuesto (param SQL). */
+    precioEventoIdOverride?: number;
+  },
+): Promise<MutationResult & { totalMonto?: number; lineas?: string[]; stats?: ResyncFiStats }> {
   if (!isRimecDatabaseConfigured()) {
     return { ok: false, msg: "DATABASE_URL no configurada." };
   }
@@ -828,21 +873,45 @@ export async function resincronizarFiDesdeListadoPp(
   try {
     await client.query("BEGIN");
 
-    const lockRes = await lockFiEditable(client, fiId, { flipConfirmada: false });
+    const lockRes = await lockFiEditable(client, fiId, {
+      flipConfirmada: false,
+      allowPpEnviado: opts?.allowPpEnviado,
+    });
     if (!lockRes.ok) {
       await client.query("ROLLBACK");
       return { ok: false, msg: lockRes.msg };
     }
     const lock = lockRes.lock;
-    const tier = lock.listaPrecioId;
+    let tier = lock.listaPrecioId;
+    if (opts?.listaPrecioIdOverride != null && esListadoPrecioValido(opts.listaPrecioIdOverride)) {
+      tier = opts.listaPrecioIdOverride;
+      await client.query(
+        `UPDATE public.factura_interna SET lista_precio_id = $2 WHERE id = $1`,
+        [fiId, tier],
+      );
+    }
     if (tier < 1 || tier > 4) {
       await client.query("ROLLBACK");
       return { ok: false, msg: "Lista de precio FI inválida (1–4)." };
     }
 
-    const precioExpr = comercial
-      ? `COALESCE(${sqlPrecioComercialDesdePl("$2")}, ${sqlPrecioBaseFiDetalle("$2")})`
-      : sqlPrecioBaseFiDetalle("$2");
+    const precioExpr = opts?.forzarSoloPrecioLista
+      ? (comercial
+          ? `COALESCE(${sqlPrecioComercialDesdePl("$2")}, ${sqlPrecioBaseFiDetalleSoloEvento("$2")})`
+          : sqlPrecioBaseFiDetalleSoloEvento("$2"))
+      : comercial
+        ? `COALESCE(${sqlPrecioComercialDesdePl("$2")}, ${sqlPrecioBaseFiDetalle("$2")})`
+        : sqlPrecioBaseFiDetalle("$2");
+
+    const fromPrecio =
+      opts?.forzarSoloPrecioLista && opts.precioEventoIdOverride != null
+        ? sqlFromFiDetallePrecioEventoOverride("$3")
+        : SQL_FROM_FI_DETALLE_PRECIO;
+
+    const detParams =
+      opts?.forzarSoloPrecioLista && opts.precioEventoIdOverride != null
+        ? [fiId, tier, opts.precioEventoIdOverride]
+        : [fiId, tier];
 
     const detRes = await client.query<ResyncLineRow>(
       `
@@ -854,12 +923,12 @@ export async function resincronizarFiDesdeListadoPp(
         ${precioExpr}::float AS precio_nuevo,
         ppd.linea,
         ppd.referencia,
-        icp.precio_evento_id::int AS evento_id
-      ${SQL_FROM_FI_DETALLE_PRECIO}
+        ic_ev.precio_evento_id::int AS evento_id
+      ${fromPrecio}
       WHERE fid.factura_id = $1
       ORDER BY fid.id
     `,
-      [fiId, tier],
+      detParams,
     );
 
     if (detRes.rows.length === 0) {
@@ -867,26 +936,45 @@ export async function resincronizarFiDesdeListadoPp(
       return { ok: false, msg: "FI sin líneas." };
     }
 
+    const montoAntesRes = await client.query<{ s: string }>(
+      `SELECT COALESCE(total_monto, 0)::text AS s FROM public.factura_interna WHERE id = $1`,
+      [fiId],
+    );
+    const montoAntes = Number(montoAntesRes.rows[0]?.s ?? 0);
+
     const lineasLog: string[] = [];
     let actualizadas = 0;
     const sinMatch: string[] = [];
+    const sinCambioPrecio: string[] = [];
     const tierCol =
       tier === 2 ? "precio_lpc02" : tier === 3 ? "precio_lpc03" : tier === 4 ? "precio_lpc04" : "precio_lpn";
 
+    let lineasProcesadas = 0;
     for (const det of detRes.rows) {
-      const base = det.precio_nuevo != null ? Number(det.precio_nuevo) : NaN;
-      if (!Number.isFinite(base) || base <= 0) {
+      const rawPrecio = det.precio_nuevo != null ? Number(det.precio_nuevo) : NaN;
+      const hadMatch = Number.isFinite(rawPrecio) && rawPrecio > 0;
+      let base: number;
+
+      if (hadMatch) {
+        base = rawPrecio;
+      } else if (opts?.forzarSoloPrecioLista) {
+        base = 0;
+        sinMatch.push(`${det.linea ?? "?"}/${det.referencia ?? "?"}`);
+      } else {
         sinMatch.push(`${det.linea ?? "?"}/${det.referencia ?? "?"}`);
         continue;
       }
 
-      const neto = precioNetoCascada(
-        base,
-        lock.descuento_1,
-        lock.descuento_2,
-        lock.descuento_3,
-        lock.descuento_4,
-      );
+      const neto =
+        base === 0
+          ? 0
+          : precioNetoCascada(
+              base,
+              lock.descuento_1,
+              lock.descuento_2,
+              lock.descuento_3,
+              lock.descuento_4,
+            );
       const subtotal = neto * Number(det.pares);
 
       await client.query(
@@ -894,28 +982,38 @@ export async function resincronizarFiDesdeListadoPp(
         [det.id, base, neto, subtotal],
       );
 
-      if (det.ppd_id && det.evento_id) {
+      const netoAntes = Number(det.precio_antes);
+      if (Number.isFinite(netoAntes) && Math.round(neto) === Math.round(netoAntes)) {
+        sinCambioPrecio.push(`${det.linea ?? "?"}/${det.referencia ?? "?"}`);
+      }
+
+      const eventoPpd = opts?.precioEventoIdOverride ?? det.evento_id;
+      if (det.ppd_id && eventoPpd) {
         await client.query(
           `
           UPDATE public.pedido_proveedor_detalle
           SET listado_precio_id = $2, ${tierCol} = $3, precio_vinculado_en = NOW()
           WHERE id = $1
         `,
-          [det.ppd_id, det.evento_id, base],
+          [det.ppd_id, eventoPpd, base],
         );
       }
 
       lineasLog.push(
-        `L${det.linea}/R${det.referencia}: ${Number(det.precio_antes).toLocaleString("es-PY")} → ${neto.toLocaleString("es-PY")}`,
+        hadMatch
+          ? `L${det.linea}/R${det.referencia}: ${Number(det.precio_antes).toLocaleString("es-PY")} → ${neto.toLocaleString("es-PY")}`
+          : `L${det.linea}/R${det.referencia}: ${Number(det.precio_antes).toLocaleString("es-PY")} → 0 (sin match listado)`,
       );
-      actualizadas++;
+      if (hadMatch) actualizadas++;
+      lineasProcesadas++;
     }
 
-    if (actualizadas === 0) {
+    if (lineasProcesadas === 0) {
       await client.query("ROLLBACK");
+      const evLabel = opts?.precioEventoIdOverride ?? detRes.rows[0]?.evento_id ?? "?";
       return {
         ok: false,
-        msg: `Sin match en listado #${detRes.rows[0]?.evento_id ?? "?"} (${sinMatch.join(", ")})`,
+        msg: `Sin líneas procesables en listado #${evLabel}.`,
       };
     }
 
@@ -960,9 +1058,31 @@ export async function resincronizarFiDesdeListadoPp(
     let msg = `Resincronizado listado #${detRes.rows[0]?.evento_id ?? "?"}. ${actualizadas} línea(s). Total: Gs. ${totalMonto.toLocaleString("es-PY")}`;
     if (comercial) msg += " (redondeo comercial).";
     if (casoRellenado) msg += " Caso comercial rellenado desde PP.";
-    if (sinMatch.length) msg += ` Sin match: ${sinMatch.join(", ")}.`;
+    if (sinMatch.length) {
+      msg += opts?.forzarSoloPrecioLista
+        ? ` ${sinMatch.length} SKU(s) sin match → precio 0.`
+        : ` Sin match: ${sinMatch.join(", ")}.`;
+    }
 
-    return { ok: true, msg, totalMonto, lineas: lineasLog };
+    const skusConPrecio = actualizadas;
+    const stats: ResyncFiStats = {
+      skus_total: detRes.rows.length,
+      skus_ok: skusConPrecio,
+      skus_sin_match: sinMatch.length,
+      skus_sin_cambio_precio: sinCambioPrecio.length,
+      skus_cambiados: lineasProcesadas - sinCambioPrecio.length,
+      sin_match: sinMatch,
+      sin_cambio_precio: sinCambioPrecio,
+      monto_antes: montoAntes,
+      monto_despues: totalMonto,
+      delta_monto: totalMonto - montoAntes,
+      evento_id: opts?.precioEventoIdOverride ?? detRes.rows[0]?.evento_id ?? null,
+      tier,
+      todos_skus_ok: sinMatch.length === 0,
+      hubo_cambio_monto: totalMonto !== montoAntes,
+    };
+
+    return { ok: true, msg, totalMonto, lineas: lineasLog, stats };
   } catch (e) {
     await client.query("ROLLBACK");
     return { ok: false, msg: e instanceof Error ? e.message : String(e) };

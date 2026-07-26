@@ -201,8 +201,22 @@ export async function listImportadoProductos(
       COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), '(sin estilo)') AS estilo,
       COALESCE(NULLIF(TRIM(tv.descp_tipo), ''), CASE ${PE_TIPO_V2_EXPR} WHEN 1 THEN 'Calzado' WHEN 2 THEN 'Confecciones' ELSE '—' END) AS tipo_v2,
       COALESCE(NULLIF(TRIM(t1.descp_tipo_1), ''), '(sin tipo 1)') AS tipo_1,
-      ppd.descp_material,
-      ppd.descp_color,
+      CASE
+        WHEN ${PE_TIPO_V2_EXPR} = 2 THEN
+          CASE
+            WHEN upper(btrim(COALESCE(ge.descp_grupo_estilo, ''))) IN (
+              'CONFECCIONES', 'CALZADO', 'SIN ESTILO', '(SIN ESTILO)'
+            ) THEN NULL
+            WHEN btrim(COALESCE(ge.descp_grupo_estilo, '')) ~ '^[Kk][0-9]+' THEN NULL
+            ELSE NULLIF(btrim(ge.descp_grupo_estilo), '')
+          END
+        ELSE ppd.descp_material
+      END AS descp_material,
+      CASE
+        WHEN ${PE_TIPO_V2_EXPR} = 2 AND btrim(COALESCE(ppd.descp_color, '')) ~ '^[Kk][0-9]+' THEN
+          NULLIF(btrim(col.nombre), '')
+        ELSE ppd.descp_color
+      END AS descp_color,
       COALESCE(NULLIF(TRIM(ppd.grada), ''), '—') AS grada,
       ${PE_SALDO_EXPR}::text AS cantidad,
       COALESCE(ppd.cantidad_pares, 0)::text AS cantidad_inicial,

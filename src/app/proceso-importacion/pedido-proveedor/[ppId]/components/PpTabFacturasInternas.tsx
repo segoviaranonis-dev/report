@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FiDetalle } from "@/app/aprobaciones/lib/aprobaciones-types";
 import type { IcCatalogos } from "@/lib/intencion-compra/ic-catalogos-types";
 import type { PpDetalleHeader, PpFacturaInternaRow } from "@/lib/pedido-proveedor/detail-query";
@@ -15,6 +15,8 @@ import {
   resumenRatificarFi,
 } from "@/lib/pedido-proveedor/ratificar-fi-programado-client";
 import { CATEGORIA_PROGRAMADO_ID } from "@/lib/intencion-compra/categoria-ic";
+import type { EventoCoberturaPp } from "@/lib/pedido-proveedor/listado-motor-cobertura";
+import { FACTURA_REAL_LABEL } from "@/lib/logistica-ok/factura-real";
 import { ProcesoImportacionWaitOverlay } from "@/components/report/ProcesoImportacionWaitOverlay";
 import { PpFiCard } from "./PpFiCard";
 
@@ -23,17 +25,23 @@ type Props = {
   ppId: string;
   facturas: PpFacturaInternaRow[];
   detallesPorFi: Record<number, FiDetalle[]>;
+  eventos: { id: number | null; label: string }[];
+  listadoMotorCobertura: EventoCoberturaPp[];
   vendedores: IcCatalogos["vendedores"];
   plazos: IcCatalogos["plazos"];
   onReload: () => void;
   onMsg: (text: string) => void;
 };
 
-export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vendedores, plazos, onReload, onMsg }: Props) {
+export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, eventos, listadoMotorCobertura, vendedores, plazos, onReload, onMsg }: Props) {
   const editable = pp.listado_editable;
+  const ppEnviado = pp.estado === "ENVIADO";
   const esProgramado = pp.categoria_id === CATEGORIA_PROGRAMADO_ID;
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
+  const [csvCierreLoading, setCsvCierreLoading] = useState(false);
+  const [importCierreLoading, setImportCierreLoading] = useState(false);
+  const importCierreInputRef = useRef<HTMLInputElement>(null);
   const [fiBusy, setFiBusy] = useState(false);
   const [fiProgress, setFiProgress] = useState("");
   const [fiEstado, setFiEstado] = useState<{
@@ -139,6 +147,66 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vende
     }
   }
 
+  async function descargarCsvCierreImportacion() {
+    setCsvCierreLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${pp.id}/csv-cierre-importacion?_=${Date.now()}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error CSV cierre");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      triggerBlobDownload(blob, match?.[1] ?? `${pp.numero_registro}_cierre_importacion.csv`);
+      onMsg(`CSV cierre descargado · IC + ${FACTURA_REAL_LABEL}`);
+    } catch (e) {
+      onMsg(e instanceof Error ? e.message : "Error CSV cierre");
+    } finally {
+      setCsvCierreLoading(false);
+    }
+  }
+
+  async function importarCsvCierre(file: File) {
+    setImportCierreLoading(true);
+    onMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${pp.id}/import-cierre-importacion`,
+        { method: "POST", credentials: "same-origin", body: fd },
+      );
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        emparejamientos_ok?: number;
+        filas_leidas?: number;
+        pv_actualizados?: number;
+        pv_omitidos_vacio?: number;
+        sync_logistica?: number;
+        errores?: string[];
+      };
+      if (!res.ok || !data.ok) {
+        const err = data.errores?.slice(0, 3).join(" · ") || data.error || "Import falló";
+        throw new Error(err);
+      }
+      onMsg(
+        `✓ Import Carlos↔Nexus · ${data.emparejamientos_ok}/${data.filas_leidas} emparejamientos · ` +
+          `${data.pv_actualizados ?? 0} Factura Real · logística ${data.sync_logistica ?? "—"} FI`,
+      );
+      await onReload();
+    } catch (e) {
+      onMsg(e instanceof Error ? e.message : "Error import cierre");
+    } finally {
+      setImportCierreLoading(false);
+      if (importCierreInputRef.current) importCierreInputRef.current.value = "";
+    }
+  }
+
   async function descargarCsvInicial() {
     setCsvInicialLoading(true);
     try {
@@ -172,7 +240,7 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vende
             Ala Sur · Facturas internas ({facturasUnicas.length})
           </h2>
           <div className="flex flex-wrap gap-2">
-            {puedeCsv && (
+            {editable && puedeCsv && (
               <button
                 type="button"
                 disabled={csvVentasLoading}
@@ -183,7 +251,7 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vende
                 {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
               </button>
             )}
-            {pp.total_articulos > 0 && (
+            {editable && pp.total_articulos > 0 && (
               <button
                 type="button"
                 disabled={csvInicialLoading}
@@ -202,11 +270,59 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vende
           </p>
         )}
         {!editable && (
-          <p className="mt-2 text-xs font-bold text-amber-800">PP ENVIADO — FI en solo lectura.</p>
+          <p className="mt-2 text-xs font-bold text-violet-900">
+            PP ENVIADO — cabecera congelada. Cada FI conserva selector de listado motor (#27, #28…) con recalc inmediato y sync Logística OK.
+          </p>
         )}
       </div>
 
-      {mostrarCrearFi && (
+      {editable && facturasUnicas.length > 0 && (
+        <div className="rounded-xl border-4 border-amber-500 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-100 px-5 py-4 shadow-md">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-amber-900">
+                Cierre importación · antes de Compras
+              </p>
+              <h3 className="mt-1 text-lg font-extrabold text-amber-950">
+                CSV IC + palabra reservada «{FACTURA_REAL_LABEL}»
+              </h3>
+              <p className="mt-2 max-w-2xl text-sm text-amber-950">
+                Mismo universo de IC del PP · columna <strong>{FACTURA_REAL_LABEL}</strong> = número factura del{" "}
+                <strong>sistema Carlos</strong> (<code className="text-xs">factura_carlos</code> · ej. 10019125327).
+                Edición manual por FI abajo · batch CSV arriba · Logística OK refleja el número.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={csvCierreLoading}
+              onClick={() => void descargarCsvCierreImportacion()}
+              className="shrink-0 rounded-xl border-4 border-amber-700 bg-amber-600 px-6 py-3 text-sm font-black uppercase tracking-wide text-white shadow-lg hover:bg-amber-700 disabled:opacity-50"
+            >
+              {csvCierreLoading ? "Generando…" : `↓ CSV Cierre (${facturasUnicas.length} FI)`}
+            </button>
+            <input
+              ref={importCierreInputRef}
+              type="file"
+              accept=".csv,.txt"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void importarCsvCierre(f);
+              }}
+            />
+            <button
+              type="button"
+              disabled={importCierreLoading}
+              onClick={() => importCierreInputRef.current?.click()}
+              className="shrink-0 rounded-xl border-4 border-emerald-800 bg-emerald-600 px-6 py-3 text-sm font-black uppercase tracking-wide text-white shadow-lg hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {importCierreLoading ? "Importando…" : "↑ Import Factura Real"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editable && mostrarCrearFi && (
         <div className="rounded-xl border-2 border-violet-400 bg-violet-50 px-5 py-4">
           <p className="text-base font-extrabold text-violet-950">⚡ IC = PROFORMA = FI (riguroso)</p>
           <p className="mt-1 text-sm text-violet-900">
@@ -246,7 +362,10 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, vende
             fi={fi}
             ppId={ppIdNum}
             programado={esProgramado}
-            editable={editable}
+            editable={editable && !ppEnviado}
+            soloRecalcPostCompras={ppEnviado}
+            eventos={eventos}
+            listadoMotorCobertura={listadoMotorCobertura}
             vendedores={vendedores}
             plazos={plazos}
             detalles={detallesPorFi[fi.id] ?? []}

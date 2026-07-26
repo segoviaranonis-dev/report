@@ -11,6 +11,8 @@ import { PeCardMiniatura } from "./PeCardMiniatura";
 type Props = {
   productos: DepositoRow[];
   casoPorLinea?: Map<string, string> | null;
+  /** PE — cadena diccionario (sin biblioteca BCL) */
+  showDiccionarioBadge?: boolean;
   showLlegada?: boolean;
   showVentas?: boolean;
   ventasPorMol?: Map<string, VentaCompradorLinea[]> | null;
@@ -25,6 +27,7 @@ export function GrillaPeImportadora({
   showVentas = false,
   ventasPorMol = null,
   loteModo = "unitario",
+  showDiccionarioBadge = false,
 }: Props) {
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
@@ -52,7 +55,7 @@ export function GrillaPeImportadora({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
           {totalProductos.toLocaleString("es-PY")} productos · 4 pilares + JPG · 1 tarjeta c/u
-          {showVentas ? " · orden por vendido" : " · orden por pares"}
+          {" · orden línea·referencia A→Z"}
           {visibleCount < totalProductos
             ? ` · mostrando ${visibleCount.toLocaleString("es-PY")}`
             : null}
@@ -80,7 +83,8 @@ export function GrillaPeImportadora({
             key={card.key}
             card={card}
             expanded={expandAll}
-            showCasoBadge={!!casoPorLinea?.size}
+            showCasoBadge={!!casoPorLinea?.size && !showDiccionarioBadge}
+            showDiccionarioBadge={showDiccionarioBadge}
             showLlegada={showLlegada}
             showVentas={showVentas}
           />

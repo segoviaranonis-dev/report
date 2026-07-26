@@ -1,0 +1,204 @@
+{
+  "fuente": "csv's/stock's/ventas PE/vendedor list.xlsx · Hoja2 CODxCASOS",
+  "actualizado": "_parse_vendedor_list_matrix.py",
+  "vendedores": {
+    "BZZF": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      }
+    },
+    "BZZS": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      }
+    },
+    "BZZP": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      }
+    },
+    "ATI": {
+      "cod_nexus_excel": 2,
+      "casos": {
+        "CARTERAS": 53,
+        "PROMOCIONAL": 49,
+        "CLASICOS": 53,
+        "TENIS": 53,
+        "BR-VZ-MD-ML-MKA-O": 53
+      }
+    },
+    "CARINA": {
+      "cod_nexus_excel": 3,
+      "casos": {
+        "CARTERAS": 104,
+        "PROMOCIONAL": 103,
+        "CLASICOS": 104,
+        "TENIS": 104,
+        "BR-VZ-MD-ML-MKA-O": 104
+      }
+    },
+    "CESAR": {
+      "cod_nexus_excel": 4,
+      "casos": {
+        "CARTERAS": 24,
+        "PROMOCIONAL": 25,
+        "CLASICOS": 24,
+        "TENIS": 24,
+        "BR-VZ-MD-ML-MKA-O": 24
+      }
+    },
+    "DERLIS": {
+      "cod_nexus_excel": 6,
+      "casos": {
+        "ACT-BRSPORT": 54,
+        "CARTERAS": 54,
+        "PROMOCIONAL": 55,
+        "CLASICOS": 54,
+        "TENIS": 54,
+        "CHINELO": 55,
+        "BR-VZ-MD-ML-MKA-O": 54
+      }
+    },
+    "EDUARDO ARAUJO G.": {
+      "cod_nexus_excel": 7,
+      "casos": {
+        "ACT-BRSPORT": 82,
+        "CARTERAS": 82,
+        "PROMOCIONAL": 75,
+        "CLASICOS": 82,
+        "TENIS": 82,
+        "CHINELO": 75,
+        "BR-VZ-MD-ML-MKA-O": 82
+      }
+    },
+    "ENRIQUE": {
+      "cod_nexus_excel": 8,
+      "casos": {
+        "CARTERAS": 42,
+        "PROMOCIONAL": 41,
+        "CLASICOS": 42,
+        "TENIS": 42,
+        "BR-VZ-MD-ML-MKA-O": 42
+      }
+    },
+    "FRANCIS": {
+      "cod_nexus_excel": 9,
+      "casos": {
+        "ACT-BRSPORT": 29,
+        "CARTERAS": 29,
+        "PROMOCIONAL": 58,
+        "CLASICOS": 29,
+        "TENIS": 29,
+        "CHINELO": 58,
+        "BR-VZ-MD-ML-MKA-O": 29
+      }
+    },
+    "GIANINA": {
+      "cod_nexus_excel": 10,
+      "casos": {
+        "CARTERAS": 15,
+        "PROMOCIONAL": 16,
+        "CLASICOS": 15,
+        "TENIS": 15,
+        "BR-VZ-MD-ML-MKA-O": 15
+      }
+    },
+    "GRICELDA": {
+      "cod_nexus_excel": 11,
+      "casos": {
+        "CARTERAS": 60,
+        "PROMOCIONAL": 61,
+        "CLASICOS": 60,
+        "TENIS": 60,
+        "BR-VZ-MD-ML-MKA-O": 60
+      }
+    },
+    "HUGO": {
+      "cod_nexus_excel": 12,
+      "casos": {
+        "ACT-BRSPORT": 81
+      }
+    },
+    "YRMA": {
+      "cod_nexus_excel": 13,
+      "casos": {
+        "CARTERAS": 44,
+        "PROMOCIONAL": 64,
+        "CLASICOS": 44,
+        "TENIS": 44,
+        "BR-VZ-MD-ML-MKA-O": 44
+      }
+    },
+    "KOTE": {
+      "cod_nexus_excel": 14,
+      "casos": {
+        "CARTERAS": 36,
+        "PROMOCIONAL": 37,
+        "CLASICOS": 36,
+        "TENIS": 36,
+        "BR-VZ-MD-ML-MKA-O": 36
+      }
+    },
+    "LILIANA": {
+      "cod_nexus_excel": 15,
+      "casos": {
+        "CARTERAS": 91,
+        "PROMOCIONAL": 93,
+        "CLASICOS": 91,
+        "TENIS": 91,
+        "BR-VZ-MD-ML-MKA-O": 91
+      }
+    },
+    "LUISLV": {
+      "cod_nexus_excel": 16,
+      "casos": {
+        "CARTERAS": 78,
+        "PROMOCIONAL": 79,
+        "CLASICOS": 78,
+        "TENIS": 78,
+        "BR-VZ-MD-ML-MKA-O": 78
+      }
+    },
+    "MARCELO": {
+      "cod_nexus_excel": 17,
+      "casos": {
+        "CARTERAS": 66,
+        "PROMOCIONAL": 98,
+        "CLASICOS": 66,
+        "TENIS": 66,
+        "BR-VZ-MD-ML-MKA-O": 66
+      }
+    },
+    "MARIO": {
+      "cod_nexus_excel": 18,
+      "casos": {
+        "CARTERAS": 35,
+        "PROMOCIONAL": 38,
+        "CLASICOS": 35,
+        "TENIS": 35,
+        "BR-VZ-MD-ML-MKA-O": 35
+      }
+    }
+  }
+}

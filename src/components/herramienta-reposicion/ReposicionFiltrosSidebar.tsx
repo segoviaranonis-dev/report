@@ -9,25 +9,53 @@ import {
   type OperativaOpciones,
 } from "@/lib/depositos/operativa-filters";
 import {
+  PE_TIPO_DICCIONARIO_OPCIONES,
+  parsePeTipoSelected,
+  togglePeTipoDiccionario,
+  type PeTipoDiccionarioId,
+} from "@/lib/stock-pronta-entrega/filtro-tipo-pe-diccionario";
+import {
   TIPO_GRUPO_OPCIONES,
+  sanitizeTipoGruposParaRamo,
+  tipoGrupoOpcionesVisibles,
   toggleTipoGrupo,
   type TipoGrupoId,
 } from "@/lib/filtros/filtro-tipo-canonico";
 import {
+  tituloAbcrSidebar,
+  esRamoAccesorios,
+} from "@/lib/filtros/modulo-accesorios";
+import {
   toggleFamiliaKey,
   type FamiliaPilarItem,
 } from "@/lib/pilares/agrupar-etiqueta-pilar";
-import { TIPO_V2_CALZADO, TIPO_V2_CONFECCIONES } from "@/lib/retail/product-image-protocol";
+import { RIMEC_SDRM_DEPOSIT_MAP } from "@/lib/deposito-rimec/rimec-csv-sdrm";
+import type { OperativaRamoTipo } from "@/lib/depositos/operativa-filters";
+
+const SEG_BTN =
+  "rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition";
+const SEG_ON = "border-rimec-azul bg-rimec-azul text-white";
+const SEG_OFF = "border-slate-200 bg-white text-slate-600 hover:bg-slate-50";
+
+const PE_RAMO_LABEL: Record<Exclude<OperativaRamoTipo, "">, string> = {
+  CALZADO: "Calzado",
+  CONFECCIONES: "Confecciones",
+  ACCESORIOS: "Carteras y accesorios",
+};
 
 type Props = {
   filtros: OperativaFilterState;
   onChange: React.Dispatch<React.SetStateAction<OperativaFilterState>>;
   opciones: OperativaOpciones;
   emptyFilters: OperativaFilterState;
-  soloConStock: boolean;
-  onSoloConStockChange: (v: boolean) => void;
+  soloConStock?: boolean;
+  onSoloConStockChange?: (v: boolean) => void;
   trailing?: React.ReactNode;
   className?: string;
+  /** `pe` = Stock / Depósito / Categoría segmentados (paridad RIMEC Web). */
+  variant?: "default" | "pe";
+  depositoLegal?: string;
+  onDepositoLegalChange?: (v: string) => void;
 };
 
 function cap(s: string) {
@@ -150,13 +178,13 @@ function MultiSelectGroup({
   );
 }
 
-function TipoMultiSelectGroup({
+function PeTipoDiccionarioMultiSelectGroup({
   selected,
   onToggle,
   onClear,
 }: {
-  selected: TipoGrupoId[];
-  onToggle: (id: TipoGrupoId) => void;
+  selected: PeTipoDiccionarioId[];
+  onToggle: (id: PeTipoDiccionarioId) => void;
   onClear: () => void;
 }) {
   const n = selected.length;
@@ -164,8 +192,59 @@ function TipoMultiSelectGroup({
     <details className="group rounded-lg border border-slate-200/90 bg-white">
       <AcordeonHeader title="Tipo" count={n} onClear={onClear} />
       <div className="border-t border-slate-100 p-1.5">
+        <p className="px-1 pb-1 text-[10px] uppercase tracking-wide text-slate-500">
+          Diccionario pronta entrega · COD.GRUPO
+        </p>
+        <ul className="max-h-36 space-y-0.5 overflow-y-auto" role="group" aria-label="Tipo · diccionario PE">
+          {PE_TIPO_DICCIONARIO_OPCIONES.map((item) => {
+            const on = selected.includes(item.id);
+            return (
+              <li key={item.id}>
+                <label
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                    on
+                      ? "bg-rimec-azul/10 font-semibold text-rimec-azul-dark"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => onToggle(item.id)}
+                    className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-rimec-azul focus:ring-rimec-azul/30"
+                  />
+                  <span className="min-w-0 flex-1 truncate" title={item.label}>
+                    {item.label}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </details>
+  );
+}
+
+function TipoMultiSelectGroup({
+  selected,
+  onToggle,
+  onClear,
+  opciones = TIPO_GRUPO_OPCIONES,
+}: {
+  selected: TipoGrupoId[];
+  onToggle: (id: TipoGrupoId) => void;
+  onClear: () => void;
+  opciones?: typeof TIPO_GRUPO_OPCIONES;
+}) {
+  if (!opciones.length) return null;
+  const n = selected.length;
+  return (
+    <details className="group rounded-lg border border-slate-200/90 bg-white">
+      <AcordeonHeader title="Tipo" count={n} onClear={onClear} />
+      <div className="border-t border-slate-100 p-1.5">
         <ul className="max-h-36 space-y-0.5 overflow-y-auto" role="group" aria-label="Tipo · multi-selección">
-          {TIPO_GRUPO_OPCIONES.map((item) => {
+          {opciones.map((item) => {
             const on = selected.includes(item.id);
             return (
               <li key={item.id}>
@@ -306,8 +385,8 @@ function BloqueColapsable({
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-sm lg:w-56">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+    <div className="flex max-h-[calc(100vh-5rem)] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-sm lg:w-56">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-rimec-azul">{title}</p>
         </div>
@@ -322,7 +401,9 @@ function BloqueColapsable({
           ◂
         </button>
       </div>
-      <div className="flex max-h-[calc(100vh-6rem)] flex-col gap-2 overflow-y-auto p-3">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3">
+        <div className="flex flex-col gap-2">{children}</div>
+      </div>
     </div>
   );
 }
@@ -337,35 +418,54 @@ export function ReposicionFiltrosSidebar({
   onChange,
   opciones,
   emptyFilters,
-  soloConStock,
+  soloConStock = false,
   onSoloConStockChange,
   trailing,
   className = "",
+  variant = "default",
+  depositoLegal = "",
+  onDepositoLegalChange,
 }: Props) {
   const [bloqueDimOpen, setBloqueDimOpen] = useState(true);
   const [bloqueMolOpen, setBloqueMolOpen] = useState(true);
+  const esPe = variant === "pe";
 
   const patch = (p: Partial<OperativaFilterState>) =>
     onChange((prev) => ({ ...prev, ...p }));
 
   const dirty =
     hayFiltrosActivos(filtros) ||
-    JSON.stringify(filtros) !== JSON.stringify(emptyFilters);
+    JSON.stringify(filtros) !== JSON.stringify(emptyFilters) ||
+    (esPe && !!depositoLegal);
 
-  const catItems: DepositoFilterItem[] =
-    opciones.tipoV2.length > 0
-      ? opciones.tipoV2
-      : [
-          { id: TIPO_V2_CALZADO, label: "Calzado" },
-          { id: TIPO_V2_CONFECCIONES, label: "Confecciones" },
-        ];
+  const setRamo = (next: OperativaRamoTipo) => {
+    const clear = filtros.ramoTipo === next;
+    const ramoTipo: OperativaRamoTipo = clear ? "" : next;
+    onChange((prev) => ({
+      ...prev,
+      ramoTipo,
+      tipoV2Ids: [],
+      tipoGrupos: sanitizeTipoGruposParaRamo(prev.tipoGrupos, ramoTipo),
+      grupoEstiloIds: [],
+      tipo1Ids: [],
+      lineaIds: [],
+      materialFamilias: [],
+      colorFamilias: [],
+    }));
+  };
+
+  const ramo = (filtros.ramoTipo ?? "") as OperativaRamoTipo;
+
+  const peTipoSelected = parsePeTipoSelected(filtros.tipoGrupos);
 
   const badgeDim =
+    (ramo ? 1 : 0) +
     filtros.tipoV2Ids.length +
     filtros.tipo1Ids.length +
     filtros.marcaIds.length +
-    filtros.tipoGrupos.length +
-    filtros.generoIds.length;
+    (esPe ? peTipoSelected.length : filtros.tipoGrupos.length) +
+    filtros.generoIds.length +
+    (esPe && depositoLegal ? 1 : 0);
 
   const badgeMol =
     filtros.grupoEstiloIds.length +
@@ -375,7 +475,7 @@ export function ReposicionFiltrosSidebar({
 
   return (
     <div
-      className={`flex w-full flex-col gap-3 sm:flex-row sm:items-stretch ${className}`}
+      className={`flex w-full min-h-0 flex-col gap-3 sm:flex-row sm:items-start ${className}`}
       aria-label="Filtros reposición · dos bloques ocultables"
     >
       <BloqueColapsable
@@ -390,12 +490,91 @@ export function ReposicionFiltrosSidebar({
           {dirty ? (
             <button
               type="button"
-              onClick={() => onChange(emptyFilters)}
+              onClick={() => {
+                onChange(emptyFilters);
+                onDepositoLegalChange?.("");
+              }}
               className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[10px] font-bold text-red-700 hover:bg-red-50"
             >
               Reset
             </button>
           ) : null}
+        </div>
+
+        {esPe ? (
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              Stock
+            </span>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled
+                title="Compra previa · usar Alejandro Magno / catálogo CP"
+                className={`${SEG_BTN} ${SEG_OFF} cursor-not-allowed opacity-60`}
+              >
+                🚢 Compra previa
+              </button>
+              <button
+                type="button"
+                className={`${SEG_BTN} ${SEG_ON}`}
+                aria-pressed
+              >
+                📦 Pronta entrega
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {esPe && onDepositoLegalChange ? (
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              Depósito
+            </span>
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => onDepositoLegalChange("")}
+                className={`${SEG_BTN} ${!depositoLegal ? SEG_ON : SEG_OFF}`}
+              >
+                Todos
+              </button>
+              {RIMEC_SDRM_DEPOSIT_MAP.map((d) => (
+                <button
+                  key={d.csvColumn}
+                  type="button"
+                  onClick={() =>
+                    onDepositoLegalChange(
+                      depositoLegal === d.csvColumn ? "" : d.csvColumn,
+                    )
+                  }
+                  className={`${SEG_BTN} ${
+                    depositoLegal === d.csvColumn ? SEG_ON : SEG_OFF
+                  }`}
+                >
+                  {d.deposito_codigo}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            Categoría
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {(["CALZADO", "CONFECCIONES", "ACCESORIOS"] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setRamo(id)}
+                className={`${SEG_BTN} ${ramo === id ? SEG_ON : SEG_OFF}`}
+              >
+                {PE_RAMO_LABEL[id]}
+              </button>
+            ))}
+          </div>
         </div>
 
         <label className="block space-y-1">
@@ -411,27 +590,8 @@ export function ReposicionFiltrosSidebar({
           />
         </label>
 
-        {/* Orden canónico: 1 Categoría · 2 AB-CR · 3 Marca · 4 Tipo */}
         <MultiSelectGroup
-          title="Categoría"
-          items={catItems.map((x) => ({
-            ...x,
-            label: cap(String(x.label)),
-          }))}
-          selected={filtros.tipoV2Ids}
-          onToggle={(id) =>
-            onChange((prev) => ({
-              ...prev,
-              tipoV2Ids: toggleOperativaId(prev.tipoV2Ids, id),
-            }))
-          }
-          onClear={() => patch({ tipoV2Ids: [] })}
-          maxH="max-h-24"
-          defaultOpen
-        />
-
-        <MultiSelectGroup
-          title="AB - CR"
+          title={tituloAbcrSidebar(filtros.ramoTipo)}
           items={opciones.tipo1}
           selected={filtros.tipo1Ids}
           onToggle={(id) =>
@@ -441,6 +601,7 @@ export function ReposicionFiltrosSidebar({
             }))
           }
           onClear={() => patch({ tipo1Ids: [] })}
+          defaultOpen={esPe}
         />
 
         <MultiSelectGroup
@@ -457,16 +618,34 @@ export function ReposicionFiltrosSidebar({
           maxH="max-h-44"
         />
 
-        <TipoMultiSelectGroup
-          selected={filtros.tipoGrupos}
-          onToggle={(id) =>
-            onChange((prev) => ({
-              ...prev,
-              tipoGrupos: toggleTipoGrupo(prev.tipoGrupos, id),
-            }))
-          }
-          onClear={() => patch({ tipoGrupos: [] })}
-        />
+        {esPe ? (
+          <PeTipoDiccionarioMultiSelectGroup
+            selected={peTipoSelected}
+            onToggle={(id) =>
+              onChange((prev) => ({
+                ...prev,
+                tipoGrupos: togglePeTipoDiccionario(peTipoSelected, id) as TipoGrupoId[],
+                cadenaComercial: null,
+              }))
+            }
+            onClear={() => patch({ tipoGrupos: [], cadenaComercial: null })}
+          />
+        ) : (
+          <TipoMultiSelectGroup
+            selected={filtros.tipoGrupos}
+            opciones={tipoGrupoOpcionesVisibles(filtros.ramoTipo)}
+            onToggle={(id) =>
+              onChange((prev) => ({
+                ...prev,
+                tipoGrupos: sanitizeTipoGruposParaRamo(
+                  toggleTipoGrupo(prev.tipoGrupos, id),
+                  prev.ramoTipo,
+                ),
+              }))
+            }
+            onClear={() => patch({ tipoGrupos: [] })}
+          />
+        )}
 
         <MultiSelectGroup
           title="Género"
@@ -481,15 +660,17 @@ export function ReposicionFiltrosSidebar({
           onClear={() => patch({ generoIds: [] })}
         />
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700">
-          <input
-            type="checkbox"
-            checked={soloConStock}
-            onChange={(e) => onSoloConStockChange(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-slate-300 text-rimec-azul"
-          />
-          Solo con stock disponible
-        </label>
+        {!esPe && onSoloConStockChange ? (
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={soloConStock}
+              onChange={(e) => onSoloConStockChange(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-rimec-azul"
+            />
+            Solo con stock disponible
+          </label>
+        ) : null}
 
         {trailing}
       </BloqueColapsable>

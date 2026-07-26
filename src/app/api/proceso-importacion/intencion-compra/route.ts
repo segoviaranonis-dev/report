@@ -17,7 +17,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "JSON inválido" }, { status: 400 });
   }
 
-  const result = await saveIntencion(getRimecPool(), body);
+  const result = await saveIntencion(getRimecPool(), body, {
+    id: gate.session!.id_usuario,
+    name: gate.session!.name,
+  });
   if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, numero_registro: result.numero_registro, id: result.id });
 }

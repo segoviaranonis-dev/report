@@ -4,7 +4,10 @@ import { icApiErrorResponse } from "@/lib/intencion-compra/ic-api-error";
 import { recalcularFisPp } from "@/lib/pedido-proveedor/recalcular-fis-pp";
 import { runVincularListadoPython } from "@/lib/pedido-proveedor/run-python-listado";
 import { vincularListadoAPp } from "@/lib/pedido-proveedor/stock-listado";
-import { formatCertificacionPreciosCp } from "@/lib/pedido-proveedor/certificar-precios-cp";
+import {
+  certificarPreciosCpRimec,
+  formatCertificacionPreciosCp,
+} from "@/lib/pedido-proveedor/certificar-precios-cp";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 type Params = { params: Promise<{ ppId: string }> };
@@ -77,6 +80,31 @@ export async function POST(req: Request, { params }: Params) {
         recalcMessage = recalc.message;
       }
 
+      const pool = getRimecPool();
+      await pool.query(`
+        UPDATE carrito_item ci
+        SET precio_snapshot = v.lpn
+        FROM v_stock_rimec v
+        JOIN pedido_proveedor pp ON pp.id = v.pp_id
+        WHERE ci.det_id = v.det_id AND v.pp_id = $1
+          AND pp.estado_transito = 'EN_TRANSITO'
+          AND COALESCE(v.lpn, 0) > 0
+          AND ci.precio_snapshot IS DISTINCT FROM v.lpn
+      `, [ppId]);
+
+      const certificacion = await certificarPreciosCpRimec(pool, ppId);
+      if (!certificacion.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: formatCertificacionPreciosCp(certificacion),
+            certificacion,
+            partial: { snapshot: result.detalle, actualizados: result.actualizados, recalc: recalcStats },
+          },
+          { status: 422 },
+        );
+      }
+
       return NextResponse.json({
         ok: true,
         message: recalcMessage
@@ -85,14 +113,12 @@ export async function POST(req: Request, { params }: Params) {
             : "Listado vinculado — solo tránsito (motor TS)"),
         stats: {
           snapshot: { ...(result.detalle ?? {}), actualizados: result.actualizados ?? 0 },
-          certificacion: result.certificacion ?? null,
+          certificacion,
           ...recalcStats,
         },
-        certificacion: result.certificacion ?? null,
-        certificacion_ok: result.certificacion?.ok ?? null,
-        certificacion_msg: result.certificacion
-          ? formatCertificacionPreciosCp(result.certificacion)
-          : undefined,
+        certificacion,
+        certificacion_ok: certificacion.ok,
+        certificacion_msg: formatCertificacionPreciosCp(certificacion),
         actualizados: result.actualizados,
       });
     }
