@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { PeImportadoraCard } from "@/lib/depositos/agrupar-pe-importadora";
 import { formatPrecioGs } from "@/lib/depositos/precio-venta";
 import { VENTA_VISUAL } from "@/lib/nexus/venta-visual";
-import { productImageCandidatesForRow } from "@/lib/retail/product-image";
+import { productImageCandidatesForRow, productImagePrimaryFileName } from "@/lib/retail/product-image";
 import { isConfecciones638, etiquetaUnidadStock } from "@/lib/deposito-rimec/grada-abierta-638";
 import { cadenaPeDeRow, etiquetaCadenaPeUi } from "@/lib/stock-pronta-entrega/diccionario-pe";
 import {
@@ -81,6 +81,17 @@ export function PeCardMiniatura({
     [p, imageCtx],
   );
 
+  const nombreFotoDisplay = useMemo(() => {
+    const fn = productImagePrimaryFileName(
+      p.linea_codigo_proveedor,
+      p.referencia_codigo_proveedor,
+      p.material_code,
+      p.color_code,
+      { ...imageCtx, imagenNombre: p.imagen_nombre },
+    );
+    return fn?.replace(/\.jpe?g$/i, "") ?? null;
+  }, [p, imageCtx]);
+
   const stockPos = shell === "liquidacion" ? "bottom-1.5" : "top-1.5";
 
   const stockBadge = showVentas ? (
@@ -135,6 +146,14 @@ export function PeCardMiniatura({
         </button>
 
         <div className="flex min-h-0 flex-1 flex-col gap-1 p-2">
+          {esConf && nombreFotoDisplay ? (
+            <p
+              className="truncate px-0.5 font-mono text-[10px] font-semibold text-slate-800"
+              title={nombreFotoDisplay}
+            >
+              {nombreFotoDisplay}
+            </p>
+          ) : null}
           <div className="flex min-h-[14px] items-start justify-between gap-1">
             <div className="flex min-w-0 items-center gap-1">
               <p className="min-w-0 truncate text-[10px] font-bold uppercase text-rimec-azul">{p.marca}</p>
@@ -154,7 +173,7 @@ export function PeCardMiniatura({
             ) : null}
           </div>
           <p className="truncate font-mono text-xs font-semibold text-slate-900">
-            {p.linea_codigo_proveedor}.{p.referencia_codigo_proveedor}
+            {!esConf ? `${p.linea_codigo_proveedor}.${p.referencia_codigo_proveedor}` : null}
           </p>
 
           {!expanded ? (
