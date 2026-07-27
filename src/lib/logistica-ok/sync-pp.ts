@@ -109,6 +109,7 @@ export async function syncLogisticaPp(
         ELSE NULL
       END,
       CASE
+        WHEN $3::text = 'PE' THEN 'PENDIENTE'
         WHEN fi.fecha_entrega_cliente IS NOT NULL
          AND EXTRACT(YEAR FROM fi.fecha_entrega_cliente::timestamp) >= 2000
         THEN 'CONFIRMADA'
@@ -124,7 +125,7 @@ export async function syncLogisticaPp(
       LIMIT 1
     ) cad ON true
     WHERE fi.pp_id = $1
-      AND fi.estado IN ('CONFIRMADA', 'RESERVADA')
+      AND fi.estado = 'CONFIRMADA'
       AND fi.cliente_id IS NOT NULL
     ON CONFLICT (factura_interna_id) DO UPDATE SET
       pedido_proveedor_id = EXCLUDED.pedido_proveedor_id,
@@ -142,6 +143,7 @@ export async function syncLogisticaPp(
         logistica_pendiente_confirmacion.fecha_entrega_vendedor
       ),
       estado = CASE
+        WHEN EXCLUDED.entidad_am = 'PE' THEN 'PENDIENTE'
         WHEN EXCLUDED.fecha_entrega_vendedor IS NOT NULL THEN 'CONFIRMADA'
         ELSE logistica_pendiente_confirmacion.estado
       END,
