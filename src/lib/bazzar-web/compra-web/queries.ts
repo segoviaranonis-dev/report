@@ -3,6 +3,7 @@
  */
 import { getRimecPool } from "@/lib/rimec/pool";
 import { ALM_WEB_BAZAR, bindClienteWebParams } from "./constants";
+import { LPN_CASO_LATERAL_SQL } from "@/lib/bazzar-web/motor-precio/lpn-caso-sql";
 import type {
   FacturaLineaLegacy,
   FiDetalleCanonico,
@@ -90,6 +91,7 @@ export async function getTraspasos(estado: string | null): Promise<TraspasoListI
     factura: string | null;
     compra: string;
     pares_detalle: string | number;
+    fi_pares: string | number;
   }>(
     `
     SELECT
@@ -102,8 +104,11 @@ export async function getTraspasos(estado: string | null): Promise<TraspasoListI
       COALESCE(
         (SELECT SUM(td.cantidad) FROM traspaso_detalle td WHERE td.traspaso_id = t.id),
         0
-      ) AS pares_detalle
+      ) AS pares_detalle,
+      COALESCE(fi.total_pares, 0) AS fi_pares
     FROM traspaso t
+    LEFT JOIN factura_interna fi ON fi.nro_factura = t.documento_ref
+      AND fi.estado IN ('CONFIRMADA', 'RESERVADA')
     LEFT JOIN compra_legal cl ON cl.id = t.compra_legal_id
     ${where}
     ORDER BY t.fecha_traspaso DESC, t.id DESC
@@ -111,15 +116,21 @@ export async function getTraspasos(estado: string | null): Promise<TraspasoListI
     params,
   );
 
-  return rows.map((r) => ({
-    id: r.id,
-    numero_registro: r.numero_registro,
-    fecha_traspaso: r.fecha_traspaso ? String(r.fecha_traspaso).slice(0, 10) : null,
-    estado: r.estado,
-    factura: r.factura || "—",
-    compra: r.compra,
-    pares_detalle: Number(r.pares_detalle) || 0,
-  }));
+  return rows.map((r) => {
+    const paresDetalle = Number(r.pares_detalle) || 0;
+    const fiPares = Number(r.fi_pares) || 0;
+    return {
+      id: r.id,
+      numero_registro: r.numero_registro,
+      fecha_traspaso: r.fecha_traspaso ? String(r.fecha_traspaso).slice(0, 10) : null,
+      estado: r.estado,
+      factura: r.factura || "—",
+      compra: r.compra,
+      pares_detalle: paresDetalle,
+      fi_pares: fiPares,
+      integridad_ok: fiPares <= 0 || paresDetalle === fiPares,
+    };
+  });
 }
 
 /** get_traspaso_detail — rechaza traspasos fuera de cliente 5000 */
@@ -185,7 +196,12 @@ export async function getTraspasoDetalleLines(idTrp: number): Promise<TraspasoDe
       col.nombre AS color,
       tl.talla_etiqueta AS talla,
       td.cantidad,
-      COALESCE(pl.nombre_caso_aplicado, '—') AS caso_nombre
+      COALESCE(
+        NULLIF(btrim(pl.nombre_caso_aplicado), ''),
+        NULLIF(btrim(pe_pl.caso_precio), ''),
+        NULLIF(btrim(fi.caso), ''),
+        '—'
+      ) AS caso_nombre
     FROM traspaso_detalle td
     JOIN combinacion c ON c.id = td.combinacion_id
     JOIN linea l ON l.id = c.linea_id
@@ -193,13 +209,11 @@ export async function getTraspasoDetalleLines(idTrp: number): Promise<TraspasoDe
     LEFT JOIN material mat ON mat.id = c.material_id
     LEFT JOIN color col ON col.id = c.color_id
     JOIN talla tl ON tl.id = c.talla_id
-    LEFT JOIN traspaso t ON t.id = td.traspaso_id
-    LEFT JOIN factura_interna fi ON fi.nro_factura = t.documento_ref
+    LEFT JOIN traspaso tr ON tr.id = td.traspaso_id
+    LEFT JOIN factura_interna fi ON fi.nro_factura = tr.documento_ref
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
-    LEFT JOIN precio_lista pl ON pl.evento_id = icp.precio_evento_id
-      AND pl.linea_codigo = l.codigo_proveedor::text
-      AND pl.referencia_codigo = r.codigo_proveedor::text
+    ${LPN_CASO_LATERAL_SQL}
     WHERE td.traspaso_id = $1
     ORDER BY l.codigo_proveedor, r.codigo_proveedor, tl.talla_etiqueta
     `,
@@ -223,15 +237,25 @@ export async function getTraspasoDetalleLines(idTrp: number): Promise<TraspasoDe
   const snapRes = await pool.query<{ snapshot_json: unknown; caso_nombre: string | null }>(
     `
     SELECT
-      t.snapshot_json,
-      MAX(pl.nombre_caso_aplicado) AS caso_nombre
-    FROM traspaso t
-    LEFT JOIN factura_interna fi ON fi.nro_factura = t.documento_ref
+      tr.snapshot_json,
+      COALESCE(
+        NULLIF(btrim(MAX(pl.nombre_caso_aplicado)), ''),
+        NULLIF(btrim(MAX(pe_pl.caso_precio)), ''),
+        NULLIF(btrim(MAX(fi.caso)), ''),
+        '—'
+      ) AS caso_nombre
+    FROM traspaso tr
+    LEFT JOIN factura_interna fi ON fi.nro_factura = tr.documento_ref
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
-    LEFT JOIN precio_lista pl ON pl.evento_id = icp.precio_evento_id
-    WHERE t.id = $1
-    GROUP BY t.id, t.snapshot_json
+    LEFT JOIN traspaso_detalle td ON td.traspaso_id = tr.id
+    LEFT JOIN combinacion c ON c.id = td.combinacion_id
+    LEFT JOIN linea l ON l.id = c.linea_id
+    LEFT JOIN referencia r ON r.id = c.referencia_id
+    LEFT JOIN material mat ON mat.id = c.material_id
+    ${LPN_CASO_LATERAL_SQL}
+    WHERE tr.id = $1
+    GROUP BY tr.id, tr.snapshot_json
     `,
     [idTrp],
   );

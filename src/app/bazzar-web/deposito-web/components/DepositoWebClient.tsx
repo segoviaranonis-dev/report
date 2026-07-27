@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { buildPivotByTalla } from "@/lib/bazzar-web/deposito-web/pivot";
+import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 import type {
   DepositoResumenRow,
   DepositoStockRow,
@@ -188,6 +189,7 @@ function MarcaAccordion({
           <table className="min-w-full text-sm">
             <thead className="text-left text-xs uppercase text-slate-500">
               <tr>
+                <th className="py-2 pr-2 w-12" aria-label="Foto" />
                 <th className="py-2 pr-3">Línea</th>
                 <th className="py-2 pr-3">Ref.</th>
                 <th className="py-2 pr-3">Material</th>
@@ -201,6 +203,15 @@ function MarcaAccordion({
                   key={`${row.linea}-${row.referencia}-${row.material}-${row.color}`}
                   className="border-t border-slate-100"
                 >
+                  <td className="py-2 pr-2 align-middle">
+                    <DepositoProductThumb
+                      linea={row.linea}
+                      referencia={row.referencia}
+                      material={row.material}
+                      color={row.color}
+                      size={40}
+                    />
+                  </td>
                   <td className="py-2 pr-3">{row.linea}</td>
                   <td className="py-2 pr-3">{row.referencia}</td>
                   <td className="py-2 pr-3">{row.material}</td>

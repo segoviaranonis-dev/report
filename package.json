@@ -11,7 +11,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "audit:encajar-filtros": "npx tsx scripts/audit_encajar_filtros.mts"
+    "audit:encajar-filtros": "npx tsx scripts/audit_encajar_filtros.mts",
+    "smoke:bazzar-web": "npx tsx scripts/smoke_bazzar_web_publicacion.mts",
+    "audit:traspaso-gradas": "npx tsx scripts/audit_resync_traspaso_gradas.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

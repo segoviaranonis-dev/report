@@ -7,6 +7,7 @@ import {
   getTraspasoDetail,
   getTraspasoDetalleLines,
 } from "@/lib/bazzar-web/compra-web/queries";
+import { getTraspasoIntegridad } from "@/lib/bazzar-web/compra-web/integridad";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,6 +30,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     const lineas = await getTraspasoDetalleLines(id);
+    const integridad = await getTraspasoIntegridad(id);
     const docRef = detail.factura !== "—" ? detail.factura : "";
 
     let fi = null;
@@ -48,6 +50,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       configured: true,
       detail,
       lineas,
+      integridad,
       fi,
       fiDetalles,
       legacyLineas,

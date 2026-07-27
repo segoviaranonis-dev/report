@@ -5,6 +5,8 @@ import type { PoolClient } from "pg";
 import { getRimecPool } from "@/lib/rimec/pool";
 import { ALM_TRANSITO, ALM_WEB_BAZAR, CLIENTE_WEB_BAZAR_ID } from "./constants";
 import { hydrateTraspasoDetalleFromSnapshot } from "./traspaso-detalle-hydrate";
+import { getTraspasoIntegridad } from "./integridad";
+import { resyncTraspasoDetalleFromFactura } from "@/lib/rimec-abastecimiento/traspaso-mutations";
 import { aplicarStockSanoAlmacen } from "@/lib/bazzar-web/stock-sano/aplicar";
 
 export type ProcesarIngresoResult = { ok: true; message: string } | { ok: false; error: string };
@@ -49,6 +51,24 @@ async function procesarIngresoBazarTx(client: PoolClient, idTrp: number): Promis
       ok: false,
       error: `Traspaso no pertenece al cliente web (${CLIENTE_WEB_BAZAR_ID}). Solo mercadería canal e-commerce.`,
     };
+  }
+
+  let integ = await getTraspasoIntegridad(idTrp, client);
+  if (!integ.ok && integ.fi_pares > 0) {
+    const resync = await resyncTraspasoDetalleFromFactura(client, idTrp);
+    if (!resync.ok) {
+      return {
+        ok: false,
+        error: `Integridad pares: FI ${integ.fi_pares} ≠ detalle ${integ.td_pares}. Resync: ${resync.error}`,
+      };
+    }
+    integ = await getTraspasoIntegridad(idTrp, client);
+    if (!integ.ok) {
+      return {
+        ok: false,
+        error: `Integridad pares tras resync: FI ${integ.fi_pares} ≠ detalle ${integ.td_pares} (Δ ${integ.delta}). Abortado.`,
+      };
+    }
   }
 
   await hydrateTraspasoDetalleFromSnapshot(client, idTrp);

@@ -6,6 +6,16 @@ export type TraspasoListItem = {
   factura: string;
   compra: string;
   pares_detalle: number;
+  /** Pares FI cuando documento_ref es factura_interna */
+  fi_pares: number;
+  integridad_ok: boolean;
+};
+
+export type TraspasoIntegridadPayload = {
+  fi_pares: number;
+  td_pares: number;
+  delta: number;
+  ok: boolean;
 };
 
 export type TraspasoDetail = {

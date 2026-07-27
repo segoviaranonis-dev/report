@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import type { CatalogoPrecioRow, ReglaMarkup, SimularPrecioResult } from "@/lib/bazzar-web/motor-precio/types";
+import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 
 const WEB_NAVY = "#1E3A5F";
 const WEB_ORANGE = "#F97316";
@@ -522,6 +523,7 @@ function CatalogoTable({
       <table className="min-w-full text-left text-sm">
         <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
+            <th className="px-2 py-2 w-12" aria-label="Foto" />
             <th className="px-3 py-2">Línea</th>
             <th className="px-3 py-2">Ref</th>
             <th className="px-3 py-2">Material</th>
@@ -545,6 +547,15 @@ function CatalogoTable({
                 key={key}
                 className={`border-b border-slate-100 ${highlight === "warn" ? "bg-amber-50/50" : ""}`}
               >
+                <td className="px-2 py-2 align-middle">
+                  <DepositoProductThumb
+                    linea={r.linea}
+                    referencia={r.referencia}
+                    material={r.material}
+                    color=""
+                    size={36}
+                  />
+                </td>
                 <td className="px-3 py-2 font-mono text-xs">{r.linea}</td>
                 <td className="px-3 py-2 font-mono text-xs">{r.referencia}</td>
                 <td className="px-3 py-2 max-w-[140px] truncate">{r.material}</td>

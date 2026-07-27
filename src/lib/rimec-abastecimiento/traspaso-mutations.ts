@@ -91,17 +91,22 @@ export function scaleGradesToPares(grades: Record<string, number>, pares: number
   return tallas;
 }
 
-function gradasFmtToTallas(gradasFmt: string): Record<string, number> {
+/** Parsea grada textual RIMEC (ej. `38(1 2 3 3 2 1)43`, `37/8(2-4-4-2)43/4`). */
+export function gradasFmtToTallas(gradasFmt: string): Record<string, number> {
   if (!gradasFmt.includes("(") || !gradasFmt.includes(")")) return {};
   try {
     const [inicioStr, resto] = gradasFmt.split("(", 2);
     const [cantidadesStr] = resto.split(")", 1);
-    const tallaInicio = parseInt(inicioStr.trim(), 10);
-    const cantidades = cantidadesStr.split(/[\s\-]+/).map((x) => parseInt(x.trim(), 10)).filter((n) => !Number.isNaN(n));
+    const tallaInicio = tallaKeyToNum(inicioStr.trim());
+    if (tallaInicio == null) return {};
+    const cantidades = cantidadesStr
+      .split(/[\s\-]+/)
+      .map((x) => parseInt(x.trim(), 10))
+      .filter((n) => !Number.isNaN(n));
     const tallas: Record<string, number> = {};
     cantidades.forEach((qty, idx) => {
       const tallaNum = tallaInicio + idx;
-      if (tallaNum >= 33 && tallaNum <= 40 && qty > 0) tallas[`t${tallaNum}`] = qty;
+      if (tallaKeyToNum(String(tallaNum)) != null && qty > 0) tallas[`t${tallaNum}`] = qty;
     });
     return tallas;
   } catch {
@@ -122,7 +127,13 @@ export function extractTallasFromFiRow(row: {
   if (!Object.keys(tallas).length && row.linea_snapshot) {
     const snap = parseJsonRecord(row.linea_snapshot);
     const fmt = snap ? String(snap.gradas_fmt ?? snap.grada ?? "") : "";
-    if (fmt) tallas = gradasFmtToTallas(fmt);
+    if (fmt) {
+      const raw = gradasFmtToTallas(fmt);
+      tallas =
+        row.pares > 0 && Object.keys(raw).length
+          ? scaleGradesToPares(raw, row.pares)
+          : raw;
+    }
     if (!Object.keys(tallas).length && snap?.tallas && typeof snap.tallas === "object") {
       tallas = scaleGradesToPares(snap.tallas as Record<string, number>, row.pares);
     }
@@ -241,34 +252,7 @@ export async function crearTraspasoPorFactura(
   const trpId = ins.rows[0]?.id;
   if (!trpId) throw new Error("No se pudo crear traspaso");
 
-  let paresPedidos = 0;
-  let paresInsertados = 0;
-  for (const rec of itemsTallas) {
-    for (const [col, qtyVal] of Object.entries(rec.tallas ?? {})) {
-      const qty = Math.trunc(Number(qtyVal) || 0);
-      if (qty <= 0) continue;
-      paresPedidos += qty;
-      const tNum = tallaKeyToNum(col);
-      const t = tNum != null ? String(tNum) : col.replace(/^t/i, "");
-      const combId = await resolveCombinacionId(client, rec.linea, rec.referencia, rec.material, rec.color, t);
-      if (!combId) {
-        throw new Error(
-          `Traspaso ${numeroFactura}: sin combinación L${rec.linea}/R${rec.referencia} talla ${t} ` +
-            `(mat=${rec.material} col=${rec.color}) — grada incompleta, abortado.`,
-        );
-      }
-      await client.query(
-        `INSERT INTO traspaso_detalle (traspaso_id, combinacion_id, cantidad) VALUES ($1, $2, $3)`,
-        [trpId, combId, qty],
-      );
-      paresInsertados += qty;
-    }
-  }
-  if (paresPedidos > 0 && paresInsertados !== paresPedidos) {
-    throw new Error(
-      `Traspaso ${numeroFactura}: pares pedidos ${paresPedidos} ≠ insertados ${paresInsertados}`,
-    );
-  }
+  await insertTraspasoDetalleLines(client, trpId, itemsTallas, numeroFactura);
   return trpId;
 }
 
@@ -462,6 +446,146 @@ export async function rechazarPpDeCompra(idCl: number, idPp: number): Promise<Mu
   } finally {
     client.release();
   }
+}
+
+async function insertTraspasoDetalleLines(
+  client: PoolClient,
+  trpId: number,
+  itemsTallas: ItemTallas[],
+  numeroFactura: string,
+): Promise<number> {
+  let paresPedidos = 0;
+  let paresInsertados = 0;
+  for (const rec of itemsTallas) {
+    for (const [col, qtyVal] of Object.entries(rec.tallas ?? {})) {
+      const qty = Math.trunc(Number(qtyVal) || 0);
+      if (qty <= 0) continue;
+      paresPedidos += qty;
+      const tNum = tallaKeyToNum(col);
+      const t = tNum != null ? String(tNum) : col.replace(/^t/i, "");
+      const combId = await resolveCombinacionId(client, rec.linea, rec.referencia, rec.material, rec.color, t);
+      if (!combId) {
+        throw new Error(
+          `Traspaso ${numeroFactura}: sin combinación L${rec.linea}/R${rec.referencia} talla ${t} ` +
+            `(mat=${rec.material} col=${rec.color}) — grada incompleta, abortado.`,
+        );
+      }
+      await client.query(
+        `INSERT INTO traspaso_detalle (traspaso_id, combinacion_id, cantidad) VALUES ($1, $2, $3)`,
+        [trpId, combId, qty],
+      );
+      paresInsertados += qty;
+    }
+  }
+  if (paresPedidos > 0 && paresInsertados !== paresPedidos) {
+    throw new Error(
+      `Traspaso ${numeroFactura}: pares pedidos ${paresPedidos} ≠ insertados ${paresInsertados}`,
+    );
+  }
+  return paresInsertados;
+}
+
+/** Reconstruye traspaso_detalle desde FI (corrige gradas truncadas / sin escala). */
+export async function resyncTraspasoDetalleFromFactura(
+  client: PoolClient,
+  traspasoId: number,
+): Promise<
+  | { ok: true; paresAntes: number; paresDespues: number; fiPares: number; documentoRef: string }
+  | { ok: false; error: string }
+> {
+  const trp = await client.query<{
+    documento_ref: string | null;
+    estado: string;
+    snapshot_json: unknown;
+  }>(`SELECT documento_ref, estado, snapshot_json FROM traspaso WHERE id = $1 FOR UPDATE`, [traspasoId]);
+  if (!trp.rows.length) return { ok: false, error: "Traspaso no encontrado." };
+
+  const { documento_ref: docRef, estado, snapshot_json: snapRaw } = trp.rows[0];
+  if (!docRef?.trim()) return { ok: false, error: "Traspaso sin documento_ref (FI)." };
+  if (estado === "CONFIRMADO") {
+    return { ok: false, error: "TRP CONFIRMADO — usar repararIngresoTraspasoConfirmado." };
+  }
+
+  const fi = await client.query<{ id: number; pp_id: number; total_pares: number }>(
+    `
+    SELECT fi.id, fi.pp_id, COALESCE(fi.total_pares, 0)::int AS total_pares
+    FROM factura_interna fi
+    WHERE fi.nro_factura = $1 AND fi.estado IN ('CONFIRMADA', 'RESERVADA')
+    LIMIT 1
+    `,
+    [docRef.trim()],
+  );
+  if (!fi.rows.length) return { ok: false, error: `FI ${docRef} no encontrada o no confirmada.` };
+
+  const fiId = fi.rows[0].id;
+  const idPp = fi.rows[0].pp_id;
+  const fiPares = fi.rows[0].total_pares;
+
+  const det = await client.query<{
+    linea: string;
+    referencia: string;
+    descp_material: string;
+    descp_color: string;
+    grades_json: unknown;
+    linea_snapshot: unknown;
+    pares: number;
+    id_marca: number;
+  }>(
+    `
+    SELECT ppd.linea, ppd.referencia, ppd.descp_material, ppd.descp_color,
+           ppd.grades_json, fid.linea_snapshot, fid.pares, COALESCE(ppd.id_marca, 0)::int AS id_marca
+    FROM factura_interna_detalle fid
+    JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+    WHERE fid.factura_id = $1
+    `,
+    [fiId],
+  );
+
+  const items: ItemTallas[] = [];
+  for (const r of det.rows) {
+    const tallas = extractTallasFromFiRow(r);
+    if (!Object.keys(tallas).length) continue;
+    items.push({
+      linea: String(r.linea ?? ""),
+      referencia: String(r.referencia ?? ""),
+      material: String(r.descp_material ?? ""),
+      color: String(r.descp_color ?? ""),
+      tallas,
+    });
+  }
+  if (!items.length) return { ok: false, error: "Sin líneas resolubles desde FI." };
+
+  const antesRes = await client.query<{ n: string }>(
+    `SELECT COALESCE(SUM(cantidad), 0)::text AS n FROM traspaso_detalle WHERE traspaso_id = $1`,
+    [traspasoId],
+  );
+  const paresAntes = parseInt(antesRes.rows[0]?.n ?? "0", 10) || 0;
+
+  await client.query(`DELETE FROM traspaso_detalle WHERE traspaso_id = $1`, [traspasoId]);
+  const paresDespues = await insertTraspasoDetalleLines(client, traspasoId, items, docRef.trim());
+
+  const snap = parseJsonRecord(snapRaw) ?? {};
+  const idMarca = det.rows[0]?.id_marca ?? 0;
+  const snapshot = {
+    ...snap,
+    numero_factura: docRef.trim(),
+    id_pp: idPp,
+    id_marca: idMarca,
+    items,
+  };
+  await client.query(`UPDATE traspaso SET snapshot_json = $2::jsonb WHERE id = $1`, [
+    traspasoId,
+    JSON.stringify(snapshot),
+  ]);
+
+  if (fiPares > 0 && paresDespues !== fiPares) {
+    return {
+      ok: false,
+      error: `Resync parcial: FI ${fiPares} p vs detalle ${paresDespues} p (antes ${paresAntes}). Revisar combinaciones faltantes.`,
+    };
+  }
+
+  return { ok: true, paresAntes, paresDespues, fiPares, documentoRef: docRef.trim() };
 }
 
 export async function enviarFacturaABazar(numeroFactura: string): Promise<MutationResult> {

@@ -16,10 +16,12 @@ import type {
   FiRegistroRow,
   TraspasoDetail,
   TraspasoDetalleLine,
+  TraspasoIntegridadPayload,
   TraspasoListItem,
 } from "@/lib/bazzar-web/compra-web/types";
 import { CompraWebFiPanel } from "./CompraWebFiPanel";
 import { Tabla5PilaresLegacy } from "./Tabla5PilaresLegacy";
+import { buildControlCantidades } from "@/lib/bazzar-web/compra-web/control-cantidades";
 
 const WEB_NAVY = "#1E3A5F";
 const WEB_ORANGE = "#F97316";
@@ -29,6 +31,7 @@ type Metricas = { total: number; enviados: number; confirmados: number };
 type DetallePayload = {
   detail: TraspasoDetail;
   lineas: TraspasoDetalleLine[];
+  integridad: TraspasoIntegridadPayload;
   fi: FiRegistroRow | null;
   fiDetalles: FiDetalleCanonico[];
   legacyLineas: FacturaLineaLegacy[];
@@ -43,6 +46,7 @@ export function CompraWebClient() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [tecnicaAbierta, setTecnicaAbierta] = useState(false);
@@ -82,6 +86,7 @@ export function CompraWebClient() {
       setDetalle({
         detail: data.detail,
         lineas: data.lineas ?? [],
+        integridad: data.integridad ?? { fi_pares: 0, td_pares: 0, delta: 0, ok: true },
         fi: data.fi,
         fiDetalles: data.fiDetalles ?? [],
         legacyLineas: data.legacyLineas ?? [],
@@ -98,6 +103,28 @@ export function CompraWebClient() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  async function resyncGradas() {
+    if (!selectedId) return;
+    setResyncing(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`/api/bazzar-web/compra/traspasos/${selectedId}/resync`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Resync falló");
+      setSuccess(
+        `Gradas resincronizadas: ${data.paresAntes} → ${data.paresDespues} p (FI ${data.fiPares}).`,
+      );
+      await loadDetail(selectedId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al resincronizar");
+    } finally {
+      setResyncing(false);
+    }
+  }
 
   async function confirmarRecepcion() {
     if (!selectedId || !detalle) return;
@@ -234,9 +261,11 @@ export function CompraWebClient() {
               payload={detalle}
               puedeConfirmar={puedeConfirmar}
               confirmando={confirmando}
+              resyncing={resyncing}
               tecnicaAbierta={tecnicaAbierta}
               onToggleTecnica={() => setTecnicaAbierta((v) => !v)}
               onConfirmar={confirmarRecepcion}
+              onResync={resyncGradas}
             />
           ) : !selectedId ? (
             <ListaView
@@ -312,8 +341,19 @@ function ListaView({
                 </span>
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                {trp.pares_detalle.toLocaleString("es-PY")} pares resueltos ·{" "}
-                {trp.fecha_traspaso ?? "—"}
+                {trp.pares_detalle.toLocaleString("es-PY")} pares resueltos
+                {trp.fi_pares > 0 && (
+                  <>
+                    {" "}
+                    · FI {trp.fi_pares.toLocaleString("es-PY")} p
+                    {!trp.integridad_ok && (
+                      <span className="ml-1 font-semibold text-red-700">
+                        (Δ {trp.fi_pares - trp.pares_detalle})
+                      </span>
+                    )}
+                  </>
+                )}{" "}
+                · {trp.fecha_traspaso ?? "—"}
               </p>
               <button
                 type="button"
@@ -348,21 +388,27 @@ function DetalleView({
   payload,
   puedeConfirmar,
   confirmando,
+  resyncing,
   tecnicaAbierta,
   onToggleTecnica,
   onConfirmar,
+  onResync,
 }: {
   payload: DetallePayload;
   puedeConfirmar: boolean;
   confirmando: boolean;
+  resyncing: boolean;
   tecnicaAbierta: boolean;
   onToggleTecnica: () => void;
   onConfirmar: () => void;
+  onResync: () => void;
 }) {
-  const { detail, lineas, fi, fiDetalles, legacyLineas } = payload;
+  const { detail, lineas, integridad, fi, fiDetalles, legacyLineas } = payload;
   const eCol = ESTADO_COLOR[detail.estado] ?? "#94A3B8";
   const eLab = ESTADO_LABEL[detail.estado] ?? detail.estado;
   const docRef = detail.factura !== "—" ? detail.factura : "";
+  const control = buildControlCantidades({ fi, fiDetalles, lineas, legacyLineas });
+  const sumLineas = control.distribuidas;
 
   return (
     <div className="space-y-6">
@@ -376,11 +422,42 @@ function DetalleView({
         </p>
       </div>
 
+      {!integridad.ok && integridad.fi_pares > 0 && (
+        <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          <p className="font-semibold">Integridad pares — revisar antes de confirmar</p>
+          <p className="mt-1">
+            Factura FI: <strong>{integridad.fi_pares}</strong> p · Vista técnica:{" "}
+            <strong>{integridad.td_pares || sumLineas}</strong> p · Delta:{" "}
+            <strong>{integridad.delta}</strong>
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={resyncing || confirmando}
+              onClick={onResync}
+              className="rounded-lg border border-red-400 bg-white px-4 py-2 text-xs font-semibold text-red-800 disabled:opacity-60"
+            >
+              {resyncing ? "Resincronizando…" : "Resincronizar gradas desde FI"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-red-800">
+            La confirmación también intenta resync automático. Si persiste el delta, se bloquea (no se
+            pierden activos).
+          </p>
+        </div>
+      )}
+
+      {integridad.ok && integridad.fi_pares > 0 && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+          Integridad OK — {integridad.fi_pares} pares coinciden con la factura.
+        </div>
+      )}
+
       {puedeConfirmar ? (
         <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
           <button
             type="button"
-            disabled={confirmando}
+            disabled={confirmando || !control.ok}
             onClick={onConfirmar}
             className="rounded-lg px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
             style={{ backgroundColor: WEB_ORANGE }}
@@ -388,8 +465,9 @@ function DetalleView({
             {confirmando ? "Procesando…" : "Confirmar recepción"}
           </button>
           <p className="text-xs text-slate-600">
-            Al confirmar, el sistema registra el ingreso en ALM_WEB_01 y el stock queda disponible
-            en la galería de la tienda.
+            {!control.ok
+              ? "Confirmación bloqueada hasta que recibidas = distribuidas. Usá resync si hace falta."
+              : "Al confirmar, el sistema registra el ingreso en ALM_WEB_01 y el stock queda disponible en la galería de la tienda."}
           </p>
         </div>
       ) : detail.estado === "CONFIRMADO" ? (
@@ -425,7 +503,75 @@ function DetalleView({
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 ${
+            control.ok ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          }`}
+        >
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-700">
+            Control cantidades
+          </p>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm tabular-nums">
+            <span>
+              Recibidas (FI):{" "}
+              <strong className="text-base" style={{ color: WEB_NAVY }}>
+                {control.recibidas.toLocaleString("es-PY")}
+              </strong>
+            </span>
+            <span>
+              Distribuidas (tallas):{" "}
+              <strong className="text-base" style={{ color: WEB_NAVY }}>
+                {control.distribuidas.toLocaleString("es-PY")}
+              </strong>
+            </span>
+            <span
+              className={`rounded-full px-3 py-0.5 text-xs font-bold ${
+                control.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+              }`}
+            >
+              {control.ok
+                ? "✓ CUADRA"
+                : `✗ DELTA ${control.delta > 0 ? "+" : ""}${control.delta}`}
+            </span>
+          </div>
+        </div>
+
+        {!control.ok && control.skus.some((s) => !s.ok) && (
+          <div className="border-b border-red-100 bg-red-50/60 px-4 py-3">
+            <p className="mb-2 text-xs font-semibold text-red-900">Detalle por artículo</p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="text-left uppercase text-red-800/80">
+                  <tr>
+                    <th className="py-1 pr-2">Línea</th>
+                    <th className="py-1 pr-2">Ref.</th>
+                    <th className="py-1 pr-2 text-right">Rec.</th>
+                    <th className="py-1 pr-2 text-right">Dist.</th>
+                    <th className="py-1 pr-2 text-right">Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {control.skus
+                    .filter((s) => !s.ok)
+                    .map((s) => (
+                      <tr key={`${s.linea}-${s.referencia}-${s.material}`} className="text-red-900">
+                        <td className="py-0.5 pr-2">{s.linea}</td>
+                        <td className="py-0.5 pr-2">{s.referencia}</td>
+                        <td className="py-0.5 pr-2 text-right tabular-nums">{s.recibidas}</td>
+                        <td className="py-0.5 pr-2 text-right tabular-nums">{s.distribuidas}</td>
+                        <td className="py-0.5 pr-2 text-right font-bold tabular-nums">
+                          {s.delta > 0 ? "+" : ""}
+                          {s.delta}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onToggleTecnica}
@@ -474,6 +620,23 @@ function DetalleView({
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+                      <td colSpan={5} className="py-2 pr-3 text-right text-xs uppercase text-slate-600">
+                        Total distribuidas
+                      </td>
+                      <td
+                        className={`py-2 pr-3 text-right tabular-nums ${
+                          control.ok ? "text-emerald-800" : "text-red-700"
+                        }`}
+                      >
+                        {control.distribuidas.toLocaleString("es-PY")}
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-slate-500">
+                        FI {control.recibidas.toLocaleString("es-PY")} p
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
