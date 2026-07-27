@@ -10,6 +10,7 @@ import { normalizeCasoNombre } from "@/lib/depositos/caso-biblioteca";
 import { esLiquidacionRow } from "@/lib/filtros/filtro-tipo-canonico";
 import { DatoDuroCpFilas } from "@/components/herramienta-reposicion/DatoDuroCpFilas";
 import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
+import { cromaticaCp } from "@/lib/pedido-proveedor/cromaticaCpConfecciones";
 
 function esCasoPromo(caso: string | null | undefined): boolean {
   return normalizeCasoNombre(caso) === "PROMOCIONAL";
@@ -26,6 +27,7 @@ function PillQty({
   ppAbierto = false,
   preventa,
   quincena,
+  esConfecciones = false,
 }: {
   label: string;
   pares: number;
@@ -36,29 +38,38 @@ function PillQty({
   ppAbierto?: boolean;
   preventa?: string | null;
   quincena?: string | null;
+  esConfecciones?: boolean;
 }) {
   const esPe = /^pronta\s*entrega$/i.test(label.trim());
   const esPpAbierto = ppAbierto || label === PP_ABIERTO_LABEL;
   const esCpDatoDuro = Boolean(preventa || quincena);
+  const croma = cromaticaCp(esConfecciones ? "confecciones" : "calzado");
   return (
     <div className="flex items-center justify-between gap-2">
       <span
-        className={`max-w-[72%] rounded-full border bg-white px-3 py-1 ${
+        className={`max-w-[72%] rounded-full border px-3 py-1 ${
           peLiquidacion && esPe
             ? "catalog-card-liquidacion-pulse border-2 border-emerald-600 bg-emerald-50 font-bold text-emerald-900"
             : esPpAbierto
               ? "border-2 border-dashed border-indigo-500 bg-indigo-50 font-bold text-indigo-900"
               : esPe
-                ? "border-2 border-emerald-500"
-                : esCpDatoDuro
-                  ? "border-rimec-azul/50 py-1.5"
-                  : pillBorderClass
+                ? "border-2 border-emerald-500 bg-white"
+                : esCpDatoDuro && esConfecciones
+                  ? `border py-1.5 ${croma.pill}`
+                  : esCpDatoDuro
+                    ? "border-rimec-azul/50 bg-white py-1.5"
+                    : `bg-white ${pillBorderClass}`
         } ${esCpDatoDuro ? "" : "truncate text-[11px] font-semibold text-slate-800"}`}
       >
         {peLiquidacion && esPe ? (
           "Pronta entrega · LIQ"
         ) : esCpDatoDuro ? (
-          <DatoDuroCpFilas preventa={preventa} quincena={quincena} labelCombinada={label} />
+          <DatoDuroCpFilas
+            preventa={preventa}
+            quincena={quincena}
+            labelCombinada={label}
+            ramo={esConfecciones ? "confecciones" : "calzado"}
+          />
         ) : (
           label
         )}
@@ -166,6 +177,7 @@ export function ReposicionArticuloCard({
   const esLiq = esLiquidacionRow(a);
   const esPromo = !esLiq && esCasoPromo(a.caso_precio);
   const tienePe = a.totales.peDisponible > 0;
+  const esConfecciones = Number(a.tipo_v2_id) === 2;
 
   /** overflow-hidden recorta el glow del latido — solo en el bloque de imagen */
   const cardPulseClass = esLiq
@@ -284,6 +296,7 @@ export function ReposicionArticuloCard({
                   pillBorderClass="border-rimec-azul/50"
                   peLiquidacion={esLiq && tienePe}
                   ppAbierto={b.label === PP_ABIERTO_LABEL}
+                  esConfecciones={esConfecciones}
                 />
               ))
             )}
@@ -328,6 +341,7 @@ export function ReposicionArticuloCard({
                       badgeClass="bg-emerald-600"
                       pillBorderClass="border-rimec-azul/50"
                       showP={false}
+                      esConfecciones={esConfecciones}
                     />
                   ))}
                 </div>
@@ -348,6 +362,7 @@ export function ReposicionArticuloCard({
                       badgeClass="bg-emerald-600"
                       pillBorderClass="border-rimec-azul/50"
                       showP={false}
+                      esConfecciones={esConfecciones}
                     />
                   ))}
                 </div>

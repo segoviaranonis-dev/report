@@ -23,6 +23,10 @@ import {
   ejecutarRatificarFiProgramado,
   resumenRatificarFi,
 } from "@/lib/pedido-proveedor/ratificar-fi-programado-client";
+import {
+  CP_CONF_PASTEL,
+  ppMarcasOProformaConfecciones,
+} from "@/lib/pedido-proveedor/cromaticaCpConfecciones";
 
 const ESTADO_STYLE: Record<string, string> = {
   ABIERTO: "bg-amber-100 text-amber-900",
@@ -446,11 +450,19 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
   const esProgramado = p.categoria_id === CATEGORIA_PROGRAMADO_ID;
   const proformaMostrar = p.numero_proforma?.trim() || null;
   const fabricaFallback = p.nro_fabrica !== "—" ? p.nro_fabrica : null;
+  const esConfecciones = ppMarcasOProformaConfecciones({
+    marcas: p.marcas,
+    numero_proforma: p.numero_proforma,
+  });
 
   return (
     <div
-      className={`border-t border-slate-100 px-4 py-3 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_auto_auto_minmax(7.5rem,auto)] md:items-start md:gap-3 ${
-        highlighted ? "bg-emerald-50/80 ring-1 ring-inset ring-emerald-300" : "hover:bg-slate-50/60"
+      className={`border-t px-4 py-3 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_auto_auto_minmax(7.5rem,auto)] md:items-start md:gap-3 ${
+        highlighted
+          ? "border-emerald-200 bg-emerald-50/80 ring-1 ring-inset ring-emerald-300"
+          : esConfecciones
+            ? `${CP_CONF_PASTEL.border} ${CP_CONF_PASTEL.bg}`
+            : "border-slate-100 bg-white hover:bg-slate-50/60"
       }`}
     >
       <div>
@@ -459,7 +471,14 @@ function PpRow({ p, highlighted }: { p: PpListaRow; highlighted: boolean }) {
           {!esProgramado && p.numero_proforma ? ` (${p.numero_proforma})` : ""}
         </Link>
         <p className="mt-0.5 text-xs text-slate-600">{p.marcas}</p>
-        <p className="text-xs text-slate-500">{p.proveedor}</p>
+        <p className="text-xs text-slate-500">
+          {p.proveedor}
+          {esConfecciones ? (
+            <span className="ml-2 rounded border border-amber-300 bg-yellow-100 px-1 py-0.5 text-[9px] font-black uppercase text-amber-900">
+              Confecciones
+            </span>
+          ) : null}
+        </p>
       </div>
       <div className="mt-2 min-w-0 text-xs md:mt-0">
         {esProgramado ? (

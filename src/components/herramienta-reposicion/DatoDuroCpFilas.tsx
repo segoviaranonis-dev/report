@@ -2,6 +2,10 @@ import {
   parseEtiquetaDatoDuroCp,
   type DatoDuroCpPartes,
 } from "@/lib/pedido-proveedor/dato-duro-cabecera";
+import {
+  cromaticaCp,
+  type RamoCpVisual,
+} from "@/lib/pedido-proveedor/cromaticaCpConfecciones";
 
 type Props = {
   preventa?: string | null;
@@ -9,6 +13,8 @@ type Props = {
   fallbackLabel?: string;
   labelCombinada?: string;
   className?: string;
+  /** Confecciones → quincena amarillo pastel. */
+  ramo?: RamoCpVisual;
 };
 
 function resolverPartes(props: Props): DatoDuroCpPartes & { esCp: boolean; fallback: string } {
@@ -41,6 +47,7 @@ export function DatoDuroCpFilas({
   fallbackLabel,
   labelCombinada,
   className = "",
+  ramo = "calzado",
 }: Props) {
   const { preventa: pv, quincena: q, esCp, fallback } = resolverPartes({
     preventa,
@@ -48,6 +55,7 @@ export function DatoDuroCpFilas({
     fallbackLabel,
     labelCombinada,
   });
+  const croma = cromaticaCp(ramo);
 
   if (!esCp) {
     return (
@@ -60,12 +68,18 @@ export function DatoDuroCpFilas({
   return (
     <span className={`flex min-w-0 flex-col gap-0.5 ${className}`}>
       {pv ? (
-        <span className="truncate whitespace-nowrap text-[11px] font-black tabular-nums leading-none text-orange-600">
+        <span
+          className={`truncate whitespace-nowrap text-[11px] font-black tabular-nums leading-none ${croma.textPreventa}`}
+        >
           {pv}
         </span>
       ) : null}
       {q ? (
-        <span className="truncate whitespace-nowrap text-[10px] font-bold leading-none text-sky-800">{q}</span>
+        <span
+          className={`truncate whitespace-nowrap text-[10px] font-bold leading-none ${croma.textQuincena}`}
+        >
+          {q}
+        </span>
       ) : null}
     </span>
   );
