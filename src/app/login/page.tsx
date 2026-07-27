@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button, FormField, TextInput } from "@/components/ui";
 import { prefetchSalesReportSnapshot } from "@/lib/rimec/sales-report-prefetch";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
+import { ActivarBarraLoginButton } from "@/components/report/NotificacionBarraPrompt";
 
 function LoginForm() {
   const router = useRouter();
@@ -112,6 +113,8 @@ function LoginForm() {
             >
               {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
+
+            <ActivarBarraLoginButton />
 
             <p className="text-center text-xs text-neutral-600 pt-4 border-t border-neutral-200">
               Acceso restringido a usuarios autorizados

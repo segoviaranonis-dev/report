@@ -59,6 +59,10 @@ npm run dev          # http://localhost:3000
 
 Requiere sesión **Nivel Dios** (`rol_id=1`, `categoria=DIOS`).
 
+### Alertas pedido Web → Pendientes (2026-07-27)
+
+Confirmar carrito en RIMEC Web dispara notificación a **HECTOR · Guido · Veronica**. Report: modal + barra Windows (permiso). Entrada: **`/aprobaciones?tab=pendientes`**. MIG **189** · `public/sw-alertas.js`. Moria: `2.3.1.3.1` CHUSAR alertas.
+
 ### Archivos clave (esta etapa)
 
 | Pieza | Ruta |

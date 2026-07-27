@@ -84,7 +84,14 @@ export async function GET(req: Request) {
   try {
     const result = await getRimecPool().query<ListadoDbFila>(
       `
-      SELECT l.id_cliente, cv.descp_cliente AS cliente, COALESCE(vd.descp_vendedor,'—') AS vendedor,
+      SELECT l.id_cliente, cv.descp_cliente AS cliente,
+        COALESCE(
+          NULLIF(BTRIM(vd.descp_vendedor), ''),
+          NULLIF(BTRIM(vu.descp_usuario), ''),
+          NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
+          NULLIF(BTRIM(vu_fi.descp_usuario), ''),
+          '—'
+        ) AS vendedor,
         cad.descp_cadena AS cadena, COALESCE(NULLIF(BTRIM(fi.marca),''),'Sin marca') AS marca,
         l.cajas, l.nro_factura, fi.pv_global, fi.factura_carlos, l.pares, l.estado,
         l.id_vendedor, l.id_cadena,
@@ -96,6 +103,9 @@ export async function GET(req: Request) {
       JOIN cliente_v2 cv ON cv.id_cliente = l.id_cliente
       JOIN pedido_proveedor pp ON pp.id = l.pedido_proveedor_id
       LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = l.id_vendedor
+      LEFT JOIN usuario_v2 vu ON vu.id_usuario = l.id_vendedor
+      LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
+      LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
       LEFT JOIN cadena_v2 cad ON cad.id_cadena = l.id_cadena
       LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
       WHERE l.pedido_proveedor_id = $1
@@ -161,6 +171,7 @@ export async function GET(req: Request) {
       dias_atraso: diasAtrasoDesdePublicacion(fila.pp_publicado_at),
       obs_count: 0,
       obs_no_leida: false,
+      registro_at: null,
     }));
 
     const filtradas = filtrarFilasLogistica(filasBrutas, filtros);

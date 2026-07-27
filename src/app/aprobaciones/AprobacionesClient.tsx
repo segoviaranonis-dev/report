@@ -30,7 +30,7 @@ const TABS: { id: TabAprobaciones; label: string; icon: string }[] = [
 
 export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabAprobaciones>("confirmadas");
+  const [tab, setTab] = useState<TabAprobaciones>("pendientes");
   const [data, setData] = useState(dataInicial);
   const [detallesPorFi, setDetallesPorFi] = useState(dataInicial.detallesPorFi);
 

@@ -14,7 +14,7 @@ type Props = {
 const rimecModules = [
   { key: "rimec", href: "/rimec", label: "Ventas", roles: [1] },
   { key: "ventas-fotos", href: "/ventas-fotos", label: "Ventas + Fotos", roles: [1, 3] },
-  { key: "aprobaciones", href: "/aprobaciones", label: "Aprobaciones", roles: [1] },
+  { key: "aprobaciones", href: "/aprobaciones?tab=pendientes", label: "Aprobaciones", roles: [1] },
   { key: "rrhh", href: "/rrhh", label: "RRHH", roles: [1, 2] },
 ];
 

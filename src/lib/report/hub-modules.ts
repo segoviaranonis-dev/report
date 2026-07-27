@@ -71,7 +71,7 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     roles: [1, 3],
   },
   {
-    href: "/aprobaciones",
+    href: "/aprobaciones?tab=pendientes",
     title: "Aprobaciones",
     shortLabel: "Aprobaciones",
     description:
@@ -307,6 +307,11 @@ export function filterHubModules(
     // CAJA RIMEC: solo Facturación (home real = Pronta Entrega vía middleware)
     if (rolId === 1 && cat === "CAJA") {
       return m.href === "/facturacion";
+    }
+
+    // JEFE DEPOSITO RIMEC (EVERT): hub Depósito + Stock PE (2 tarjetas)
+    if (rolId === 1 && cat === "JEFE_DEPOSITO") {
+      return m.href === "/deposito-rimec" || m.href === "/stock-pronta-entrega";
     }
 
     // VENDEDOR RIMEC: Ventas con fotos + Logística OK (pestaña Vendedor)

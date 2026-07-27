@@ -12,6 +12,26 @@ const NiifNavigationLatenciaProvider = dynamic(
   { ssr: false },
 );
 
+const AlertaCriticaModal = dynamic(
+  () =>
+    import("@/components/report/AlertaCriticaModal").then((m) => m.AlertaCriticaModal),
+  { ssr: false },
+);
+
+const NotificacionBarraPrompt = dynamic(
+  () =>
+    import("@/components/report/NotificacionBarraPrompt").then(
+      (m) => m.NotificacionBarraPrompt,
+    ),
+  { ssr: false },
+);
+
 export function ReportLayoutClientProviders({ children }: { children: ReactNode }) {
-  return <NiifNavigationLatenciaProvider>{children}</NiifNavigationLatenciaProvider>;
+  return (
+    <NiifNavigationLatenciaProvider>
+      {children}
+      <AlertaCriticaModal />
+      <NotificacionBarraPrompt />
+    </NiifNavigationLatenciaProvider>
+  );
 }
