@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  Fragment,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
@@ -47,6 +48,11 @@ import {
   type LogisticaStatsPp,
 } from "@/lib/logistica-ok/queries-bandeja";
 import { ObsLogisticaGrupoIcon, ObsLogisticaIcon } from "./ObsLogisticaIcon";
+import {
+  LogisticaFiDetalleCell,
+  LogisticaFiDetallePanel,
+  useLogisticaFiDetalle,
+} from "./LogisticaFiLeyPanel";
 
 function formatGs(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -267,6 +273,14 @@ function TablaFilas({
   onObsLeida?: (fiId: number) => void;
 }) {
   const bandeja = mode === "bandeja";
+  const { expandedNro, detail, loading, error, toggle } = useLogisticaFiDetalle();
+
+  let colSpan = 9; // semáforo · FI · factura real · cliente · cajas · 2 fechas · atraso · obs
+  if (multiEnabled) colSpan += 1;
+  if (!bandeja) colSpan += 2; // tipo · PP
+  if (bandeja) colSpan += 2; // pares · monto
+  if (tab === "exitosas") colSpan += 1; // chofer
+
   return (
     <div className="overflow-x-auto px-4 pb-3">
       <table className="w-full min-w-[820px] text-left text-sm">
@@ -291,74 +305,91 @@ function TablaFilas({
         </thead>
         <tbody>
           {filas.map((row) => (
-            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/80">
-              {multiEnabled && (
+            <Fragment key={row.id}>
+              <tr className="border-t border-slate-100 hover:bg-slate-50/80">
+                {multiEnabled && (
+                  <td className="px-2 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => onToggle(row.id)}
+                      aria-label={`Seleccionar ${row.nro_factura}`}
+                    />
+                  </td>
+                )}
                 <td className="px-2 py-2">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(row.id)}
-                    onChange={() => onToggle(row.id)}
-                    aria-label={`Seleccionar ${row.nro_factura}`}
+                  <SemaforoTresPelotas row={row} handlers={handlers} />
+                </td>
+                {!bandeja && (
+                  <td className="px-2 py-2">
+                    <ChipEntidad entidad={row.entidad_am} />
+                  </td>
+                )}
+                <td className="px-2 py-2">
+                  <LogisticaFiDetalleCell
+                    nro={row.nro_factura}
+                    expandedNro={expandedNro}
+                    loading={loading}
+                    onToggle={toggle}
                   />
                 </td>
-              )}
-              <td className="px-2 py-2">
-                <SemaforoTresPelotas row={row} handlers={handlers} />
-              </td>
-              {!bandeja && (
                 <td className="px-2 py-2">
-                  <ChipEntidad entidad={row.entidad_am} />
+                  <span
+                    className={`inline-block rounded-lg border-2 px-2 py-1 font-mono text-[11px] font-black tabular-nums ${
+                      row.factura_real
+                        ? "border-amber-600 bg-amber-100 text-amber-950 shadow-sm"
+                        : "border-dashed border-amber-300 bg-amber-50/80 text-amber-800"
+                    }`}
+                    title={`${FACTURA_REAL_LABEL} · sistema Carlos (pv_global)`}
+                  >
+                    {displayFacturaRealUi(row)}
+                  </span>
                 </td>
-              )}
-              <td className="px-2 py-2 font-mono text-xs">{row.nro_factura ?? "—"}</td>
-              <td className="px-2 py-2">
-                <span
-                  className={`inline-block rounded-lg border-2 px-2 py-1 font-mono text-[11px] font-black tabular-nums ${
-                    row.factura_real
-                      ? "border-amber-600 bg-amber-100 text-amber-950 shadow-sm"
-                      : "border-dashed border-amber-300 bg-amber-50/80 text-amber-800"
-                  }`}
-                  title={`${FACTURA_REAL_LABEL} · sistema Carlos (pv_global)`}
+                <td className="max-w-[220px] truncate px-2 py-2 text-xs" title={row.cliente}>
+                  {row.cliente}
+                </td>
+                <td className="px-2 py-2 text-xs tabular-nums">{row.cajas.toLocaleString("es-PY")}</td>
+                {bandeja && (
+                  <td className="px-2 py-2 text-xs tabular-nums">{row.pares.toLocaleString("es-PY")}</td>
+                )}
+                {bandeja && (
+                  <td className="px-2 py-2 text-xs tabular-nums">{formatGs(row.monto_neto)}</td>
+                )}
+                <td className="px-2 py-2 text-xs">{row.fecha_orden}</td>
+                <td className="px-2 py-2 text-xs tabular-nums">{row.fecha_entrega_cliente ?? "—"}</td>
+                <td
+                  className="px-2 py-2 text-xs font-semibold tabular-nums text-amber-800"
+                  title={row.pp_publicado_at ? `Pub. PP ${row.pp_publicado_at}` : "Sin pub. PP"}
                 >
-                  {displayFacturaRealUi(row)}
-                </span>
-              </td>
-              <td className="max-w-[220px] truncate px-2 py-2 text-xs" title={row.cliente}>
-                {row.cliente}
-              </td>
-              <td className="px-2 py-2 text-xs tabular-nums">{row.cajas.toLocaleString("es-PY")}</td>
-              {bandeja && (
-                <td className="px-2 py-2 text-xs tabular-nums">{row.pares.toLocaleString("es-PY")}</td>
-              )}
-              {bandeja && (
-                <td className="px-2 py-2 text-xs tabular-nums">{formatGs(row.monto_neto)}</td>
-              )}
-              <td className="px-2 py-2 text-xs">{row.fecha_orden}</td>
-              <td className="px-2 py-2 text-xs tabular-nums">{row.fecha_entrega_cliente ?? "—"}</td>
-              <td
-                className="px-2 py-2 text-xs font-semibold tabular-nums text-amber-800"
-                title={row.pp_publicado_at ? `Pub. PP ${row.pp_publicado_at}` : "Sin pub. PP"}
-              >
-                {row.dias_atraso} d
-              </td>
-              {!bandeja && (
-                <td className="px-2 py-2 text-xs font-mono text-slate-500">{row.pp_numero}</td>
-              )}
-              {tab === "exitosas" && (
-                <td className="px-2 py-2 text-[10px] text-emerald-800">
-                  {row.chofer_nombre ?? "—"} · {row.fecha_entrega_efectiva ?? "—"}
+                  {row.dias_atraso} d
                 </td>
-              )}
-              <td className="px-2 py-2 text-center">
-                <ObsLogisticaIcon
-                  fiId={row.factura_interna_id}
-                  tab={tab}
-                  count={row.obs_count}
-                  noLeida={row.obs_no_leida}
-                  onLeida={onObsLeida}
-                />
-              </td>
-            </tr>
+                {!bandeja && (
+                  <td className="px-2 py-2 text-xs font-mono text-slate-500">{row.pp_numero}</td>
+                )}
+                {tab === "exitosas" && (
+                  <td className="px-2 py-2 text-[10px] text-emerald-800">
+                    {row.chofer_nombre ?? "—"} · {row.fecha_entrega_efectiva ?? "—"}
+                  </td>
+                )}
+                <td className="px-2 py-2 text-center">
+                  <ObsLogisticaIcon
+                    fiId={row.factura_interna_id}
+                    tab={tab}
+                    count={row.obs_count}
+                    noLeida={row.obs_no_leida}
+                    onLeida={onObsLeida}
+                  />
+                </td>
+              </tr>
+              <LogisticaFiDetallePanel
+                nro={row.nro_factura}
+                expandedNro={expandedNro}
+                detail={detail}
+                loading={loading}
+                error={error}
+                colSpan={colSpan}
+              />
+            </Fragment>
           ))}
         </tbody>
       </table>
