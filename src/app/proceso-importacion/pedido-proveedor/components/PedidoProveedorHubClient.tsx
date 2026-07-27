@@ -525,7 +525,7 @@ export function PedidoProveedorHubClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pedidos, setPedidos] = useState<PpListaRow[]>([]);
-  const [filtro, setFiltro] = useState<"TODOS" | "ABIERTO" | "CERRADO" | "ENVIADO">("TODOS");
+  const [filtro, setFiltro] = useState<"TODOS" | "ABIERTO" | "CERRADO" | "ENVIADO">("ABIERTO");
 
   const load = useCallback(async () => {
     setLoading(true);
