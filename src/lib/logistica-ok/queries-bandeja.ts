@@ -78,6 +78,22 @@ export type LogisticaGrupoDia = {
   cajas: number;
 };
 
+/** Nombre comercial: vendedor_v2 (catálogo) + fallback usuario_v2 / FI (PE legacy). */
+const LOGISTICA_VENDEDOR_SELECT = `
+  COALESCE(
+    NULLIF(BTRIM(vd.descp_vendedor), ''),
+    NULLIF(BTRIM(vu.descp_usuario), ''),
+    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
+    NULLIF(BTRIM(vu_fi.descp_usuario), ''),
+    '—'
+  ) AS vendedor`;
+
+const LOGISTICA_VENDEDOR_JOINS = `
+  LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = l.id_vendedor
+  LEFT JOIN usuario_v2 vu ON vu.id_usuario = l.id_vendedor
+  LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
+  LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id`;
+
 function tabToSqlFilter(tab: LogisticaTabId): { estado: string | null; extra: string } {
   switch (tab) {
     case "confirmadas":
@@ -171,7 +187,7 @@ export async function listLogisticaPendientes(
            l.chofer_nombre,
            cv.descp_cliente AS cliente,
            cad.descp_cadena AS cadena,
-           COALESCE(vd.descp_vendedor, '—') AS vendedor,
+           ${LOGISTICA_VENDEDOR_SELECT},
            pp.numero_registro AS pp_numero,
            NULLIF(BTRIM(pp.nro_pedido_externo), '') AS nro_pedido_externo,
            COALESCE(NULLIF(BTRIM(fi.marca), ''), 'Sin marca') AS marca,
@@ -184,7 +200,7 @@ export async function listLogisticaPendientes(
     JOIN factura_interna fi ON fi.id = l.factura_interna_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
     LEFT JOIN cadena_v2 cad ON cad.id_cadena = l.id_cadena
-    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = l.id_vendedor
+    ${LOGISTICA_VENDEDOR_JOINS}
     WHERE ($1 = 'TODOS' OR l.estado = $1)
       AND ($2::int IS NULL OR l.id_vendedor = $2)
     ORDER BY
@@ -606,13 +622,42 @@ export function groupLogisticaPorMarcaResumen(filas: LogisticaPendienteRow[]): L
     .sort((a, b) => a.marca.localeCompare(b.marca, "es"));
 }
 
+/** General — PE: un solo acordeón; CP/Programado: por pedido externo + dato duro */
+export const PE_GRUPO_UNIFICADO_KEY = "pe-unificado";
+export const PE_GRUPO_UNIFICADO_PP_ID = 0;
+
+export function statsPeUnificadoDesdeTodas(todas: LogisticaPendienteRow[]): LogisticaStatsPp {
+  const pe = todas.filter((r) => r.entidad_am === "PE");
+  const base = statsEjecucionLogistica(pe);
+  return {
+    pedido_proveedor_id: PE_GRUPO_UNIFICADO_PP_ID,
+    ...base,
+    pares_inicial: pe.reduce((s, r) => s + r.pares, 0),
+  };
+}
+
+/** Stats por PP + bucket consolidado PE (pedido_proveedor_id = 0). */
+export function porPpConPeUnificado(todas: LogisticaPendienteRow[]): Record<number, LogisticaStatsPp> {
+  const porPp = statsEjecucionPorPp(todas);
+  if (todas.some((r) => r.entidad_am === "PE")) {
+    porPp[PE_GRUPO_UNIFICADO_PP_ID] = statsPeUnificadoDesdeTodas(todas);
+  }
+  return porPp;
+}
+
 /** General: Pedido externo + dato duro → STOCK Bazzar | RIMEC | cadenas */
 export function groupLogisticaPorPedidoDuro(filas: LogisticaPendienteRow[]): LogisticaGrupoPedidoDuro[] {
   const map = new Map<string, LogisticaPendienteRow[]>();
   for (const f of filas) {
-    const preventa = formatNumeroPreventaCarlos(f.nro_pedido_externo) || pedidoExternoLabel(f);
-    const q = f.quincena_arribo_id ?? 0;
-    const key = `pp-${f.pedido_proveedor_id}__${preventa}__q${q}`;
+    const entidad = (f.entidad_am || "CP") as EntidadAmLogistica;
+    let key: string;
+    if (entidad === "PE") {
+      key = PE_GRUPO_UNIFICADO_KEY;
+    } else {
+      const preventa = formatNumeroPreventaCarlos(f.nro_pedido_externo) || pedidoExternoLabel(f);
+      const q = f.quincena_arribo_id ?? 0;
+      key = `pp-${f.pedido_proveedor_id}__${preventa}__q${q}`;
+    }
     const bucket = map.get(key) ?? [];
     bucket.push(f);
     map.set(key, bucket);
@@ -622,23 +667,37 @@ export function groupLogisticaPorPedidoDuro(filas: LogisticaPendienteRow[]): Log
     .map(([key, rows]) => {
       const head = rows[0];
       const entidad_am = (head.entidad_am || "CP") as EntidadAmLogistica;
-      const preventaRaw = (head.nro_pedido_externo ?? "").trim() || pedidoExternoLabel(head);
-      const preventa_label = formatNumeroPreventaCarlos(preventaRaw) || preventaRaw;
+      const peUnificado = key === PE_GRUPO_UNIFICADO_KEY;
+      const preventaRaw = peUnificado
+        ? ""
+        : (head.nro_pedido_externo ?? "").trim() || pedidoExternoLabel(head);
+      const preventa_label = peUnificado
+        ? "Pronta entrega"
+        : formatNumeroPreventaCarlos(preventaRaw) || preventaRaw;
       const clientes = new Set(rows.map((r) => r.id_cliente));
       const bazzar = rows.filter((r) => destinoListadoLogistica(r) === "BAZZAR");
       const rimec = rows.filter((r) => destinoListadoLogistica(r) === "RIMEC");
       const cadena = rows.filter((r) => destinoListadoLogistica(r) === "CADENA");
+      const nPpsPe = peUnificado
+        ? new Set(rows.map((r) => r.pedido_proveedor_id)).size
+        : 0;
       return {
         key,
-        pedido_proveedor_id: head.pedido_proveedor_id,
+        pedido_proveedor_id: peUnificado ? PE_GRUPO_UNIFICADO_PP_ID : head.pedido_proveedor_id,
         entidad_am,
         categoria_label: ENTIDAD_AM_META[entidad_am]?.label ?? entidad_am,
         nro_pedido_externo: preventaRaw,
         preventa_label,
-        quincena_arribo_id: head.quincena_arribo_id,
-        quincena_desc: head.quincena_desc,
-        quincena_corta: formatQuincenaCorta(head.quincena_desc) || "Sin dato duro",
-        pp_numero: head.pp_numero,
+        quincena_arribo_id: peUnificado ? null : head.quincena_arribo_id,
+        quincena_desc: peUnificado ? null : head.quincena_desc,
+        quincena_corta: peUnificado
+          ? "Pronta entrega"
+          : formatQuincenaCorta(head.quincena_desc) || "Sin dato duro",
+        pp_numero: peUnificado
+          ? nPpsPe > 1
+            ? `${nPpsPe} pedidos PE`
+            : head.pp_numero
+          : head.pp_numero,
         cajas: rows.reduce((s, r) => s + r.cajas, 0),
         pares: rows.reduce((s, r) => s + r.pares, 0),
         monto: rows.reduce((s, r) => s + (r.monto_neto ?? 0), 0),
@@ -648,8 +707,16 @@ export function groupLogisticaPorPedidoDuro(filas: LogisticaPendienteRow[]): Log
         stockBazzar: resumenBloque(bazzar),
         stockRimec: resumenBloque(rimec),
         cadenas: groupLogisticaPorCadenaResumen(cadena),
-        pp_publicado_at: head.pp_publicado_at,
-        dias_atraso: head.dias_atraso,
+        pp_publicado_at: peUnificado
+          ? rows.reduce<string | null>((best, r) => {
+              if (!r.pp_publicado_at) return best;
+              if (!best) return r.pp_publicado_at;
+              return r.pp_publicado_at < best ? r.pp_publicado_at : best;
+            }, null)
+          : head.pp_publicado_at,
+        dias_atraso: peUnificado
+          ? Math.max(0, ...rows.map((r) => r.dias_atraso ?? 0))
+          : head.dias_atraso,
         n_inicial: rows.length,
         cajas_inicial: rows.reduce((s, r) => s + r.cajas, 0),
         pares_inicial: rows.reduce((s, r) => s + r.pares, 0),
@@ -810,6 +877,29 @@ export function groupLogisticaPorFechaCliente(filas: LogisticaPendienteRow[]): L
     });
 }
 
+/** Histórico exitosas: agrupa por fecha real de entrega (descendente). */
+export function groupLogisticaPorFechaEfectiva(filas: LogisticaPendienteRow[]): LogisticaGrupoDia[] {
+  const map = new Map<string, LogisticaPendienteRow[]>();
+  for (const f of filas) {
+    const key = f.fecha_entrega_efectiva?.slice(0, 10) || "Sin fecha real";
+    const bucket = map.get(key) ?? [];
+    bucket.push(f);
+    map.set(key, bucket);
+  }
+  return [...map.entries()]
+    .map(([fecha, rows]) => ({
+      key: fecha,
+      fecha,
+      filas: rows,
+      cajas: rows.reduce((s, r) => s + r.cajas, 0),
+    }))
+    .sort((a, b) => {
+      if (a.fecha === "Sin fecha real") return 1;
+      if (b.fecha === "Sin fecha real") return -1;
+      return b.fecha.localeCompare(a.fecha);
+    });
+}
+
 export type LogisticaGrupoChofer = {
   key: string;
   chofer: string;
@@ -847,9 +937,21 @@ export function groupLogisticaPorChofer(filas: LogisticaPendienteRow[]): Logisti
     });
 }
 
-/** Día → chofer → FI (Entregas / Exitosas) */
+/** Día → chofer → FI (Entregas del día · por fecha prometida al cliente) */
 export function groupLogisticaPorFechaYChofer(filas: LogisticaPendienteRow[]): LogisticaGrupoDiaConChofer[] {
   return groupLogisticaPorFechaCliente(filas).map((d) => ({
+    key: d.key,
+    fecha: d.fecha,
+    cajas: d.cajas,
+    choferes: groupLogisticaPorChofer(d.filas),
+  }));
+}
+
+/** Histórico Registro exitosas · fecha real + chofer (más reciente primero). */
+export function groupLogisticaPorFechaEfectivaYChofer(
+  filas: LogisticaPendienteRow[],
+): LogisticaGrupoDiaConChofer[] {
+  return groupLogisticaPorFechaEfectiva(filas).map((d) => ({
     key: d.key,
     fecha: d.fecha,
     cajas: d.cajas,

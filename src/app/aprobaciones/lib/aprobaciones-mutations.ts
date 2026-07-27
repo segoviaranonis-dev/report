@@ -24,7 +24,17 @@ import {
 import { resolveCasoDominanteDesdePpd } from "@/lib/pedido-proveedor/resolve-caso-cabecera-fi";
 import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
 
-export type MutationResult = { ok: boolean; msg: string };
+export type MutationResult = {
+  ok: boolean;
+  msg: string;
+  logistica?: {
+    ok: boolean;
+    entidad?: string;
+    synced?: number;
+    error?: string;
+    skipped?: boolean;
+  };
+};
 
 /** confirmar_fi() — logic.py (sin email/PDF en Report v1) */
 export async function confirmarFi(fiId: number): Promise<MutationResult> {
@@ -81,12 +91,26 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
 
     await client.query("COMMIT");
 
-    // Puente Logística OK: PE entra al confirmar; CP/PROGRAMADO solo con bandera + Fecha Real
+    let logistica: MutationResult["logistica"];
+
+    // Puente Logística OK inmediato: PE entra al confirmar; CP/PROGRAMADO solo con bandera + Fecha Real
     if (ppIdLogistica != null) {
       try {
-        await syncLogisticaTrasConfirmarFi(pool, fiId, ppIdLogistica);
-      } catch {
-        /* no tumba la confirmación — bandera/MIG puede faltar en local */
+        const sync = await syncLogisticaTrasConfirmarFi(pool, fiId, ppIdLogistica);
+        if (sync.ok) {
+          logistica = {
+            ok: true,
+            entidad: sync.entidad,
+            synced: sync.synced,
+          };
+        } else {
+          logistica = { ok: false, error: sync.error };
+          console.error(`[aprobaciones/confirmarFi] logística FI ${fiId} PP ${ppIdLogistica}:`, sync.error);
+        }
+      } catch (e) {
+        const err = e instanceof Error ? e.message : String(e);
+        logistica = { ok: false, error: err };
+        console.error(`[aprobaciones/confirmarFi] logística FI ${fiId} PP ${ppIdLogistica}:`, err);
       }
     }
 
@@ -94,7 +118,14 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
     if (pedidoCompleto) {
       msg += " El pedido ha sido CONFIRMADO.";
     }
-    return { ok: true, msg };
+    if (logistica?.ok && logistica.entidad === "PE") {
+      msg += " Logística OK: Pronta entrega actualizada.";
+    } else if (logistica?.ok && logistica.synced != null && logistica.synced > 0) {
+      msg += ` Logística OK: ${logistica.synced} fila(s) sincronizada(s).`;
+    } else if (logistica && !logistica.ok) {
+      msg += ` ⚠ Logística pendiente de sync: ${logistica.error ?? "revisar bandera/fecha PP"}.`;
+    }
+    return { ok: true, msg, logistica };
   } catch (e) {
     await client.query("ROLLBACK");
     return { ok: false, msg: e instanceof Error ? e.message : String(e) };

@@ -130,14 +130,22 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     setProcesandoFi(fiId);
     try {
       const res = await fetch(`/api/aprobaciones/facturas/${fiId}/confirmar`, { method: "POST" });
-      const result = (await res.json()) as { ok?: boolean; msg?: string };
+      const result = (await res.json()) as {
+        ok?: boolean;
+        msg?: string;
+        logistica?: { ok?: boolean; error?: string };
+      };
       if (res.ok && result.ok) {
         evictFiDeVistasActivas(fiId);
         setData((prev) => ({
           ...prev,
           reservadas: prev.reservadas.filter((f) => f.id !== fiId),
         }));
-        flash("success", result.msg || "FI confirmada");
+        if (result.logistica && !result.logistica.ok) {
+          flash("error", result.msg || "FI confirmada · logística sin sync");
+        } else {
+          flash("success", result.msg || "FI confirmada");
+        }
         startTransition(() => router.refresh());
       } else {
         flash("error", result.msg || "Error al confirmar");

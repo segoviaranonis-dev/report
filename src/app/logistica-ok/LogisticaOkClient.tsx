@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   Fragment,
   type Dispatch,
@@ -44,7 +45,12 @@ import {
   bloqueStockRimecVisible,
   filtrarFilasLogistica,
   groupLogisticaPorPedidoDuro,
+  groupLogisticaPorVendedorTipoMarcaPp,
+  groupLogisticaPorTipoMarcaPp,
+  groupLogisticaPorFechaYChofer,
+  groupLogisticaPorFechaEfectivaYChofer,
   enriquecerGruposConStatsPp,
+  PE_GRUPO_UNIFICADO_KEY,
   type LogisticaStatsPp,
 } from "@/lib/logistica-ok/queries-bandeja";
 import { ObsLogisticaGrupoIcon, ObsLogisticaIcon } from "./ObsLogisticaIcon";
@@ -69,6 +75,12 @@ function labelPedidoExternoUi(g: Pick<
   const title = pp && pp !== raw ? `${raw} · ${pp}` : raw;
 
   if (g.entidad_am === "PE") {
+    if (g.preventa_label === "Pronta entrega" && !g.nro_pedido_externo) {
+      return {
+        corto: "Pronta entrega",
+        title: "Todas las prontas entregas · consolidado",
+      };
+    }
     const src = pp || raw;
     const dep = src.match(/PE-D(\d+)/i)?.[1];
     const tail = src.match(/-(\d{3,})\s*$/)?.[1];
@@ -548,6 +560,7 @@ function AcordeonPedidoDuro({
       {grupos.map((g) => {
         const open = openPedido[g.key] ?? true;
         const color = ENTIDAD_AM_META[g.entidad_am]?.color ?? "#002B4E";
+        const peUnificado = g.key === PE_GRUPO_UNIFICADO_KEY;
         const pedidoUi = labelPedidoExternoUi(g);
         const mostrarStockRimec = bloqueStockRimecVisible(g.entidad_am, g.stockRimec);
         return (
@@ -568,21 +581,29 @@ function AcordeonPedidoDuro({
                   >
                     {g.categoria_label}
                   </span>
-                  <div className="min-w-0 max-w-[13rem]">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Pedido externo</p>
-                    <p
-                      className="truncate font-mono text-base font-bold text-rimec-azul-dark"
-                      title={pedidoUi.title}
-                    >
+                  {!peUnificado ? (
+                    <>
+                      <div className="min-w-0 max-w-[13rem]">
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Pedido externo</p>
+                        <p
+                          className="truncate font-mono text-base font-bold text-rimec-azul-dark"
+                          title={pedidoUi.title}
+                        >
+                          {pedidoUi.corto}
+                        </p>
+                      </div>
+                      <div className="min-w-[5.5rem] max-w-[9rem]">
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Dato duro</p>
+                        <p className="truncate text-sm font-semibold text-slate-800" title={g.quincena_corta}>
+                          {g.quincena_corta}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-base font-bold text-rimec-azul-dark" title={pedidoUi.title}>
                       {pedidoUi.corto}
                     </p>
-                  </div>
-                  <div className="min-w-[5.5rem] max-w-[9rem]">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Dato duro</p>
-                    <p className="truncate text-sm font-semibold text-slate-800" title={g.quincena_corta}>
-                      {g.quincena_corta}
-                    </p>
-                  </div>
+                  )}
                   <span className="ml-auto text-xs text-slate-500 lg:hidden">{open ? "▲" : "▼"}</span>
                 </div>
 
@@ -626,14 +647,16 @@ function AcordeonPedidoDuro({
                   </MetricChip>
                 </div>
               </button>
-              <button
-                type="button"
-                disabled={pdfBusyId === g.pedido_proveedor_id}
-                onClick={() => onPdf(g.pedido_proveedor_id)}
-                className="shrink-0 self-stretch rounded-xl bg-rimec-azul px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-rimec-azul-dark disabled:opacity-50 lg:self-center"
-              >
-                {pdfBusyId === g.pedido_proveedor_id ? "Generando PDF…" : "Generar PDF listado"}
-              </button>
+              {!peUnificado ? (
+                <button
+                  type="button"
+                  disabled={pdfBusyId === g.pedido_proveedor_id}
+                  onClick={() => onPdf(g.pedido_proveedor_id)}
+                  className="shrink-0 self-stretch rounded-xl bg-rimec-azul px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-rimec-azul-dark disabled:opacity-50 lg:self-center"
+                >
+                  {pdfBusyId === g.pedido_proveedor_id ? "Generando PDF…" : "Generar PDF listado"}
+                </button>
+              ) : null}
             </div>
 
             {open && (
@@ -864,11 +887,12 @@ function AcordeonTipoMarcaPp({
   );
 }
 
+const LOGISTICA_POLL_MS = 5000;
+
 export function LogisticaOkClient() {
   const [tab, setTab] = useState<LogisticaTabId>("general");
   const [tabsPermitidas, setTabsPermitidas] = useState<LogisticaTabId[]>(LOGISTICA_TABS.map((t) => t.id));
   const [categoriaSesion, setCategoriaSesion] = useState<string>("DIOS");
-  const [vendedorId, setVendedorId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filasRaw, setFilasRaw] = useState<LogisticaPendienteRow[]>([]);
@@ -908,6 +932,9 @@ export function LogisticaOkClient() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const refreshInFlight = useRef(false);
 
   /** Modal paso 3 */
   const [cierreRow, setCierreRow] = useState<LogisticaPendienteRow | null>(null);
@@ -915,29 +942,55 @@ export function LogisticaOkClient() {
   const [cierreChofer, setCierreChofer] = useState<string>(CHOFERES_RIMEC_INICIAL[0]);
 
   const esTabGeneral = tab === "general" || tab === "general_exitoso";
+  const esTabConAsignadorFecha = tab === "general" || tab === "vendedor";
   const multiEnabled =
     tab === "general" || tab === "vendedor" || tab === "confirmadas" || tab === "entregas";
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchBandeja = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (silent) {
+      if (refreshInFlight.current) return;
+      refreshInFlight.current = true;
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const q = new URLSearchParams({ tab });
-      if (tab === "vendedor" && vendedorId.trim()) q.set("vendedor_id", vendedorId.trim());
-      const res = await fetch(`/api/logistica-ok/bandeja?${q}`, { credentials: "same-origin" });
+      const res = await fetch(`/api/logistica-ok/bandeja?${q}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al cargar");
       if (Array.isArray(data.tabsPermitidas) && data.tabsPermitidas.length) {
         setTabsPermitidas(data.tabsPermitidas);
         if (data.categoria) setCategoriaSesion(String(data.categoria));
       }
-      setFilasRaw(data.filas ?? []);
+      const incoming: LogisticaPendienteRow[] = data.filas ?? [];
+      if (silent) {
+        setFilasRaw((prev) => {
+          if (prev.length > 0) {
+            const prevIds = new Set(prev.map((f) => f.id));
+            const nuevos = incoming.filter((f) => !prevIds.has(f.id)).length;
+            if (nuevos > 0) {
+              setToast(`${nuevos} pedido${nuevos === 1 ? "" : "s"} nuevo${nuevos === 1 ? "" : "s"}`);
+              window.setTimeout(() => setToast(null), 4000);
+            }
+          }
+          return incoming;
+        });
+      } else {
+        setFilasRaw(incoming);
+        setSelected(new Set());
+      }
       setGruposTipo(data.gruposTipo ?? []);
       setGruposPedidoDuro(data.gruposPedidoDuro ?? []);
       setStatsPorPp(data.statsPorPp ?? {});
       setGruposVendedor(data.gruposVendedor ?? []);
       setGruposDiaChofer(data.gruposDiaChofer ?? []);
-      const obs = statsObsMensajes(data.filas ?? []);
+      const obs = statsObsMensajes(incoming);
       setStats({
         n: data.stats?.n ?? 0,
         cajas: data.stats?.cajas ?? 0,
@@ -949,13 +1002,21 @@ export function LogisticaOkClient() {
         obs_abiertos: data.stats?.obs_abiertos ?? obs.abiertos,
         obs_label: data.stats?.obs_label ?? obs.label,
       });
-      setSelected(new Set());
+      setLastRefreshAt(new Date());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      if (!silent) {
+        setError(e instanceof Error ? e.message : "Error");
+      }
     } finally {
-      setLoading(false);
+      if (silent) {
+        refreshInFlight.current = false;
+        setRefreshing(false);
+      } else setLoading(false);
     }
-  }, [tab, vendedorId]);
+  }, [tab]);
+
+  const load = useCallback(() => fetchBandeja({ silent: false }), [fetchBandeja]);
+  const refreshBandeja = useCallback(() => fetchBandeja({ silent: true }), [fetchBandeja]);
 
   useEffect(() => {
     void (async () => {
@@ -979,6 +1040,23 @@ export function LogisticaOkClient() {
     void load();
   }, [load]);
 
+  /** Auto-refresh cada 5s — pedidos aprobados aparecen sin F5 */
+  useEffect(() => {
+    if (loading) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") void refreshBandeja();
+    };
+    const id = window.setInterval(tick, LOGISTICA_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshBandeja();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [loading, refreshBandeja, tab]);
+
   const onObsLeida = useCallback((fiId: number) => {
     setFilasRaw((prev) => {
       const next = prev.map((f) =>
@@ -994,29 +1072,42 @@ export function LogisticaOkClient() {
       return next;
     });
   }, []);
-  const filasFiltradas = useMemo(() => {
-    if (!esTabGeneral) return filasRaw;
-    return filtrarFilasLogistica(filasRaw, {
-      q: filtroQ,
-      vendedores: filtroVendedores,
-      cadenas: filtroCadenas,
-      clientes: filtroClientes,
-      marcas: filtroMarcas,
-    });
-  }, [
-    esTabGeneral,
-    filasRaw,
-    filtroQ,
-    filtroVendedores,
-    filtroCadenas,
-    filtroClientes,
-    filtroMarcas,
-  ]);
+  const filasFiltradas = useMemo(
+    () =>
+      filtrarFilasLogistica(filasRaw, {
+        q: filtroQ,
+        vendedores: filtroVendedores,
+        cadenas: filtroCadenas,
+        clientes: filtroClientes,
+        marcas: filtroMarcas,
+      }),
+    [filasRaw, filtroQ, filtroVendedores, filtroCadenas, filtroClientes, filtroMarcas],
+  );
 
   const gruposPedidoFiltrados = useMemo(() => {
     if (!esTabGeneral) return gruposPedidoDuro;
     return enriquecerGruposConStatsPp(groupLogisticaPorPedidoDuro(filasFiltradas), statsPorPp);
   }, [esTabGeneral, gruposPedidoDuro, filasFiltradas, statsPorPp]);
+
+  const gruposVendedorFiltrados = useMemo(
+    () => groupLogisticaPorVendedorTipoMarcaPp(filasFiltradas),
+    [filasFiltradas],
+  );
+
+  const gruposTipoFiltrados = useMemo(
+    () => groupLogisticaPorTipoMarcaPp(filasFiltradas),
+    [filasFiltradas],
+  );
+
+  const gruposDiaChoferFiltrados = useMemo(
+    () => groupLogisticaPorFechaYChofer(filasFiltradas),
+    [filasFiltradas],
+  );
+
+  const gruposExitosasHistorico = useMemo(
+    () => groupLogisticaPorFechaEfectivaYChofer(filasFiltradas),
+    [filasFiltradas],
+  );
 
   const opcionesFiltro = useMemo(() => {
     const vend = new Map<string, string>();
@@ -1264,12 +1355,14 @@ export function LogisticaOkClient() {
 
   const hayDatos =
     tab === "vendedor"
-      ? gruposVendedor.length > 0
-      : tab === "entregas" || tab === "exitosas"
-        ? gruposDiaChofer.length > 0
-        : tab === "confirmadas"
-          ? gruposTipo.length > 0
-          : gruposPedidoFiltrados.length > 0;
+      ? gruposVendedorFiltrados.length > 0
+      : tab === "exitosas"
+        ? gruposExitosasHistorico.length > 0
+        : tab === "entregas"
+          ? gruposDiaChoferFiltrados.length > 0
+          : tab === "confirmadas"
+            ? gruposTipoFiltrados.length > 0
+            : gruposPedidoFiltrados.length > 0;
 
   return (
     <>
@@ -1291,7 +1384,7 @@ export function LogisticaOkClient() {
           </p>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {LOGISTICA_TABS.filter((t) => tabsPermitidas.includes(t.id)).map((t) => (
             <button
               key={t.id}
@@ -1305,9 +1398,22 @@ export function LogisticaOkClient() {
               {t.label}
             </button>
           ))}
+          <button
+            type="button"
+            title="Actualizar bandeja · también auto cada 5 s"
+            disabled={loading || refreshing}
+            onClick={() => void refreshBandeja()}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border-2 border-rimec-azul/40 bg-white px-3 py-2 text-xs font-bold text-rimec-azul-dark hover:bg-rimec-azul/5 disabled:opacity-50"
+          >
+            <span className={refreshing ? "inline-block animate-spin" : ""} aria-hidden>
+              ↻
+            </span>
+            {refreshing ? "Actualizando…" : "Refrescar"}
+          </button>
         </div>
         <p className="mt-1 text-[10px] text-slate-500">
-          Perfil {categoriaSesion || "—"} · lectura de sobres por pestaña (al cambiar de tab se cierran de nuevo)
+          Perfil {categoriaSesion || "—"} · auto-refresh 5 s
+          {lastRefreshAt ? ` · última sync ${lastRefreshAt.toLocaleTimeString("es-PY")}` : ""}
         </p>
 
         {/* Leyenda 3 pelotas */}
@@ -1327,134 +1433,111 @@ export function LogisticaOkClient() {
           </span>
         </div>
 
-        {/* Barra filtros / fecha (sin asignación vendedor) */}
-        {(multiEnabled || esTabGeneral) && (
-          <div className="mt-4 space-y-3 rounded-xl border-2 border-rimec-azul/20 bg-rimec-azul/[0.04] px-4 py-3">
-            {esTabGeneral && (
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="min-w-[12rem] flex-1">
+        {/* Cabecera operativa: filtros en todas las pestañas · asignador fecha solo General + Vendedor */}
+        <div className="mt-4 space-y-3 rounded-xl border-2 border-rimec-azul/20 bg-rimec-azul/[0.04] px-4 py-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <label className="text-[10px] font-bold uppercase text-slate-500">
+                Buscar (código · marca · cliente)
+              </label>
+              <input
+                type="search"
+                className="mt-0.5 block w-full rounded border-2 border-red-300 bg-white px-2 py-1 text-sm"
+                placeholder="Código, marca o nombre…"
+                value={filtroQ}
+                onChange={(e) => setFiltroQ(e.target.value)}
+              />
+            </div>
+            <MultiSelectFiltro
+              label="Vendedor"
+              options={opcionesFiltro.vendedores}
+              selected={filtroVendedores}
+              onChange={setFiltroVendedores}
+            />
+            <MultiSelectFiltro
+              label="Cadena (maestro)"
+              options={opcionesFiltro.cadenas}
+              selected={filtroCadenas}
+              onChange={setFiltroCadenas}
+              placeholder="Todas · o sin cadena"
+            />
+            <MultiSelectFiltro
+              label="Código cliente"
+              options={opcionesFiltro.clientes}
+              selected={filtroClientes}
+              onChange={setFiltroClientes}
+            />
+            <MultiSelectFiltro
+              label="Marca"
+              options={opcionesFiltro.marcas}
+              selected={filtroMarcas}
+              onChange={setFiltroMarcas}
+            />
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            {esTabConAsignadorFecha && (
+              <>
+                <div>
                   <label className="text-[10px] font-bold uppercase text-slate-500">
-                    Buscar (código · marca · cliente)
+                    {FECHA_ENTREGA_CLIENTE_LABEL}
                   </label>
                   <input
-                    type="search"
-                    className="mt-0.5 block w-full rounded border-2 border-red-300 bg-white px-2 py-1 text-sm"
-                    placeholder="Código, marca o nombre…"
-                    value={filtroQ}
-                    onChange={(e) => setFiltroQ(e.target.value)}
+                    type="date"
+                    className="mt-0.5 block rounded border border-slate-300 px-2 py-1 text-sm"
+                    value={fechaLote}
+                    onChange={(e) => setFechaLote(e.target.value)}
                   />
                 </div>
-                <MultiSelectFiltro
-                  label="Vendedor"
-                  options={opcionesFiltro.vendedores}
-                  selected={filtroVendedores}
-                  onChange={setFiltroVendedores}
-                />
-                <MultiSelectFiltro
-                  label="Cadena (maestro)"
-                  options={opcionesFiltro.cadenas}
-                  selected={filtroCadenas}
-                  onChange={setFiltroCadenas}
-                  placeholder="Todas · o sin cadena"
-                />
-                <MultiSelectFiltro
-                  label="Código cliente"
-                  options={opcionesFiltro.clientes}
-                  selected={filtroClientes}
-                  onChange={setFiltroClientes}
-                />
-                <MultiSelectFiltro
-                  label="Marca"
-                  options={opcionesFiltro.marcas}
-                  selected={filtroMarcas}
-                  onChange={setFiltroMarcas}
-                />
-              </div>
-            )}
-            <div className="flex flex-wrap items-end gap-3">
-              {tab === "general" && (
-                <>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-500">
-                      {FECHA_ENTREGA_CLIENTE_LABEL}
-                    </label>
-                    <input
-                      type="date"
-                      className="mt-0.5 block rounded border border-slate-300 px-2 py-1 text-sm"
-                      value={fechaLote}
-                      onChange={(e) => setFechaLote(e.target.value)}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={bulkBusy || !fechaLote || idsSeleccion.length === 0}
-                    onClick={() => void bulkFecha()}
-                    className="rounded-lg bg-rimec-azul px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
-                  >
-                    {bulkBusy ? "…" : `Asignar fecha a ${idsSeleccion.length || "…"} FI`}
-                  </button>
-                  <span className="text-xs text-slate-500">{idsSeleccion.length} seleccionadas</span>
-                </>
-              )}
-              {tab === "confirmadas" && (
                 <button
                   type="button"
-                  disabled={bulkBusy || idsSeleccion.length === 0}
-                  onClick={() => void bulkImpresion()}
-                  className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                  disabled={bulkBusy || !fechaLote || idsSeleccion.length === 0}
+                  onClick={() => void bulkFecha()}
+                  className="rounded-lg bg-rimec-azul px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
                 >
-                  Impresión legal · {idsSeleccion.length} FI
+                  {bulkBusy ? "…" : `Asignar fecha a ${idsSeleccion.length || "…"} FI`}
                 </button>
-              )}
+                <span className="text-xs text-slate-500">{idsSeleccion.length} seleccionadas</span>
+              </>
+            )}
+            {tab === "confirmadas" && (
               <button
                 type="button"
-                onClick={() => load()}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-white"
+                disabled={bulkBusy || idsSeleccion.length === 0}
+                onClick={() => void bulkImpresion()}
+                className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
               >
-                Refrescar
+                Impresión legal · {idsSeleccion.length} FI
               </button>
-              <div className="ml-auto flex flex-wrap gap-2">
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-                  <span className="font-bold text-slate-500">Inicial</span>{" "}
-                  <strong>{stats.n_inicial}</strong> FI ·{" "}
-                  <strong>{stats.cajas_inicial.toLocaleString("es-PY")}</strong> cajas
-                </div>
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
-                  <span className="font-bold text-emerald-800">Ejecución</span>{" "}
-                  <strong>{stats.pct_ejecucion}%</strong> FI ·{" "}
-                  <strong>{stats.pct_cajas}%</strong> cajas
-                </div>
-                <div className="rounded-lg border border-rimec-azul/30 bg-white px-3 py-2 text-sm">
-                  Vista <strong>{statsVista.n}</strong> FI ·{" "}
-                  <strong>{statsVista.cajas.toLocaleString("es-PY")}</strong> cajas
-                </div>
-                <div
-                  className={`rounded-lg border px-3 py-2 text-xs font-bold ${
-                    statsVista.obs.abiertos > 0
-                      ? "border-amber-300 bg-amber-50 text-amber-900"
-                      : "border-slate-200 bg-white text-slate-600"
-                  }`}
-                  title="con mensajes / aún abiertos (sin leer) en esta pestaña"
-                >
-                  ✉️ {statsVista.obs.label}
-                </div>
+            )}
+          </div>
+          <div className="ml-auto flex flex-wrap gap-2">
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                <span className="font-bold text-slate-500">Inicial</span>{" "}
+                <strong>{stats.n_inicial}</strong> FI ·{" "}
+                <strong>{stats.cajas_inicial.toLocaleString("es-PY")}</strong> cajas
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
+                <span className="font-bold text-emerald-800">Ejecución</span>{" "}
+                <strong>{stats.pct_ejecucion}%</strong> FI ·{" "}
+                <strong>{stats.pct_cajas}%</strong> cajas
+              </div>
+              <div className="rounded-lg border border-rimec-azul/30 bg-white px-3 py-2 text-sm">
+                Vista <strong>{statsVista.n}</strong> FI ·{" "}
+                <strong>{statsVista.cajas.toLocaleString("es-PY")}</strong> cajas
+              </div>
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs font-bold ${
+                  statsVista.obs.abiertos > 0
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-slate-200 bg-white text-slate-600"
+                }`}
+                title="con mensajes / aún abiertos (sin leer) en esta pestaña"
+              >
+                ✉️ {statsVista.obs.label}
               </div>
             </div>
           </div>
-        )}
-
-        {tab === "vendedor" && (
-          <div className="mt-3">
-            <label className="text-[10px] font-bold uppercase text-slate-500">Filtrar id_vendedor</label>
-            <input
-              type="number"
-              className="ml-2 rounded border border-slate-300 px-2 py-1 text-sm"
-              placeholder="opcional"
-              value={vendedorId}
-              onChange={(e) => setVendedorId(e.target.value)}
-            />
-          </div>
-        )}
+        </div>
 
         {toast && (
           <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -1474,7 +1557,7 @@ export function LogisticaOkClient() {
           </p>
         ) : tab === "vendedor" ? (
           <div className="mt-6 space-y-3">
-            {gruposVendedor.map((vg) => {
+            {gruposVendedorFiltrados.map((vg) => {
               const vendOpen = openVendedor[vg.key] ?? true;
               return (
                 <div key={vg.key} className="overflow-hidden rounded-xl border-2 border-rimec-azul/25 bg-white shadow-sm">
@@ -1509,9 +1592,73 @@ export function LogisticaOkClient() {
               );
             })}
           </div>
-        ) : tab === "entregas" || tab === "exitosas" ? (
+        ) : tab === "exitosas" ? (
+          <>
+            <p className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950">
+              Histórico permanente · <strong>{statsVista.n}</strong> entregas exitosas ·{" "}
+              <strong>{statsVista.cajas.toLocaleString("es-PY")}</strong> cajas. Las filas{" "}
+              <code className="text-[10px]">EXITOSA</code> no se borran del registro (informes chofer / vendedor a
+              fin de mes).
+            </p>
+            <div className="mt-4 space-y-3">
+              {gruposExitosasHistorico.map((d) => {
+                const open = openDia[d.key] ?? true;
+                return (
+                  <div key={d.key} className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setOpenDia((o) => ({ ...o, [d.key]: !open }))}
+                      className="flex w-full items-center justify-between bg-emerald-50 px-4 py-3 text-left hover:bg-emerald-100/80"
+                    >
+                      <span className="font-semibold text-emerald-900">
+                        {FECHA_ENTREGA_EFECTIVA_LABEL} · {d.fecha}
+                      </span>
+                      <span className="text-xs text-emerald-800">
+                        {d.cajas.toLocaleString("es-PY")} c ·{" "}
+                        {d.choferes.reduce((s, c) => s + c.filas.length, 0)} FI · {d.choferes.length}{" "}
+                        {d.choferes.length === 1 ? "chofer" : "choferes"} {open ? "▲" : "▼"}
+                      </span>
+                    </button>
+                    {open &&
+                      d.choferes.map((ch) => {
+                        const ck = `${d.key}__${ch.key}`;
+                        const chOpen = openChofer[ck] ?? true;
+                        return (
+                          <div key={ck} className="border-t border-emerald-100">
+                            <button
+                              type="button"
+                              onClick={() => setOpenChofer((o) => ({ ...o, [ck]: !chOpen }))}
+                              className="flex w-full items-center justify-between border-l-4 border-sky-600 bg-sky-50/90 px-6 py-3 text-left hover:bg-sky-100"
+                            >
+                              <span className="text-sm font-bold tracking-wide text-sky-950">
+                                Chofer · {ch.chofer}
+                              </span>
+                              <span className="text-xs font-semibold text-sky-800">
+                                {ch.cajas.toLocaleString("es-PY")} c · {ch.filas.length} FI {chOpen ? "▲" : "▼"}
+                              </span>
+                            </button>
+                            {chOpen && (
+                              <TablaFilas
+                                filas={ch.filas}
+                                tab={tab}
+                                mode="flujo"
+                                selected={selected}
+                                onToggle={toggle}
+                                multiEnabled={false}
+                                handlers={handlers}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : tab === "entregas" ? (
           <div className="mt-6 space-y-3">
-            {gruposDiaChofer.map((d) => {
+            {gruposDiaChoferFiltrados.map((d) => {
               const open = openDia[d.key] ?? true;
               return (
                 <div key={d.key} className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
@@ -1567,7 +1714,7 @@ export function LogisticaOkClient() {
         ) : tab === "confirmadas" ? (
           <div className="mt-6">
             <AcordeonTipoMarcaPp
-              tipos={gruposTipo}
+              tipos={gruposTipoFiltrados}
               tab={tab}
               prefix="root"
               openTipo={openTipo}

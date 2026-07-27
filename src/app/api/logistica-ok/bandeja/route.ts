@@ -9,6 +9,7 @@ import {
   enriquecerGruposConStatsPp,
   statsEjecucionLogistica,
   statsEjecucionPorPp,
+  porPpConPeUnificado,
 } from "@/lib/logistica-ok/queries-bandeja";
 import {
   statsObsMensajes,
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
           : todas.filter((f) => f.estado === "PENDIENTE");
       const filas = await enrich(filasRaw);
       const ejec = statsEjecucionLogistica(todas);
-      const porPp = statsEjecucionPorPp(todas);
+      const porPp = porPpConPeUnificado(todas);
       const cajas = filas.reduce((s, f) => s + f.cajas, 0);
       const obs = statsObsMensajes(filas);
       return NextResponse.json({
