@@ -20,11 +20,31 @@ import {
 } from "@/lib/depositos/operativa-filters";
 import { moleculeKeyFromDepRow } from "@/lib/retail/product-image-presence";
 import {
+  NIVEL_DIOS_CATEGORIA,
+  NIVEL_DIOS_ROL_ID,
+} from "@/lib/auth/nivel-dios";
+import {
   mapDescuentoPeLocal,
   moleculeKeyDescuentoPe,
   parsePctDescuento,
   savePeAsignacionDescuentoLocal,
 } from "@/lib/stock-pronta-entrega/asignacion-descuento-local";
+
+async function readJsonResponse<T>(res: Response): Promise<{ json: T | null; err: string | null }> {
+  const text = await res.text();
+  if (!text.trim()) {
+    return { json: null, err: `Respuesta vacía del servidor (HTTP ${res.status})` };
+  }
+  try {
+    return { json: JSON.parse(text) as T, err: null };
+  } catch {
+    const preview = text.replace(/\s+/g, " ").slice(0, 100);
+    return {
+      json: null,
+      err: `Respuesta no JSON (HTTP ${res.status}) — suele ser timeout Vercel. ${preview}`,
+    };
+  }
+}
 
 async function fetchDescuentosBd(batch: string): Promise<Map<string, number>> {
   try {
@@ -32,8 +52,8 @@ async function fetchDescuentosBd(batch: string): Promise<Map<string, number>> {
       `/api/stock-pronta-entrega/asignacion-descuento?batch=${encodeURIComponent(batch)}`,
       { cache: "no-store" },
     );
-    const json = (await res.json()) as { ok?: boolean; descuentos?: Record<string, number> };
-    if (!json.ok || !json.descuentos) return new Map();
+    const { json, err } = await readJsonResponse<{ ok?: boolean; descuentos?: Record<string, number> }>(res);
+    if (err || !json?.ok || !json.descuentos) return new Map();
     return new Map(Object.entries(json.descuentos));
   } catch {
     return new Map();
@@ -96,7 +116,29 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
 
   const [soloSinImagen, setSoloSinImagen] = useState(false);
   const [faltantes, setFaltantes] = useState<Set<string>>(() => new Set());
+  /** Asignar % descuento · solo DIOS (ADMIN ve stock, no dicta) */
+  const [puedeAsignarDescuento, setPuedeAsignarDescuento] = useState(false);
   const [modoAsignacion, setModoAsignacion] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const rol = Number(data?.user?.rol_id);
+        const cat = String(data?.user?.categoria || data?.user?.role || "")
+          .toUpperCase()
+          .trim();
+        setPuedeAsignarDescuento(rol === NIVEL_DIOS_ROL_ID && cat === NIVEL_DIOS_CATEGORIA);
+      })
+      .catch(() => {
+        if (!cancelled) setPuedeAsignarDescuento(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   /** Área vacía hasta que el usuario cambia filtros (carga intencional). */
   const [areaCargada, setAreaCargada] = useState(false);
   const baselineFpRef = useRef<string | null>(null);
@@ -226,9 +268,26 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ batch: batchLabel, pct, molecule_keys: keys }),
         });
-        const json = (await res.json()) as { ok?: boolean; error?: string; upserted?: number };
-        if (!res.ok || !json.ok) {
-          setAsigErr(json.error ?? "No se pudo guardar en BD (queda en sesión local).");
+        const { json, err: parseErr } = await readJsonResponse<{
+          ok?: boolean;
+          error?: string;
+          upserted?: number;
+        }>(res);
+        if (parseErr) {
+          const fromBd = await fetchDescuentosBd(batchLabel);
+          if (fromBd.size > 0) {
+            setDescuentoPctPorMol(fromBd);
+            setAsigOk(
+              `Descuento ${pct}% guardado en BD (${fromBd.size.toLocaleString("es-PY")} moléculas) — el servidor tardó pero persistió.`,
+            );
+            return;
+          }
+          setAsigErr(parseErr);
+          setDescuentoPctPorMol(mapDescuentoPeLocal(batchLabel));
+          return;
+        }
+        if (!res.ok || !json?.ok) {
+          setAsigErr(json?.error ?? "No se pudo guardar en BD (queda en sesión local).");
           setDescuentoPctPorMol(mapDescuentoPeLocal(batchLabel));
           return;
         }
@@ -263,7 +322,7 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
       <PeDiccionarioWebControlBar
         batchLabel={batchLabel}
         modoAsignacion={modoAsignacion}
-        onToggleAsignacion={onToggleAsignacion}
+        onToggleAsignacion={puedeAsignarDescuento ? onToggleAsignacion : undefined}
       />
 
       <div className="mt-3 flex w-full flex-col gap-3 lg:flex-row lg:items-start lg:gap-2">
