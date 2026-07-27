@@ -484,6 +484,21 @@ export type LogisticaBloqueStock = {
   marcas: LogisticaGrupoMarcaResumen[];
 };
 
+/** Remanente depósito solo aplica a CP con saldo; ocultar PE / Programado / vacío. */
+export function bloqueStockRimecVisible(
+  entidad_am: EntidadAmLogistica,
+  bloque: LogisticaBloqueStock,
+): boolean {
+  if (entidad_am !== "CP") return false;
+  return (
+    bloque.cajas > 0 ||
+    bloque.pares > 0 ||
+    bloque.monto > 0 ||
+    bloque.n_fi > 0 ||
+    bloque.marcas.length > 0
+  );
+}
+
 export type LogisticaGrupoCadenaResumen = {
   key: string;
   cadena_label: string;

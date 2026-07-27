@@ -40,6 +40,7 @@ import type {
   LogisticaPendienteRow,
 } from "@/lib/logistica-ok/queries-bandeja";
 import {
+  bloqueStockRimecVisible,
   filtrarFilasLogistica,
   groupLogisticaPorPedidoDuro,
   enriquecerGruposConStatsPp,
@@ -517,6 +518,7 @@ function AcordeonPedidoDuro({
         const open = openPedido[g.key] ?? true;
         const color = ENTIDAD_AM_META[g.entidad_am]?.color ?? "#002B4E";
         const pedidoUi = labelPedidoExternoUi(g);
+        const mostrarStockRimec = bloqueStockRimecVisible(g.entidad_am, g.stockRimec);
         return (
           <div key={g.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div
@@ -606,7 +608,10 @@ function AcordeonPedidoDuro({
             {open && (
               <div className="space-y-3 border-t border-slate-100 bg-slate-50/40 p-3">
                 <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                  {g.pp_numero} · BAZZAR = holding · RIMEC = remanente depósito (no mezclar)
+                  {g.pp_numero}
+                  {mostrarStockRimec
+                    ? " · BAZZAR = holding · RIMEC = remanente depósito (no mezclar)"
+                    : " · BAZZAR = holding tiendas"}
                 </p>
 
                 {/* STOCK · BAZZAR */}
@@ -638,34 +643,35 @@ function AcordeonPedidoDuro({
                   />
                 </div>
 
-                {/* STOCK · RIMEC remanente */}
-                <div className="overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50/40">
-                  <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-100/80 px-4 py-2.5">
-                    <span className="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                      STOCK · RIMEC
-                    </span>
-                    <span className="text-xs font-semibold text-amber-950">Remanente → depósito</span>
-                    <MetricasMini
-                      cajas={g.stockRimec.cajas}
-                      pares={g.stockRimec.pares}
-                      monto={g.stockRimec.monto}
-                      nFi={g.stockRimec.n_fi}
-                      nCli={g.stockRimec.n_clientes}
+                {mostrarStockRimec ? (
+                  <div className="overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50/40">
+                    <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-100/80 px-4 py-2.5">
+                      <span className="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                        STOCK · RIMEC
+                      </span>
+                      <span className="text-xs font-semibold text-amber-950">Remanente → depósito</span>
+                      <MetricasMini
+                        cajas={g.stockRimec.cajas}
+                        pares={g.stockRimec.pares}
+                        monto={g.stockRimec.monto}
+                        nFi={g.stockRimec.n_fi}
+                        nCli={g.stockRimec.n_clientes}
+                      />
+                    </div>
+                    <AcordeonMarcasDestacadas
+                      prefix={`${g.key}__rimec`}
+                      marcas={g.stockRimec.marcas}
+                      tab={tab}
+                      openMarca={openMarca}
+                      setOpenMarca={setOpenMarca}
+                      selected={selected}
+                      onToggle={onToggle}
+                      multiEnabled={multiEnabled}
+                      handlers={handlers}
+                      onObsLeida={onObsLeida}
                     />
                   </div>
-                  <AcordeonMarcasDestacadas
-                    prefix={`${g.key}__rimec`}
-                    marcas={g.stockRimec.marcas}
-                    tab={tab}
-                    openMarca={openMarca}
-                    setOpenMarca={setOpenMarca}
-                    selected={selected}
-                    onToggle={onToggle}
-                    multiEnabled={multiEnabled}
-                    handlers={handlers}
-                    onObsLeida={onObsLeida}
-                  />
-                </div>
+                ) : null}
 
                 {/* Cadenas clientes — renglón resumen Ivan */}
                 <div className="space-y-2">
