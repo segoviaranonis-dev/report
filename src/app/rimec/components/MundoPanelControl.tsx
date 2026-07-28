@@ -189,14 +189,16 @@ function EntidadCard({ e }: { e: EntidadActivoResumen }) {
               </span>
               <span className="mt-2 text-[10px] font-semibold text-amber-800">Grilla + Artículos →</span>
             </Link>
-            <Link href="/stock-programado?proforma=8051" className={ventaTileClass}>
+            <Link href="/stock-programado" className={ventaTileClass}>
               <span className={`text-[10px] font-bold uppercase tracking-wide ${VENTA_VISUAL.tileTitle}`}>
                 Ventas ejecutadas
               </span>
               <span className={`mt-1 font-serif text-lg font-semibold tabular-nums ${VENTA_VISUAL.valueStrong}`}>
                 {fmtN(e.pares_vendidos)} p
               </span>
-              <span className={`mt-2 text-[10px] font-semibold ${VENTA_VISUAL.tileLink}`}>Proforma 8051 →</span>
+              <span className={`mt-2 text-[10px] font-semibold ${VENTA_VISUAL.tileLink}`}>
+                {e.pedidos_abiertos} PP · detalle completo →
+              </span>
             </Link>
           </div>
         ) : (

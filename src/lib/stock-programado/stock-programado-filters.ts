@@ -35,6 +35,15 @@ export function filterByProformaToken(rows: DepositoRow[], token: string): Depos
   return rows.filter((r) => proformaMatchesToken(r.proforma, t));
 }
 
+/** Solo si el token matchea alguna proforma real — si no, `q` sigue como línea/ref (AM). */
+function maybeFilterByProformaSearch(rows: DepositoRow[], q: string): DepositoRow[] {
+  const token = q.trim();
+  if (!token) return rows;
+  const hit = rows.some((r) => proformaMatchesToken(r.proforma, token));
+  if (!hit) return rows;
+  return filterByProformaToken(rows, token);
+}
+
 export function applyStockProgramadoFilters(
   rows: DepositoRow[],
   filtros: OperativaFilterState,
@@ -44,7 +53,7 @@ export function applyStockProgramadoFilters(
   let scoped = filterByQuincenas(rows, quincenaIds);
   scoped = filterByPpIds(scoped, ppIds);
   if (ppIds.length === 0 && filtros.q.trim()) {
-    scoped = filterByProformaToken(scoped, filtros.q.trim());
+    scoped = maybeFilterByProformaSearch(scoped, filtros.q);
   }
   return applyStockTransitoFilters(scoped, filtros, [], PROGRAMADO_VENTAS_OPTS);
 }
@@ -58,7 +67,7 @@ export function buildStockProgramadoOpciones(
   let scoped = filterByQuincenas(rows, quincenaIds);
   scoped = filterByPpIds(scoped, ppIds);
   if (ppIds.length === 0 && filtros.q.trim()) {
-    scoped = filterByProformaToken(scoped, filtros.q.trim());
+    scoped = maybeFilterByProformaSearch(scoped, filtros.q);
   }
   const baseRows = scoped.filter((r) => r.cantidad > 0 || (r.pares_vendidos ?? 0) > 0);
   const sinGrada = { ...filtros, gradas: [] };

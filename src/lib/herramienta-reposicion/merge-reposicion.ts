@@ -283,14 +283,13 @@ export function mergeReposicionArticulos(input: {
     const bucket = cpBucketFromRow(r, "Programado");
     const vend = Number(r.pares_vendidos) || 0;
     const saldo = Number(r.cantidad) || 0;
-    const inicial = Number(r.cantidad_inicial) || saldo + vend;
-    addBucket(
-      a.ventasProgramado,
-      a.ventasProgramadoMeta,
-      bucket.label,
-      vend > 0 ? vend : inicial,
-      bucket,
-    );
+    // Rigor bancario: VENTAS = solo vendido. Saldo pendiente → STOCK (no inflar ventas).
+    if (vend > 0) {
+      addBucket(a.ventasProgramado, a.ventasProgramadoMeta, bucket.label, vend, bucket);
+    }
+    if (saldo > 0) {
+      addBucket(a.stock, a.stockMeta, bucket.label, saldo, bucket);
+    }
   }
 
   for (const r of input.ppAbierto ?? []) {
