@@ -137,11 +137,11 @@ export function tipoGrupoOpcionesVisibles(ramo_tipo?: string): typeof TIPO_GRUPO
   return TIPO_GRUPO_OPCIONES;
 }
 
-/** Acepta CP (`TipoGrupoId`) + PE (`comun`) — no estrechar a TipoGrupoId. */
-export function sanitizeTipoGruposParaRamo(
-  tipo_grupos: readonly string[] | undefined,
+/** Acepta CP (`TipoGrupoId`) + PE (`comun`) — preserva el tipo de entrada. */
+export function sanitizeTipoGruposParaRamo<T extends string>(
+  tipo_grupos: readonly T[] | undefined,
   ramo_tipo?: string,
-): string[] {
+): T[] {
   const list = [...(tipo_grupos ?? [])];
   if (esRamoAccesorios(ramo_tipo)) return [];
   if (String(ramo_tipo ?? "").trim().toUpperCase() !== "CALZADO") return list;
