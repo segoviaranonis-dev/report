@@ -85,7 +85,7 @@ export function PeImportSdrmButton({ onDone }: Props) {
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="font-serif text-lg font-semibold text-slate-900">Import Pronta Entrega</h2>
             <p className="mt-1 text-xs text-slate-600">
-              Pipeline: staging → pilares FK → PPD · paridad Panel Alejandro Magno + :3001
+              Pipeline Node: staging → pilares FK → PPD + DPE (COD.GRUPO) · Panel AM + RIMEC Web
             </p>
             <input
               ref={inputRef}

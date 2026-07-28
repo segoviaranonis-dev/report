@@ -26,6 +26,9 @@
     },
     "src/app/api/stock-pronta-entrega/asignacion-descuento/route.ts": {
       "maxDuration": 120
+    },
+    "src/app/api/stock-pronta-entrega/import-csv/route.ts": {
+      "maxDuration": 300
     }
   }
 }
