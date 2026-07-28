@@ -48,9 +48,14 @@ export async function GET(req: NextRequest) {
       color_code: string;
       descuento_pct: string;
     }>(
-      `SELECT linea_codigo, referencia_codigo, material_code, color_code, descuento_pct::text
+      `SELECT DISTINCT ON (linea_codigo, referencia_codigo, material_code, color_code)
+              linea_codigo, referencia_codigo, material_code, color_code, descuento_pct::text
        FROM pe_descuento_comercial_molecula
-       WHERE lower(batch_label) = lower($1) OR batch_label = ''`,
+       WHERE lower(batch_label) = lower($1) OR batch_label = ''
+       ORDER BY linea_codigo, referencia_codigo, material_code, color_code,
+                CASE WHEN lower(batch_label) = lower($1) THEN 0 ELSE 1 END,
+                updated_at DESC NULLS LAST,
+                assigned_at DESC NULLS LAST`,
       [batch],
     );
     const map: Record<string, number> = {};
@@ -63,8 +68,7 @@ export async function GET(req: NextRequest) {
       );
       const pct = Number(r.descuento_pct);
       if (!Number.isFinite(pct)) continue;
-      // Preferir fila con batch concreto (ya filtrada); vacío global solo si no hay)
-      if (map[k] == null) map[k] = pct;
+      map[k] = pct;
     }
     return NextResponse.json({ ok: true, batch, descuentos: map, count: Object.keys(map).length });
   } catch (e) {

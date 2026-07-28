@@ -309,9 +309,13 @@ export function filterHubModules(
       return m.href === "/facturacion";
     }
 
-    // JEFE DEPOSITO RIMEC (EVERT): hub Depósito + Stock PE (2 tarjetas)
+    // JEFE DEPOSITO RIMEC (EVERT): Depósito + Stock PE + Logística OK (3 pestañas)
     if (rolId === 1 && cat === "JEFE_DEPOSITO") {
-      return m.href === "/deposito-rimec" || m.href === "/stock-pronta-entrega";
+      return (
+        m.href === "/deposito-rimec" ||
+        m.href === "/stock-pronta-entrega" ||
+        m.href === "/logistica-ok"
+      );
     }
 
     // VENDEDOR RIMEC: Ventas con fotos + Logística OK (pestaña Vendedor)

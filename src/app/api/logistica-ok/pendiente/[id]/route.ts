@@ -4,8 +4,9 @@ import {
   confirmarEntregaVendedor,
   confirmarImpresionLegal,
 } from "@/lib/logistica-ok/queries-bandeja";
-import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { requireLogisticaOkAccess } from "@/lib/logistica-ok/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isNivelDios } from "@/lib/auth/nivel-dios";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -19,7 +20,7 @@ type Body = {
 };
 
 export async function PATCH(req: Request, { params }: Params) {
-  const gate = await requireMotorPreciosAdmin();
+  const gate = await requireLogisticaOkAccess();
   if (gate.error) return gate.error;
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
@@ -36,6 +37,17 @@ export async function PATCH(req: Request, { params }: Params) {
   const pool = getRimecPool();
   const uid = gate.session?.id_usuario ?? null;
   const action = body.action ?? "fecha_cliente";
+  const cat = String(gate.categoria || "").toUpperCase().trim();
+
+  if (action === "fecha_cliente") {
+    // Solo Nivel Dios · Vendedor NO asigna fecha (Director 2026-07-27)
+    if (cat === "VENDEDOR" || !isNivelDios(gate.session)) {
+      return NextResponse.json(
+        { ok: false, error: "Solo gerente (Nivel Superior) asigna fecha de entrega al cliente." },
+        { status: 403 },
+      );
+    }
+  }
 
   if (action === "impresion_legal") {
     const result = await confirmarImpresionLegal(pool, id, uid);

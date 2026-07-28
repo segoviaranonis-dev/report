@@ -56,20 +56,36 @@ export const LOGISTICA_TABS: Array<{ id: LogisticaTabId; label: string; hint: st
 ];
 
 /**
- * Segregación pestañas Logística OK (Director 2026-07-24):
+ * Segregación pestañas Logística OK (Director 2026-07-24 · EVERT 2026-07-27):
  * - General + General exitoso → DIOS
  * - Vendedor → VENDEDOR
  * - Confirmadas → ADMIN (facturación / otro depto)
  * - Entregas + Exitosas → LOGISTICA | DEPOSITO
+ * - JEFE_DEPOSITO (EVERT): Confirmadas + Entregas del día + Registro exitosas · inicio entregas
  * - DIOS ve todas (Nivel Superior sin restricciones)
  */
-export type LogisticaCategoriaAcl = "DIOS" | "ADMIN" | "VENDEDOR" | "LOGISTICA" | "DEPOSITO" | string;
+export type LogisticaCategoriaAcl =
+  | "DIOS"
+  | "ADMIN"
+  | "VENDEDOR"
+  | "LOGISTICA"
+  | "DEPOSITO"
+  | "JEFE_DEPOSITO"
+  | string;
+
+/** Tres pestañas depósito — perfil JEFE_DEPOSITO (EVERT y similares). */
+export const LOGISTICA_TABS_JEFE_DEPOSITO: LogisticaTabId[] = [
+  "confirmadas",
+  "entregas",
+  "exitosas",
+];
 
 export function tabsPermitidasLogistica(categoria: string | null | undefined): LogisticaTabId[] {
   const cat = (categoria || "").toUpperCase().trim();
   if (cat === "DIOS") return LOGISTICA_TABS.map((t) => t.id);
   if (cat === "VENDEDOR") return ["vendedor"];
   if (cat === "ADMIN") return ["confirmadas"];
+  if (cat === "JEFE_DEPOSITO") return [...LOGISTICA_TABS_JEFE_DEPOSITO];
   if (cat === "LOGISTICA" || cat === "DEPOSITO") return ["entregas", "exitosas"];
   // Sin categoría conocida: ninguna pestaña operativa
   return [];
@@ -83,6 +99,8 @@ export function puedeVerTabLogistica(
 }
 
 export function tabInicialLogistica(categoria: string | null | undefined): LogisticaTabId {
+  const cat = (categoria || "").toUpperCase().trim();
+  if (cat === "JEFE_DEPOSITO") return "entregas";
   return tabsPermitidasLogistica(categoria)[0] ?? "general";
 }
 
@@ -114,24 +132,36 @@ export type SemaforoPelotas = {
 };
 
 /**
- * Sin fecha: 🔴 apagado apagado
- * Con fecha: 🟢 🟡 🟡
+ * Sin fecha (o basura 0020-…): 🔴 apagado apagado — aún en confirmación
+ * Con fecha válida: 🟢 🟡 🟡
  * Legal OK: 🟢 🟢 🟡
  * Exitosa: 🟢 🟢 🟢
+ *
+ * Ley Director: fechas agrupan; pelotas marcan el proceso sin fallas.
+ * Año &lt; 2000 (carrito) = sin fecha.
  */
+export function fechaEntregaClienteValida(raw: string | null | undefined): string | null {
+  const d = String(raw ?? "").trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  if (Number(d.slice(0, 4)) < 2000) return null;
+  return d;
+}
+
 export function pelotasDesdeFila(input: {
   estado: string;
   fecha_entrega_cliente?: string | null;
   impresion_legal_ok?: boolean;
   entregado_ok?: boolean;
 }): SemaforoPelotas {
+  const fechaOk = fechaEntregaClienteValida(input.fecha_entrega_cliente);
   if (input.entregado_ok || input.estado === "EXITOSA") {
     return { p1: "verde", p2: "verde", p3: "verde" };
   }
   if (input.estado === "EN_ENTREGA" || input.impresion_legal_ok) {
     return { p1: "verde", p2: "verde", p3: "amarillo" };
   }
-  if (input.estado === "CONFIRMADA" || input.fecha_entrega_cliente) {
+  // Confirmación = acto con fecha real · basura 0020 no cuenta
+  if (input.estado === "CONFIRMADA" || fechaOk) {
     return { p1: "verde", p2: "amarillo", p3: "amarillo" };
   }
   return { p1: "rojo", p2: "apagado", p3: "apagado" };

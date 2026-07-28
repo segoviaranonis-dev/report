@@ -14,6 +14,7 @@ import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeI
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
+import { TabResumenAsignacionPe } from "@/components/stock-pronta-entrega/TabResumenAsignacionPe";
 import {
   EMPTY_OPERATIVA_FILTERS,
   type OperativaFilterState,
@@ -29,6 +30,12 @@ import {
   parsePctDescuento,
   savePeAsignacionDescuentoLocal,
 } from "@/lib/stock-pronta-entrega/asignacion-descuento-local";
+import {
+  claveDiccionarioFromTipoIds,
+  parsePeTipoSelected,
+  tipoIdsFromClaveDiccionario,
+} from "@/lib/stock-pronta-entrega/filtro-tipo-pe-diccionario";
+import type { StockProntaEntregaResumen } from "@/lib/stock-pronta-entrega/queries-resumen";
 
 async function readJsonResponse<T>(res: Response): Promise<{ json: T | null; err: string | null }> {
   const text = await res.text();
@@ -59,12 +66,6 @@ async function fetchDescuentosBd(batch: string): Promise<Map<string, number>> {
     return new Map();
   }
 }
-import {
-  claveDiccionarioFromTipoIds,
-  parsePeTipoSelected,
-  tipoIdsFromClaveDiccionario,
-} from "@/lib/stock-pronta-entrega/filtro-tipo-pe-diccionario";
-import type { StockProntaEntregaResumen } from "@/lib/stock-pronta-entrega/queries-resumen";
 
 type Props = {
   resumenInicial: StockProntaEntregaResumen;
@@ -407,7 +408,7 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
 
 function StockPeShell({ resumenInicial }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<"operativa" | "articulos">("operativa");
+  const [tab, setTab] = useState<"operativa" | "articulos" | "resumen-asignacion">("operativa");
   const { loading, err } = useStockPe();
   const onImportDone = useCallback(() => {
     router.refresh();
@@ -429,18 +430,24 @@ function StockPeShell({ resumenInicial }: Props) {
           <PeImportSdrmButton onDone={onImportDone} />
         </div>
         <div className="mx-auto flex max-w-[1600px] gap-2 border-t border-slate-100 px-4">
-          {(["operativa", "articulos"] as const).map((t) => (
+          {(
+            [
+              ["operativa", "Operativa"],
+              ["articulos", "Artículos"],
+              ["resumen-asignacion", "Resumen asignación"],
+            ] as const
+          ).map(([t, label]) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-semibold capitalize ${
+              className={`px-4 py-2 text-sm font-semibold ${
                 tab === t
                   ? "border-b-2 border-rimec-azul text-rimec-azul"
                   : "text-slate-500"
               }`}
             >
-              {t === "operativa" ? "Operativa" : "Artículos"}
+              {label}
             </button>
           ))}
         </div>
@@ -461,6 +468,12 @@ function StockPeShell({ resumenInicial }: Props) {
             </div>
             <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
               <TabArticulosPe />
+            </div>
+            <div
+              className={tab !== "resumen-asignacion" ? "hidden" : undefined}
+              aria-hidden={tab !== "resumen-asignacion"}
+            >
+              <TabResumenAsignacionPe batchLabel={resumenInicial.batch_label} />
             </div>
           </>
         )}

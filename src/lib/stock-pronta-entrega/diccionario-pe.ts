@@ -21,8 +21,8 @@ export function etiquetaCadenaPeUi(clave: string): string {
 }
 
 /**
- * Cadena comercial PE — trillizo siamés con filtro Tipo / badge UI.
- * LIQ > Promo (`es_promo` / cadena) > NORMAL. No tipar solo por `descp_caso`.
+ * Cadena comercial DPE — trillizo siamés con filtro Tipo / badge UI.
+ * Ley: solo triunvirato Excel (COD.GRUPO). BCL no incide — ver `cadena-dpe-triunvirato.ts`.
  */
 export function cadenaPeDeRow(row: DepositoRow): string {
   return cadenaPeCanonico(row);

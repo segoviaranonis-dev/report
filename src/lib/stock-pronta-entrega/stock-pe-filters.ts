@@ -7,10 +7,6 @@ import {
 } from "@/lib/depositos/operativa-filters";
 import { esFilaModuloAccesorios, esRamoAccesorios, mergePeAbcrTipo1Items, peTieneSubfamiliaAccesorios } from "@/lib/filtros/modulo-accesorios";
 import {
-  esLiquidacionRow,
-  esPromoRow,
-} from "@/lib/filtros/filtro-tipo-canonico";
-import {
   parsePeTipoSelected,
   peTipoIdFromCadena,
   rowMatchesPeTipoDiccionario,
@@ -21,7 +17,7 @@ import {
   colorTokenFiltroPe,
   stampFamiliaPilaresPe,
 } from "@/lib/stock-pronta-entrega/pe-filtro-pilar-638";
-import { esComunRow } from "@/lib/stock-pronta-entrega/pe-grupo-uno-visual";
+import { cadenaPeCanonico } from "@/lib/stock-pronta-entrega/pe-grupo-uno-visual";
 
 export function filterByDepositoLegal(rows: DepositoRow[], columnaLegal: string): DepositoRow[] {
   if (!columnaLegal) return rows;
@@ -103,13 +99,13 @@ export function applyStockPeFilters(
   } else {
     const cadena = String(filtros.cadenaComercial ?? "").trim().toUpperCase();
     if (cadena === "LIQUIDACION") {
-      out = out.filter((r) => esLiquidacionRow(r));
+      out = out.filter((r) => cadenaPeCanonico(r) === "LIQUIDACION");
     } else if (cadena === "PROMOCIONAL") {
-      out = out.filter((r) => !esLiquidacionRow(r) && esPromoRow(r));
+      out = out.filter((r) => cadenaPeCanonico(r) === "PROMOCIONAL");
     } else if (cadena === "COMUN") {
-      out = out.filter((r) => esComunRow(r));
+      out = out.filter((r) => cadenaPeCanonico(r) === "COMUN");
     } else if (cadena === "REGULAR") {
-      out = out.filter((r) => !esLiquidacionRow(r) && !esPromoRow(r) && !esComunRow(r));
+      out = out.filter((r) => cadenaPeCanonico(r) === "REGULAR");
     }
   }
 

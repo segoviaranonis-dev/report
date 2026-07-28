@@ -37,6 +37,8 @@ export type LogisticaPendienteRow = {
   entregado_ok: boolean;
   fecha_entrega_efectiva: string | null;
   chofer_nombre: string | null;
+  /** Entrada al registro EXITOSA (updated_at al cierre) · LIFO */
+  registro_at: string | null;
   cliente: string;
   cadena: string | null;
   vendedor: string;
@@ -157,6 +159,7 @@ export async function listLogisticaPendientes(
     entregado_ok: boolean | null;
     fecha_entrega_efectiva: string | null;
     chofer_nombre: string | null;
+    registro_at: string | null;
     cliente: string;
     cadena: string | null;
     vendedor: string;
@@ -185,6 +188,7 @@ export async function listLogisticaPendientes(
            COALESCE(l.entregado_ok, false) AS entregado_ok,
            l.fecha_entrega_efectiva::text,
            l.chofer_nombre,
+           l.updated_at::text AS registro_at,
            cv.descp_cliente AS cliente,
            cad.descp_cadena AS cadena,
            ${LOGISTICA_VENDEDOR_SELECT},
@@ -204,10 +208,19 @@ export async function listLogisticaPendientes(
     WHERE ($1 = 'TODOS' OR l.estado = $1)
       AND ($2::int IS NULL OR l.id_vendedor = $2)
     ORDER BY
-      CASE l.entidad_am WHEN 'PE' THEN 0 WHEN 'CP' THEN 1 WHEN 'PROGRAMADO' THEN 2 ELSE 3 END,
-      COALESCE(NULLIF(BTRIM(pp.nro_pedido_externo), ''), pp.numero_registro),
-      COALESCE(NULLIF(BTRIM(fi.marca), ''), 'Sin marca'),
-      COALESCE(l.fecha_entrega_vendedor, l.fecha_orden) ASC NULLS LAST,
+      CASE WHEN $1 = 'EXITOSA' THEN l.updated_at END DESC NULLS LAST,
+      CASE WHEN $1 <> 'EXITOSA' THEN
+        CASE l.entidad_am WHEN 'PE' THEN 0 WHEN 'CP' THEN 1 WHEN 'PROGRAMADO' THEN 2 ELSE 3 END
+      END ASC NULLS LAST,
+      CASE WHEN $1 <> 'EXITOSA' THEN
+        COALESCE(NULLIF(BTRIM(pp.nro_pedido_externo), ''), pp.numero_registro)
+      END ASC NULLS LAST,
+      CASE WHEN $1 <> 'EXITOSA' THEN
+        COALESCE(NULLIF(BTRIM(fi.marca), ''), 'Sin marca')
+      END ASC NULLS LAST,
+      CASE WHEN $1 <> 'EXITOSA' THEN
+        COALESCE(l.fecha_entrega_vendedor, l.fecha_orden)
+      END ASC NULLS LAST,
       cv.descp_cliente,
       l.nro_factura
     `,
@@ -215,7 +228,11 @@ export async function listLogisticaPendientes(
   );
 
   return rows.map((r) => {
-    const fec = r.fecha_entrega_vendedor?.slice(0, 10) ?? null;
+    const fecRaw = r.fecha_entrega_vendedor?.slice(0, 10) ?? null;
+    const fec =
+      fecRaw && /^\d{4}-\d{2}-\d{2}$/.test(fecRaw) && Number(fecRaw.slice(0, 4)) >= 2000
+        ? fecRaw
+        : null;
     const ppPub = r.pp_publicado_at?.slice(0, 10) ?? null;
     return {
       id: Number(r.id),
@@ -245,6 +262,7 @@ export async function listLogisticaPendientes(
       entregado_ok: Boolean(r.entregado_ok ?? false),
       fecha_entrega_efectiva: r.fecha_entrega_efectiva?.slice(0, 10) ?? null,
       chofer_nombre: r.chofer_nombre,
+      registro_at: r.registro_at ?? null,
       cliente: r.cliente,
       cadena: r.cadena,
       vendedor: r.vendedor,
@@ -877,7 +895,7 @@ export function groupLogisticaPorFechaCliente(filas: LogisticaPendienteRow[]): L
     });
 }
 
-/** Histórico exitosas: agrupa por fecha real de entrega (descendente). */
+/** Histórico exitosas: agrupa por fecha real · días con cierre más reciente primero (LIFO). */
 export function groupLogisticaPorFechaEfectiva(filas: LogisticaPendienteRow[]): LogisticaGrupoDia[] {
   const map = new Map<string, LogisticaPendienteRow[]>();
   for (const f of filas) {
@@ -886,18 +904,25 @@ export function groupLogisticaPorFechaEfectiva(filas: LogisticaPendienteRow[]): 
     bucket.push(f);
     map.set(key, bucket);
   }
+  const ts = (f: LogisticaPendienteRow) => Date.parse(f.registro_at ?? "") || 0;
   return [...map.entries()]
-    .map(([fecha, rows]) => ({
-      key: fecha,
-      fecha,
-      filas: rows,
-      cajas: rows.reduce((s, r) => s + r.cajas, 0),
-    }))
+    .map(([fecha, rows]) => {
+      const sorted = [...rows].sort((a, b) => ts(b) - ts(a));
+      return {
+        key: fecha,
+        fecha,
+        filas: sorted,
+        cajas: sorted.reduce((s, r) => s + r.cajas, 0),
+        _maxRegistro: Math.max(0, ...sorted.map(ts)),
+      };
+    })
     .sort((a, b) => {
       if (a.fecha === "Sin fecha real") return 1;
       if (b.fecha === "Sin fecha real") return -1;
+      if (b._maxRegistro !== a._maxRegistro) return b._maxRegistro - a._maxRegistro;
       return b.fecha.localeCompare(a.fecha);
-    });
+    })
+    .map(({ _maxRegistro: _, ...rest }) => rest);
 }
 
 export type LogisticaGrupoChofer = {
@@ -914,7 +939,7 @@ export type LogisticaGrupoDiaConChofer = {
   choferes: LogisticaGrupoChofer[];
 };
 
-/** Dentro de un día: acordeón por nombre de chofer */
+/** Dentro de un día: acordeón por chofer · último cierre primero (LIFO) */
 export function groupLogisticaPorChofer(filas: LogisticaPendienteRow[]): LogisticaGrupoChofer[] {
   const map = new Map<string, LogisticaPendienteRow[]>();
   for (const f of filas) {
@@ -923,18 +948,25 @@ export function groupLogisticaPorChofer(filas: LogisticaPendienteRow[]): Logisti
     bucket.push(f);
     map.set(name, bucket);
   }
+  const ts = (f: LogisticaPendienteRow) => Date.parse(f.registro_at ?? "") || 0;
   return [...map.entries()]
-    .map(([chofer, rows]) => ({
-      key: chofer,
-      chofer,
-      filas: rows,
-      cajas: rows.reduce((s, r) => s + r.cajas, 0),
-    }))
+    .map(([chofer, rows]) => {
+      const sorted = [...rows].sort((a, b) => ts(b) - ts(a));
+      return {
+        key: chofer,
+        chofer,
+        filas: sorted,
+        cajas: sorted.reduce((s, r) => s + r.cajas, 0),
+        _maxRegistro: Math.max(0, ...sorted.map(ts)),
+      };
+    })
     .sort((a, b) => {
       if (a.chofer === "Sin chofer") return 1;
       if (b.chofer === "Sin chofer") return -1;
+      if (b._maxRegistro !== a._maxRegistro) return b._maxRegistro - a._maxRegistro;
       return a.chofer.localeCompare(b.chofer, "es");
-    });
+    })
+    .map(({ _maxRegistro: _, ...rest }) => rest);
 }
 
 /** Día → chofer → FI (Entregas del día · por fecha prometida al cliente) */
@@ -947,7 +979,7 @@ export function groupLogisticaPorFechaYChofer(filas: LogisticaPendienteRow[]): L
   }));
 }
 
-/** Histórico Registro exitosas · fecha real + chofer (más reciente primero). */
+/** Histórico Registro exitosas · LIFO: último cerrado → primero visible. */
 export function groupLogisticaPorFechaEfectivaYChofer(
   filas: LogisticaPendienteRow[],
 ): LogisticaGrupoDiaConChofer[] {
@@ -968,8 +1000,8 @@ export async function confirmarEntregaVendedor(
   idVendedor?: number | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const fecha = fechaEntrega?.trim().slice(0, 10);
-  if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    return { ok: false, error: `${FECHA_ENTREGA_CLIENTE_LABEL} inválida.` };
+  if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number(fecha.slice(0, 4)) < 2000) {
+    return { ok: false, error: `${FECHA_ENTREGA_CLIENTE_LABEL} inválida (año ≥ 2000).` };
   }
 
   const { rowCount } = await pool.query(
@@ -1005,8 +1037,14 @@ export async function confirmarEntregaLote(
   idVendedor?: number | null,
 ): Promise<{ ok: boolean; done: number; okIds: number[]; skipped: number; error?: string }> {
   const fecha = fechaEntrega?.trim().slice(0, 10);
-  if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    return { ok: false, done: 0, okIds: [], skipped: 0, error: `${FECHA_ENTREGA_CLIENTE_LABEL} inválida.` };
+  if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number(fecha.slice(0, 4)) < 2000) {
+    return {
+      ok: false,
+      done: 0,
+      okIds: [],
+      skipped: 0,
+      error: `${FECHA_ENTREGA_CLIENTE_LABEL} inválida (año ≥ 2000).`,
+    };
   }
   const uniq = [...new Set(ids.map(Number).filter((n) => Number.isFinite(n) && n > 0))];
   if (!uniq.length) {

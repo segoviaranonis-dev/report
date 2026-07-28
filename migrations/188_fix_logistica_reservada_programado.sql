@@ -1,6 +1,6 @@
--- MIG-187 · Alinear sync_logistica_pp_if_bandera con sync-pp.ts (Report)
--- Ley PE: solo FI CONFIRMADA · estado logística PE siempre PENDIENTE al sync.
--- Cierra brecha pre-sync Web (Graciela PE-220-001) · CHUSAR 2.3.1.28.12 P1
+-- MIG-188 · Fix Logística PROGRAMADO/CP: no purgar RESERVADA · sync incluye RESERVADA
+-- Causa incendio 2026-07-27: MIG-187 DELETE … fi.estado='RESERVADA' borró PP-38/32 de bandeja.
+-- Ley: PE solo CONFIRMADA · CP/PROGRAMADO = CONFIRMADA + RESERVADA (cierre Carlos).
 
 BEGIN;
 
@@ -84,8 +84,11 @@ BEGIN
     LIMIT 1
   ) cad ON true
   WHERE fi.pp_id = p_pp_id
-    AND fi.estado = 'CONFIRMADA'
     AND fi.cliente_id IS NOT NULL
+    AND (
+      (v_entidad = 'PE' AND fi.estado = 'CONFIRMADA')
+      OR (v_entidad <> 'PE' AND fi.estado IN ('CONFIRMADA', 'RESERVADA'))
+    )
   ON CONFLICT (factura_interna_id) DO UPDATE SET
     pedido_proveedor_id = EXCLUDED.pedido_proveedor_id,
     entidad_am = EXCLUDED.entidad_am,
@@ -122,28 +125,6 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.sync_logistica_pp_if_bandera(INTEGER) IS
-  'MIG-187 · Sync FI CONFIRMADA→logistica si bandera ON. PE siempre PENDIENTE. Paridad sync-pp.ts.';
-
--- Backfill: PE CONFIRMADA sin confirmado_at = pre-sync / bug (no pasó por UI Logística)
-UPDATE public.logistica_pendiente_confirmacion l
-SET estado = 'PENDIENTE',
-    updated_at = now()
-WHERE l.entidad_am = 'PE'
-  AND l.estado = 'CONFIRMADA'
-  AND l.confirmado_at IS NULL
-  AND EXISTS (
-    SELECT 1
-    FROM public.factura_interna fi
-    WHERE fi.id = l.factura_interna_id
-      AND fi.estado = 'CONFIRMADA'
-  );
-
--- Purga filas logística creadas antes de confirmar FI (pre-sync Web / MIG-181 viejo)
--- ⛔ SUPERSEDED MIG-188 (2026-07-27): este DELETE borró PROGRAMADO/CP con FI RESERVADA (PP-38/32).
--- NO re-ejecutar. PE pre-sync se arregla sin borrar RESERVADA de programado.
--- DELETE FROM public.logistica_pendiente_confirmacion l
--- USING public.factura_interna fi
--- WHERE fi.id = l.factura_interna_id
---   AND fi.estado = 'RESERVADA';
+  'MIG-188 · PE=CONFIRMADA · CP/PROGRAMADO=CONFIRMADA|RESERVADA. No purgar RESERVADA programado.';
 
 COMMIT;

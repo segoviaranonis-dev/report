@@ -21,6 +21,12 @@ import {
   cajaRimecShouldRedirectHome,
   isCajaRimec,
 } from '@/lib/auth/caja-rimec'
+import {
+  JEFE_DEPOSITO_HOME,
+  isJefeDepositoRimec,
+  jefeDepositoPathAllowed,
+  jefeDepositoShouldRedirectHome,
+} from '@/lib/auth/jefe-deposito-rimec'
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
@@ -150,6 +156,23 @@ export async function middleware(request: NextRequest) {
           )
         }
         return NextResponse.redirect(new URL(CAJA_RIMEC_HOME, request.url))
+      }
+      return NextResponse.next()
+    }
+
+    // JEFE DEPOSITO RIMEC (EVERT): solo hub Depósito + Stock PE
+    if (isJefeDepositoRimec(rol_id, categoria)) {
+      if (jefeDepositoShouldRedirectHome(pathname)) {
+        return NextResponse.redirect(new URL(JEFE_DEPOSITO_HOME, request.url))
+      }
+      if (!jefeDepositoPathAllowed(pathname)) {
+        if (isApiRoute) {
+          return NextResponse.json(
+            { error: 'JEFE DEPOSITO: Depósito RIMEC, Stock PE y Logística OK' },
+            { status: 403 },
+          )
+        }
+        return NextResponse.redirect(new URL(JEFE_DEPOSITO_HOME, request.url))
       }
       return NextResponse.next()
     }

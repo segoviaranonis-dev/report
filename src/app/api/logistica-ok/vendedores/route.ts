@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { requireLogisticaOkAccess } from "@/lib/logistica-ok/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
-/** GET · catálogo vendedores para multi-asignación Logística OK */
+/** GET · catálogo vendedor_v2 (comerciales RIMEC) para filtros Logística OK */
 export async function GET() {
-  const gate = await requireMotorPreciosAdmin();
-  if (gate.error) return gate.error;
-  if (!isRimecDatabaseConfigured()) {
+  const gate = await requireLogisticaOkAccess();
+  if (gate.error) return gate.error;  if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
   }
 

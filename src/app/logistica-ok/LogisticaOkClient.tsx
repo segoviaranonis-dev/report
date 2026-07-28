@@ -1036,7 +1036,7 @@ export function LogisticaOkClient() {
           setCategoriaSesion(cat);
           const tabs = tabsPermitidasLogistica(cat);
           setTabsPermitidas(tabs.length ? tabs : ["general"]);
-          setTab((prev) => (tabs.includes(prev) ? prev : tabs[0] ?? "general"));
+          setTab((prev) => (tabs.includes(prev) ? prev : tabInicialLogistica(cat)));
         }
       } catch {
         /* sesión opcional al montar */

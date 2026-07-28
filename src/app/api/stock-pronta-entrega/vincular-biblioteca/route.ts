@@ -39,7 +39,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST — candado: BCL → descp_caso_snapshot (PROMO Web). Re-vincular actualiza. */
+/**
+ * POST — candado BCL → descp_caso_snapshot (motor precios / etiqueta informativa).
+ * Ley DPE: NO altera segregación grupo uno — cadena PE = solo triunvirato COD.GRUPO.
+ * Doc: CHUSAR_LEY_DPE_SIN_BCL_20260727.md
+ */
 export async function POST(req: NextRequest) {
   const gate = await requireMotorPreciosAdmin();
   if (gate.error) {

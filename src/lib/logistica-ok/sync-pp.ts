@@ -82,6 +82,11 @@ export async function syncLogisticaPp(
   }
 
   const cajasSql = sqlFiCajasSubquery("fi");
+  /** PE: solo CONFIRMADA (Aprobaciones). CP/PROGRAMADO: también RESERVADA (cierre Carlos). */
+  const estadosFiSql =
+    entidad === "PE"
+      ? `fi.estado = 'CONFIRMADA'`
+      : `fi.estado IN ('CONFIRMADA', 'RESERVADA')`;
 
   const { rowCount } = await client.query(
     `
@@ -125,7 +130,7 @@ export async function syncLogisticaPp(
       LIMIT 1
     ) cad ON true
     WHERE fi.pp_id = $1
-      AND fi.estado = 'CONFIRMADA'
+      AND ${estadosFiSql}
       AND fi.cliente_id IS NOT NULL
     ON CONFLICT (factura_interna_id) DO UPDATE SET
       pedido_proveedor_id = EXCLUDED.pedido_proveedor_id,

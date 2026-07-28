@@ -4,8 +4,9 @@ import {
   confirmarEntregaLote,
   confirmarImpresionLegalLote,
 } from "@/lib/logistica-ok/queries-bandeja";
-import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
+import { requireLogisticaOkAccess } from "@/lib/logistica-ok/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { isNivelDios } from "@/lib/auth/nivel-dios";
 
 type Body = {
   action: "fecha_cliente" | "impresion_legal" | "cierre_entrega";
@@ -13,13 +14,12 @@ type Body = {
   fecha_entrega_cliente?: string;
   fecha_entrega_efectiva?: string;
   chofer_nombre?: string;
-  /** Asignar / reasignar vendedor comercial en el lote */
   id_vendedor?: number | null;
 };
 
 /** POST · multi-selección: misma fecha (+ vendedor) o impresión legal a N FI */
 export async function POST(req: Request) {
-  const gate = await requireMotorPreciosAdmin();
+  const gate = await requireLogisticaOkAccess();
   if (gate.error) return gate.error;
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
@@ -39,12 +39,19 @@ export async function POST(req: Request) {
 
   const pool = getRimecPool();
   const uid = gate.session?.id_usuario ?? null;
+  const cat = String(gate.categoria || "").toUpperCase().trim();
   const idVendedor =
     body.id_vendedor != null && Number.isFinite(Number(body.id_vendedor)) && Number(body.id_vendedor) > 0
       ? Number(body.id_vendedor)
       : null;
 
   if (body.action === "fecha_cliente") {
+    if (cat === "VENDEDOR" || !isNivelDios(gate.session)) {
+      return NextResponse.json(
+        { ok: false, error: "Solo gerente (Nivel Superior) asigna fecha de entrega al cliente." },
+        { status: 403 },
+      );
+    }
     const result = await confirmarEntregaLote(
       pool,
       ids,
@@ -80,7 +87,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // cierre_entrega: sigue fila a fila (chofer/fecha pueden variar)
   const okIds: number[] = [];
   const errors: Array<{ id: number; error: string }> = [];
   for (const id of ids) {

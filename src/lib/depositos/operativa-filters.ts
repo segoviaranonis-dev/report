@@ -37,9 +37,8 @@ export function stampFamiliaPilares(rows: DepositoRow[]): DepositoRow[] {
 import { normalizePrecioUnitario } from "@/lib/depositos/precio-venta";
 import {
   calzadoExcluyeCarterasPorDefecto,
-  rowMatchesTipoGrupos,
-  type TipoGrupoId,
 } from "@/lib/filtros/filtro-tipo-canonico";
+import { rowMatchesTipoGruposSiamese, type OperativaTipoGrupoId } from "@/lib/filtros/tipo-grupos-hibrido";
 import {
   esFilaModuloAccesorios,
   esLabelModuloAccesorios,
@@ -73,8 +72,8 @@ export type OperativaFilterState = {
   gradas: string[];
   /** Alejandro Magno · SDRM cadena comercial (LIQUIDACION|REGULAR|null=todos) */
   cadenaComercial: string | null;
-  /** Grupos canónicos Tipo (vacío = Todos). */
-  tipoGrupos: TipoGrupoId[];
+  /** Grupos canónicos Tipo (vacío = Todos). PE diccionario incluye comun. */
+  tipoGrupos: OperativaTipoGrupoId[];
   /**
    * Familias Material / Color (claves de agrupar-etiqueta-pilar).
    * Una opción = muchas variantes (Napa·Nap·Np → Napa).
@@ -294,7 +293,7 @@ export function rowMatchesOperativaFilters(
   }
 
   if (eff.lineaIds.length && !matchFk(r.linea_id, eff.lineaIds)) return false
-  if (eff.tipoGrupos.length && !rowMatchesTipoGrupos(r, eff.tipoGrupos)) return false
+  if (eff.tipoGrupos.length && !rowMatchesTipoGruposSiamese(r, eff.tipoGrupos)) return false
 
   if (eff.materialFamilias.length) {
     const want = new Set(eff.materialFamilias)

@@ -11,6 +11,8 @@ import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 /**
  * GET /api/stock-pronta-entrega/filtros-indice
  * Puente Motor Precios → stock PE RIMEC (solo lectura · proveedor 654).
+ * Ley DPE: biblioteca BCL aquí es referencia motor precios — NO segregación DPE.
+ * Cadena PE = triunvirato Excel · ver CHUSAR_LEY_DPE_SIN_BCL_20260727.md
  */
 export async function GET(req: NextRequest) {
   const gate = await requireMotorPreciosAdmin();
