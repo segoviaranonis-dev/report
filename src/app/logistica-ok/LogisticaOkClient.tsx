@@ -232,6 +232,8 @@ type SemaforoHandlers = {
   onPaso2: (row: LogisticaPendienteRow) => void;
   onPaso3: (row: LogisticaPendienteRow) => void;
   busyId: number | null;
+  /** Solo General (DIOS/gerente) · Vendedor NO asigna fecha */
+  puedeAsignarFecha: boolean;
 };
 
 function SemaforoTresPelotas({ row, handlers }: { row: LogisticaPendienteRow; handlers: SemaforoHandlers }) {
@@ -242,7 +244,7 @@ function SemaforoTresPelotas({ row, handlers }: { row: LogisticaPendienteRow; ha
       <Pelota
         color={p.p1}
         paso={1}
-        clickable={p.p1 === "rojo"}
+        clickable={handlers.puedeAsignarFecha && p.p1 === "rojo"}
         busy={busy}
         onClick={() => handlers.onPaso1(row)}
       />
@@ -942,9 +944,15 @@ export function LogisticaOkClient() {
   const [cierreChofer, setCierreChofer] = useState<string>(CHOFERES_RIMEC_INICIAL[0]);
 
   const esTabGeneral = tab === "general" || tab === "general_exitoso";
-  const esTabConAsignadorFecha = tab === "general" || tab === "vendedor";
+  /** Solo General · Vendedor NO asigna fecha (Director 2026-07-27) */
+  const esTabConAsignadorFecha = tab === "general";
+  const puedeAsignarFecha =
+    esTabConAsignadorFecha &&
+    String(categoriaSesion || "")
+      .toUpperCase()
+      .trim() !== "VENDEDOR";
   const multiEnabled =
-    tab === "general" || tab === "vendedor" || tab === "confirmadas" || tab === "entregas";
+    (tab === "general" && puedeAsignarFecha) || tab === "confirmadas" || tab === "entregas";
 
   const fetchBandeja = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -1242,9 +1250,14 @@ export function LogisticaOkClient() {
 
   const handlers: SemaforoHandlers = {
     busyId,
+    puedeAsignarFecha,
     onPaso1: (row) => {
+      if (!puedeAsignarFecha) {
+        setToast("Solo General (gerente) asigna fecha de entrega al cliente. Vendedor: solo lectura.");
+        return;
+      }
       const fecha = fechaLote || row.fecha_entrega_cliente || "";
-      if (!fecha) {
+      if (!fecha || Number(String(fecha).slice(0, 4)) < 2000) {
         setToast(
           `Elegí ${FECHA_ENTREGA_CLIENTE_LABEL} arriba (barra multi) y clic de nuevo en la pelota roja.`,
         );
@@ -1419,7 +1432,7 @@ export function LogisticaOkClient() {
         {/* Leyenda 3 pelotas */}
         <div className="mt-3 flex flex-wrap gap-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] text-slate-600">
           <span className="inline-flex items-center gap-1">
-            <span className="h-3 w-3 rounded-full bg-red-600" />1 Sin fecha
+            <span className="h-3 w-3 rounded-full bg-red-600" />1 Sin fecha · en confirmación
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="h-3 w-3 rounded-full bg-emerald-600" />
@@ -1433,7 +1446,7 @@ export function LogisticaOkClient() {
           </span>
         </div>
 
-        {/* Cabecera operativa: filtros en todas las pestañas · asignador fecha solo General + Vendedor */}
+        {/* Cabecera operativa: filtros en todas · asignar fecha solo General (no Vendedor) */}
         <div className="mt-4 space-y-3 rounded-xl border-2 border-rimec-azul/20 bg-rimec-azul/[0.04] px-4 py-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[12rem] flex-1">
@@ -1475,7 +1488,7 @@ export function LogisticaOkClient() {
             />
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            {esTabConAsignadorFecha && (
+            {esTabConAsignadorFecha && puedeAsignarFecha && (
               <>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-500">
@@ -1509,8 +1522,15 @@ export function LogisticaOkClient() {
                 Impresión legal · {idsSeleccion.length} FI
               </button>
             )}
-          </div>
-          <div className="ml-auto flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshBandeja()}
+              disabled={loading || refreshing}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-white disabled:opacity-50"
+            >
+              Refrescar
+            </button>
+            <div className="ml-auto flex flex-wrap gap-2">
               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
                 <span className="font-bold text-slate-500">Inicial</span>{" "}
                 <strong>{stats.n_inicial}</strong> FI ·{" "}
@@ -1595,10 +1615,11 @@ export function LogisticaOkClient() {
         ) : tab === "exitosas" ? (
           <>
             <p className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950">
-              Histórico permanente · <strong>{statsVista.n}</strong> entregas exitosas ·{" "}
-              <strong>{statsVista.cajas.toLocaleString("es-PY")}</strong> cajas. Las filas{" "}
-              <code className="text-[10px]">EXITOSA</code> no se borran del registro (informes chofer / vendedor a
-              fin de mes).
+              Histórico permanente · LIFO (último cerrado arriba) ·{" "}
+              <strong>{statsVista.n}</strong> entregas ·{" "}
+              <strong>{statsVista.cajas.toLocaleString("es-PY")}</strong> cajas. Estado{" "}
+              <code className="text-[10px]">EXITOSA</code> no se borra al despublicar PP (solo{" "}
+              <code className="text-[10px]">PENDIENTE</code>).
             </p>
             <div className="mt-4 space-y-3">
               {gruposExitosasHistorico.map((d) => {

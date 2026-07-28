@@ -7,6 +7,12 @@ const OPCIONES_PERSISTENTES = {
   silent: false as const,
 };
 
+/** showNotification vía SW admite actions/data — no están en NotificationOptions DOM base. */
+type SwNotificationOptions = NotificationOptions & {
+  actions?: Array<{ action: string; title: string }>;
+  data?: Record<string, unknown>;
+};
+
 export function dispararRecargaAlertas(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(EVENTO_RECARGAR_ALERTAS));
@@ -90,7 +96,7 @@ async function mostrarViaServiceWorker(n: NotificacionRow, dest: string): Promis
   const existentes = await reg.getNotifications({ tag: `nexus-aprobacion-${n.id}` });
   existentes.forEach((x) => x.close());
 
-  await reg.showNotification(n.titulo, {
+  const opts: SwNotificationOptions = {
     body: n.mensaje,
     tag: `nexus-aprobacion-${n.id}`,
     ...OPCIONES_PERSISTENTES,
@@ -99,7 +105,8 @@ async function mostrarViaServiceWorker(n: NotificacionRow, dest: string): Promis
       { action: "cerrar", title: "Cerrar" },
     ],
     data: { url: dest, notifId: n.id },
-  });
+  };
+  await reg.showNotification(n.titulo, opts as NotificationOptions);
   return true;
 }
 
