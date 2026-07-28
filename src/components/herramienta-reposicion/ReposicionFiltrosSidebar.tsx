@@ -53,7 +53,7 @@ type Props = {
   trailing?: React.ReactNode;
   className?: string;
   /** `pe` = Stock / Depósito / Categoría segmentados (paridad RIMEC Web). */
-  variant?: "default" | "pe";
+  variant?: "default" | "pe" | "am";
   depositoLegal?: string;
   onDepositoLegalChange?: (v: string) => void;
 };
@@ -428,7 +428,7 @@ export function ReposicionFiltrosSidebar({
 }: Props) {
   const [bloqueDimOpen, setBloqueDimOpen] = useState(true);
   const [bloqueMolOpen, setBloqueMolOpen] = useState(true);
-  const esPe = variant === "pe";
+  const esPe = variant === "pe" || variant === "am";
 
   const patch = (p: Partial<OperativaFilterState>) =>
     onChange((prev) => ({ ...prev, ...p }));
@@ -564,7 +564,7 @@ export function ReposicionFiltrosSidebar({
             Categoría
           </span>
           <div className="flex flex-wrap gap-1">
-            {(["CALZADO", "CONFECCIONES", "ACCESORIOS"] as const).map((id) => (
+            {(["CALZADO", "CONFECCIONES"] as const).map((id) => (
               <button
                 key={id}
                 type="button"
@@ -624,7 +624,7 @@ export function ReposicionFiltrosSidebar({
             onToggle={(id) =>
               onChange((prev) => ({
                 ...prev,
-                tipoGrupos: togglePeTipoDiccionario(peTipoSelected, id) as TipoGrupoId[],
+                tipoGrupos: togglePeTipoDiccionario(peTipoSelected, id),
                 cadenaComercial: null,
               }))
             }
@@ -632,7 +632,7 @@ export function ReposicionFiltrosSidebar({
           />
         ) : (
           <TipoMultiSelectGroup
-            selected={filtros.tipoGrupos}
+            selected={filtros.tipoGrupos.filter((g): g is TipoGrupoId => g !== "comun")}
             opciones={tipoGrupoOpcionesVisibles(filtros.ramoTipo)}
             onToggle={(id) =>
               onChange((prev) => ({

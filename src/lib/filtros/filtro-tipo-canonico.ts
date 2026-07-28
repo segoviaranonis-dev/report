@@ -7,6 +7,10 @@
  * - promo: es_promo / cadena PROMOCIONAL / caso PROMOCIONAL
  * - carteras | normal: casos biblioteca
  *
+ * ⛔ PE / DPE: NO usar esPromoRow ni esLiquidacionRow — usar
+ * `cadena-dpe-triunvirato.ts` (solo COD.GRUPO triunvirato Excel).
+ * BCL aplica solo programado + compra previa.
+ *
  * Fix 2026-07-20: snapshot puede ser Normal (BR-VZ…) mientras SDRM marca promo
  * (línea 1395). Badge y filtro deben coincidir — es_promo gana sobre caso.
  *
@@ -118,10 +122,11 @@ export function rowMatchesTipoGrupos(
 }
 
 export function toggleTipoGrupo(
-  list: TipoGrupoId[],
+  list: readonly string[],
   id: TipoGrupoId,
 ): TipoGrupoId[] {
-  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+  const cur = list as TipoGrupoId[];
+  return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
 }
 
 /** Mario Bros / grupo uno · Calzado → TIPO solo Normal · Promo · Liquidación. ACCESORIOS → sin chip Tipo. */
@@ -132,10 +137,11 @@ export function tipoGrupoOpcionesVisibles(ramo_tipo?: string): typeof TIPO_GRUPO
   return TIPO_GRUPO_OPCIONES;
 }
 
+/** Acepta CP (`TipoGrupoId`) + PE (`comun`) — no estrechar a TipoGrupoId. */
 export function sanitizeTipoGruposParaRamo(
-  tipo_grupos: readonly TipoGrupoId[] | undefined,
+  tipo_grupos: readonly string[] | undefined,
   ramo_tipo?: string,
-): TipoGrupoId[] {
+): string[] {
   const list = [...(tipo_grupos ?? [])];
   if (esRamoAccesorios(ramo_tipo)) return [];
   if (String(ramo_tipo ?? "").trim().toUpperCase() !== "CALZADO") return list;
@@ -161,15 +167,12 @@ export function esFilaCarteraCatalogo(
  */
 export function calzadoExcluyeCarterasPorDefecto(filters: {
   ramoTipo?: string | null;
+  ramo_tipo?: string | null;
   tipoV2Ids?: number[];
-  tipoGrupos?: readonly TipoGrupoId[];
+  tipoGrupos?: readonly string[];
 }): boolean {
-  const ramo = String(filters.ramoTipo ?? "").trim().toUpperCase();
-  if (ramo === "ACCESORIOS" || ramo === "CONFECCIONES") return false;
-  const isCalzado =
-    ramo === "CALZADO" ||
-    ((filters.tipoV2Ids?.length ?? 0) === 1 && filters.tipoV2Ids![0] === 1);
-  if (!isCalzado) return false;
+  const ramo = String(filters.ramoTipo ?? filters.ramo_tipo ?? "").trim().toUpperCase();
+  if (ramo !== "CALZADO") return false;
   return !(filters.tipoGrupos ?? []).includes("carteras");
 }
 
