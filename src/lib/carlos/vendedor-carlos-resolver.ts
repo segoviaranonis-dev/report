@@ -27,6 +27,9 @@ export function normalizeVendedorNombre(raw: string | null | undefined): string 
   const n = String(raw ?? "").trim().toUpperCase();
   if (n === "IRMA") return "YRMA";
   if (n === "GRACIELA") return "GRICELDA";
+  if (n === "LUIS") return "LUISLV";
+  if (n.startsWith("EDUARDO")) return "EDUARDO ARAUJO G.";
+  if (n.startsWith("ENRIQUE")) return "ENRIQUE";
   return n;
 }
 
@@ -126,4 +129,45 @@ export function resolveCodigoVendedorReal(opts: {
 
   const first = Object.values(entry.casos)[0];
   return first != null ? String(first) : null;
+}
+
+/** UI / auditoría: `YRMA(44)` */
+export function formatVendedorCarlosLabel(opts: {
+  vendedor_nombre?: string | null;
+  caso?: string | null;
+  codigo_vendedor_carlos?: string | number | null;
+  payload?: unknown;
+}): string {
+  const nombre = String(opts.vendedor_nombre ?? "").trim() || "—";
+  const cod = resolveCodigoVendedorReal({
+    vendedor_nombre: opts.vendedor_nombre,
+    caso: resolveCasoComercialCarlos(opts.caso, opts.payload),
+    codigo_vendedor_carlos: opts.codigo_vendedor_carlos,
+  });
+  return cod ? `${nombre}(${cod})` : nombre;
+}
+
+/** Col CSV `vendedor` — lanza si no hay código Carlos (veneno inválido). */
+export function resolveVendedorCarlosParaCsv(opts: {
+  vendedor_nombre?: string | null;
+  caso?: string | null;
+  codigo_vendedor_carlos?: string | number | null;
+  payload?: unknown;
+  override?: string | null;
+}): string {
+  const pinned = opts.override ?? opts.codigo_vendedor_carlos;
+  if (pinned != null && String(pinned).trim() !== "") {
+    const n = Number(pinned);
+    if (Number.isFinite(n) && n > 0) return String(Math.trunc(n));
+  }
+  const casoCarlos = resolveCasoComercialCarlos(opts.caso, opts.payload);
+  const cod = resolveCodigoVendedorReal({
+    vendedor_nombre: opts.vendedor_nombre,
+    caso: casoCarlos,
+    codigo_vendedor_carlos: pinned,
+  });
+  if (cod) return cod;
+  throw new Error(
+    `Código de vendedor real no resuelto · vendedor=${opts.vendedor_nombre ?? "—"} · caso=${casoCarlos}`,
+  );
 }

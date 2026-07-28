@@ -173,8 +173,7 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     icon: "🚚",
     group: "rimec",
     navKey: "logistica-ok",
-    roles: [1],
-    rimecAdminOnly: true,
+    roles: [1, 3],
   },
 
   // ── BAZZAR tiendas (2.3.2, 2.3.6, 2.3.9/tablet) ──
@@ -309,17 +308,15 @@ export function filterHubModules(
       return m.href === "/facturacion";
     }
 
-    // JEFE DEPOSITO RIMEC (EVERT): Depósito + Stock PE + Logística OK (3 pestañas)
+    // JEFE DEPOSITO RIMEC (EVERT): hub central 2 tarjetas · Depósito + Logística
+    // (Stock PE se abre desde hub Depósito)
     if (rolId === 1 && cat === "JEFE_DEPOSITO") {
-      return (
-        m.href === "/deposito-rimec" ||
-        m.href === "/stock-pronta-entrega" ||
-        m.href === "/logistica-ok"
-      );
+      return m.href === "/deposito-rimec" || m.href === "/logistica-ok";
     }
 
     // VENDEDOR RIMEC: Ventas con fotos + Logística OK (pestaña Vendedor)
-    if (rolId === 1 && cat === "VENDEDOR") {
+    // Incluye legado rol_id=3 (ATI, FRANCIS, EDUARDO…)
+    if ((rolId === 1 || rolId === 3) && cat === "VENDEDOR") {
       return m.href === "/ventas-fotos" || m.href === "/logistica-ok";
     }
 

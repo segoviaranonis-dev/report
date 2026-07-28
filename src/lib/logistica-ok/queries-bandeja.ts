@@ -18,6 +18,8 @@ export type LogisticaPendienteRow = {
   id_cliente: number;
   id_cadena: number | null;
   id_vendedor: number | null;
+  /** Código Carlos col F · solo Logística Rimec (mostrar en fila FI). */
+  codigo_vendedor_carlos?: number | null;
   pares: number;
   cajas: number;
   monto_neto: number | null;
@@ -622,8 +624,12 @@ export function groupLogisticaPorMarcaResumen(filas: LogisticaPendienteRow[]): L
       const vendedores = [
         ...new Set(
           rows
-            .map((r) => (r.vendedor ?? "").trim())
-            .filter((v) => v && v !== "—"),
+            .map((r) => {
+              const raw = (r.vendedor ?? "").trim();
+              if (!raw || raw === "—") return "";
+              return raw.replace(/\s*\(\d+\)\s*$/, "").trim();
+            })
+            .filter(Boolean),
         ),
       ].sort((a, b) => a.localeCompare(b, "es"));
       return {
@@ -840,12 +846,20 @@ export type LogisticaGrupoVendedor = {
   n_fi: number;
 };
 
-/** Vendedor → Tipo → Marca+Pedido → FI */
+/** Nombre limpio sin "(código)" · agrupación por persona. */
+function nombreVendedorAgrupacion(f: LogisticaPendienteRow): string {
+  const raw = (f.vendedor ?? "").trim() || "—";
+  return raw.replace(/\s*\(\d+\)\s*$/, "").trim() || "—";
+}
+
+/** Vendedor → Tipo → Marca+Pedido → FI · agrupa por nombre / id Nexus (no código Carlos). */
 export function groupLogisticaPorVendedorTipoMarcaPp(filas: LogisticaPendienteRow[]): LogisticaGrupoVendedor[] {
   const byVendedor = new Map<string, LogisticaPendienteRow[]>();
 
   for (const f of filas) {
-    const vKey = f.id_vendedor != null ? `v-${f.id_vendedor}` : `z-${(f.vendedor || "—").trim()}`;
+    const nombre = nombreVendedorAgrupacion(f);
+    const vKey =
+      f.id_vendedor != null ? `v-${f.id_vendedor}` : `n-${nombre.toUpperCase()}`;
     const bucket = byVendedor.get(vKey) ?? [];
     bucket.push(f);
     byVendedor.set(vKey, bucket);
@@ -854,11 +868,13 @@ export function groupLogisticaPorVendedorTipoMarcaPp(filas: LogisticaPendienteRo
   return [...byVendedor.values()]
     .map((subset) => {
       const head = subset[0];
-      const vKey = head.id_vendedor != null ? `v-${head.id_vendedor}` : `z-${(head.vendedor || "—").trim()}`;
+      const nombre = nombreVendedorAgrupacion(head);
+      const vKey =
+        head.id_vendedor != null ? `v-${head.id_vendedor}` : `n-${nombre.toUpperCase()}`;
       return {
         key: vKey,
         id_vendedor: head.id_vendedor,
-        vendedor_label: head.vendedor?.trim() || "—",
+        vendedor_label: nombre,
         tipos: groupLogisticaPorTipoMarcaPp(subset),
         cajas: subset.reduce((s, f) => s + f.cajas, 0),
         n_fi: subset.length,

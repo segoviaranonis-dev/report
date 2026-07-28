@@ -1,14 +1,15 @@
 /**
- * Perfil JEFE_DEPOSITO — Report solo Depósito RIMEC (2 tarjetas hub).
+ * Perfil JEFE_DEPOSITO — Report hub 2 opciones: Depósito RIMEC + Logística OK.
  * Usuario canónico: EVERT · funcionario Evert Rubén González Servián (JEFE DEPOSITO 1).
- * Asignar descuentos PE = solo DIOS (gate aparte).
+ * Stock PE entra desde hub Depósito (tarjeta interna). Asignar descuentos PE = solo DIOS.
  */
 
 export const JEFE_DEPOSITO_CATEGORIA = "JEFE_DEPOSITO";
-export const JEFE_DEPOSITO_HOME = "/deposito-rimec";
+/** Hub central Report · 2 tarjetas (Depósito + Logística) */
+export const JEFE_DEPOSITO_HOME = "/";
 export const JEFE_DEPOSITO_USUARIO = "EVERT";
 
-/** Hub Depósito RIMEC · tarjetas canónicas + Logística OK (3 pestañas depósito) */
+/** Rutas permitidas · Stock PE anidado bajo depósito */
 export const JEFE_DEPOSITO_MODULES = [
   "/deposito-rimec",
   "/stock-pronta-entrega",
@@ -31,9 +32,10 @@ export function jefeDepositoPathAllowed(pathname: string): boolean {
   if (pathname.startsWith("/api/auth")) return true;
   if (pathname.startsWith("/api/deposito-rimec")) return true;
   if (pathname.startsWith("/api/stock-pronta-entrega")) return true;
-  // Grilla PE reusa filtros / panel de reposicion en cliente
   if (pathname.startsWith("/api/herramienta-reposicion")) return true;
   if (pathname.startsWith("/api/panel-control")) return true;
+
+  if (pathname === "/" || pathname === "") return true;
 
   if (
     pathname === "/deposito-rimec" ||
@@ -51,10 +53,12 @@ export function jefeDepositoPathAllowed(pathname: string): boolean {
     return true;
   }
   if (pathname.startsWith("/api/logistica-ok")) return true;
+  if (pathname.startsWith("/api/logistica-rimec")) return true;
 
   return false;
 }
 
-export function jefeDepositoShouldRedirectHome(pathname: string): boolean {
-  return pathname === "/" || pathname === "";
+/** Ya no redirige / → depósito: el hub central muestra 2 opciones. */
+export function jefeDepositoShouldRedirectHome(_pathname: string): boolean {
+  return false;
 }

@@ -41,21 +41,26 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 const ROLE_ROUTES: Record<number, string[]> = {
   1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/logistica-ok', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
-  3: ['/ventas-fotos'],
+  3: ['/ventas-fotos', '/logistica-ok'],
 }
 
 // APIs permitidas por rol
 const ROLE_API_ROUTES: Record<number, RegExp[]> = {
   1: [/.*/], // Todo
   2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/auth\//],
-  3: [/^\/api\/ventas-fotos\//, /^\/api\/auth\//],
+  3: [
+    /^\/api\/ventas-fotos\//,
+    /^\/api\/logistica-ok/,
+    /^\/api\/logistica-rimec/,
+    /^\/api\/auth\//,
+  ],
 }
 
 // Redirect por rol cuando acceden a /
 const ROLE_HOME_REDIRECT: Record<number, string> = {
   1: '/', // Mantener en home
   2: '/retail',
-  3: '/ventas-fotos',
+  3: '/logistica-ok',
 }
 
 export async function middleware(request: NextRequest) {
@@ -160,7 +165,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
-    // JEFE DEPOSITO RIMEC (EVERT): solo hub Depósito + Stock PE
+    // JEFE DEPOSITO RIMEC (EVERT): hub 2 opciones · Depósito + Logística
     if (isJefeDepositoRimec(rol_id, categoria)) {
       if (jefeDepositoShouldRedirectHome(pathname)) {
         return NextResponse.redirect(new URL(JEFE_DEPOSITO_HOME, request.url))
@@ -168,7 +173,7 @@ export async function middleware(request: NextRequest) {
       if (!jefeDepositoPathAllowed(pathname)) {
         if (isApiRoute) {
           return NextResponse.json(
-            { error: 'JEFE DEPOSITO: Depósito RIMEC, Stock PE y Logística OK' },
+            { error: 'JEFE DEPOSITO: hub Depósito RIMEC + Logística OK' },
             { status: 403 },
           )
         }

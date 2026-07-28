@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
 import {
   groupLogisticaPorFechaYChofer,
-  groupLogisticaPorPedidoDuro,
   groupLogisticaPorTipoMarcaPp,
   groupLogisticaPorVendedorTipoMarcaPp,
-  listLogisticaPendientes,
-  enrichFilasConObsLogistica,
   enriquecerGruposConStatsPp,
   statsEjecucionLogistica,
-  statsEjecucionPorPp,
   porPpConPeUnificado,
 } from "@/lib/logistica-ok/queries-bandeja";
 import {
@@ -18,6 +14,8 @@ import {
 } from "@/lib/logistica-ok/constants";
 import { requireLogisticaOkAccess } from "@/lib/logistica-ok/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { listLogisticaRimecAsPendiente } from "@/lib/logistica-rimec/queries";
+import { groupLogisticaRimecPorEntidad } from "@/lib/logistica-rimec/group-entidad";
 import {
   isVendedorLogisticaReport,
   resolveIdVendedorFromUsuario,
@@ -32,14 +30,20 @@ const TABS: LogisticaTabId[] = [
   "exitosas",
 ];
 
+function filtrarPorVendedorSesion<T extends { id_vendedor: number | null }>(
+  filas: T[],
+  idVendedor: number | null,
+): T[] {
+  if (idVendedor == null) return filas;
+  return filas.filter((f) => f.id_vendedor === idVendedor);
+}
+
 export async function GET(req: Request) {
   if (!isRimecDatabaseConfigured()) {
     return NextResponse.json({ ok: false, error: "DATABASE_URL no configurada" }, { status: 503 });
   }
 
   const url = new URL(req.url);
-  const vendedorRaw = url.searchParams.get("vendedor_id");
-  const vendedorIdQuery = vendedorRaw != null && vendedorRaw !== "" ? Number(vendedorRaw) : null;
   const tabRaw = url.searchParams.get("tab") || url.searchParams.get("vista") || "";
   const tabHint = TABS.includes(tabRaw as LogisticaTabId) ? (tabRaw as LogisticaTabId) : null;
 
@@ -59,57 +63,40 @@ export async function GET(req: Request) {
 
   try {
     const pool = getRimecPool();
-    const usuarioId = gate.session!.id_usuario;
-    const esVendedor = isVendedorLogisticaReport(gate.session!.rol_id, gate.categoria);
+    const esVendedor = isVendedorLogisticaReport(
+      gate.session!.rol_id,
+      gate.categoria,
+    );
     const resolved = esVendedor
       ? await resolveIdVendedorFromUsuario(pool, gate.session!.name)
       : { idVendedor: null as number | null, nombreCanon: null as string | null };
-
-    if (esVendedor && tab === "vendedor" && resolved.idVendedor == null) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Usuario «${gate.session!.name}» sin vínculo en vendedor_v2. Avisá a la jefa.`,
-        },
-        { status: 403 },
-      );
-    }
-
-    /** Vendedor: siempre su id · DIOS puede filtrar por query */
-    const vendedorId =
-      esVendedor && resolved.idVendedor != null
-        ? resolved.idVendedor
-        : tab === "vendedor" && vendedorIdQuery != null && Number.isFinite(vendedorIdQuery)
-          ? vendedorIdQuery
-          : null;
-
-    const enrich = async (filas: Awaited<ReturnType<typeof listLogisticaPendientes>>) =>
-      enrichFilasConObsLogistica(pool, filas, { usuarioId, pestana: tab });
+    const idVendedorScope = esVendedor ? resolved.idVendedor : null;
 
     const meta = {
       tabsPermitidas: gate.tabsPermitidas,
       categoria: gate.categoria,
       tab,
-      id_vendedor_sesion: resolved.idVendedor,
+      modo: "rimec" as const,
+      id_vendedor_sesion: idVendedorScope,
       vendedor_sesion: resolved.nombreCanon,
     };
 
     if (tab === "general" || tab === "general_exitoso") {
-      const todas = await listLogisticaPendientes(pool, { estado: "TODOS" });
-      const filasRaw =
+      const todas = await listLogisticaRimecAsPendiente(pool, { estado: "TODOS" });
+      const filas =
         tab === "general_exitoso"
           ? todas.filter((f) => f.estado === "EXITOSA")
           : todas.filter((f) => f.estado === "PENDIENTE");
-      const filas = await enrich(filasRaw);
       const ejec = statsEjecucionLogistica(todas);
       const porPp = porPpConPeUnificado(todas);
       const cajas = filas.reduce((s, f) => s + f.cajas, 0);
       const obs = statsObsMensajes(filas);
+      const grupos = enriquecerGruposConStatsPp(groupLogisticaRimecPorEntidad(filas), porPp);
       return NextResponse.json({
         ok: true,
         ...meta,
         filas,
-        gruposPedidoDuro: enriquecerGruposConStatsPp(groupLogisticaPorPedidoDuro(filas), porPp),
+        gruposPedidoDuro: grupos,
         statsPorPp: porPp,
         stats: {
           n: filas.length,
@@ -122,12 +109,19 @@ export async function GET(req: Request) {
       });
     }
 
-    const filas = await enrich(
-      await listLogisticaPendientes(pool, {
-        tab,
-        vendedorId: tab === "vendedor" ? vendedorId : null,
-      }),
-    );
+    let filas = await listLogisticaRimecAsPendiente(pool, { tab });
+    if (tab === "vendedor") {
+      filas = filtrarPorVendedorSesion(filas, idVendedorScope);
+      if (esVendedor && idVendedorScope == null) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Usuario «${gate.session!.name}» sin vínculo en vendedor_v2. Avisá a la jefa.`,
+          },
+          { status: 403 },
+        );
+      }
+    }
     const cajas = filas.reduce((s, f) => s + f.cajas, 0);
     const obs = statsObsMensajes(filas);
     const stats = {
@@ -157,11 +151,13 @@ export async function GET(req: Request) {
       });
     }
     if (tab === "confirmadas") {
+      // Confirmadas: mismos 3 bloques entidad + atraso
       return NextResponse.json({
         ok: true,
         ...meta,
         filas,
         gruposTipo: groupLogisticaPorTipoMarcaPp(filas),
+        gruposPedidoDuro: groupLogisticaRimecPorEntidad(filas),
         stats,
       });
     }
@@ -169,17 +165,17 @@ export async function GET(req: Request) {
       ok: true,
       ...meta,
       filas,
-      gruposPedidoDuro: groupLogisticaPorPedidoDuro(filas),
+      gruposPedidoDuro: groupLogisticaRimecPorEntidad(filas),
       stats,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
-    const hint =
-      /pendiente_impresion_legal|impresion_legal_ok|fecha_entrega_efectiva|chofer_nombre|EN_ENTREGA|EXITOSA|logistica_activada_at/i.test(
-        msg,
-      )
-        ? " Aplicá MIG-174 (banderas logística) o revisá columnas PP."
-        : "";
-    return NextResponse.json({ ok: false, error: msg + hint }, { status: 500 });
+    if (/logistica_rimec_|does not exist|entidad_am|relation/i.test(msg)) {
+      return NextResponse.json(
+        { ok: false, error: "Falta MIG-190/191 (logistica_rimec_*)." },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

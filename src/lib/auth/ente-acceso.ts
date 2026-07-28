@@ -18,6 +18,7 @@ const RIMEC_PATH_PREFIXES = [
   "/compra-legal",
   "/facturacion",
   "/deposito-rimec",
+  "/logistica-ok",
 ];
 
 const BAZZAR_TIENDA_PATH_PREFIXES = ["/retail", "/depositos-bazzar", "/tablet-bazzar"];
@@ -26,7 +27,7 @@ const BAZZAR_WEB_PATH_PREFIXES = ["/bazzar-web"];
 
 const RECURSOS_PATH_PREFIXES = ["/informes"];
 
-/** Grupos de hub visibles según ente. rol_id=1 (holding) ve todo. rol_id=2 solo tienda. */
+/** Grupos de hub visibles según ente. rol_id=1 (holding) ve todo. rol_id=2 solo tienda. rol_id=3 vendedores → RIMEC. */
 export function hubGroupsForEnte(
   enteCodigo: number | null | undefined,
   rolId: number,
@@ -37,6 +38,10 @@ export function hubGroupsForEnte(
 
   if (rolId === 1) {
     return ["rimec", "bazzar", "bazzar-web", "recursos"];
+  }
+
+  if (rolId === 3) {
+    return ["rimec"];
   }
 
   const cod = Number(enteCodigo) || 0;
@@ -103,7 +108,9 @@ export function apiAllowedForEnte(
       pathname.startsWith("/api/holding/") ||
       pathname.startsWith("/api/facturacion/") ||
       pathname.startsWith("/api/deposito-rimec/") ||
-      pathname.startsWith("/api/compra-legal/")
+      pathname.startsWith("/api/compra-legal/") ||
+      pathname.startsWith("/api/logistica-ok") ||
+      pathname.startsWith("/api/logistica-rimec")
     ) {
       return true;
     }

@@ -61,7 +61,9 @@ export const LOGISTICA_TABS: Array<{ id: LogisticaTabId; label: string; hint: st
  * - Vendedor → VENDEDOR
  * - Confirmadas → ADMIN (facturación / otro depto)
  * - Entregas + Exitosas → LOGISTICA | DEPOSITO
- * - JEFE_DEPOSITO (EVERT): Confirmadas + Entregas del día + Registro exitosas · inicio entregas
+ * - JEFE_DEPOSITO (EVERT): hub 2 tarjetas (Depósito + Logística) · Confirmadas + Entregas + Exitosas
+ * - VENDEDOR (rol 1 o legado rol 3): solo pestaña Vendedor · filtrado a su id_vendedor
+ * - Vendedores sin usuario (ej. DARIO): los ve la jefa (DIOS/ADMIN General)
  * - DIOS ve todas (Nivel Superior sin restricciones)
  */
 export type LogisticaCategoriaAcl =
@@ -193,11 +195,15 @@ export const SEMAFORO_PASO_LABEL: Record<SemaforoPaso, string> = {
   3: "Entrega depósito",
 };
 
-/** Arranque catálogo choferes (RRHH / funcionarios RIMEC) */
+/** Arranque catálogo choferes (RRHH / funcionarios RIMEC · LOGISTICA) */
 export const CHOFERES_RIMEC_INICIAL = [
   "Oscar Figueredo",
   "Ariel Martínez",
   "Gilberto Colman",
+  /** RRHH id_funcionario 72 · JULIAN ROTELA DOMINGUEZ · AUXILIAR LOGISTICA */
+  "Julian Rotela",
+  /** RRHH id_funcionario 68 · GERARDO DOMINGUEZ RIVEROS · CHOFER */
+  "Gerardo Dominguez",
 ] as const;
 
 export const LOGISTICA_PENDIENTE_TABLE = "logistica_pendiente_confirmacion" as const;

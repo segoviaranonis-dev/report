@@ -14,7 +14,8 @@ type FiDetail = {
  * Acordeón Ley FI — misma verdad que Facturación (`CompraWebFiPanel`).
  * Protocolo Chusar: Logística OK no puede omitir detalle FI (miniatura · pilares · monto).
  */
-export function useLogisticaFiDetalle() {
+export function useLogisticaFiDetalle(opts?: { detalleBase?: string }) {
+  const detalleBase = opts?.detalleBase ?? "/api/facturacion";
   const [expandedNro, setExpandedNro] = useState<string | null>(null);
   const [detail, setDetail] = useState<FiDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,7 @@ export function useLogisticaFiDetalle() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/facturacion/${encodeURIComponent(key)}`, {
+      const res = await fetch(`${detalleBase}/${encodeURIComponent(key)}`, {
         credentials: "same-origin",
       });
       const data = await res.json().catch(() => ({}));

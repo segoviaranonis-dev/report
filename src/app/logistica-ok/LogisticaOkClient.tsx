@@ -53,6 +53,7 @@ import {
   PE_GRUPO_UNIFICADO_KEY,
   type LogisticaStatsPp,
 } from "@/lib/logistica-ok/queries-bandeja";
+import { groupLogisticaRimecPorEntidad } from "@/lib/logistica-rimec/group-entidad";
 import { ObsLogisticaGrupoIcon, ObsLogisticaIcon } from "./ObsLogisticaIcon";
 import {
   LogisticaFiDetalleCell,
@@ -275,6 +276,8 @@ function TablaFilas({
   handlers,
   mode = "flujo",
   onObsLeida,
+  detalleBase,
+  layoutRimec = false,
 }: {
   filas: LogisticaPendienteRow[];
   tab: LogisticaTabId;
@@ -285,14 +288,21 @@ function TablaFilas({
   /** bandeja = Tipo→Marca+PP · flujo = entregas/exitosas */
   mode?: "bandeja" | "flujo";
   onObsLeida?: (fiId: number) => void;
+  /** URL base detalle FI · Rimec: /api/logistica-rimec/detalle */
+  detalleBase?: string;
+  /** Rimec: columnas Vendedor + Marca · código Carlos bajo factura */
+  layoutRimec?: boolean;
 }) {
   const bandeja = mode === "bandeja";
-  const { expandedNro, detail, loading, error, toggle } = useLogisticaFiDetalle();
+  const { expandedNro, detail, loading, error, toggle } = useLogisticaFiDetalle({
+    detalleBase: detalleBase ?? "/api/facturacion",
+  });
 
   let colSpan = 9; // semáforo · FI · factura real · cliente · cajas · 2 fechas · atraso · obs
   if (multiEnabled) colSpan += 1;
   if (!bandeja) colSpan += 2; // tipo · PP
   if (bandeja) colSpan += 2; // pares · monto
+  if (layoutRimec) colSpan += 2; // vendedor · marca
   if (tab === "exitosas") colSpan += 1; // chofer
 
   return (
@@ -306,6 +316,8 @@ function TablaFilas({
             <th className="px-2 py-1">FI</th>
             <th className="px-2 py-1">{FACTURA_REAL_LABEL}</th>
             <th className="px-2 py-1">Cliente</th>
+            {layoutRimec && <th className="px-2 py-1">Vendedor</th>}
+            {layoutRimec && <th className="px-2 py-1">Marca</th>}
             <th className="px-2 py-1">Cajas</th>
             {bandeja && <th className="px-2 py-1">Pares</th>}
             {bandeja && <th className="px-2 py-1">Monto</th>}
@@ -348,20 +360,42 @@ function TablaFilas({
                   />
                 </td>
                 <td className="px-2 py-2">
-                  <span
-                    className={`inline-block rounded-lg border-2 px-2 py-1 font-mono text-[11px] font-black tabular-nums ${
-                      row.factura_real
-                        ? "border-amber-600 bg-amber-100 text-amber-950 shadow-sm"
-                        : "border-dashed border-amber-300 bg-amber-50/80 text-amber-800"
-                    }`}
-                    title={`${FACTURA_REAL_LABEL} · sistema Carlos (pv_global)`}
-                  >
-                    {displayFacturaRealUi(row)}
-                  </span>
+                  <div className="flex flex-col gap-0.5">
+                    <span
+                      className={`inline-block rounded-lg border-2 px-2 py-1 font-mono text-[11px] font-black tabular-nums ${
+                        row.factura_real
+                          ? "border-amber-600 bg-amber-100 text-amber-950 shadow-sm"
+                          : "border-dashed border-amber-300 bg-amber-50/80 text-amber-800"
+                      }`}
+                      title={`${FACTURA_REAL_LABEL} · sistema Carlos (pv_global)`}
+                    >
+                      {displayFacturaRealUi(row)}
+                    </span>
+                    {layoutRimec &&
+                      row.codigo_vendedor_carlos != null &&
+                      row.codigo_vendedor_carlos > 0 && (
+                        <span
+                          className="text-[10px] font-semibold tabular-nums text-violet-800"
+                          title="Código vendedor Carlos (col F)"
+                        >
+                          Vend. {row.codigo_vendedor_carlos}
+                        </span>
+                      )}
+                  </div>
                 </td>
                 <td className="max-w-[220px] truncate px-2 py-2 text-xs" title={row.cliente}>
                   {row.cliente}
                 </td>
+                {layoutRimec && (
+                  <td className="px-2 py-2 text-xs font-semibold uppercase text-amber-900">
+                    {row.vendedor || "—"}
+                  </td>
+                )}
+                {layoutRimec && (
+                  <td className="max-w-[120px] truncate px-2 py-2 text-xs" title={row.marca}>
+                    {row.marca || "—"}
+                  </td>
+                )}
                 <td className="px-2 py-2 text-xs tabular-nums">{row.cajas.toLocaleString("es-PY")}</td>
                 {bandeja && (
                   <td className="px-2 py-2 text-xs tabular-nums">{row.pares.toLocaleString("es-PY")}</td>
@@ -463,6 +497,8 @@ function AcordeonMarcasDestacadas({
   multiEnabled,
   handlers,
   onObsLeida,
+  detalleBase,
+  layoutRimec = false,
 }: {
   prefix: string;
   marcas: LogisticaGrupoPedidoDuro["marcas"];
@@ -474,6 +510,8 @@ function AcordeonMarcasDestacadas({
   multiEnabled: boolean;
   handlers: SemaforoHandlers;
   onObsLeida?: (fiId: number) => void;
+  detalleBase?: string;
+  layoutRimec?: boolean;
 }) {
   if (marcas.length === 0) {
     return <p className="px-4 py-3 text-xs text-slate-500">Sin filas en este bloque.</p>;
@@ -482,7 +520,7 @@ function AcordeonMarcasDestacadas({
     <div className="space-y-1 p-2">
       {marcas.map((m) => {
         const mk = `${prefix}__${m.key}`;
-        const mOpen = openMarca[mk] ?? false;
+        const mOpen = openMarca[mk] ?? (prefix.includes("rimec-all") ? true : false);
         return (
           <div key={mk} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             <div className="flex w-full items-center gap-2 bg-sky-50/90 hover:bg-sky-100">
@@ -515,6 +553,8 @@ function AcordeonMarcasDestacadas({
                 multiEnabled={multiEnabled}
                 handlers={handlers}
                 onObsLeida={onObsLeida}
+                detalleBase={detalleBase}
+                layoutRimec={layoutRimec}
               />
             )}
           </div>
@@ -540,6 +580,8 @@ function AcordeonPedidoDuro({
   pdfBusyId,
   onPdf,
   onObsLeida,
+  detalleBase,
+  layoutRimec,
 }: {
   grupos: LogisticaGrupoPedidoDuro[];
   tab: LogisticaTabId;
@@ -556,15 +598,20 @@ function AcordeonPedidoDuro({
   pdfBusyId: number | null;
   onPdf: (ppId: number) => void;
   onObsLeida?: (fiId: number) => void;
+  detalleBase?: string;
+  /** Logística Rimec: sin STOCK BAZZAR/CADENAS · facturas en g.marcas */
+  layoutRimec?: boolean;
 }) {
   return (
     <div className="space-y-3">
       {grupos.map((g) => {
         const open = openPedido[g.key] ?? true;
         const color = ENTIDAD_AM_META[g.entidad_am]?.color ?? "#002B4E";
-        const peUnificado = g.key === PE_GRUPO_UNIFICADO_KEY;
+        const peUnificado =
+          g.key === PE_GRUPO_UNIFICADO_KEY || g.key.startsWith("rimec-entidad-");
         const pedidoUi = labelPedidoExternoUi(g);
-        const mostrarStockRimec = bloqueStockRimecVisible(g.entidad_am, g.stockRimec);
+        const mostrarStockRimec =
+          !layoutRimec && bloqueStockRimecVisible(g.entidad_am, g.stockRimec);
         return (
           <div key={g.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div
@@ -663,6 +710,28 @@ function AcordeonPedidoDuro({
 
             {open && (
               <div className="space-y-3 border-t border-slate-100 bg-slate-50/40 p-3">
+                {layoutRimec ? (
+                  <>
+                    <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                      {g.n_fi} facturas · atraso máx. {g.dias_atraso} d · click FI para detalle + fotos
+                    </p>
+                    <AcordeonMarcasDestacadas
+                      prefix={`${g.key}__rimec-all`}
+                      marcas={g.marcas}
+                      tab={tab}
+                      openMarca={openMarca}
+                      setOpenMarca={setOpenMarca}
+                      selected={selected}
+                      onToggle={onToggle}
+                      multiEnabled={multiEnabled}
+                      handlers={handlers}
+                      onObsLeida={onObsLeida}
+                      detalleBase={detalleBase}
+                      layoutRimec
+                    />
+                  </>
+                ) : (
+                  <>
                 <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   {g.pp_numero}
                   {mostrarStockRimec
@@ -696,6 +765,7 @@ function AcordeonPedidoDuro({
                     multiEnabled={multiEnabled}
                     handlers={handlers}
                     onObsLeida={onObsLeida}
+                    detalleBase={detalleBase}
                   />
                 </div>
 
@@ -725,6 +795,7 @@ function AcordeonPedidoDuro({
                       multiEnabled={multiEnabled}
                       handlers={handlers}
                       onObsLeida={onObsLeida}
+                      detalleBase={detalleBase}
                     />
                   </div>
                 ) : null}
@@ -770,7 +841,6 @@ function AcordeonPedidoDuro({
                               />
                             </div>
                           </div>
-                          {/* Renglón resumen cadena (Ivan Total) */}
                           <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700">
                             Total {cad.cadena_label}: {cad.cajas.toLocaleString("es-PY")} c ·{" "}
                             {cad.pares.toLocaleString("es-PY")} p · {formatGs(cad.monto)} · {cad.n_fi} FI ·{" "}
@@ -788,6 +858,7 @@ function AcordeonPedidoDuro({
                               multiEnabled={multiEnabled}
                               handlers={handlers}
                               onObsLeida={onObsLeida}
+                              detalleBase={detalleBase}
                             />
                           )}
                         </div>
@@ -795,6 +866,8 @@ function AcordeonPedidoDuro({
                     })
                   )}
                 </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -816,6 +889,8 @@ function AcordeonTipoMarcaPp({
   onToggle,
   multiEnabled,
   handlers,
+  layoutRimec = false,
+  detalleBase,
 }: {
   tipos: LogisticaGrupoTipo[];
   tab: LogisticaTabId;
@@ -828,6 +903,8 @@ function AcordeonTipoMarcaPp({
   onToggle: (id: number) => void;
   multiEnabled: boolean;
   handlers: SemaforoHandlers;
+  layoutRimec?: boolean;
+  detalleBase?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -877,6 +954,8 @@ function AcordeonTipoMarcaPp({
                         onToggle={onToggle}
                         multiEnabled={multiEnabled}
                         handlers={handlers}
+                        layoutRimec={layoutRimec}
+                        detalleBase={detalleBase}
                       />
                     )}
                   </div>
@@ -891,10 +970,18 @@ function AcordeonTipoMarcaPp({
 
 const LOGISTICA_POLL_MS = 5000;
 
-export function LogisticaOkClient() {
-  const [tab, setTab] = useState<LogisticaTabId>("general");
-  const [tabsPermitidas, setTabsPermitidas] = useState<LogisticaTabId[]>(LOGISTICA_TABS.map((t) => t.id));
-  const [categoriaSesion, setCategoriaSesion] = useState<string>("DIOS");
+export type LogisticaOkModo = "proceso" | "rimec";
+
+export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo } = {}) {
+  const apiBase = modo === "rimec" ? "/api/logistica-rimec" : "/api/logistica-ok";
+  const esRimec = modo === "rimec";
+  const [tab, setTab] = useState<LogisticaTabId>("entregas");
+  const [tabsPermitidas, setTabsPermitidas] = useState<LogisticaTabId[]>([]);
+  const [categoriaSesion, setCategoriaSesion] = useState<string>("");
+  /** No pedir bandeja hasta saber pestañas del perfil (evita 403 general en JEFE/VENDEDOR). */
+  const [aclReady, setAclReady] = useState(false);
+  const fetchGen = useRef(0);
+  const tabsKey = tabsPermitidas.join("|");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filasRaw, setFilasRaw] = useState<LogisticaPendienteRow[]>([]);
@@ -942,17 +1029,25 @@ export function LogisticaOkClient() {
   const [cierreRow, setCierreRow] = useState<LogisticaPendienteRow | null>(null);
   const [cierreFecha, setCierreFecha] = useState("");
   const [cierreChofer, setCierreChofer] = useState<string>(CHOFERES_RIMEC_INICIAL[0]);
+  /** Entregas: fecha + chofer para cierre multi */
+  const [fechaCierreLote, setFechaCierreLote] = useState("");
+  const [choferLote, setChoferLote] = useState<string>(CHOFERES_RIMEC_INICIAL[0]);
 
   const esTabGeneral = tab === "general" || tab === "general_exitoso";
-  /** Solo General · Vendedor NO asigna fecha (Director 2026-07-27) */
-  const esTabConAsignadorFecha = tab === "general";
+  /**
+   * Multi-select + barra en toda pestaña que asigna algo:
+   * General/Vendedor → fecha · Confirmadas → impresión · Entregas → cierre+chofer
+   */
+  const esTabConAsignadorFecha = tab === "general" || tab === "vendedor";
   const puedeAsignarFecha =
     esTabConAsignadorFecha &&
     String(categoriaSesion || "")
       .toUpperCase()
       .trim() !== "VENDEDOR";
   const multiEnabled =
-    (tab === "general" && puedeAsignarFecha) || tab === "confirmadas" || tab === "entregas";
+    ((tab === "general" || tab === "vendedor") && puedeAsignarFecha) ||
+    tab === "confirmadas" ||
+    tab === "entregas";
 
   const fetchBandeja = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -964,17 +1059,28 @@ export function LogisticaOkClient() {
       setLoading(true);
       setError(null);
     }
+    const gen = ++fetchGen.current;
+    const tabPedido = tab;
     try {
-      const q = new URLSearchParams({ tab });
-      const res = await fetch(`/api/logistica-ok/bandeja?${q}`, {
+      const q = new URLSearchParams({ tab: tabPedido });
+      const res = await fetch(`${apiBase}/bandeja?${q}`, {
         credentials: "same-origin",
         cache: "no-store",
       });
       const data = await res.json();
+      if (gen !== fetchGen.current) return; // respuesta vieja (cambio de pestaña)
       if (!res.ok) throw new Error(data.error || "Error al cargar");
       if (Array.isArray(data.tabsPermitidas) && data.tabsPermitidas.length) {
-        setTabsPermitidas(data.tabsPermitidas);
+        const nextKey = (data.tabsPermitidas as LogisticaTabId[]).join("|");
+        if (nextKey !== tabsKey) {
+          setTabsPermitidas(data.tabsPermitidas as LogisticaTabId[]);
+        }
         if (data.categoria) setCategoriaSesion(String(data.categoria));
+        // No pisar pestaña elegida por el usuario · solo corregir si quedó fuera de ACL
+        const tabApi = data.tab as LogisticaTabId | undefined;
+        if (tabApi && nextKey && !nextKey.split("|").includes(tabPedido) && nextKey.split("|").includes(tabApi)) {
+          setTab(tabApi);
+        }
       }
       const incoming: LogisticaPendienteRow[] = data.filas ?? [];
       if (silent) {
@@ -1012,16 +1118,18 @@ export function LogisticaOkClient() {
       });
       setLastRefreshAt(new Date());
     } catch (e) {
+      if (gen !== fetchGen.current) return;
       if (!silent) {
         setError(e instanceof Error ? e.message : "Error");
       }
     } finally {
+      if (gen !== fetchGen.current) return;
       if (silent) {
         refreshInFlight.current = false;
         setRefreshing(false);
       } else setLoading(false);
     }
-  }, [tab]);
+  }, [tab, apiBase, tabsKey]);
 
   const load = useCallback(() => fetchBandeja({ silent: false }), [fetchBandeja]);
   const refreshBandeja = useCallback(() => fetchBandeja({ silent: true }), [fetchBandeja]);
@@ -1035,22 +1143,32 @@ export function LogisticaOkClient() {
           const cat = String(data.user.categoria || data.user.role || "").toUpperCase();
           setCategoriaSesion(cat);
           const tabs = tabsPermitidasLogistica(cat);
-          setTabsPermitidas(tabs.length ? tabs : ["general"]);
+          setTabsPermitidas(tabs);
           setTab((prev) => (tabs.includes(prev) ? prev : tabInicialLogistica(cat)));
+        } else {
+          setTabsPermitidas([]);
         }
       } catch {
-        /* sesión opcional al montar */
+        setTabsPermitidas([]);
+      } finally {
+        setAclReady(true);
       }
     })();
   }, []);
 
   useEffect(() => {
+    if (!aclReady) return;
+    if (!tabsKey) return;
+    if (!tabsPermitidas.includes(tab)) return;
     void load();
-  }, [load]);
+    // tabsPermitidas solo vía tabsKey (evita loop por nueva referencia de array)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tabsKey es la firma estable
+  }, [aclReady, load, tab, tabsKey]);
 
   /** Auto-refresh cada 5s — pedidos aprobados aparecen sin F5 */
   useEffect(() => {
-    if (loading) return;
+    if (!aclReady || loading || !tabsKey) return;
+    if (!tabsPermitidas.includes(tab)) return;
     const tick = () => {
       if (document.visibilityState === "visible") void refreshBandeja();
     };
@@ -1063,7 +1181,8 @@ export function LogisticaOkClient() {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [loading, refreshBandeja, tab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tabsKey estable
+  }, [aclReady, loading, refreshBandeja, tab, tabsKey]);
 
   const onObsLeida = useCallback((fiId: number) => {
     setFilasRaw((prev) => {
@@ -1093,9 +1212,12 @@ export function LogisticaOkClient() {
   );
 
   const gruposPedidoFiltrados = useMemo(() => {
+    if (esRimec) {
+      return enriquecerGruposConStatsPp(groupLogisticaRimecPorEntidad(filasFiltradas), statsPorPp);
+    }
     if (!esTabGeneral) return gruposPedidoDuro;
     return enriquecerGruposConStatsPp(groupLogisticaPorPedidoDuro(filasFiltradas), statsPorPp);
-  }, [esTabGeneral, gruposPedidoDuro, filasFiltradas, statsPorPp]);
+  }, [esRimec, esTabGeneral, gruposPedidoDuro, filasFiltradas, statsPorPp]);
 
   const gruposVendedorFiltrados = useMemo(
     () => groupLogisticaPorVendedorTipoMarcaPp(filasFiltradas),
@@ -1124,8 +1246,9 @@ export function LogisticaOkClient() {
     const mar = new Map<string, string>();
     let haySinCadena = false;
     for (const r of filasRaw) {
-      const vk = String(r.id_vendedor ?? r.vendedor);
-      vend.set(vk, r.vendedor || vk);
+      const nombre = (r.vendedor || "").replace(/\s*\(\d+\)\s*$/, "").trim() || "—";
+      const vk = r.id_vendedor != null ? String(r.id_vendedor) : nombre;
+      vend.set(vk, nombre);
       // Sales Report: Cadena = solo id_cadena real (cadena_v2). Cliente suelto ≠ cadena.
       if (r.id_cadena != null) {
         const descp = (r.cadena ?? "").trim() || `Cadena ${r.id_cadena}`;
@@ -1189,12 +1312,17 @@ export function LogisticaOkClient() {
   }
 
   async function descargarListadoPdf(ppId: number) {
+    if (esRimec) {
+      setToast("PDF listado · próximamente en Logística Rimec");
+      window.setTimeout(() => setToast(null), 3000);
+      return;
+    }
     setPdfBusyId(ppId);
     setError(null);
     try {
       const filtros = queryFiltrosPdf();
       const res = await fetch(
-        `/api/logistica-ok/listado-pdf?pedido_proveedor_id=${ppId}&${filtros}`,
+        `${apiBase}/listado-pdf?pedido_proveedor_id=${ppId}&${filtros}`,
         { credentials: "same-origin" },
       );
       if (!res.ok) {
@@ -1231,7 +1359,7 @@ export function LogisticaOkClient() {
     setBusyId(id);
     setToast(null);
     try {
-      const res = await fetch(`/api/logistica-ok/pendiente/${id}`, {
+      const res = await fetch(`${apiBase}/pendiente/${id}`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -1285,7 +1413,7 @@ export function LogisticaOkClient() {
     setToast(null);
     setError(null);
     try {
-      const res = await fetch("/api/logistica-ok/bulk", {
+      const res = await fetch(`${apiBase}/bulk`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -1306,6 +1434,7 @@ export function LogisticaOkClient() {
         failed > 0 ? ` · ${failed} omitidas (otro estado)` : ""
       }${data.error ? ` · ${data.error}` : ""}`;
       setToast(msg);
+      setSelected(new Set());
       if (failed === 0) setTab("confirmadas");
       else await load();
     } catch (e) {
@@ -1320,7 +1449,7 @@ export function LogisticaOkClient() {
     setBulkBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/logistica-ok/bulk", {
+      const res = await fetch(`${apiBase}/bulk`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -1331,7 +1460,44 @@ export function LogisticaOkClient() {
       const failed = Number(data.failed ?? 0);
       if (done === 0) throw new Error(data.error || "Ninguna FI en Confirmadas.");
       setToast(`OK ${done} impresión legal${failed > 0 ? ` · ${failed} omitidas` : ""}`);
+      setSelected(new Set());
       if (failed === 0) setTab("entregas");
+      else await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkCierreEntrega() {
+    if (idsSeleccion.length === 0 || !fechaCierreLote || !choferLote) return;
+    setBulkBusy(true);
+    setError(null);
+    setToast(null);
+    try {
+      const res = await fetch(`${apiBase}/bulk`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cierre_entrega",
+          ids: idsSeleccion,
+          fecha_entrega_efectiva: fechaCierreLote,
+          chofer_nombre: choferLote,
+        }),
+      });
+      const data = await res.json();
+      const done = Number(data.done ?? 0);
+      const failed = Number(data.failed ?? 0);
+      if (done === 0) {
+        throw new Error(data.error || data.errors?.[0]?.error || "Ninguna FI cerrada.");
+      }
+      setToast(
+        `OK ${done} entrega(s) · ${choferLote}${failed > 0 ? ` · ${failed} omitidas` : ""}`,
+      );
+      setSelected(new Set());
+      if (failed === 0) setTab("exitosas");
       else await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -1344,7 +1510,7 @@ export function LogisticaOkClient() {
     if (!cierreRow) return;
     setBusyId(cierreRow.id);
     try {
-      const res = await fetch(`/api/logistica-ok/pendiente/${cierreRow.id}`, {
+      const res = await fetch(`${apiBase}/pendiente/${cierreRow.id}`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -1374,28 +1540,58 @@ export function LogisticaOkClient() {
         : tab === "entregas"
           ? gruposDiaChoferFiltrados.length > 0
           : tab === "confirmadas"
-            ? gruposTipoFiltrados.length > 0
+            ? esRimec
+              ? gruposPedidoFiltrados.length > 0
+              : gruposTipoFiltrados.length > 0
             : gruposPedidoFiltrados.length > 0;
 
   return (
     <>
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <Link href="/" className="text-sm font-semibold text-rimec-azul hover:underline">
-          ← Hub Report
+        <Link href="/logistica-ok" className="text-sm font-semibold text-rimec-azul hover:underline">
+          ← Logística OK
         </Link>
-        <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-rimec-azul/70">2.3.1.28</p>
-        <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Logística OK</h1>
+        <p
+          className={`mt-4 text-xs font-semibold uppercase tracking-widest ${
+            esRimec ? "text-violet-700" : "text-rimec-azul/70"
+          }`}
+        >
+          {esRimec ? "2.3.1.28.10" : "2.3.1.28"}
+        </p>
+        <h1
+          className={`mt-2 font-serif text-3xl ${
+            esRimec ? "text-violet-950" : "text-rimec-azul-dark"
+          }`}
+        >
+          {esRimec ? "Logística Rimec" : "Logística de Proceso"}
+        </h1>
         <p className="mt-2 text-sm text-neutral-700">
-          Filtros multi-select · PDF = resultado filtrado · atraso desde publicación PP
+          {esRimec
+            ? "Mismo embudo que Proceso · origen Excel/Carlos · color violeta"
+            : "Filtros multi-select · PDF = resultado filtrado · atraso desde publicación PP"}
         </p>
 
-        <div className="mt-4 rounded-xl border-4 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-900">Protocolo CHUSAR · palabra reservada</p>
-          <p className="mt-1 text-sm font-bold text-amber-950">
-            {FACTURA_REAL_LABEL} = número factura del <strong>sistema Carlos</strong> (columna destacada ·{" "}
-            <code className="text-xs">pv_global</code>). Origen: CSV cierre importación PP antes de Compras.
-          </p>
-        </div>
+        {esRimec ? (
+          <div className="mt-4 rounded-xl border-4 border-violet-500 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-widest text-violet-900">
+              Logística Rimec · backlog Carlos
+            </p>
+            <p className="mt-1 text-sm font-bold text-violet-950">
+              Tres bloques PE · Programado · CP · atraso en cabecera · multi-select vendedores · detalle con
+              miniaturas. Tabla <code className="text-xs">logistica_rimec_pendiente</code>.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border-4 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-widest text-amber-900">
+              Protocolo CHUSAR · palabra reservada
+            </p>
+            <p className="mt-1 text-sm font-bold text-amber-950">
+              {FACTURA_REAL_LABEL} = número factura del <strong>sistema Carlos</strong> (columna destacada ·{" "}
+              <code className="text-xs">pv_global</code>). Origen: CSV cierre importación PP antes de Compras.
+            </p>
+          </div>
+        )}
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           {LOGISTICA_TABS.filter((t) => tabsPermitidas.includes(t.id)).map((t) => (
@@ -1446,7 +1642,7 @@ export function LogisticaOkClient() {
           </span>
         </div>
 
-        {/* Cabecera operativa: filtros en todas · asignar fecha solo General (no Vendedor) */}
+        {/* Cabecera operativa: filtros · asignar fecha en General y Vendedor */}
         <div className="mt-4 space-y-3 rounded-xl border-2 border-rimec-azul/20 bg-rimec-azul/[0.04] px-4 py-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[12rem] flex-1">
@@ -1521,6 +1717,51 @@ export function LogisticaOkClient() {
               >
                 Impresión legal · {idsSeleccion.length} FI
               </button>
+            )}
+            {tab === "entregas" && (
+              <>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-500">
+                    {FECHA_ENTREGA_EFECTIVA_LABEL}
+                  </label>
+                  <input
+                    type="date"
+                    className="mt-0.5 block rounded border border-slate-300 px-2 py-1 text-sm"
+                    value={fechaCierreLote}
+                    onChange={(e) => setFechaCierreLote(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-500">Chofer</label>
+                  <select
+                    className="mt-0.5 block min-w-[10rem] rounded border border-slate-300 px-2 py-1 text-sm"
+                    value={choferLote}
+                    onChange={(e) => setChoferLote(e.target.value)}
+                  >
+                    {CHOFERES_RIMEC_INICIAL.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    bulkBusy ||
+                    !fechaCierreLote ||
+                    !choferLote ||
+                    idsSeleccion.length === 0
+                  }
+                  onClick={() => void bulkCierreEntrega()}
+                  className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
+                >
+                  {bulkBusy
+                    ? "…"
+                    : `Cerrar entrega · ${idsSeleccion.length || "…"} FI`}
+                </button>
+                <span className="text-xs text-slate-500">{idsSeleccion.length} seleccionadas</span>
+              </>
             )}
             <button
               type="button"
@@ -1605,6 +1846,8 @@ export function LogisticaOkClient() {
                         onToggle={toggle}
                         multiEnabled={multiEnabled}
                         handlers={handlers}
+                        layoutRimec={esRimec}
+                        detalleBase={esRimec ? "/api/logistica-rimec/detalle" : undefined}
                       />
                     </div>
                   )}
@@ -1721,8 +1964,10 @@ export function LogisticaOkClient() {
                               mode="flujo"
                               selected={selected}
                               onToggle={toggle}
-                              multiEnabled={multiEnabled && tab === "entregas"}
+                              multiEnabled={multiEnabled}
                               handlers={handlers}
+                              detalleBase={esRimec ? "/api/logistica-rimec/detalle" : undefined}
+                              layoutRimec={esRimec}
                             />
                           )}
                         </div>
@@ -1734,19 +1979,41 @@ export function LogisticaOkClient() {
           </div>
         ) : tab === "confirmadas" ? (
           <div className="mt-6">
-            <AcordeonTipoMarcaPp
-              tipos={gruposTipoFiltrados}
-              tab={tab}
-              prefix="root"
-              openTipo={openTipo}
-              setOpenTipo={setOpenTipo}
-              openMarcaPp={openMarcaPp}
-              setOpenMarcaPp={setOpenMarcaPp}
-              selected={selected}
-              onToggle={toggle}
-              multiEnabled={multiEnabled}
-              handlers={handlers}
-            />
+            {esRimec ? (
+              <AcordeonPedidoDuro
+                grupos={gruposPedidoFiltrados}
+                tab={tab}
+                openPedido={openPedido}
+                setOpenPedido={setOpenPedido}
+                openMarca={openMarca}
+                setOpenMarca={setOpenMarca}
+                openCadena={openCadenaResumen}
+                setOpenCadena={setOpenCadenaResumen}
+                selected={selected}
+                onToggle={toggle}
+                multiEnabled={multiEnabled}
+                handlers={handlers}
+                pdfBusyId={pdfBusyId}
+                onPdf={(ppId) => void descargarListadoPdf(ppId)}
+                onObsLeida={onObsLeida}
+                detalleBase="/api/logistica-rimec/detalle"
+                layoutRimec
+              />
+            ) : (
+              <AcordeonTipoMarcaPp
+                tipos={gruposTipoFiltrados}
+                tab={tab}
+                prefix="root"
+                openTipo={openTipo}
+                setOpenTipo={setOpenTipo}
+                openMarcaPp={openMarcaPp}
+                setOpenMarcaPp={setOpenMarcaPp}
+                selected={selected}
+                onToggle={toggle}
+                multiEnabled={multiEnabled}
+                handlers={handlers}
+              />
+            )}
           </div>
         ) : (
           <div className="mt-6">
@@ -1766,6 +2033,8 @@ export function LogisticaOkClient() {
               pdfBusyId={pdfBusyId}
               onPdf={(ppId) => void descargarListadoPdf(ppId)}
               onObsLeida={onObsLeida}
+              detalleBase={esRimec ? "/api/logistica-rimec/detalle" : undefined}
+              layoutRimec={esRimec}
             />
           </div>
         )}
@@ -1818,7 +2087,13 @@ export function LogisticaOkClient() {
         </div>
       )}
 
-      <ReportFooter note="Logística OK · semáforo 3 pelotas · multi-fecha · 2.3.1.28.5" />
+      <ReportFooter
+        note={
+          esRimec
+            ? "Logística Rimec · mismo embudo Proceso · 2.3.1.28.10"
+            : "Logística de Proceso · semáforo 3 pelotas · multi-fecha · 2.3.1.28.5"
+        }
+      />
     </>
   );
 }

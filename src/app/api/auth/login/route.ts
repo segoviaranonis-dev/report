@@ -6,6 +6,10 @@ import { NextResponse } from 'next/server'
 import { validateUsuario } from '@/lib/auth/validateUsuario'
 import { createSession } from '@/lib/auth/session'
 import { CAJA_RIMEC_HOME, isCajaRimec } from '@/lib/auth/caja-rimec'
+import {
+  JEFE_DEPOSITO_HOME,
+  isJefeDepositoRimec,
+} from '@/lib/auth/jefe-deposito-rimec'
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +36,9 @@ export async function POST(request: Request) {
 
     const home = isCajaRimec(user.rol_id, user.categoria)
       ? CAJA_RIMEC_HOME
-      : '/'
+      : isJefeDepositoRimec(user.rol_id, user.categoria)
+        ? JEFE_DEPOSITO_HOME
+        : '/'
 
     return NextResponse.json({
       success: true,
