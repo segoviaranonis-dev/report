@@ -28,11 +28,19 @@ function useLoaderProgress(active: boolean, etapas: string[]) {
 
     const tick = () => {
       const elapsed = performance.now() - started;
-      const t = Math.min(1, elapsed / 2800);
-      const eased = 1 - (1 - t) ** 2.2;
-      setProgress(Math.min(94, eased * 94));
-      setStageIndex(Math.min(etapas.length - 1, Math.floor(elapsed / 650)));
-      if (t < 1) raf = requestAnimationFrame(tick);
+      // 0–2.8s → ~88%; luego asintota a 97% (no “terminar” antes que el módulo).
+      let p: number;
+      if (elapsed < 2800) {
+        const t = elapsed / 2800;
+        p = (1 - (1 - t) ** 2.2) * 88;
+      } else {
+        const extra = (elapsed - 2800) / 14000;
+        p = 88 + (1 - Math.exp(-extra * 2.2)) * 9;
+      }
+      setProgress(Math.min(97, p));
+      const stageMs = elapsed < 2800 ? 650 : 1400;
+      setStageIndex(Math.min(etapas.length - 1, Math.floor(elapsed / stageMs)));
+      raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);

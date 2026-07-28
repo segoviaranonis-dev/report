@@ -9,6 +9,7 @@ import {
   REPORT_HUB_MODULES,
   type ReportHubGroup,
 } from "@/lib/report/hub-modules";
+import { prefetchHubHref } from "@/lib/report/prefetch-hub";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -135,6 +136,15 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
     styles: HEADER_STYLES[group],
   })).filter((g) => g.modules.length > 0);
 
+  const prefetchKeys = visibleModules.map((m) => m.href).join("|");
+  // Al abrir el menú: prefetch de módulos visibles (JS/RSC en caliente).
+  useEffect(() => {
+    if (!open || !prefetchKeys) return;
+    for (const href of prefetchKeys.split("|")) {
+      if (href) prefetchHubHref((h) => router.prefetch(h), href);
+    }
+  }, [open, prefetchKeys, router]);
+
   return (
     <>
       <button
@@ -244,6 +254,8 @@ export function NexusHeaderZen({ active = "home", maxWidthClass = "max-w-6xl" }:
                       <Link
                         key={item.href}
                         href={item.href}
+                        onMouseEnter={() => prefetchHubHref((h) => router.prefetch(h), item.href)}
+                        onFocus={() => prefetchHubHref((h) => router.prefetch(h), item.href)}
                         onClick={() => setOpen(false)}
                         className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-all duration-300 ${pillClass}`}
                         style={

@@ -6,7 +6,6 @@ import Link from "next/link";
 import { NexusHeaderZen } from "@/components/report/NexusHeaderZen";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { canAccessAprobaciones } from "@/lib/auth/nivel-dios";
-import { prefetchSalesReportSnapshot } from "@/lib/rimec/sales-report-prefetch";
 import { SalesReportHubStatus } from "@/components/report/SalesReportHubStatus";
 import {
   filterHubModules,
@@ -15,6 +14,7 @@ import {
   REPORT_HUB_MODULES,
   type ReportHubGroup,
 } from "@/lib/report/hub-modules";
+import { prefetchHubHref } from "@/lib/report/prefetch-hub";
 
 const WEB_NAVY = "#1E3A5F";
 
@@ -94,14 +94,8 @@ function HubAccordion({
           <Link
             key={mod.href}
             href={mod.href}
-            onMouseEnter={() => {
-              if (mod.href === "/rimec") void prefetchSalesReportSnapshot();
-              if (mod.href === "/ventas-fotos") router.prefetch("/ventas-fotos");
-            }}
-            onFocus={() => {
-              if (mod.href === "/rimec") void prefetchSalesReportSnapshot();
-              if (mod.href === "/ventas-fotos") router.prefetch("/ventas-fotos");
-            }}
+            onMouseEnter={() => prefetchHubHref((h) => router.prefetch(h), mod.href)}
+            onFocus={() => prefetchHubHref((h) => router.prefetch(h), mod.href)}
             className={`group block rounded-xl border-2 bg-card-bg p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] ${
               isWeb ? "" : st.cardBorder
             }`}

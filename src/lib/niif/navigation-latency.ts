@@ -52,8 +52,43 @@ export function niifNavPresetForPath(pathname: string): NiifNavPreset {
       etapas: ["Cargando módulo…", "Preparando grilla…"],
     };
   }
+  if (pathname.startsWith("/aprobaciones")) {
+    return {
+      mensaje: "Abriendo Aprobaciones…",
+      subtitulo: "Workflow de pedidos pendientes.",
+      etapas: ["Validando sesión…", "Leyendo pendientes…", "Armando bandeja…"],
+    };
+  }
+  if (pathname.startsWith("/proceso-importacion")) {
+    return {
+      mensaje: "Abriendo Proceso de importación…",
+      subtitulo: "Motor · IC · Digitación · PP.",
+      etapas: ["Cargando hub importación…", "Preparando accesos…"],
+    };
+  }
+  if (pathname.startsWith("/logistica-ok")) {
+    return {
+      mensaje: "Abriendo Logística OK…",
+      subtitulo: "Entregas · CP + programado.",
+      etapas: ["Leyendo entregas…", "Ordenando quincenas…"],
+    };
+  }
+  if (pathname.startsWith("/stock-pronta-entrega") || pathname.startsWith("/deposito-rimec")) {
+    return {
+      mensaje: "Abriendo depósito / stock PE…",
+      subtitulo: "Saldo físico importadora.",
+      etapas: ["Consultando stock…", "Preparando grilla…"],
+    };
+  }
+  if (pathname.startsWith("/retail") || pathname.startsWith("/depositos-bazzar")) {
+    return {
+      mensaje: "Abriendo módulo Bazzar…",
+      subtitulo: "Tiendas · stock · depósitos.",
+      etapas: ["Conectando Retail…", "Preparando vista…"],
+    };
+  }
   return {
-    mensaje: "Cargando módulo RIMEC…",
+    mensaje: "Cargando módulo…",
     subtitulo: "Aguarde unos segundos, por favor.",
     etapas: ["Sincronizando…", "Preparando vista…"],
   };
