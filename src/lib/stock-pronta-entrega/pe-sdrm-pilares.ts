@@ -51,7 +51,8 @@ function kylyAlnumToBigint(s: string, base: number): bigint | null {
   if (m) return BigInt(m[1]);
   if (/^\d+$/.test(t)) return BigInt(t);
   const digest = createHash("sha256").update(t.toUpperCase(), "utf8").digest("hex");
-  const h = 10_000_000 + Number(BigInt(`0x${digest.slice(0, 12)}`) % 90_000_000n);
+  const h =
+    10_000_000 + Number(BigInt(`0x${digest.slice(0, 12)}`) % BigInt(90_000_000));
   return BigInt(base + h);
 }
 
@@ -78,7 +79,7 @@ function parseCalzadoLr(codArt: string): { linea: bigint; ref: bigint } | null {
     const [a, b] = t.split(".", 2);
     if (/^\d+$/.test(a) && /^\d+$/.test(b)) return { linea: BigInt(a), ref: BigInt(b) };
   }
-  if (/^\d+$/.test(t)) return { linea: BigInt(t), ref: 0n };
+  if (/^\d+$/.test(t)) return { linea: BigInt(t), ref: BigInt(0) };
   return null;
 }
 
