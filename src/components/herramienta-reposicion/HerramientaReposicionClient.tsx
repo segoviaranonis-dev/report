@@ -88,12 +88,16 @@ function etiquetaCambioFiltro(prev: OperativaFilterState, next: OperativaFilterS
   if (cambio("tipo1Ids")) return `AB - CR${cantidad(next.tipo1Ids)}`;
   if (cambio("marcaIds")) return `Marca${cantidad(next.marcaIds)}`;
   if (cambio("tipoGrupos")) {
-    const nombres = next.tipoGrupos.map((x) => ({
-      normal: "Normal",
-      carteras: "Carteras",
-      promo: "Promo",
-      liquidacion: "Liquidación",
-    })[x]);
+    const nombres = next.tipoGrupos.map((x) => {
+      const map: Record<string, string> = {
+        normal: "Normal",
+        carteras: "Carteras",
+        promo: "Promo",
+        liquidacion: "Liquidación",
+        comun: "Común",
+      };
+      return map[x] ?? x;
+    });
     return `Tipo · ${nombres.join(", ") || "Todos"}`;
   }
   if (cambio("generoIds")) return `Género${cantidad(next.generoIds)}`;
