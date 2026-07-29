@@ -27,16 +27,22 @@ import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tie
 export type MutationResult = {
   ok: boolean;
   msg: string;
+  /** PP para sync logística post-respuesta (no bloquear botón Confirmar). */
+  ppIdLogistica?: number | null;
   logistica?: {
     ok: boolean;
     entidad?: string;
     synced?: number;
     error?: string;
     skipped?: boolean;
+    pending?: boolean;
   };
 };
 
-/** confirmar_fi() — logic.py (sin email/PDF en Report v1) */
+/**
+ * confirmar_fi() — COMMIT rápido.
+ * Logística OK se dispara en el route handler con `after()` (no bloquea el botón).
+ */
 export async function confirmarFi(fiId: number): Promise<MutationResult> {
   if (!isRimecDatabaseConfigured()) {
     return { ok: false, msg: "DATABASE_URL no configurada." };
@@ -53,6 +59,7 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
       [fiId]
     );
     const pedidoId = pedidoRes.rows[0]?.pedido_id ?? null;
+    // Logística OK exige pp_id real > 0 (contrato PE · pe-pp-contrato.ts)
     ppIdLogistica =
       pedidoRes.rows[0]?.pp_id != null && Number(pedidoRes.rows[0].pp_id) > 0
         ? Number(pedidoRes.rows[0].pp_id)
@@ -74,7 +81,7 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
     if (pedidoId) {
       const countRes = await client.query<{ total: string; confirmadas: string }>(
         `SELECT COUNT(*)::text AS total,
-                SUM(CASE WHEN estado = 'CONFIRMADA' THEN 1 ELSE 0 END)::text AS confirmadas
+                SUM(CASE WHEN UPPER(TRIM(estado)) = 'CONFIRMADA' THEN 1 ELSE 0 END)::text AS confirmadas
          FROM public.factura_interna WHERE pedido_id = $1`,
         [pedidoId]
       );
@@ -91,46 +98,44 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
 
     await client.query("COMMIT");
 
-    let logistica: MutationResult["logistica"];
-
-    // Puente Logística OK inmediato: PE entra al confirmar; CP/PROGRAMADO solo con bandera + Fecha Real
-    if (ppIdLogistica != null) {
-      try {
-        const sync = await syncLogisticaTrasConfirmarFi(pool, fiId, ppIdLogistica);
-        if (sync.ok) {
-          logistica = {
-            ok: true,
-            entidad: sync.entidad,
-            synced: sync.synced,
-          };
-        } else {
-          logistica = { ok: false, error: sync.error };
-          console.error(`[aprobaciones/confirmarFi] logística FI ${fiId} PP ${ppIdLogistica}:`, sync.error);
-        }
-      } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        logistica = { ok: false, error: err };
-        console.error(`[aprobaciones/confirmarFi] logística FI ${fiId} PP ${ppIdLogistica}:`, err);
-      }
-    }
-
-    let msg = "FI confirmada exitosamente.";
+    let msg = "FI confirmada.";
     if (pedidoCompleto) {
-      msg += " El pedido ha sido CONFIRMADO.";
+      msg += " Pedido CONFIRMADO.";
     }
-    if (logistica?.ok && logistica.entidad === "PE") {
-      msg += " Logística OK: Pronta entrega actualizada.";
-    } else if (logistica?.ok && logistica.synced != null && logistica.synced > 0) {
-      msg += ` Logística OK: ${logistica.synced} fila(s) sincronizada(s).`;
-    } else if (logistica && !logistica.ok) {
-      msg += ` ⚠ Logística pendiente de sync: ${logistica.error ?? "revisar bandera/fecha PP"}.`;
+    if (ppIdLogistica != null) {
+      msg += " Logística en segundo plano…";
     }
-    return { ok: true, msg, logistica };
+    return {
+      ok: true,
+      msg,
+      ppIdLogistica,
+      logistica: ppIdLogistica != null ? { ok: true, pending: true } : undefined,
+    };
   } catch (e) {
     await client.query("ROLLBACK");
     return { ok: false, msg: e instanceof Error ? e.message : String(e) };
   } finally {
     client.release();
+  }
+}
+
+/** Sync logística post-confirm (llamar desde `after()` del route). */
+export async function syncLogisticaTrasConfirmarFiBackground(
+  fiId: number,
+  ppId: number,
+): Promise<void> {
+  if (!isRimecDatabaseConfigured()) return;
+  const pool = getRimecPool();
+  try {
+    const sync = await syncLogisticaTrasConfirmarFi(pool, fiId, ppId);
+    if (!sync.ok) {
+      console.error(`[aprobaciones/confirmarFi] logística FI ${fiId} PP ${ppId}:`, sync.error);
+    }
+  } catch (e) {
+    console.error(
+      `[aprobaciones/confirmarFi] logística FI ${fiId} PP ${ppId}:`,
+      e instanceof Error ? e.message : e,
+    );
   }
 }
 

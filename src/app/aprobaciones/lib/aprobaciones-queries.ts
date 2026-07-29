@@ -211,12 +211,7 @@ export async function fetchFiAnuladas(): Promise<FiRecord[]> {
   return rows.map(mapFiRow);
 }
 
-/** get_fis_de_pedido() */
-export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
-  if (!isRimecDatabaseConfigured()) return [];
-  const pool = getRimecPool();
-  const { rows } = await pool.query(
-    `
+const FI_DE_PEDIDO_SELECT = `
     SELECT
       fi.id, fi.nro_factura, fi.pv_global,
       fi.pp_id, fi.pedido_id,
@@ -239,22 +234,38 @@ export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
     LEFT JOIN usuario_v2 v ON v.id_usuario = fi.vendedor_id
     LEFT JOIN plazo_v2 pl ON pl.id_plazo = fi.plazo_id
     LEFT JOIN quincena_arribo qa ON qa.id = pp.quincena_arribo_id
-    WHERE
-      UPPER(TRIM(fi.estado)) = 'RESERVADA'
-      AND (
-        fi.pedido_id = $1
-        OR (
-          fi.pedido_id IS NULL
-          AND ABS(EXTRACT(EPOCH FROM (
-            fi.created_at - (SELECT created_at FROM public.pedido_venta_rimec WHERE id = $1)
-          ))) < 10
-        )
-      )
-    ORDER BY fi.pp_id, fi.marca, fi.caso
-  `,
-    [pedidoId]
+`;
+
+/** get_fis_de_pedido() — path rápido por pedido_id (índice); fallback huérfanas sin scan global. */
+export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
+  if (!isRimecDatabaseConfigured()) return [];
+  const pool = getRimecPool();
+
+  const primary = await pool.query(
+    `
+    ${FI_DE_PEDIDO_SELECT}
+    WHERE fi.pedido_id = $1
+      AND UPPER(TRIM(fi.estado)) = 'RESERVADA'
+    ORDER BY fi.pp_id NULLS LAST, fi.marca, fi.caso
+    `,
+    [pedidoId],
   );
-  return rows.map(mapFiRow);
+  if (primary.rows.length > 0) return primary.rows.map(mapFiRow);
+
+  // Fallback legacy: FI sin pedido_id creadas en la misma ventana (±30s) del PVR
+  const fallback = await pool.query(
+    `
+    ${FI_DE_PEDIDO_SELECT}
+    WHERE fi.pedido_id IS NULL
+      AND UPPER(TRIM(fi.estado)) = 'RESERVADA'
+      AND fi.created_at BETWEEN
+        (SELECT created_at - INTERVAL '30 seconds' FROM public.pedido_venta_rimec WHERE id = $1)
+        AND (SELECT created_at + INTERVAL '30 seconds' FROM public.pedido_venta_rimec WHERE id = $1)
+    ORDER BY fi.pp_id NULLS LAST, fi.marca, fi.caso
+    `,
+    [pedidoId],
+  );
+  return fallback.rows.map(mapFiRow);
 }
 
 function mapDetalleRow(r: Record<string, unknown>): FiDetalle {

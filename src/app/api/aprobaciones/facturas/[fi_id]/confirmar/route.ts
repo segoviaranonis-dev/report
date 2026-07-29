@@ -1,8 +1,11 @@
-import { NextResponse } from "next/server";
-import { confirmarFi } from "@/app/aprobaciones/lib/aprobaciones-mutations";
+import { after, NextResponse } from "next/server";
+import {
+  confirmarFi,
+  syncLogisticaTrasConfirmarFiBackground,
+} from "@/app/aprobaciones/lib/aprobaciones-mutations";
 import { requireNivelDiosAction } from "@/app/aprobaciones/lib/require-nivel-dios";
 
-/** POST — confirmar FI RESERVADA (sin re-render SSR pesado de server action). */
+/** POST — confirmar FI RESERVADA (respuesta rápida; logística en after). */
 export async function POST(
   _request: Request,
   props: { params: Promise<{ fi_id: string }> },
@@ -20,6 +23,12 @@ export async function POST(
     }
 
     const result = await confirmarFi(fiId);
+
+    if (result.ok && result.ppIdLogistica != null) {
+      const ppId = result.ppIdLogistica;
+      after(() => syncLogisticaTrasConfirmarFiBackground(fiId, ppId));
+    }
+
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (err) {
     console.error("[aprobaciones/confirmar]", err);

@@ -115,9 +115,16 @@ export function PedidoPendienteCard({
             RESERVADA.
           </p>
 
-          {cargandoFis && <p className="text-sm text-neutral-600">Cargando facturas…</p>}
+          {cargandoFis && (
+            <p className="text-sm font-medium text-rimec-azul">
+              Cargando facturas…{" "}
+              <span className="font-normal text-neutral-500">(máx. 20 s)</span>
+            </p>
+          )}
           {!cargandoFis && fis && fis.length === 0 && (
-            <p className="text-sm text-semantic-warning">Sin FIs asociadas — revisar manualmente.</p>
+            <p className="text-sm text-semantic-warning">
+              Sin FIs RESERVADAS ligadas a este pedido. Probá pestaña Reservadas o Refrescar.
+            </p>
           )}
           {!cargandoFis && fis && fis.length > 0 && (
             <div className="space-y-4">

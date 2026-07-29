@@ -87,21 +87,38 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     });
   }
 
-  async function cargarFisPedido(pedidoId: number) {
-    if (fisPorPedido[pedidoId]) return;
+  async function cargarFisPedido(pedidoId: number, opts?: { force?: boolean }) {
+    if (!opts?.force && fisPorPedido[pedidoId]) return;
     setCargandoFisPedido(pedidoId);
     try {
-      const res = await fetch(`/api/aprobaciones/${pedidoId}/facturas`);
-      if (res.ok) {
-        const fis: FiRecord[] = await res.json();
-        setFisPorPedido((prev) => ({ ...prev, [pedidoId]: fis }));
+      const res = await fetch(`/api/aprobaciones/${pedidoId}/facturas`, {
+        signal: AbortSignal.timeout(20_000),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        flash("error", `No se pudieron cargar las FIs (${res.status})`);
+        setFisPorPedido((prev) => ({ ...prev, [pedidoId]: [] }));
+        return;
       }
+      const fis: FiRecord[] = await res.json();
+      setFisPorPedido((prev) => ({ ...prev, [pedidoId]: Array.isArray(fis) ? fis : [] }));
     } catch (e) {
       console.error(e);
+      flash("error", "Timeout o error al cargar facturas — reintentá expandir");
+      setFisPorPedido((prev) => ({ ...prev, [pedidoId]: [] }));
     } finally {
       setCargandoFisPedido(null);
     }
   }
+
+  // Prefetch FIs del primer pendiente (Guido / 1 pedido) — evita “Cargando…” eterno
+  useEffect(() => {
+    if (tab !== "pendientes") return;
+    const first = data.pendientes[0]?.id;
+    if (first == null) return;
+    void cargarFisPedido(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al entrar a pendientes / data
+  }, [tab, data.pendientes]);
 
   async function loadDetalle(fiId: number): Promise<FiDetalle[]> {
     const res = await fetch(`/api/aprobaciones/facturas/${fiId}/items`);
@@ -128,30 +145,31 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
 
   async function handleConfirmarFi(fiId: number) {
     setProcesandoFi(fiId);
+    // Optimistic: sacar FI de la vista al instante (poder del botón)
+    evictFiDeVistasActivas(fiId);
     try {
-      const res = await fetch(`/api/aprobaciones/facturas/${fiId}/confirmar`, { method: "POST" });
+      const res = await fetch(`/api/aprobaciones/facturas/${fiId}/confirmar`, {
+        method: "POST",
+        signal: AbortSignal.timeout(25_000),
+      });
       const result = (await res.json()) as {
         ok?: boolean;
         msg?: string;
-        logistica?: { ok?: boolean; error?: string };
+        logistica?: { ok?: boolean; error?: string; pending?: boolean };
       };
       if (res.ok && result.ok) {
-        evictFiDeVistasActivas(fiId);
-        setData((prev) => ({
-          ...prev,
-          reservadas: prev.reservadas.filter((f) => f.id !== fiId),
-        }));
-        if (result.logistica && !result.logistica.ok) {
-          flash("error", result.msg || "FI confirmada · logística sin sync");
-        } else {
-          flash("success", result.msg || "FI confirmada");
-        }
-        startTransition(() => router.refresh());
+        flash("success", result.msg || "FI confirmada");
+        // Soft refresh diferido — no bloquear UI con SSR de 500+ reservadas
+        window.setTimeout(() => {
+          startTransition(() => router.refresh());
+        }, 400);
       } else {
-        flash("error", result.msg || "Error al confirmar");
+        flash("error", result.msg || "Error al confirmar — refrescá");
+        startTransition(() => router.refresh());
       }
     } catch {
-      flash("error", "No se pudo confirmar — reintentá");
+      flash("error", "No se pudo confirmar — refrescá la página");
+      startTransition(() => router.refresh());
     } finally {
       setProcesandoFi(null);
     }

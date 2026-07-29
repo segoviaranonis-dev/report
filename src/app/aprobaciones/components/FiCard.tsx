@@ -220,13 +220,13 @@ export function FiCard({
         <div className="flex flex-wrap gap-2 border-b border-neutral-200 bg-neutral-50/80 px-4 py-3 sm:px-5">
           {puedeConfirmar && (
             <Button
-              size="sm"
+              size="lg"
               variant="primary"
               disabled={procesando}
               onClick={() => onConfirmar!(fi.id)}
-              className="bg-semantic-success hover:bg-semantic-success/90"
+              className="min-h-12 min-w-[11rem] bg-emerald-600 px-6 text-base font-black uppercase tracking-wide text-white shadow-md shadow-emerald-900/25 hover:bg-emerald-500 disabled:opacity-70"
             >
-              {procesando ? "Confirmando…" : "Confirmar FI"}
+              {procesando ? "Confirmando…" : "✓ Confirmar FI"}
             </Button>
           )}
           {puedeAnular && (
