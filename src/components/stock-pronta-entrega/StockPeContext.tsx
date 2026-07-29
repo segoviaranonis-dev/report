@@ -30,9 +30,11 @@ import {
   normalizeDepositoRow,
   type OperativaFilterState,
   type OperativaOpciones,
+  type TrianguloMaestrasOverride,
 } from "@/lib/depositos/operativa-filters";
 import { calcValorInventario } from "@/lib/depositos/precio-venta";
 import { COLORES_ESTANDAR_DEFAULT, type ColorEstandar } from "@/lib/pilares/colores-estandar";
+import { fetchMaestrasFiltroTriangulo } from "@/lib/pilares/fetch-maestras-filtro-client";
 import { loadPeProductosPrefetch } from "@/lib/panel-control/prefetch-grilla-apis";
 import {
   applyStockPeFilters,
@@ -83,6 +85,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
   const [err, setErr] = useState<string | null>(null);
   const [depositoLegal, setDepositoLegal] = useState("");
   const [filtros, setFiltros] = useState(EMPTY_OPERATIVA_FILTERS);
+  const [trianguloMaestras, setTrianguloMaestras] = useState<TrianguloMaestrasOverride | null>(null);
   const [qDebounced, setQDebounced] = useState("");
   useEffect(() => {
     const t = window.setTimeout(() => setQDebounced(filtros.q), 280);
@@ -93,6 +96,21 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     [filtros, qDebounced],
   );
   const filtrosDeferred = useDeferredValue(filtrosCompute);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMaestrasFiltroTriangulo(filtros.ramoTipo).then((m) => {
+      if (cancelled) return;
+      if (!m) {
+        setTrianguloMaestras(null);
+        return;
+      }
+      setTrianguloMaestras({ estilos: m.estilos, generos: m.generos });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [filtros.ramoTipo]);
 
   const reloadProductos = useCallback(async () => {
     setLoading(true);
@@ -128,8 +146,8 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     [rows, filtrosDeferred, depositoLegal],
   );
   const opciones = useMemo(
-    () => buildStockPeOpciones(rows, filtrosDeferred, depositoLegal),
-    [rows, filtrosDeferred, depositoLegal],
+    () => buildStockPeOpciones(rows, filtrosDeferred, depositoLegal, trianguloMaestras),
+    [rows, filtrosDeferred, depositoLegal, trianguloMaestras],
   );
   const drill = useMemo(() => buildEstiloTonoDrillFromRows(filtradas), [filtradas]);
   const estiloMarcaDrill = useMemo(() => buildEstiloMarcaDrillFromRows(filtradas), [filtradas]);

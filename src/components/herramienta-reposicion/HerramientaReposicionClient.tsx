@@ -32,7 +32,9 @@ import {
   EMPTY_OPERATIVA_FILTERS,
   stampFamiliaPilares,
   type OperativaFilterState,
+  type TrianguloMaestrasOverride,
 } from "@/lib/depositos/operativa-filters";
+import { fetchMaestrasFiltroTriangulo } from "@/lib/pilares/fetch-maestras-filtro-client";
 import { moleculeKeyImagen } from "@/lib/retail/product-image-presence";
 import {
   buildNivelAmMap,
@@ -145,6 +147,21 @@ export function HerramientaReposicionClient() {
     [filtros, qDebounced],
   );
   const filtrosDeferred = useDeferredValue(filtrosCompute);
+  const [trianguloMaestras, setTrianguloMaestras] = useState<TrianguloMaestrasOverride | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMaestrasFiltroTriangulo(filtros.ramoTipo).then((m) => {
+      if (cancelled) return;
+      if (!m) {
+        setTrianguloMaestras(null);
+        return;
+      }
+      setTrianguloMaestras({ estilos: m.estilos, generos: m.generos });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [filtros.ramoTipo]);
   /** Director: inicio con todas las tarjetas desplegadas · Compactar opcional */
   const [expandAll, setExpandAll] = useState(true);
   const [soloSinImagen, setSoloSinImagen] = useState(false);
@@ -224,8 +241,8 @@ export function HerramientaReposicionClient() {
   );
 
   const opciones = useMemo(
-    () => buildOperativaOpciones(asRows, filtrosDeferred),
-    [asRows, filtrosDeferred],
+    () => buildOperativaOpciones(asRows, filtrosDeferred, undefined, trianguloMaestras),
+    [asRows, filtrosDeferred, trianguloMaestras],
   );
 
   const filtradasRows = useMemo(

@@ -4,6 +4,7 @@ import {
   buildOperativaOpciones,
   type OperativaFilterState,
   type OperativaOpciones,
+  type TrianguloMaestrasOverride,
 } from "@/lib/depositos/operativa-filters";
 import { esFilaModuloAccesorios, esRamoAccesorios, mergePeAbcrTipo1Items, peTieneSubfamiliaAccesorios } from "@/lib/filtros/modulo-accesorios";
 import {
@@ -28,14 +29,20 @@ export function buildStockPeOpciones(
   rows: DepositoRow[],
   filtros: OperativaFilterState,
   depositoLegal: string,
+  trianguloMaestras?: TrianguloMaestrasOverride | null,
 ): OperativaOpciones {
   const baseRows = filterByDepositoLegal(rows, depositoLegal);
   const stamped = stampFamiliaPilaresPe(baseRows);
   const sinGrada = { ...filtros, gradas: [] };
-  const opciones = buildOperativaOpciones(stamped, sinGrada, {
-    materialToken: materialTokenFiltroPe,
-    colorToken: colorTokenFiltroPe,
-  });
+  const opciones = buildOperativaOpciones(
+    stamped,
+    sinGrada,
+    {
+      materialToken: materialTokenFiltroPe,
+      colorToken: colorTokenFiltroPe,
+    },
+    trianguloMaestras,
+  );
   return {
     ...opciones,
     gradas: [],

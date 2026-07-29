@@ -435,10 +435,20 @@ export type PePilarTokenFns = {
   colorToken?: (row: DepositoRow) => string | null;
 };
 
+/**
+ * Override siamese — Estilo/Género desde `/pilares` (FK maestras por tipo_v2).
+ * Si viene, reemplaza facetas derivadas de stock (anti cable cruzado 638↔654).
+ */
+export type TrianguloMaestrasOverride = {
+  estilos?: DepositoFilterItem[];
+  generos?: DepositoFilterItem[];
+};
+
 export function buildOperativaOpciones(
   rows: DepositoRow[],
   filtros: OperativaFilterState,
   peTokens?: PePilarTokenFns,
+  trianguloMaestras?: TrianguloMaestrasOverride | null,
 ): OperativaOpciones {
   const generos = new Map<number, DepositoFilterItem>()
   const marcas = new Map<number, DepositoFilterItem>()
@@ -512,7 +522,21 @@ export function buildOperativaOpciones(
     Array.from(m.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
 
   let estilosOut = sortItems(estilos)
+  let generosOut = sortItems(generos)
   let tipo1Out = sortItems(tipo1)
+
+  // Ley siamese · Documenta 2026-07-29 — Estilo/Género = FK Administrador Pilares
+  if (trianguloMaestras?.estilos?.length) {
+    estilosOut = [...trianguloMaestras.estilos].sort((a, b) =>
+      a.label.localeCompare(b.label, "es"),
+    )
+  }
+  if (trianguloMaestras?.generos?.length) {
+    generosOut = [...trianguloMaestras.generos].sort((a, b) =>
+      a.label.localeCompare(b.label, "es"),
+    )
+  }
+
   if (esRamoAccesorios(filtros.ramoTipo)) {
     estilosOut = estilosOut.filter((e) => esLabelModuloAccesorios(e.label));
     tipo1Out = tiposMetaModuloAccesorios(tipo1Out);
@@ -526,7 +550,7 @@ export function buildOperativaOpciones(
   }
 
   return {
-    generos: sortItems(generos),
+    generos: generosOut,
     marcas: sortItems(marcas),
     estilos: estilosOut,
     tipo1: tipo1Out,
