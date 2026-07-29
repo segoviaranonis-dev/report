@@ -15,6 +15,7 @@ import {
   type ReportHubGroup,
 } from "@/lib/report/hub-modules";
 import { prefetchHubHref } from "@/lib/report/prefetch-hub";
+import { prefetchSalesReportSnapshot } from "@/lib/rimec/sales-report-prefetch";
 
 const WEB_NAVY = "#1E3A5F";
 
