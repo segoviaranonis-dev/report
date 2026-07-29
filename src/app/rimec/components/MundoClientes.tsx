@@ -29,35 +29,6 @@ type LineRow = {
   sinCompra: number;
 };
 
-type SegmentoCartera = SegmentoCarteraCliente;
-
-type FilaCarteraCompleta = {
-  id_cliente: number;
-  codigo: string;
-  nombre: string;
-  cadena: string;
-  segmento: SegmentoCartera;
-  /** Criterio único de orden: compras período (2026) o, sin compra, último monto registrado. */
-  montoOrden: number;
-  monto_2026: number | null;
-  monto_2025: number | null;
-  ultimo_monto: number | null;
-  ultimo_mes: string | null;
-};
-
-function sombraSegmento(segmento: SegmentoCartera): string {
-  switch (segmento) {
-    case "crecimiento":
-      return "shadow-[0_0_24px_-6px_rgba(47,79,62,0.35)] border-semantic-success/25";
-    case "riesgo":
-      return "shadow-[0_0_24px_-6px_rgba(249,115,22,0.42)] border-rimec-azul/25";
-    case "sin_compra":
-      return "shadow-[0_0_24px_-6px_rgba(140,59,59,0.28)] border-semantic-error/25";
-    default:
-      return "";
-  }
-}
-
 export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
   const [search, setSearch] = useState("");
   const [carteraCompletaVisible, setCarteraCompletaVisible] = useState(false);
@@ -90,6 +61,18 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
 
   const jerarquiaLeaves = data.jerarquia_clientes ?? [];
 
+  /** Ranking «Toda la cartera»: toda la jerarquía del sync; búsqueda acota por cliente/cadena/marca. */
+  const jerarquiaLeavesRanking = useMemo(() => {
+    if (!q) return jerarquiaLeaves;
+    return jerarquiaLeaves.filter(
+      (L) =>
+        L.descp_cliente.toLowerCase().includes(q) ||
+        L.descp_cadena.toLowerCase().includes(q) ||
+        L.descp_marca.toLowerCase().includes(q) ||
+        String(L.id_cliente).includes(q.trim()),
+    );
+  }, [jerarquiaLeaves, q]);
+
   const clientesCrecIds = useMemo(() => new Set(crec.map((c) => c.id_cliente).filter((id) => id > 0)), [crec]);
   const clientesRiesIds = useMemo(() => new Set(ries.map((c) => c.id_cliente).filter((id) => id > 0)), [ries]);
 
@@ -100,84 +83,6 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
       { clave: "real_2026", etiqueta: "Real 2026 (actual)", valor: data.kpis.monto_periodo },
     ],
     [data.kpis.monto_periodo, data.kpis.monto_objetivo, data.kpis.monto_periodo_anterior]
-  );
-
-  const carteraCompletaOrdenada = useMemo((): FilaCarteraCompleta[] => {
-    const filas: FilaCarteraCompleta[] = [];
-    for (const c of data.clientes_crecimiento) {
-      if (!matchCliente(c)) continue;
-      filas.push({
-        id_cliente: c.id_cliente,
-        codigo: c.codigo,
-        nombre: c.nombre,
-        cadena: c.cadena,
-        segmento: "crecimiento",
-        montoOrden: c.monto_2026,
-        monto_2026: c.monto_2026,
-        monto_2025: c.monto_2025,
-        ultimo_monto: null,
-        ultimo_mes: null,
-      });
-    }
-    for (const c of data.clientes_riesgo) {
-      if (!matchCliente(c)) continue;
-      filas.push({
-        id_cliente: c.id_cliente,
-        codigo: c.codigo,
-        nombre: c.nombre,
-        cadena: c.cadena,
-        segmento: "riesgo",
-        montoOrden: c.monto_2026,
-        monto_2026: c.monto_2026,
-        monto_2025: c.monto_2025,
-        ultimo_monto: null,
-        ultimo_mes: null,
-      });
-    }
-    for (const c of data.clientes_sin_compra) {
-      if (!matchSinCompra(c)) continue;
-      filas.push({
-        id_cliente: c.id_cliente,
-        codigo: c.codigo,
-        nombre: c.nombre,
-        cadena: c.cadena,
-        segmento: "sin_compra",
-        montoOrden: c.ultimo_monto,
-        monto_2026: null,
-        monto_2025: null,
-        ultimo_monto: c.ultimo_monto,
-        ultimo_mes: c.ultimo_mes,
-      });
-    }
-    const conCompraPeriodo = filas.filter((f) => f.segmento !== "sin_compra").sort((a, b) => b.montoOrden - a.montoOrden);
-    const sinCompraLista = filas.filter((f) => f.segmento === "sin_compra").sort((a, b) => b.montoOrden - a.montoOrden);
-    return [...conCompraPeriodo, ...sinCompraLista];
-  }, [data.clientes_crecimiento, data.clientes_riesgo, data.clientes_sin_compra, q]);
-
-  const idsCarteraCompleta = useMemo(
-    () => new Set(carteraCompletaOrdenada.map((c) => c.id_cliente).filter((id) => id > 0)),
-    [carteraCompletaOrdenada]
-  );
-
-  const segmentoPorClienteCompleto = useMemo(() => {
-    const m = new Map<number, SegmentoCarteraCliente>();
-    for (const row of carteraCompletaOrdenada) {
-      if (row.id_cliente > 0) m.set(row.id_cliente, row.segmento);
-    }
-    return m;
-  }, [carteraCompletaOrdenada]);
-
-  const idsConHojaJerarquiaEnCartera = useMemo(() => {
-    const s = new Set<number>();
-    for (const L of jerarquiaLeaves) {
-      if (idsCarteraCompleta.has(L.id_cliente)) s.add(L.id_cliente);
-    }
-    return s;
-  }, [jerarquiaLeaves, idsCarteraCompleta]);
-
-  const clientesSinDesgloseJerarquia = useMemo(
-    () => carteraCompletaOrdenada.filter((c) => c.id_cliente > 0 && !idsConHojaJerarquiaEnCartera.has(c.id_cliente)),
-    [carteraCompletaOrdenada, idsConHojaJerarquiaEnCartera]
   );
 
   const segmentoMapCrec = useMemo(() => {
@@ -360,115 +265,69 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
         <div className="custom-scrollbar flex-1 space-y-12 overflow-y-auto p-6">
           {carteraCompletaVisible ? (
             <section className="rounded-xl border border-rimec-azul/15 bg-app-bg p-4">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h4 className="font-serif text-base text-rimec-azul">Lista completa de cartera</h4>
-                  <p className="mt-1 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-                    Misma vista <span className="text-neutral-ink-medium">Cadena → Cliente → Marca</span> que el resto del informe (datos agregados en base).
-                    Colores de sombra en cliente/marca según segmento (crecimiento / riesgo / sin compra). Abajo: clientes de la cartera sin líneas de
-                    venta en el período (solo aparecen como listado auxiliar).
-                  </p>
-                </div>
-                <p className="text-[10px] text-neutral-ink-muted">
-                  {carteraCompletaOrdenada.length} cliente{carteraCompletaOrdenada.length === 1 ? "" : "s"}
+              <div className="mb-3">
+                <h4 className="font-serif text-base text-rimec-azul">Ranking consulta</h4>
+                <p className="mt-1 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
+                  Sumatoria de la consulta sincronizada · ranking por Monto 26 ·{" "}
+                  <span className="text-neutral-ink-medium">Cadena → Cliente → Marca</span> (incluye «Clientes sin
+                  cadenas»). Sin divisiones crecimiento / riesgo.
                 </p>
               </div>
-              <div className="mb-4 flex flex-wrap gap-4 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(47,79,62,0.35)] ring-1 ring-semantic-success/40" />
-                  Crecimiento
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(249,115,22,0.45)] ring-1 ring-rimec-azul/35" />
-                  Riesgo
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-4 rounded-sm shadow-[0_0_12px_rgba(140,59,59,0.35)] ring-1 ring-semantic-error/30" />
-                  Sin compra
-                </span>
-              </div>
-              {carteraCompletaOrdenada.length === 0 ? (
-                <p className="py-8 text-center text-sm text-neutral-ink-muted">No hay clientes que coincidan con la búsqueda.</p>
+              {jerarquiaLeavesRanking.length > 0 ? (
+                <TablaJerarquica
+                  jerarquiaLeaves={jerarquiaLeavesRanking}
+                  title="Ranking consulta · Cadena → Cliente → Marca"
+                />
               ) : (
-                <>
-                  {jerarquiaLeaves.length > 0 ? (
-                    <TablaJerarquica
-                      jerarquiaLeaves={jerarquiaLeaves}
-                      filterClienteIds={idsCarteraCompleta}
-                      segmentoPorClienteId={segmentoPorClienteCompleto}
-                      title="Cadena → Cliente → Marca (toda la cartera)"
-                    />
-                  ) : (
-                    <p className="rounded-lg border border-rimec-azul/15 bg-app-bg py-6 text-center text-sm text-neutral-ink-muted">
-                      No hay bloque de jerarquía desde el servidor para estos filtros. Revisá sincronización o filtros.
-                    </p>
-                  )}
-                  {clientesSinDesgloseJerarquia.length > 0 ? (
-                    <div className="mt-6">
-                      <h5 className="mb-2 font-medium text-rimec-azul/80">Clientes en cartera sin ventas en el período (sin desglose marca)</h5>
-                      <p className="mb-3 text-[10px] text-neutral-ink-muted">
-                        No generan filas en la jerarquía SQL (monto 2026 en período = 0). Último monto y mes a modo de referencia.
-                      </p>
-                      <ul className="max-h-[min(40vh,320px)] space-y-2 overflow-y-auto pr-1">
-                        {clientesSinDesgloseJerarquia.map((row, idx) => (
-                          <li
-                            key={row.id_cliente > 0 ? `sd-${row.id_cliente}` : `sd-${row.codigo}-${idx}`}
-                            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-rimec-azul/5 px-4 py-3 ${sombraSegmento(row.segmento)}`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <span className="font-medium text-rimec-azul">{row.nombre}</span>
-                              <span className="ml-2 text-[11px] text-neutral-ink-muted">ID {row.codigo}</span>
-                              {row.cadena ? (
-                                <span className="ml-2 max-w-[200px] truncate text-[11px] text-neutral-ink-muted">{row.cadena}</span>
-                              ) : null}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[9px] uppercase tracking-wider text-neutral-ink-muted">Último monto</p>
-                              <p className="tabular-nums text-sm text-rimec-azul">{fmtGs(row.montoOrden)}</p>
-                              {row.ultimo_mes ? <p className="text-[10px] text-neutral-ink-muted">Últ. mes {row.ultimo_mes}</p> : null}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </>
+                <p className="rounded-lg border border-rimec-azul/15 bg-app-bg py-6 text-center text-sm text-neutral-ink-muted">
+                  {jerarquiaLeaves.length === 0
+                    ? "No hay bloque de jerarquía desde el servidor para estos filtros. Revisá sincronización o filtros."
+                    : "No hay filas que coincidan con la búsqueda."}
+                </p>
               )}
             </section>
-          ) : null}
-          {crec.length > 0 ? (
-            <section>
-              <h4 className="mb-1 font-serif text-lg text-semantic-success">En crecimiento</h4>
-              <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
-                Cadena → Cliente → Marca. Agregación en base por <span className="text-neutral-ink-medium">id_cadena</span>,{" "}
-                <span className="text-neutral-ink-medium">id_cliente</span> e <span className="text-neutral-ink-medium">id_marca</span>; la UI solo muestra
-                descripciones de FK. Cartera filtrada por <span className="text-neutral-ink-medium">id_cliente</span> en crecimiento.
-              </p>
-              <TablaJerarquica
-                jerarquiaLeaves={jerarquiaLeaves}
-                filterClienteIds={clientesCrecIds}
-                segmentoPorClienteId={segmentoMapCrec}
-              />
-            </section>
           ) : (
-            <p className="text-sm text-neutral-ink-muted">No hay clientes en crecimiento con los filtros actuales.</p>
+            <>
+              {crec.length > 0 ? (
+                <section>
+                  <h4 className="mb-1 font-serif text-lg text-semantic-success">En crecimiento</h4>
+                  <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
+                    Cadena → Cliente → Marca. Agregación en base por{" "}
+                    <span className="text-neutral-ink-medium">id_cadena</span>,{" "}
+                    <span className="text-neutral-ink-medium">id_cliente</span> e{" "}
+                    <span className="text-neutral-ink-medium">id_marca</span>; la UI solo muestra descripciones de FK.
+                    Cartera filtrada por <span className="text-neutral-ink-medium">id_cliente</span> en crecimiento.
+                  </p>
+                  <TablaJerarquica
+                    jerarquiaLeaves={jerarquiaLeaves}
+                    filterClienteIds={clientesCrecIds}
+                    segmentoPorClienteId={segmentoMapCrec}
+                  />
+                </section>
+              ) : (
+                <p className="text-sm text-neutral-ink-muted">
+                  No hay clientes en crecimiento con los filtros actuales.
+                </p>
+              )}
+              {ries.length > 0 ? (
+                <section>
+                  <h4 className="mb-1 font-serif text-lg text-rimec-azul">En riesgo</h4>
+                  <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
+                    Misma jerarquía desde Postgres (ids); cartera en riesgo filtrada por{" "}
+                    <span className="text-neutral-ink-medium">id_cliente</span>.
+                  </p>
+                  <TablaJerarquica
+                    jerarquiaLeaves={jerarquiaLeaves}
+                    filterClienteIds={clientesRiesIds}
+                    segmentoPorClienteId={segmentoMapRies}
+                  />
+                </section>
+              ) : (
+                <p className="text-sm text-neutral-ink-muted">No hay clientes en riesgo con los filtros actuales.</p>
+              )}
+              <TablaSinCompra title="Sin compra reciente" data={sinc} />
+            </>
           )}
-          {ries.length > 0 ? (
-            <section>
-              <h4 className="mb-1 font-serif text-lg text-rimec-azul">En riesgo</h4>
-              <p className="mb-3 text-[10px] leading-snug text-neutral-ink-muted">
-                Misma jerarquía desde Postgres (ids); cartera en riesgo filtrada por <span className="text-neutral-ink-medium">id_cliente</span>.
-              </p>
-              <TablaJerarquica
-                jerarquiaLeaves={jerarquiaLeaves}
-                filterClienteIds={clientesRiesIds}
-                segmentoPorClienteId={segmentoMapRies}
-              />
-            </section>
-          ) : (
-            <p className="text-sm text-neutral-ink-muted">No hay clientes en riesgo con los filtros actuales.</p>
-          )}
-          <TablaSinCompra title="Sin compra reciente" data={sinc} />
         </div>
       </div>
     </div>
