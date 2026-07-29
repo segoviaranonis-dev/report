@@ -44,13 +44,112 @@ function claseSombraSegmento(segmento: SegmentoCarteraCliente): string {
   }
 }
 
+function construirHijosMarca(
+  leavesCli: FullSnapshotJerarquiaLeaf[],
+  idCadena: number,
+  idCliente: number
+): NodoJerarquia[] {
+  const byMarca = new Map<number, { desc: string; leaves: FullSnapshotJerarquiaLeaf[] }>();
+  for (const L of leavesCli) {
+    const cur = byMarca.get(L.id_marca) ?? { desc: L.descp_marca, leaves: [] };
+    cur.desc = L.descp_marca;
+    cur.leaves.push(L);
+    byMarca.set(L.id_marca, cur);
+  }
+
+  const hijosMarca: NodoJerarquia[] = [];
+
+  for (const [idMarca, bucketMarca] of byMarca) {
+    const leavesMarca = bucketMarca.leaves;
+    const displayMarca = bucketMarca.desc || "S/I";
+
+    let montoObjMarca = 0;
+    let monto26Marca = 0;
+    for (const L of leavesMarca) {
+      montoObjMarca += num(L.monto_objetivo);
+      monto26Marca += num(L.monto_2026);
+    }
+    const varMarca = variacionPctVsObjetivo(montoObjMarca, monto26Marca);
+
+    const hijosMes: NodoJerarquia[] = [];
+    for (const L of leavesMarca) {
+      const nombreMes = MES_NOMBRES[L.mes_idx] || `Mes ${L.mes_idx}`;
+      const mObj = num(L.monto_objetivo);
+      const m26 = num(L.monto_2026);
+      hijosMes.push({
+        tipo: "mes",
+        nombre: nombreMes,
+        nivel: 4,
+        montoObj: mObj,
+        monto26: m26,
+        variacionPct: L.variacion_vs_objetivo_pct,
+        count: 1,
+        path: `${idCadena}|${idCliente}|${idMarca}|${L.mes_idx}`,
+        idCliente,
+        mes_idx: L.mes_idx,
+      });
+    }
+
+    hijosMes.sort((a, b) => (a.mes_idx || 0) - (b.mes_idx || 0));
+
+    hijosMarca.push({
+      tipo: "marca",
+      nombre: displayMarca,
+      nivel: 3,
+      montoObj: montoObjMarca,
+      monto26: monto26Marca,
+      variacionPct: varMarca,
+      count: hijosMes.length,
+      hijos: hijosMes,
+      path: `${idCadena}|${idCliente}|${idMarca}`,
+      idCliente,
+    });
+  }
+
+  hijosMarca.sort((a, b) => b.monto26 - a.monto26);
+  return hijosMarca;
+}
+
+function construirNodoCliente(
+  idCadena: number,
+  idCliente: number,
+  displayCliente: string,
+  leavesCli: FullSnapshotJerarquiaLeaf[],
+  /** En ranking aplanado el cliente sin cadena compite en la raíz (nivel 1). */
+  nivel: 1 | 2
+): NodoJerarquia {
+  let montoObjCliente = 0;
+  let monto26Cliente = 0;
+  for (const L of leavesCli) {
+    montoObjCliente += num(L.monto_objetivo);
+    monto26Cliente += num(L.monto_2026);
+  }
+  const hijosMarca = construirHijosMarca(leavesCli, idCadena, idCliente);
+  return {
+    tipo: "cliente",
+    nombre: displayCliente,
+    nivel,
+    montoObj: montoObjCliente,
+    monto26: monto26Cliente,
+    variacionPct: variacionPctVsObjetivo(montoObjCliente, monto26Cliente),
+    count: new Set(leavesCli.map((x) => x.id_marca)).size,
+    hijos: hijosMarca,
+    path: `${idCadena}|${idCliente}`,
+    idCliente,
+  };
+}
+
 /**
  * Árbol Cadena → Cliente → Marca a partir de hojas ya agregadas en Postgres (ids + descripciones FK).
  * Los subtotales se arman sumando montos de hijos; la variación % se recalcula vs objetivo agregado.
+ *
+ * `aplanarSinCadena`: en ranking comercial, no agrupa `id_cadena=0` bajo «Clientes sin cadenas»;
+ * cada cliente sin cadena entra en la raíz junto a las cadenas reales (mismo sort por Monto 26).
  */
 export function construirJerarquiaDesdeHojas(
   leaves: FullSnapshotJerarquiaLeaf[],
-  filterClienteIds?: Set<number> | null
+  filterClienteIds?: Set<number> | null,
+  aplanarSinCadena = false
 ): NodoJerarquia[] {
   const filtradas =
     filterClienteIds === undefined || filterClienteIds === null
@@ -71,6 +170,25 @@ export function construirJerarquiaDesdeHojas(
 
   for (const [idCadena, bucketCad] of byCadena) {
     const leavesCad = bucketCad.leaves;
+    const sinCadena = idCadena === 0;
+
+    const byCliente = new Map<number, { desc: string; leaves: FullSnapshotJerarquiaLeaf[] }>();
+    for (const L of leavesCad) {
+      const cur = byCliente.get(L.id_cliente) ?? { desc: L.descp_cliente, leaves: [] };
+      cur.desc = L.descp_cliente;
+      cur.leaves.push(L);
+      byCliente.set(L.id_cliente, cur);
+    }
+
+    if (aplanarSinCadena && sinCadena) {
+      for (const [idCliente, bucketCli] of byCliente) {
+        jerarquia.push(
+          construirNodoCliente(idCadena, idCliente, bucketCli.desc || "S/I", bucketCli.leaves, 1)
+        );
+      }
+      continue;
+    }
+
     const displayCadena = bucketCad.desc || "Clientes sin cadenas";
 
     let montoObjCadena = 0;
@@ -81,104 +199,12 @@ export function construirJerarquiaDesdeHojas(
     }
     const varCadena = variacionPctVsObjetivo(montoObjCadena, monto26Cadena);
 
-    const byCliente = new Map<number, { desc: string; leaves: FullSnapshotJerarquiaLeaf[] }>();
-    for (const L of leavesCad) {
-      const cur = byCliente.get(L.id_cliente) ?? { desc: L.descp_cliente, leaves: [] };
-      cur.desc = L.descp_cliente;
-      cur.leaves.push(L);
-      byCliente.set(L.id_cliente, cur);
-    }
-
     const hijosCliente: NodoJerarquia[] = [];
-
     for (const [idCliente, bucketCli] of byCliente) {
-      const leavesCli = bucketCli.leaves;
-      const displayCliente = bucketCli.desc || "S/I";
-
-      let montoObjCliente = 0;
-      let monto26Cliente = 0;
-      for (const L of leavesCli) {
-        montoObjCliente += num(L.monto_objetivo);
-        monto26Cliente += num(L.monto_2026);
-      }
-      const varCliente = variacionPctVsObjetivo(montoObjCliente, monto26Cliente);
-
-      // Agrupar por marca
-      const byMarca = new Map<number, { desc: string; leaves: FullSnapshotJerarquiaLeaf[] }>();
-      for (const L of leavesCli) {
-        const cur = byMarca.get(L.id_marca) ?? { desc: L.descp_marca, leaves: [] };
-        cur.desc = L.descp_marca;
-        cur.leaves.push(L);
-        byMarca.set(L.id_marca, cur);
-      }
-
-      const hijosMarca: NodoJerarquia[] = [];
-
-      for (const [idMarca, bucketMarca] of byMarca) {
-        const leavesMarca = bucketMarca.leaves;
-        const displayMarca = bucketMarca.desc || "S/I";
-
-        let montoObjMarca = 0;
-        let monto26Marca = 0;
-        for (const L of leavesMarca) {
-          montoObjMarca += num(L.monto_objetivo);
-          monto26Marca += num(L.monto_2026);
-        }
-        const varMarca = variacionPctVsObjetivo(montoObjMarca, monto26Marca);
-
-        // Construir hijos de mes
-        const hijosMes: NodoJerarquia[] = [];
-        for (const L of leavesMarca) {
-          const nombreMes = MES_NOMBRES[L.mes_idx] || `Mes ${L.mes_idx}`;
-          const mObj = num(L.monto_objetivo);
-          const m26 = num(L.monto_2026);
-          hijosMes.push({
-            tipo: "mes",
-            nombre: nombreMes,
-            nivel: 4,
-            montoObj: mObj,
-            monto26: m26,
-            variacionPct: L.variacion_vs_objetivo_pct,
-            count: 1,
-            path: `${idCadena}|${idCliente}|${idMarca}|${L.mes_idx}`,
-            idCliente,
-            mes_idx: L.mes_idx,  // Guardar mes_idx para ordenar
-          });
-        }
-
-        // Ordenar por mes cronológico (no por monto)
-        hijosMes.sort((a, b) => (a.mes_idx || 0) - (b.mes_idx || 0));
-
-        hijosMarca.push({
-          tipo: "marca",
-          nombre: displayMarca,
-          nivel: 3,
-          montoObj: montoObjMarca,
-          monto26: monto26Marca,
-          variacionPct: varMarca,
-          count: hijosMes.length,
-          hijos: hijosMes,
-          path: `${idCadena}|${idCliente}|${idMarca}`,
-          idCliente,
-        });
-      }
-
-      hijosMarca.sort((a, b) => b.monto26 - a.monto26);
-
-      hijosCliente.push({
-        tipo: "cliente",
-        nombre: displayCliente,
-        nivel: 2,
-        montoObj: montoObjCliente,
-        monto26: monto26Cliente,
-        variacionPct: varCliente,
-        count: new Set(leavesCli.map((x) => x.id_marca)).size,
-        hijos: hijosMarca,
-        path: `${idCadena}|${idCliente}`,
-        idCliente,
-      });
+      hijosCliente.push(
+        construirNodoCliente(idCadena, idCliente, bucketCli.desc || "S/I", bucketCli.leaves, 2)
+      );
     }
-
     hijosCliente.sort((a, b) => b.monto26 - a.monto26);
 
     jerarquia.push({
@@ -213,22 +239,22 @@ function FilaJerarquica({
   const indent = (nodo.nivel - 1) * 20;
 
   const seg =
-    nodo.idCliente != null && (nodo.nivel === 2 || nodo.nivel === 3)
+    nodo.idCliente != null && (nodo.tipo === "cliente" || nodo.tipo === "marca")
       ? segmentoPorClienteId?.get(nodo.idCliente)
       : undefined;
   const segClass = seg ? claseSombraSegmento(seg) : "";
 
   const bgColor =
-    nodo.nivel === 1
+    nodo.tipo === "cadena" || (nodo.tipo === "cliente" && nodo.nivel === 1)
       ? "bg-gradient-to-r from-rimec-azul-light/15 to-transparent"
-      : nodo.nivel === 2
+      : nodo.tipo === "cliente"
         ? "bg-rimec-azul/5"
         : "";
 
   const textColor =
-    nodo.nivel === 1
+    nodo.tipo === "cadena" || (nodo.tipo === "cliente" && nodo.nivel === 1)
       ? "text-rimec-azul font-semibold"
-      : nodo.nivel === 2
+      : nodo.tipo === "cliente"
         ? "text-neutral-ink font-medium"
         : "text-neutral-ink-medium";
 
@@ -261,7 +287,7 @@ function FilaJerarquica({
             )}
             <span className={`min-w-0 truncate ${textColor}`}>
               {nodo.nombre}
-              {nodo.nivel < 3 ? (
+              {nodo.tipo !== "marca" && nodo.tipo !== "mes" ? (
                 <span className="ml-1.5 text-[10px] font-normal tabular-nums text-neutral-ink-muted">({nodo.count})</span>
               ) : null}
             </span>
@@ -303,6 +329,7 @@ export function TablaJerarquica({
   filterClienteIds,
   segmentoPorClienteId,
   title,
+  aplanarSinCadena = false,
 }: {
   jerarquiaLeaves: FullSnapshotJerarquiaLeaf[];
   /** Si se pasa, solo filas con `id_cliente` en el conjunto (p. ej. cartera crecimiento / riesgo). */
@@ -310,12 +337,17 @@ export function TablaJerarquica({
   /** Opcional: sombra / borde por segmento en filas cliente y marca. */
   segmentoPorClienteId?: Map<number, SegmentoCarteraCliente>;
   title?: string;
+  /**
+   * Solo ranking «Toda la cartera»: clientes con id_cadena=0 compiten en la raíz
+   * junto a las cadenas (sin bucket «Clientes sin cadenas»).
+   */
+  aplanarSinCadena?: boolean;
 }) {
   const [expandidos, setExpandidos] = useState<Set<string>>(() => new Set());
 
   const jerarquia = useMemo(
-    () => construirJerarquiaDesdeHojas(jerarquiaLeaves, filterClienteIds),
-    [jerarquiaLeaves, filterClienteIds]
+    () => construirJerarquiaDesdeHojas(jerarquiaLeaves, filterClienteIds, aplanarSinCadena),
+    [jerarquiaLeaves, filterClienteIds, aplanarSinCadena]
   );
 
   const toggleNodo = (path: string) => {

@@ -268,15 +268,16 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               <div className="mb-3">
                 <h4 className="font-serif text-base text-rimec-azul">Ranking consulta</h4>
                 <p className="mt-1 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-                  Sumatoria de la consulta sincronizada · ranking por Monto 26 ·{" "}
-                  <span className="text-neutral-ink-medium">Cadena → Cliente → Marca</span> (incluye «Clientes sin
-                  cadenas»). Sin divisiones crecimiento / riesgo.
+                  Sumatoria de la consulta sincronizada · ranking por Monto 26 · cadenas y clientes sin cadena en el{" "}
+                  <span className="text-neutral-ink-medium">mismo nivel</span> (expandí cadena → cliente → marca). Sin
+                  bucket «Clientes sin cadenas». Sin divisiones crecimiento / riesgo.
                 </p>
               </div>
               {jerarquiaLeavesRanking.length > 0 ? (
                 <TablaJerarquica
                   jerarquiaLeaves={jerarquiaLeavesRanking}
-                  title="Ranking consulta · Cadena → Cliente → Marca"
+                  aplanarSinCadena
+                  title="Ranking consulta · Cadena | Cliente → Marca"
                 />
               ) : (
                 <p className="rounded-lg border border-rimec-azul/15 bg-app-bg py-6 text-center text-sm text-neutral-ink-muted">
