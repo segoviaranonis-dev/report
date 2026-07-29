@@ -23,9 +23,8 @@ type Props = {
 
 const TABS: { id: TabAprobaciones; label: string; icon: string }[] = [
   { id: "pendientes", label: "Pendientes", icon: "📋" },
-  { id: "reservadas", label: "Reservadas", icon: "⏳" },
-  { id: "confirmadas", label: "Confirmadas", icon: "✓" },
-  { id: "anuladas", label: "Anuladas", icon: "✗" },
+  { id: "aprobados", label: "Aprobados", icon: "✓" },
+  { id: "anulados", label: "Anulados", icon: "✗" },
 ];
 
 export function AprobacionesClient({ dataInicial, catalogos }: Props) {
@@ -33,16 +32,25 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   const [tab, setTab] = useState<TabAprobaciones>("pendientes");
   const [data, setData] = useState(dataInicial);
   const [detallesPorFi, setDetallesPorFi] = useState(dataInicial.detallesPorFi);
+  const [listaLazy, setListaLazy] = useState<FiRecord[]>([]);
+  const [cargandoLista, setCargandoLista] = useState(false);
 
   useEffect(() => {
     setData(dataInicial);
     setDetallesPorFi(dataInicial.detallesPorFi);
+    setFisPorPedido(dataInicial.fisPorPedido ?? {});
+    const first = dataInicial.pendientes[0]?.id ?? null;
+    setPedidoExpandido(first);
   }, [dataInicial]);
   const [mensaje, setMensaje] = useState<MensajeFeedback | null>(null);
   const [procesandoFi, setProcesandoFi] = useState<number | null>(null);
   const [rechazandoPedido, setRechazandoPedido] = useState<number | null>(null);
-  const [pedidoExpandido, setPedidoExpandido] = useState<number | null>(null);
-  const [fisPorPedido, setFisPorPedido] = useState<Record<number, FiRecord[]>>({});
+  const [pedidoExpandido, setPedidoExpandido] = useState<number | null>(
+    dataInicial.pendientes[0]?.id ?? null,
+  );
+  const [fisPorPedido, setFisPorPedido] = useState<Record<number, FiRecord[]>>(
+    dataInicial.fisPorPedido ?? {},
+  );
   const [cargandoFisPedido, setCargandoFisPedido] = useState<number | null>(null);
   const [modalAnular, setModalAnular] = useState<{ fiId: number; motivo: string } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -111,20 +119,34 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     }
   }
 
-  // Prefetch FIs del primer pendiente (Guido / 1 pedido) — evita “Cargando…” eterno
-  useEffect(() => {
-    if (tab !== "pendientes") return;
-    const first = data.pendientes[0]?.id;
-    if (first == null) return;
-    void cargarFisPedido(first);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al entrar a pendientes / data
-  }, [tab, data.pendientes]);
-
   async function loadDetalle(fiId: number): Promise<FiDetalle[]> {
     const res = await fetch(`/api/aprobaciones/facturas/${fiId}/items`);
     if (!res.ok) return [];
     return res.json();
   }
+
+  useEffect(() => {
+    if (tab !== "aprobados" && tab !== "anulados") return;
+    let cancelled = false;
+    setCargandoLista(true);
+    setListaLazy([]);
+    void fetch(`/api/aprobaciones/lista?tab=${tab}`, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        const j = (await res.json()) as { fis?: FiRecord[] };
+        if (!cancelled) setListaLazy(Array.isArray(j.fis) ? j.fis : []);
+      })
+      .catch(() => {
+        if (!cancelled) flash("error", "No se pudo cargar la lista");
+      })
+      .finally(() => {
+        if (!cancelled) setCargandoLista(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   function evictFiDeVistasActivas(fiId: number) {
     setFisPorPedido((prev) => {
@@ -137,10 +159,7 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
       }
       return next;
     });
-    setData((prev) => ({
-      ...prev,
-      reservadas: prev.reservadas.filter((f) => f.id !== fiId),
-    }));
+    setListaLazy((prev) => prev.filter((f) => f.id !== fiId));
   }
 
   async function handleConfirmarFi(fiId: number) {
@@ -159,7 +178,6 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
       };
       if (res.ok && result.ok) {
         flash("success", result.msg || "FI confirmada");
-        // Soft refresh diferido — no bloquear UI con SSR de 500+ reservadas
         window.setTimeout(() => {
           startTransition(() => router.refresh());
         }, 400);
@@ -182,8 +200,12 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
       const result = await anularFiAction(modalAnular.fiId, modalAnular.motivo);
       if (result.success) {
         evictFiDeVistasActivas(modalAnular.fiId);
-        setTab("anuladas");
+        setTab("anulados");
         flash("success", result.message || "FI anulada");
+        setData((prev) => ({
+          ...prev,
+          countAnulados: prev.countAnulados + 1,
+        }));
         setModalAnular(null);
         refrescar();
       } else {
@@ -211,9 +233,8 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
 
   const counts = {
     pendientes: data.pendientes.length,
-    reservadas: data.reservadas.length,
-    confirmadas: data.confirmadas.length,
-    anuladas: data.anuladas.length,
+    aprobados: data.countAprobados,
+    anulados: data.countAnulados,
   };
 
   return (
@@ -222,7 +243,8 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
       <section className="border-b border-neutral-300 bg-white py-4">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-neutral-700">
-            Flujo: Aprobar célula → FI RESERVADA → Confirmar individualmente → FI CONFIRMADA
+            Flujo: <strong>Pendiente</strong> → <strong>Aprobar</strong> célula →{" "}
+            <strong>Aprobado</strong> · o <strong>Anulado</strong>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -294,13 +316,15 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
                       detallesPorFi={detallesPorFi}
                       expandido={pedidoExpandido === p.id}
                       fis={fisPorPedido[p.id] ?? null}
-                      cargandoFis={cargandoFisPedido === p.id}
+                      cargandoFis={
+                        cargandoFisPedido === p.id && fisPorPedido[p.id] == null
+                      }
                       procesandoFi={procesandoFi}
                       rechazando={rechazandoPedido === p.id}
                       onExpandir={() => {
                         const next = pedidoExpandido === p.id ? null : p.id;
                         setPedidoExpandido(next);
-                        if (next) cargarFisPedido(next);
+                        if (next && fisPorPedido[next] == null) void cargarFisPedido(next);
                       }}
                       onConfirmarFi={handleConfirmarFi}
                       onAnularFi={(fiId) => setModalAnular({ fiId, motivo: "" })}
@@ -316,47 +340,19 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
           </>
         )}
 
-        {tab === "reservadas" && (
+        {tab === "aprobados" && (
           <>
-            {data.reservadas.length === 0 ? (
-              <EmptyState icon="⏳" text="No hay facturas reservadas esperando confirmación." />
+            {cargandoLista ? (
+              <p className="text-sm text-neutral-600">Cargando aprobados…</p>
+            ) : listaLazy.length === 0 ? (
+              <EmptyState icon="✓" text="No hay facturas aprobadas aún." />
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">
-                  {data.reservadas.length} factura(s) esperando confirmación individual
+                  Últimas {listaLazy.length} aprobadas · total {data.countAprobados}
                 </p>
                 <div className="space-y-4">
-                  {data.reservadas.map((fi) => (
-                    <FiCard
-                      key={fi.id}
-                      fi={fi}
-                      catalogos={catalogos}
-                      detalles={detallesPorFi[fi.id]}
-                      procesando={procesandoFi === fi.id}
-                      onConfirmar={handleConfirmarFi}
-                      onAnular={(fiId) => setModalAnular({ fiId, motivo: "" })}
-                      onLoadDetalle={loadDetalle}
-                      onFeedback={flash}
-                      onEditorApplied={refrescar}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {tab === "confirmadas" && (
-          <>
-            {data.confirmadas.length === 0 ? (
-              <EmptyState icon="✓" text="No hay facturas confirmadas aún." />
-            ) : (
-              <>
-                <p className="mb-4 text-sm text-neutral-600">
-                  Últimas {data.confirmadas.length} confirmadas · más recientes arriba (fecha confirmación)
-                </p>
-                <div className="space-y-4">
-                  {data.confirmadas.map((fi) => (
+                  {listaLazy.map((fi) => (
                     <FiCard
                       key={fi.id}
                       fi={fi}
@@ -374,17 +370,19 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
           </>
         )}
 
-        {tab === "anuladas" && (
+        {tab === "anulados" && (
           <>
-            {data.anuladas.length === 0 ? (
+            {cargandoLista ? (
+              <p className="text-sm text-neutral-600">Cargando anulados…</p>
+            ) : listaLazy.length === 0 ? (
               <EmptyState icon="✗" text="No hay facturas anuladas." />
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">
-                  {data.anuladas.length} factura(s) anuladas
+                  {listaLazy.length} factura(s) anuladas · total {data.countAnulados}
                 </p>
                 <div className="space-y-4">
-                  {data.anuladas.map((fi) => (
+                  {listaLazy.map((fi) => (
                     <FiCard
                       key={fi.id}
                       fi={fi}

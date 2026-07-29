@@ -1,5 +1,5 @@
-/** Tab activa — gemelo Streamlit `render_aprobacion()` */
-export type TabAprobaciones = "pendientes" | "reservadas" | "confirmadas" | "anuladas";
+/** Tab UI Director: Pendiente · Aprobado · Anulado (sin “Reservadas”). */
+export type TabAprobaciones = "pendientes" | "aprobados" | "anulados";
 
 export type FiEstado = "RESERVADA" | "CONFIRMADA" | "ANULADA" | string;
 
@@ -84,10 +84,14 @@ export type FiDetalle = {
 
 export type AprobacionesData = {
   pendientes: PedidoPendiente[];
-  reservadas: FiRecord[];
+  /** FIs RESERVADA por pedido_id — embebidas en SSR (sin 2º round-trip). */
+  fisPorPedido: Record<number, FiRecord[]>;
+  /** Contadores ligeros (sin cargar 500+ filas en SSR). */
+  countAprobados: number;
+  countAnulados: number;
+  /** Legacy vacío — detalle se carga lazy al abrir productos. */
   confirmadas: FiRecord[];
   anuladas: FiRecord[];
-  /** Items por factura_id — SSR batch (fotos + gradas siempre visibles) */
   detallesPorFi: Record<number, FiDetalle[]>;
 };
 

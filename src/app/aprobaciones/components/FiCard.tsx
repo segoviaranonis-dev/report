@@ -74,8 +74,9 @@ export function FiCard({
     setDescLocal([fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4]);
   }, [fi]);
 
+  // Detalle SOLO al abrir productos — nunca N×fetch al montar (era el hang).
   useEffect(() => {
-    if (detallesProp !== undefined || !onLoadDetalle) return;
+    if (!productosAbiertos || detalles != null || !onLoadDetalle) return;
     let cancelled = false;
     setCargandoDetalle(true);
     onLoadDetalle(fi.id)
@@ -88,7 +89,7 @@ export function FiCard({
     return () => {
       cancelled = true;
     };
-  }, [fi.id, onLoadDetalle, detallesProp]);
+  }, [productosAbiertos, fi.id, onLoadDetalle, detalles]);
 
   const badge = estadoBadge(fi.estado);
   const displayId = fiDisplayId(fi);
@@ -205,7 +206,7 @@ export function FiCard({
               className="rounded-full px-3 py-1.5 text-xs font-bold tracking-wide"
               style={{ backgroundColor: badge.bg, color: badge.fg }}
             >
-              {badge.label === "CONFIRMADA" ? "✓ CONFIRMADA" : badge.label}
+              {badge.label === "APROBADO" ? "✓ APROBADO" : badge.label}
             </span>
           </div>
         </div>
@@ -226,7 +227,7 @@ export function FiCard({
               onClick={() => onConfirmar!(fi.id)}
               className="min-h-12 min-w-[11rem] bg-emerald-600 px-6 text-base font-black uppercase tracking-wide text-white shadow-md shadow-emerald-900/25 hover:bg-emerald-500 disabled:opacity-70"
             >
-              {procesando ? "Confirmando…" : "✓ Confirmar FI"}
+              {procesando ? "Aprobando…" : "✓ Aprobar"}
             </Button>
           )}
           {puedeAnular && (

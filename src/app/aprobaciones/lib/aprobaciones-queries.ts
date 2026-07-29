@@ -358,17 +358,50 @@ export async function fetchFiDetallesLite(fiId: number): Promise<FiDetalle[]> {
   return rows.map(mapDetalleRow);
 }
 
-/** Carga los 4 datasets + items batch — SSR inicial */
+/** Contadores ligeros — sin traer 500+ FIs ni detalles al SSR. */
+async function countFiEstado(estado: string): Promise<number> {
+  if (!isRimecDatabaseConfigured()) return 0;
+  const pool = getRimecPool();
+  const { rows } = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM factura_interna WHERE UPPER(TRIM(estado)) = $1`,
+    [estado],
+  );
+  return parseInt(rows[0]?.n ?? "0", 10) || 0;
+}
+
+/**
+ * SSR liviano — Director: Pendiente / Aprobado / Anulado.
+ * Prohibido: batch de detalles de 500+ FIs (era el hang de “Cargando facturas…”).
+ */
 export async function fetchAprobacionesData(): Promise<AprobacionesData> {
-  const [pendientes, reservadas, confirmadas, anuladas] = await Promise.all([
+  const t0 = Date.now();
+  const [pendientes, countAprobados, countAnulados] = await Promise.all([
     fetchPedidosPendientes(),
-    fetchFiReservadas(),
-    fetchFiConfirmadas(),
-    fetchFiAnuladas(),
+    countFiEstado("CONFIRMADA"),
+    countFiEstado("ANULADA"),
   ]);
-  const allFiIds = [...reservadas, ...confirmadas, ...anuladas].map((f) => f.id);
-  const detallesPorFi = await fetchFiDetallesBatch(allFiIds);
-  return { pendientes, reservadas, confirmadas, anuladas, detallesPorFi };
+
+  const fisPorPedido: Record<number, FiRecord[]> = {};
+  if (pendientes.length) {
+    const pairs = await Promise.all(
+      pendientes.map(async (p) => [p.id, await fetchFisDePedido(p.id)] as const),
+    );
+    for (const [id, fis] of pairs) fisPorPedido[id] = fis;
+  }
+
+  console.log(
+    `[aprobaciones] SSR liviano ${Date.now() - t0}ms · pendientes=${pendientes.length} · aprobados=${countAprobados}`,
+  );
+
+  return {
+    pendientes,
+    fisPorPedido,
+    countAprobados,
+    countAnulados,
+    confirmadas: [],
+    anuladas: [],
+    detallesPorFi: {},
+  };
 }
 
 /** Catálogos para editores Nivel Dios */

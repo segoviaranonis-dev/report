@@ -99,9 +99,10 @@ export type EstadoBadge = { bg: string; fg: string; label: string };
 
 export function estadoBadge(estado: string | null | undefined): EstadoBadge {
   const e = (estado || "").toUpperCase();
-  if (e === "CONFIRMADA") return { bg: "#15803D", fg: "#FFFFFF", label: "CONFIRMADA" };
-  if (e === "RESERVADA") return { bg: "#CA8A04", fg: "#FFFFFF", label: "RESERVADA" };
-  if (e === "ANULADA") return { bg: "#B91C1C", fg: "#FFFFFF", label: "ANULADA" };
+  // BD: RESERVADA/CONFIRMADA · UI Director: Pendiente / Aprobado / Anulado
+  if (e === "RESERVADA") return { bg: "#CA8A04", fg: "#FFFFFF", label: "PENDIENTE" };
+  if (e === "CONFIRMADA") return { bg: "#15803D", fg: "#FFFFFF", label: "APROBADO" };
+  if (e === "ANULADA") return { bg: "#B91C1C", fg: "#FFFFFF", label: "ANULADO" };
   return { bg: "#475569", fg: "#FFFFFF", label: e || "—" };
 }
 

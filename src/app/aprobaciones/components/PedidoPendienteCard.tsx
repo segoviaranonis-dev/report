@@ -111,8 +111,8 @@ export function PedidoPendienteCard({
 
           <h3 className="mb-1 text-sm font-bold text-rimec-azul">Células de Aprobación</h3>
           <p className="mb-4 text-xs text-neutral-600">
-            Cada célula = una factura interna (PP × Marca × Caso). Confirmá individualmente cada FI
-            RESERVADA.
+            Cada célula = una factura (marca × caso). Pulsá <strong>Aprobar</strong> — pasa a
+            Aprobado. Sin paso “Reservada”.
           </p>
 
           {cargandoFis && (
@@ -123,7 +123,7 @@ export function PedidoPendienteCard({
           )}
           {!cargandoFis && fis && fis.length === 0 && (
             <p className="text-sm text-semantic-warning">
-              Sin FIs RESERVADAS ligadas a este pedido. Probá pestaña Reservadas o Refrescar.
+              Sin facturas pendientes en este pedido. Refrescá o revisá Aprobados.
             </p>
           )}
           {!cargandoFis && fis && fis.length > 0 && (
