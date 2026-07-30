@@ -27,6 +27,12 @@ import {
   jefeDepositoPathAllowed,
   jefeDepositoShouldRedirectHome,
 } from '@/lib/auth/jefe-deposito-rimec'
+import {
+  VENDEDOR_RIMEC_HOME,
+  isVendedorRimecReport,
+  vendedorRimecPathAllowed,
+  vendedorRimecShouldRedirectHome,
+} from '@/lib/auth/vendedor-rimec-report'
 
 function getSecret() {
   if (!process.env.REPORT_SESSION_SECRET) {
@@ -41,7 +47,8 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 const ROLE_ROUTES: Record<number, string[]> = {
   1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/logistica-ok', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
-  3: ['/ventas-fotos', '/logistica-ok'],
+  // Base rol 3; Logística se abre con LOGISTICA_VENDEDOR_LANZADA vía isVendedorRimecReport
+  3: ['/ventas-fotos'],
 }
 
 // APIs permitidas por rol
@@ -50,8 +57,6 @@ const ROLE_API_ROUTES: Record<number, RegExp[]> = {
   2: [/^\/api\/retail\//, /^\/api\/depositos\//, /^\/api\/tablet-bazzar\//, /^\/api\/auth\//],
   3: [
     /^\/api\/ventas-fotos\//,
-    /^\/api\/logistica-ok/,
-    /^\/api\/logistica-rimec/,
     /^\/api\/auth\//,
   ],
 }
@@ -60,7 +65,7 @@ const ROLE_API_ROUTES: Record<number, RegExp[]> = {
 const ROLE_HOME_REDIRECT: Record<number, string> = {
   1: '/', // Mantener en home
   2: '/retail',
-  3: '/ventas-fotos', // Matriz: VENDEDOR Report = ventas-fotos (logística sigue en ROLE_ROUTES)
+  3: VENDEDOR_RIMEC_HOME, // Matriz: VENDEDOR Report = solo ventas-fotos
 }
 
 export async function middleware(request: NextRequest) {
@@ -178,6 +183,23 @@ export async function middleware(request: NextRequest) {
           )
         }
         return NextResponse.redirect(new URL(JEFE_DEPOSITO_HOME, request.url))
+      }
+      return NextResponse.next()
+    }
+
+    // VENDEDOR RIMEC (rol 1 o legado 3): solo Ventas con fotos — matriz holding
+    if (isVendedorRimecReport(rol_id, categoria)) {
+      if (vendedorRimecShouldRedirectHome(pathname)) {
+        return NextResponse.redirect(new URL(VENDEDOR_RIMEC_HOME, request.url))
+      }
+      if (!vendedorRimecPathAllowed(pathname)) {
+        if (isApiRoute) {
+          return NextResponse.json(
+            { error: 'VENDEDOR RIMEC: solo Ventas con fotos' },
+            { status: 403 },
+          )
+        }
+        return NextResponse.redirect(new URL(VENDEDOR_RIMEC_HOME, request.url))
       }
       return NextResponse.next()
     }

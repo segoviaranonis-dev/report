@@ -5,19 +5,34 @@ import {
   tabsPermitidasLogistica,
   type LogisticaTabId,
 } from "@/lib/logistica-ok/constants";
-import { isVendedorLogisticaReport } from "@/lib/logistica-ok/vendedor-usuario";
+import {
+  LOGISTICA_VENDEDOR_LANZADA,
+  isVendedorRimecReport,
+} from "@/lib/auth/vendedor-rimec-report";
 
-/** Acceso base: RIMEC DIOS/ADMIN/… (rol 1) o VENDEDOR legado (rol 3). */
+/** Acceso: RIMEC rol 1; VENDEDOR solo si LOGISTICA_VENDEDOR_LANZADA. */
 export async function requireLogisticaOkAccess(tab?: LogisticaTabId | null) {
   const session = await getSession();
   const cat = (session?.role || "").toUpperCase().trim();
-  const rolOk =
-    session &&
-    (session.rol_id === 1 || isVendedorLogisticaReport(session.rol_id, cat));
+  const esVendedor = Boolean(session && isVendedorRimecReport(session.rol_id, cat));
+  if (esVendedor && !LOGISTICA_VENDEDOR_LANZADA) {
+    return {
+      session: null as SessionData | null,
+      error: NextResponse.json(
+        { error: "Logística Vendedor en desarrollo — acceso bloqueado" },
+        { status: 403 },
+      ),
+      tabsPermitidas: [] as LogisticaTabId[],
+      categoria: cat,
+    };
+  }
+  const rolOk = Boolean(
+    session && (session.rol_id === 1 || (esVendedor && LOGISTICA_VENDEDOR_LANZADA)),
+  );
   if (!rolOk || !session) {
     return {
       session: null as SessionData | null,
-      error: NextResponse.json({ error: "RIMEC / Vendedor requerido" }, { status: 403 }),
+      error: NextResponse.json({ error: "RIMEC requerido" }, { status: 403 }),
       tabsPermitidas: [] as LogisticaTabId[],
       categoria: "",
     };

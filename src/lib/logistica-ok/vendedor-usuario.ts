@@ -82,7 +82,7 @@ export async function resolveIdVendedorFromUsuario(
   return { idVendedor: null, nombreCanon: canon };
 }
 
-/** Vendedor Report: rol 1+VENDEDOR o legado rol_id=3. */
+/** @deprecated usar isVendedorRimecReport — VENDEDOR ya no entra a Logística. */
 export function isVendedorLogisticaReport(
   rolId: number,
   categoria: string | null | undefined,

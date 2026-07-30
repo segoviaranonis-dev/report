@@ -5,6 +5,7 @@
  */
 
 import { hubGroupsForEnte } from "@/lib/auth/ente-acceso";
+import { LOGISTICA_VENDEDOR_LANZADA } from "@/lib/auth/vendedor-rimec-report";
 
 export type ReportHubGroup = "rimec" | "bazzar" | "bazzar-web" | "recursos";
 
@@ -314,10 +315,12 @@ export function filterHubModules(
       return m.href === "/deposito-rimec" || m.href === "/logistica-ok";
     }
 
-    // VENDEDOR RIMEC: Ventas con fotos + Logística OK (pestaña Vendedor)
-    // Incluye legado rol_id=3 (ATI, FRANCIS, EDUARDO…)
+    // VENDEDOR RIMEC: Ventas con fotos; Logística solo al lanzar (flag)
+    // Incluye legado rol_id=3 (ATI, LILI, DARIO, EDUARDO…)
     if ((rolId === 1 || rolId === 3) && cat === "VENDEDOR") {
-      return m.href === "/ventas-fotos" || m.href === "/logistica-ok";
+      if (m.href === "/ventas-fotos") return true;
+      if (LOGISTICA_VENDEDOR_LANZADA && m.href === "/logistica-ok") return true;
+      return false;
     }
 
     // LOGISTICA / DEPOSITO: solo Logística OK

@@ -62,7 +62,7 @@ export const LOGISTICA_TABS: Array<{ id: LogisticaTabId; label: string; hint: st
  * - Confirmadas → ADMIN (facturación / otro depto)
  * - Entregas + Exitosas → LOGISTICA | DEPOSITO
  * - JEFE_DEPOSITO (EVERT): hub 2 tarjetas (Depósito + Logística) · Confirmadas + Entregas + Exitosas
- * - VENDEDOR (rol 1 o legado rol 3): solo pestaña Vendedor · filtrado a su id_vendedor
+ * - VENDEDOR: bloqueado hasta LOGISTICA_VENDEDOR_LANZADA=true (luego pestaña Vendedor)
  * - Vendedores sin usuario (ej. DARIO): los ve la jefa (DIOS/ADMIN General)
  * - DIOS ve todas (Nivel Superior sin restricciones)
  */

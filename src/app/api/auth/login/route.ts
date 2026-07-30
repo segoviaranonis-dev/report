@@ -10,6 +10,10 @@ import {
   JEFE_DEPOSITO_HOME,
   isJefeDepositoRimec,
 } from '@/lib/auth/jefe-deposito-rimec'
+import {
+  VENDEDOR_RIMEC_HOME,
+  isVendedorRimecReport,
+} from '@/lib/auth/vendedor-rimec-report'
 
 export async function POST(request: Request) {
   try {
@@ -34,13 +38,13 @@ export async function POST(request: Request) {
       ente_codigo: user.ente_codigo,
     })
 
-    // Home por rol: VENDEDOR RIMEC (rol 3) → ventas-fotos. Bazzar (2) lo resuelve middleware a /retail.
+    // Home: VENDEDOR → solo ventas-fotos. Bazzar (2) → /retail vía middleware.
     const home = isCajaRimec(user.rol_id, user.categoria)
       ? CAJA_RIMEC_HOME
       : isJefeDepositoRimec(user.rol_id, user.categoria)
         ? JEFE_DEPOSITO_HOME
-        : user.rol_id === 3
-          ? "/ventas-fotos"
+        : isVendedorRimecReport(user.rol_id, user.categoria)
+          ? VENDEDOR_RIMEC_HOME
           : user.rol_id === 2
             ? "/retail"
             : '/'
