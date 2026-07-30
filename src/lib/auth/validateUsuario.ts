@@ -47,6 +47,13 @@ async function verificarPasswordHash(
   return { ok: false, needsRehash: false }
 }
 
+/** Alias de login → descp_usuario canónico (evita 401 por LILIANA vs LILI). */
+const LOGIN_ALIAS: Record<string, string> = {
+  LILIANA: "LILI",
+  IRMA: "YRMA",
+  GRACIELA: "GRICELDA",
+}
+
 export async function validateUsuario(
   usuario: string,
   password: string,
@@ -58,6 +65,10 @@ export async function validateUsuario(
 
   try {
     const pool = getRimecPool()
+    const aliasHit = LOGIN_ALIAS[userClean.toUpperCase()]
+    const lookupNames = aliasHit
+      ? [userClean, aliasHit]
+      : [userClean]
 
     // Query a usuario_v2 desde PostgreSQL (incluye rol_id)
     const result = await pool.query(
@@ -66,9 +77,12 @@ export async function validateUsuario(
               COALESCE(u.bloqueado, false) AS bloqueado, u.bloqueado_motivo
        FROM usuario_v2 u
        LEFT JOIN entes e ON e.id_ente = u.ente_id
-       WHERE LOWER(TRIM(u.descp_usuario)) = LOWER(TRIM($1))
+       WHERE LOWER(TRIM(u.descp_usuario)) = ANY(
+         SELECT LOWER(TRIM(x)) FROM unnest($1::text[]) AS x
+       )
+       ORDER BY CASE WHEN LOWER(TRIM(u.descp_usuario)) = LOWER(TRIM($2)) THEN 0 ELSE 1 END
        LIMIT 1`,
-      [userClean]
+      [lookupNames, userClean]
     )
 
     if (result.rows.length === 0) {

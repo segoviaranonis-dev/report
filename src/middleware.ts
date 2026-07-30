@@ -60,7 +60,7 @@ const ROLE_API_ROUTES: Record<number, RegExp[]> = {
 const ROLE_HOME_REDIRECT: Record<number, string> = {
   1: '/', // Mantener en home
   2: '/retail',
-  3: '/logistica-ok',
+  3: '/ventas-fotos', // Matriz: VENDEDOR Report = ventas-fotos (logística sigue en ROLE_ROUTES)
 }
 
 export async function middleware(request: NextRequest) {
@@ -304,11 +304,17 @@ export const config = {
     '/compra-legal/:path*',
     '/facturacion/:path*',
     '/deposito-rimec/:path*',
+    '/logistica-ok',
+    '/logistica-ok/:path*',
     '/holding/:path*',
     '/proceso-importacion/:path*',
     '/api/holding/:path*',
     '/api/facturacion/:path*',
     '/api/deposito-rimec/:path*',
+    '/api/logistica-ok',
+    '/api/logistica-ok/:path*',
+    '/api/logistica-rimec',
+    '/api/logistica-rimec/:path*',
     '/motor-precios/:path*',
     '/api/motor-precios/:path*',
     '/api/rimec/:path*',

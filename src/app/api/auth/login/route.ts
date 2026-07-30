@@ -34,11 +34,16 @@ export async function POST(request: Request) {
       ente_codigo: user.ente_codigo,
     })
 
+    // Home por rol: VENDEDOR RIMEC (rol 3) → ventas-fotos. Bazzar (2) lo resuelve middleware a /retail.
     const home = isCajaRimec(user.rol_id, user.categoria)
       ? CAJA_RIMEC_HOME
       : isJefeDepositoRimec(user.rol_id, user.categoria)
         ? JEFE_DEPOSITO_HOME
-        : '/'
+        : user.rol_id === 3
+          ? "/ventas-fotos"
+          : user.rol_id === 2
+            ? "/retail"
+            : '/'
 
     return NextResponse.json({
       success: true,
