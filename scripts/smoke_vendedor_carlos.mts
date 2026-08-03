@@ -17,6 +17,11 @@ const cases = [
   { v: "ATI", caso: "PE · batch · PROMOCIONAL", exp: "49" },
   { v: "ATI", caso: "PE-PROMOCIONAL", exp: "49" },
   { v: "ATI", caso: "BR-VZ-MD-ML-MKA-O", exp: "53" },
+  // Primera venta PE 638 (confecciones KYLY/MILON) · PATRICIA · no 654
+  { v: "PATRICIA", caso: "BR-VZ-MD-ML-MKA-O", exp: "101" },
+  { v: "PATRICIA", caso: "PE · sdrm2745", exp: "101" },
+  { v: "PATRICIA", caso: "CLASICOS", exp: "101" },
+  { v: "DARIO", caso: "BR-VZ-MD-ML-MKA-O", exp: "111" },
 ];
 
 let fail = 0;

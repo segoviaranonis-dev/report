@@ -199,6 +199,32 @@
         "TENIS": 35,
         "BR-VZ-MD-ML-MKA-O": 35
       }
+    },
+    "PATRICIA": {
+      "cod_nexus_excel": 19,
+      "casos": {
+        "ACT-BRSPORT": 101,
+        "CARTERAS": 101,
+        "PROMOCIONAL": 101,
+        "CLASICOS": 101,
+        "TENIS": 101,
+        "CHINELO": 101,
+        "BR-VZ-MD-ML-MKA-O": 101
+      },
+      "nota": "Primera venta PE 638 (KYLY/MILON) 2026-08-03 · código Carlos Logística EXTRA 101 · no confundir con 654"
+    },
+    "DARIO": {
+      "cod_nexus_excel": 5,
+      "casos": {
+        "ACT-BRSPORT": 111,
+        "CARTERAS": 111,
+        "PROMOCIONAL": 111,
+        "CLASICOS": 111,
+        "TENIS": 111,
+        "CHINELO": 111,
+        "BR-VZ-MD-ML-MKA-O": 111
+      },
+      "nota": "Código Carlos Logística EXTRA 111 · pendiente matriz Excel completa por caso"
     }
   }
 }
