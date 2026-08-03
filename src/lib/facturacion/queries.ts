@@ -160,7 +160,10 @@ export async function getFacturasTransito(idCl?: number | null): Promise<Factura
   return mapRows(rows);
 }
 
-/** Bandeja Pronta entrega — lo más reciente arriba · el primero que entró abajo. */
+/** Bandeja Pronta entrega — lo más reciente arriba · el primero que entró abajo.
+ *  PE Web: `fi.vendedor_id` = `usuario_v2.id_usuario` (quien vendió).
+ *  NUNCA asumir vendedor_v2: id 19 = PATRICIA en vendedor_v2 pero Guido en usuario_v2.
+ */
 export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
   const pool = getRimecPool();
 
@@ -178,7 +181,12 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
       pp.fecha_arribo_real::text AS fecha_entrega_real,
       COALESCE(cv.descp_cliente, fi.cliente_id::text) AS cliente,
       fi.cliente_id::text AS codigo_cliente,
-      COALESCE(vv.descp_usuario, '—') AS vendedor,
+      COALESCE(
+        NULLIF(TRIM(pvr.payload_json->>'vendedor_nombre'), ''),
+        NULLIF(TRIM(vu.descp_usuario), ''),
+        NULLIF(TRIM(vd.descp_vendedor), ''),
+        '—'
+      ) AS vendedor,
       fi.lista_precio_id,
       COALESCE(fi.descuento_1, 0) AS descuento_1,
       COALESCE(fi.descuento_2, 0) AS descuento_2,
@@ -198,7 +206,9 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN marca_v2 mv ON mv.id_marca = COALESCE(ppd.id_marca, fi.marca_id)
     LEFT JOIN cliente_v2 cv ON cv.id_cliente = fi.cliente_id
-    LEFT JOIN usuario_v2 vv ON vv.id_usuario = fi.vendedor_id
+    LEFT JOIN pedido_venta_rimec pvr ON pvr.id = fi.pedido_id
+    LEFT JOIN usuario_v2 vu ON vu.id_usuario = fi.vendedor_id
+    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = fi.vendedor_id
     WHERE fi.estado IN ('CONFIRMADA', 'RESERVADA')
       AND ${SQL_FI_ES_PE}
   `;
@@ -207,7 +217,7 @@ export async function getFacturasProntaEntrega(): Promise<FacturaListItem[]> {
     GROUP BY fi.id, fi.pv_global, fi.nro_factura, pp.numero_registro, pp.numero_proforma,
              pp.fecha_arribo_real, mv.descp_marca, fi.marca, fi.cliente_id, cv.descp_cliente,
              fi.created_at, fi.fecha_confirmacion, fi.estado, fi.total_monto,
-             vv.descp_usuario, fi.lista_precio_id,
+             pvr.payload_json, vu.descp_usuario, vd.descp_vendedor, fi.lista_precio_id,
              fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4, fi.pp_id
     ORDER BY
       (COALESCE(fi.created_at, fi.fecha_confirmacion)::date = CURRENT_DATE) DESC,
