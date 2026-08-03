@@ -11,6 +11,7 @@ import type { AprobacionesCatalogos, FiRecord } from "../lib/aprobaciones-types"
 import {
   descuentoInputDisplay,
   fmtDescuentoPct,
+  fmtGs,
   normalizarDescuentos4,
   parseDescuentoInput,
   plazoDisplay,
@@ -18,6 +19,20 @@ import {
 } from "../lib/aprobaciones-utils";
 
 type Feedback = (tipo: "success" | "error", texto: string) => void;
+
+/** Factor cascada d1→d4 (sin floor por línea — preview de ratificación). */
+function factorCascada(desc: number[]): number {
+  let f = 1;
+  for (const d of desc) {
+    const pct = Number(d) || 0;
+    if (pct > 0) f *= 1 - pct / 100;
+  }
+  return f;
+}
+
+function floorCentenas(n: number): number {
+  return Math.floor(n / 100) * 100;
+}
 
 export function ClienteEditor({
   fi,
@@ -246,16 +261,37 @@ export function DescuentosEditor({
   onFeedback?: Feedback;
   onApplied?: () => void;
 }) {
-  const [dStr, setDStr] = useState(() =>
-    [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4].map(descuentoInputDisplay),
-  );
+  const descGuardados: [number, number, number, number] = [
+    fi.descuento_1,
+    fi.descuento_2,
+    fi.descuento_3,
+    fi.descuento_4,
+  ];
+  const [dStr, setDStr] = useState(() => descGuardados.map(descuentoInputDisplay));
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    setDStr(
-      [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4].map(descuentoInputDisplay),
-    );
+    setDStr(descGuardados.map(descuentoInputDisplay));
   }, [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4]);
+
+  const parsedDraft = normalizarDescuentos4(dStr.map(parseDescuentoInput));
+  const alterado =
+    parsedDraft[0] !== descGuardados[0] ||
+    parsedDraft[1] !== descGuardados[1] ||
+    parsedDraft[2] !== descGuardados[2] ||
+    parsedDraft[3] !== descGuardados[3];
+
+  const fGuardado = factorCascada(descGuardados);
+  const fDraft = factorCascada(parsedDraft);
+  const f20 = factorCascada([20, 0, 0, 0]);
+  const totalActual = Number(fi.total_monto) || 0;
+  // Bruto estimado desde total actual ÷ factor de descuentos guardados
+  const brutoEst =
+    fGuardado > 0.0001 ? floorCentenas(totalActual / fGuardado) : totalActual;
+  const montoSinDesc = brutoEst;
+  const monto20 = floorCentenas(brutoEst * f20);
+  const montoDraft = floorCentenas(brutoEst * fDraft);
+  const montoGuardado = totalActual;
 
   async function guardar() {
     if (!plazoId) {
@@ -280,21 +316,64 @@ export function DescuentosEditor({
     setGuardando(false);
   }
 
+  const panelComparacion = (
+    <div
+      className={`mt-2 rounded-lg border-2 px-3 py-2 text-xs ${
+        alterado
+          ? "border-amber-500 bg-amber-50 text-amber-950"
+          : "border-rimec-azul/30 bg-rimec-azul/5 text-rimec-azul-dark"
+      }`}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-wider">
+        {alterado ? "Descuentos alterados — ratificá antes de aplicar" : "Montos (referencia)"}
+      </p>
+      <div className="mt-1 grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+        <p>
+          <span className="font-semibold">Sin desc.:</span> {fmtGs(montoSinDesc)}
+        </p>
+        <p>
+          <span className="font-semibold">Con 20 %:</span> {fmtGs(monto20)}
+        </p>
+        <p>
+          <span className="font-semibold">Guardado ({descGuardados.filter((d) => d > 0).join("+") || "0"}%):</span>{" "}
+          {fmtGs(montoGuardado)}
+        </p>
+        <p className={alterado ? "font-black text-amber-900" : ""}>
+          <span className="font-semibold">
+            Draft ({parsedDraft.filter((d) => d > 0).join("+") || "0"}%):
+          </span>{" "}
+          {fmtGs(montoDraft)}
+        </p>
+      </div>
+      {alterado && (
+        <p className="mt-1 text-[10px] font-medium">
+          Al aplicar: recalcula FI + PVR. La edición queda firme (no vuelve al dictado 20 %).
+        </p>
+      )}
+    </div>
+  );
+
   if (!editable) {
     return (
-      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="rounded-lg border-2 border-neutral-200 bg-white px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
-              Desc. {i + 1}
-            </p>
-            <p className="mt-0.5 text-sm font-semibold">
-              {fmtDescuentoPct(
-                [fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4][i],
-              )}
-            </p>
-          </div>
-        ))}
+      <div className="mt-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={`rounded-lg border-2 px-3 py-2 ${
+                descGuardados[i] > 0
+                  ? "border-amber-500/60 bg-amber-50"
+                  : "border-neutral-200 bg-white"
+              }`}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
+                Desc. {i + 1}
+              </p>
+              <p className="mt-0.5 text-sm font-semibold">{fmtDescuentoPct(descGuardados[i])}</p>
+            </div>
+          ))}
+        </div>
+        {panelComparacion}
       </div>
     );
   }
@@ -303,7 +382,14 @@ export function DescuentosEditor({
     <div className="mt-2">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <label key={i} className="rounded-lg border-2 border-neutral-200 bg-white px-3 py-2">
+          <label
+            key={i}
+            className={`rounded-lg border-2 bg-white px-3 py-2 ${
+              alterado && parsedDraft[i] !== descGuardados[i]
+                ? "border-amber-500 ring-1 ring-amber-400"
+                : "border-neutral-200"
+            }`}
+          >
             <span className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
               Desc. {i + 1} %
             </span>
@@ -322,9 +408,10 @@ export function DescuentosEditor({
           </label>
         ))}
       </div>
+      {panelComparacion}
       <button
         type="button"
-        disabled={guardando}
+        disabled={guardando || !alterado}
         onClick={guardar}
         className="mt-2 rounded bg-rimec-azul px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
       >
