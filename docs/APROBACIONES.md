@@ -63,6 +63,15 @@ Requiere sesión **Nivel Dios** (`rol_id=1`, `categoria=DIOS`).
 
 Confirmar carrito en RIMEC Web dispara notificación a **HECTOR · Guido · Veronica**. Report: modal + barra Windows (permiso). Entrada: **`/aprobaciones?tab=pendientes`**. MIG **189** · `public/sw-alertas.js`. Moria: `2.3.1.3.1` CHUSAR alertas.
 
+### Indagar pedidos — multi-filtro (2026-08-04)
+
+Panel **Indagar pedidos** bajo tabs (abierto por defecto desde hotfix 3.4): multi-select cliente · marca · vendedor · C. Art. Prov · GRUPO2 DPE · búsqueda línea/referencia · PV · nro FI · rango fechas.
+
+- API: `GET /api/aprobaciones/filtros/opciones?scope=basico|completo` · `GET /api/aprobaciones/lista?tab=…`
+- SSR **no** precarga FIs de todos los pendientes — lazy al expandir pedido.
+- Opciones multi-select: CTE 600 FIs recientes (evita timeout full-scan detalle).
+- Moria: **2.3.1.3.3** indagación · **2.3.1.3.4** hotfix perf.
+
 ### Archivos clave (esta etapa)
 
 | Pieza | Ruta |
@@ -73,6 +82,8 @@ Confirmar carrito en RIMEC Web dispara notificación a **HECTOR · Guido · Vero
 | Schema guard API | `src/app/aprobaciones/lib/db-schema.ts` |
 | API | `src/app/api/aprobaciones/csv-general/route.ts` |
 | UI botón | `AprobacionesClient.tsx` → 📄 CSV general |
+| Filtros indagación | `components/AprobacionesFiltrosPanel.tsx` · `lib/aprobaciones-filtros-*.ts` |
+| API filtros | `src/app/api/aprobaciones/filtros/opciones/route.ts` |
 
 ---
 

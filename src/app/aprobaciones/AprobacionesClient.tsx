@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { anularFiAction, rechazarPedidoAction } from "./actions";
 import { FiCard } from "./components/FiCard";
+import { AprobacionesFiltrosPanel } from "./components/AprobacionesFiltrosPanel";
 import { PedidoPendienteCard } from "./components/PedidoPendienteCard";
 import { RechazoModal } from "./components/RechazoModal";
 import type {
@@ -13,8 +14,12 @@ import type {
   FiDetalle,
   FiRecord,
   MensajeFeedback,
+  PedidoPendiente,
   TabAprobaciones,
 } from "./lib/aprobaciones-types";
+import type { AprobacionesFiltros } from "./lib/aprobaciones-filtros-types";
+import { FILTROS_VACIOS, filtrosActivos } from "./lib/aprobaciones-filtros-types";
+import { filtrosToSearchParams } from "./lib/aprobaciones-filtros-parse";
 
 type Props = {
   dataInicial: AprobacionesData;
@@ -41,6 +46,9 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     setFisPorPedido(dataInicial.fisPorPedido ?? {});
     const first = dataInicial.pendientes[0]?.id ?? null;
     setPedidoExpandido(first);
+    if (first != null && !(dataInicial.fisPorPedido ?? {})[first]) {
+      void cargarFisPedido(first);
+    }
   }, [dataInicial]);
   const [mensaje, setMensaje] = useState<MensajeFeedback | null>(null);
   const [procesandoFi, setProcesandoFi] = useState<number | null>(null);
@@ -56,6 +64,10 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const [descargandoCsv, setDescargandoCsv] = useState(false);
+  const [filtrosDraft, setFiltrosDraft] = useState<AprobacionesFiltros>(FILTROS_VACIOS);
+  const [filtrosAplicados, setFiltrosAplicados] = useState<AprobacionesFiltros>(FILTROS_VACIOS);
+  const [countFiltrado, setCountFiltrado] = useState<number | null>(null);
+  const [pendientesFiltrados, setPendientesFiltrados] = useState<PedidoPendiente[] | null>(null);
 
   async function descargarCsvGeneral() {
     setDescargandoCsv(true);
@@ -125,16 +137,75 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     return res.json();
   }
 
+  async function cargarListaTab(
+    tabId: TabAprobaciones,
+    filtros: AprobacionesFiltros,
+  ): Promise<void> {
+    setCargandoLista(true);
+    setCountFiltrado(null);
+    const sp = filtrosToSearchParams(filtros);
+    sp.set("tab", tabId);
+    try {
+      const res = await fetch(`/api/aprobaciones/lista?${sp.toString()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      const j = (await res.json()) as {
+        fis?: FiRecord[];
+        pendientes?: PedidoPendiente[];
+        fisPorPedido?: Record<number, FiRecord[]>;
+        countFiltrado?: number | null;
+      };
+      if (tabId === "pendientes") {
+        setPendientesFiltrados(Array.isArray(j.pendientes) ? j.pendientes : []);
+        if (j.fisPorPedido) setFisPorPedido(j.fisPorPedido);
+        setListaLazy([]);
+      } else {
+        setPendientesFiltrados(null);
+        setListaLazy(Array.isArray(j.fis) ? j.fis : []);
+        setCountFiltrado(j.countFiltrado ?? null);
+      }
+    } catch {
+      flash("error", "No se pudo cargar con filtros");
+    } finally {
+      setCargandoLista(false);
+    }
+  }
+
+  function aplicarFiltros() {
+    setFiltrosAplicados(filtrosDraft);
+    void cargarListaTab(tab, filtrosDraft);
+  }
+
+  function limpiarFiltros() {
+    setFiltrosDraft(FILTROS_VACIOS);
+    setFiltrosAplicados(FILTROS_VACIOS);
+    setCountFiltrado(null);
+    setPendientesFiltrados(null);
+    setFisPorPedido(dataInicial.fisPorPedido ?? {});
+    if (tab === "aprobados" || tab === "anulados") {
+      void cargarListaTab(tab, FILTROS_VACIOS);
+    }
+  }
+
   useEffect(() => {
-    if (tab !== "aprobados" && tab !== "anulados") return;
+    if (tab !== "aprobados" && tab !== "anulados") {
+      if (!filtrosActivos(filtrosAplicados)) {
+        setPendientesFiltrados(null);
+      }
+      return;
+    }
     let cancelled = false;
     setCargandoLista(true);
     setListaLazy([]);
-    void fetch(`/api/aprobaciones/lista?tab=${tab}`, { cache: "no-store" })
+    const sp = filtrosToSearchParams(filtrosAplicados);
+    sp.set("tab", tab);
+    void fetch(`/api/aprobaciones/lista?${sp.toString()}`, { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) throw new Error(String(res.status));
-        const j = (await res.json()) as { fis?: FiRecord[] };
-        if (!cancelled) setListaLazy(Array.isArray(j.fis) ? j.fis : []);
+        const j = (await res.json()) as { fis?: FiRecord[]; countFiltrado?: number | null };
+        if (!cancelled) {
+          setListaLazy(Array.isArray(j.fis) ? j.fis : []);
+          setCountFiltrado(j.countFiltrado ?? null);
+        }
       })
       .catch(() => {
         if (!cancelled) flash("error", "No se pudo cargar la lista");
@@ -232,10 +303,13 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   }
 
   const counts = {
-    pendientes: data.pendientes.length,
+    pendientes:
+      pendientesFiltrados != null ? pendientesFiltrados.length : data.pendientes.length,
     aprobados: data.countAprobados,
     anulados: data.countAnulados,
   };
+
+  const pendientesVista = pendientesFiltrados ?? data.pendientes;
 
   return (
     <>
@@ -283,6 +357,14 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
         </div>
       </section>
 
+      <AprobacionesFiltrosPanel
+        filtros={filtrosDraft}
+        onChange={setFiltrosDraft}
+        onApply={aplicarFiltros}
+        onClear={limpiarFiltros}
+        aplicando={cargandoLista}
+      />
+
       {mensaje && (
         <div className="mx-auto max-w-6xl px-6 pt-4">
           <div
@@ -300,15 +382,16 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
       <article className="mx-auto max-w-6xl px-6 py-8">
         {tab === "pendientes" && (
           <>
-            {data.pendientes.length === 0 ? (
+            {pendientesVista.length === 0 ? (
               <EmptyState icon="📋" text="No hay pedidos pendientes de aprobación." />
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">
-                  {data.pendientes.length} pedido(s) esperando autorización
+                  {pendientesVista.length} pedido(s) esperando autorización
+                  {filtrosActivos(filtrosAplicados) ? " · filtros activos" : ""}
                 </p>
                 <div className="space-y-4">
-                  {data.pendientes.map((p) => (
+                  {pendientesVista.map((p) => (
                     <PedidoPendienteCard
                       key={p.id}
                       pedido={p}
@@ -349,7 +432,10 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">
-                  Últimas {listaLazy.length} aprobadas · total {data.countAprobados}
+                  Últimas {listaLazy.length} aprobadas · total{" "}
+                  {filtrosActivos(filtrosAplicados) && countFiltrado != null
+                    ? `${countFiltrado} (filtrado)`
+                    : data.countAprobados}
                 </p>
                 <div className="space-y-4">
                   {listaLazy.map((fi) => (
@@ -379,7 +465,10 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">
-                  {listaLazy.length} factura(s) anuladas · total {data.countAnulados}
+                  {listaLazy.length} factura(s) anuladas · total{" "}
+                  {filtrosActivos(filtrosAplicados) && countFiltrado != null
+                    ? `${countFiltrado} (filtrado)`
+                    : data.countAnulados}
                 </p>
                 <div className="space-y-4">
                   {listaLazy.map((fi) => (
