@@ -25,6 +25,37 @@ export function resolveDatabaseUrl(): string | undefined {
   return direct || undefined;
 }
 
+/** Errores de infra Supabase/pooler (no son bugs de SQL de negocio). */
+export function isRimecDbUnreachableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code?: unknown }).code ?? "")
+      : "";
+  return (
+    code === "ENOTFOUND" ||
+    code === "ECONNREFUSED" ||
+    code === "ETIMEDOUT" ||
+    code === "XX000" ||
+    /tenant\/user .* not found/i.test(msg) ||
+    /ENOTFOUND/i.test(msg) ||
+    /getaddrinfo/i.test(msg) ||
+    /connection terminated/i.test(msg) ||
+    /Connection terminated/i.test(msg)
+  );
+}
+
+export function mensajeRimecDbOffline(err?: unknown): string {
+  const detail = err instanceof Error ? err.message : err != null ? String(err) : "";
+  const base =
+    "No hay conexión a la base RIMEC (Supabase). Revisá el dashboard: proyecto pausado → Restore; " +
+    "si cambió el ref, actualizá DATABASE_URL en report/.env.local y reiniciá :3000.";
+  if (detail && /tenant\/user/i.test(detail)) {
+    return `${base} Detalle: tenant del pooler no encontrado (proyecto ausente o pausado).`;
+  }
+  return detail ? `${base} (${detail.slice(0, 160)})` : base;
+}
+
 export function isDirectSupabasePostgres(url: string): boolean {
   return /db\.[a-z0-9]+\.supabase\.co/i.test(url) && /:5432/.test(url);
 }
