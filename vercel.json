@@ -24,6 +24,12 @@
     "src/app/api/ventas-fotos/pdf/route.ts": {
       "maxDuration": 120
     },
+    "src/app/api/rimec/pdf/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/rimec/batch-pdf/route.ts": {
+      "maxDuration": 120
+    },
     "src/app/api/stock-pronta-entrega/asignacion-descuento/route.ts": {
       "maxDuration": 120
     },

@@ -13,8 +13,11 @@ import {
   ZAxis,
 } from "recharts";
 import type { FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
+import { metaFromSnapshot } from "@/lib/rimec/pdf-gerencial";
+import { rowsDetalleOperativo, rowsRankingMarcas } from "@/lib/rimec/pdf-rows-from-snapshot";
 import { variacionPctVsObjetivo } from "@/lib/rimec/variacion-objetivo";
 import { COLOR_OBJETIVO, COLOR_REAL_ACTUAL, COLOR_REAL_ANTERIOR, RIMEC_RECHARTS_TOOLTIP } from "../chart-theme";
+import { PdfExportBar } from "./PdfExportBar";
 import { TablaJerarquiaMarcaCadenaClienteVendedor } from "./TablaJerarquiaMarcaVendedor";
 
 const fmtGs = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -83,6 +86,9 @@ function MatrizTooltip(props: any) {
 
 export function MundoMarcas({ data }: { data: FullSnapshotResponse }) {
   const { ranking_marcas, detalle_operativo } = data;
+  const pdfMeta = metaFromSnapshot(data.meta);
+  const pdfRanking = rowsRankingMarcas(data);
+  const pdfDetalle = rowsDetalleOperativo(data);
 
   // Calculate clients per brand for the bubble chart
   const brandClients = new Map<string, Set<string>>();
@@ -196,12 +202,17 @@ export function MundoMarcas({ data }: { data: FullSnapshotResponse }) {
       {/* Tabla 5 · Ranking marcas (paridad RimecClient / Sales Report — agregado por marca) */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white backdrop-blur-md">
         <div className="border-b border-rimec-azul/15 bg-app-bg p-6">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 5 · Ranking marcas</p>
-          <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Ranking de marcas</h3>
-          <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-            Misma lógica que el informe clásico (tabla 5): agregado por marca desde el pivot enriquecido, alineado al contrato{" "}
-            <span className="text-neutral-ink-muted">v_ventas_pivot</span> / <span className="text-neutral-ink-muted">marca_v2</span>.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 5 · Ranking marcas</p>
+              <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Ranking de marcas</h3>
+              <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
+                Misma lógica que el informe clásico (tabla 5): agregado por marca desde el pivot enriquecido, alineado al contrato{" "}
+                <span className="text-neutral-ink-muted">v_ventas_pivot</span> / <span className="text-neutral-ink-muted">marca_v2</span>.
+              </p>
+            </div>
+            <PdfExportBar title="Ranking de Marcas" rows={pdfRanking} meta={pdfMeta} />
+          </div>
         </div>
         <div className="custom-scrollbar max-h-[min(52vh,560px)] flex-1 overflow-auto p-0">
           <table className="w-full text-left text-sm whitespace-nowrap">
@@ -247,13 +258,26 @@ export function MundoMarcas({ data }: { data: FullSnapshotResponse }) {
       {/* Tabla 6 · Matriz marcas — acordeón Marca → Cadena → Cliente → Vendedor */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white backdrop-blur-md">
         <div className="border-b border-rimec-azul/15 bg-app-bg p-6">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 6 · Matriz marcas (detalle)</p>
-          <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Marca → Cadena → Cliente → Vendedor</h3>
-          <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-            Misma lógica que la estructura de análisis del informe: se agrupa el <span className="text-neutral-ink-muted">detalle_operativo</span> del snapshot
-            (pivot con <span className="text-neutral-ink-muted">Monto 26</span> y <span className="text-neutral-ink-muted">Monto Obj</span>) en cuatro niveles. Expandí cada
-            marca para ver cadena, cliente y vendedor con subtotales.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 6 · Matriz marcas (detalle)</p>
+              <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Marca → Cadena → Cliente → Vendedor</h3>
+              <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
+                Misma lógica que la estructura de análisis del informe: se agrupa el <span className="text-neutral-ink-muted">detalle_operativo</span> del snapshot
+                (pivot con <span className="text-neutral-ink-muted">Monto 26</span> y <span className="text-neutral-ink-muted">Monto Obj</span>) en cuatro niveles. Expandí cada
+                marca para ver cadena, cliente y vendedor con subtotales. <strong className="text-rimec-azul">BATCH PDF</strong> = 1 PDF por marca (ZIP).
+              </p>
+            </div>
+            <PdfExportBar
+              title="Matriz de Marca"
+              rows={pdfDetalle}
+              groupCols={["Marca", "Cadena", "Cliente", "Vendedor"]}
+              meta={pdfMeta}
+              batchCol="Marca"
+              batchTitlePrefix="Matriz de Marca"
+              batchGroupCols={["Marca", "Cadena", "Cliente", "Vendedor"]}
+            />
+          </div>
         </div>
         <div className="custom-scrollbar max-h-[min(60vh,640px)] flex-1 overflow-auto p-3">
           <TablaJerarquiaMarcaCadenaClienteVendedor detalleOperativo={detalle_operativo as Record<string, unknown>[]} />

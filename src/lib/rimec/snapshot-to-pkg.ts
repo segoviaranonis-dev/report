@@ -132,6 +132,7 @@ function mapEvolucion(snapshot: FullSnapshotResponse["evolucion_mensual"]): Rime
     return {
       mes_idx,
       mes: e.mes,
+      montoAnterior: e.real_2025,
       montoActual: e.real_2026,
       montoObjetivo: e.objetivo,
       variacionPct: (() => {

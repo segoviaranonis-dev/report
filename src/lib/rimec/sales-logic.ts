@@ -67,6 +67,8 @@ export type RimecKpis = {
 export type RimecEvolucionMes = {
   mes_idx: number;
   mes: string;
+  /** Real año anterior (monto_25) — columna PDF canónica. */
+  montoAnterior: number;
   montoActual: number;
   montoObjetivo: number;
   variacionPct: number | null;
@@ -108,7 +110,9 @@ export function getFullAnalysisPackage(
   );
 
   const byMes = enrichVariacion(
-    aggByKeys(pivotRows, ["mes_idx"], [a, t]).sort((x, y) => num(x.mes_idx) - num(y.mes_idx))
+    aggByKeys(pivotRows, ["mes_idx"], [a, t, "monto_25"]).sort(
+      (x, y) => num(x.mes_idx) - num(y.mes_idx),
+    ),
   );
 
   const evolucionMes: RimecEvolucionMes[] = byMes.map((r) => {
@@ -116,6 +120,7 @@ export function getFullAnalysisPackage(
     return {
       mes_idx: idx,
       mes: MES_NOMBRES[idx] ?? String(idx),
+      montoAnterior: num(r.monto_25),
       montoActual: num(r[a]),
       montoObjetivo: num(r[t]),
       variacionPct: r[ALIAS_VARIATION] as number | null,

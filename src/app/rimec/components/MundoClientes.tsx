@@ -17,7 +17,10 @@ import type {
   FullSnapshotClienteTabla,
   FullSnapshotResponse,
 } from "@/lib/rimec/full-snapshot-types";
+import { metaFromSnapshot } from "@/lib/rimec/pdf-gerencial";
+import { rowsCarteraCompleta } from "@/lib/rimec/pdf-rows-from-snapshot";
 import { COLOR_OBJETIVO, COLOR_REAL_ACTUAL, COLOR_REAL_ANTERIOR, RIMEC_RECHARTS_TOOLTIP } from "../chart-theme";
+import { PdfExportBar } from "./PdfExportBar";
 import { TablaJerarquica, type SegmentoCarteraCliente } from "./TablaJerarquica";
 
 const fmtGs = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -32,6 +35,9 @@ type LineRow = {
 export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
   const [search, setSearch] = useState("");
   const [carteraCompletaVisible, setCarteraCompletaVisible] = useState(false);
+  const pdfMeta = metaFromSnapshot(data.meta);
+  /** Solo el PDF: visión general Cadena→Cliente→Marca (sin buckets). La UI no cambia. */
+  const pdfCartera = useMemo(() => rowsCarteraCompleta(data), [data]);
 
   const q = search.toLowerCase().trim();
   const matchCliente = (c: FullSnapshotClienteTabla) => {
@@ -241,6 +247,12 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rimec-azul/15 bg-app-bg p-6">
           <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Cartera Unificada</h3>
           <div className="flex flex-wrap items-center gap-2">
+            <PdfExportBar
+              title="Cartera Completa"
+              rows={pdfCartera}
+              groupCols={["Cadena", "Cliente", "Marca", "Mes"]}
+              meta={pdfMeta}
+            />
             <button
               type="button"
               onClick={() => setCarteraCompletaVisible((v) => !v)}
@@ -268,16 +280,15 @@ export function MundoClientes({ data }: { data: FullSnapshotResponse }) {
               <div className="mb-3">
                 <h4 className="font-serif text-base text-rimec-azul">Ranking consulta</h4>
                 <p className="mt-1 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-                  Sumatoria de la consulta sincronizada · ranking por Monto 26 · cadenas y clientes sin cadena en el{" "}
-                  <span className="text-neutral-ink-medium">mismo nivel</span> (expandí cadena → cliente → marca). Sin
-                  bucket «Clientes sin cadenas». Sin divisiones crecimiento / riesgo.
+                  Sumatoria de la consulta sincronizada · ranking por Monto 26 (expandí cadena → cliente → marca).
+                  Clientes sin cadena compiten en la raíz (sin bucket «Clientes sin cadenas»).
                 </p>
               </div>
               {jerarquiaLeavesRanking.length > 0 ? (
                 <TablaJerarquica
                   jerarquiaLeaves={jerarquiaLeavesRanking}
+                  title="Ranking consulta · Cadena → Cliente → Marca"
                   aplanarSinCadena
-                  title="Ranking consulta · Cadena | Cliente → Marca"
                 />
               ) : (
                 <p className="rounded-lg border border-rimec-azul/15 bg-app-bg py-6 text-center text-sm text-neutral-ink-muted">

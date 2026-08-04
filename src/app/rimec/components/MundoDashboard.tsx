@@ -10,9 +10,12 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { FullSnapshotEvolucionMes, FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
+import { metaFromSnapshot } from "@/lib/rimec/pdf-gerencial";
+import { rowsEvolucion } from "@/lib/rimec/pdf-rows-from-snapshot";
 import { MES_MAP } from "@/modules/sales-report/constants";
 import { COLOR_OBJETIVO, COLOR_REAL_ACTUAL, COLOR_REAL_ANTERIOR, RIMEC_RECHARTS_TOOLTIP } from "../chart-theme";
 import { variacionPctVsObjetivo } from "@/lib/rimec/variacion-objetivo";
+import { PdfExportBar } from "./PdfExportBar";
 
 const fmtGs = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
 const fmtPct = (n: number | null) => (n === null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(1)}%`);
@@ -56,7 +59,7 @@ function SubtotalEvolucionRow({
         <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-neutral-ink-muted">{subtitle}</span>
         <span className="text-xs tracking-wide text-rimec-azul">{label}</span>
       </td>
-      <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-medium">{fmtGs(agg.real_2025)}</td>
+      <td className="px-4 py-3 text-neutral-ink-muted">—</td>
       <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-medium">{fmtGs(agg.objetivo)}</td>
       <td className="px-4 py-3 text-right tabular-nums text-rimec-azul">{fmtGs(agg.real_2026)}</td>
       <td
@@ -222,6 +225,8 @@ function SemesterRealRadialCard({
 
 export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
   const { kpis, evolucion_mensual } = data;
+  const pdfMeta = metaFromSnapshot(data.meta);
+  const pdfEvol = rowsEvolucion(data);
 
   const mesesOrdenados = React.useMemo(
     () => [...evolucion_mensual].sort((a, b) => mesIdx(a.mes) - mesIdx(b.mes)),
@@ -270,7 +275,16 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
       <div className="grid min-h-[400px] flex-1 grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Barras: orden Real 2025 | Objetivo | Real 2026 */}
         <div className="flex flex-col rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-azul/25 lg:col-span-2">
-          <h3 className="mb-6 font-serif text-sm uppercase tracking-widest text-rimec-azul/80">Evolución Mensual</h3>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul/80">Evolución Mensual</h3>
+            <PdfExportBar
+              title="Evolución Mensual"
+              rows={pdfEvol}
+              groupCols={["Semestre"]}
+              meta={pdfMeta}
+              showTotal
+            />
+          </div>
           <div className="flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={mesesOrdenados} margin={{ top: 10, right: 10, left: 20, bottom: 20 }}>
@@ -345,23 +359,45 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla — cabecera con PDF (paridad Streamlit AMPLIAR/PDF sobre grilla) */}
       <div className="overflow-x-auto rounded-2xl border border-rimec-azul/15 bg-white p-6 backdrop-blur-md transition-all duration-500 hover:border-rimec-azul/25">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul/80">Evolución Mensual · detalle</h3>
+          <PdfExportBar
+            title="Evolución Mensual"
+            rows={pdfEvol}
+            groupCols={["Semestre"]}
+            meta={pdfMeta}
+            variant="outline"
+            showTotal
+          />
+        </div>
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-rimec-azul/15 text-[10px] uppercase tracking-wider text-neutral-ink-muted">
+              <th className="px-4 py-3 font-normal">Semestre</th>
               <th className="px-4 py-3 font-normal">Mes</th>
-              <th className="px-4 py-3 text-right font-normal">Real 2025</th>
-              <th className="px-4 py-3 text-right font-normal">Objetivo</th>
-              <th className="px-4 py-3 text-right font-normal">Real 2026</th>
-              <th className="px-4 py-3 text-right font-normal">Desvío %</th>
+              <th className="px-4 py-3 text-right font-normal">Monto Obj</th>
+              <th className="px-4 py-3 text-right font-normal">Monto 26</th>
+              <th className="px-4 py-3 text-right font-normal">Variación %</th>
             </tr>
           </thead>
           <tbody>
-            {mesesOrdenados.map((m) => (
+            {mesesOrdenados.map((m, i) => {
+              const prev = i > 0 ? mesesOrdenados[i - 1] : null;
+              const sem = mesIdx(m.mes) <= 6 ? "1er SEMESTRE" : "2do SEMESTRE";
+              const prevSem = prev
+                ? mesIdx(prev.mes) <= 6
+                  ? "1er SEMESTRE"
+                  : "2do SEMESTRE"
+                : null;
+              const showSem = sem !== prevSem;
+              return (
               <tr key={m.mes} className="group border-b border-rimec-azul/10 transition-colors hover:bg-white">
+                <td className="px-4 py-3 text-rimec-azul/80 transition-colors group-hover:text-rimec-azul">
+                  {showSem ? sem : ""}
+                </td>
                 <td className="px-4 py-3 text-rimec-azul/80 transition-colors group-hover:text-rimec-azul">{m.mes}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-muted">{fmtGs(m.real_2025)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-neutral-ink-muted">{fmtGs(m.objetivo)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-neutral-ink">{fmtGs(m.real_2026)}</td>
                 <td
@@ -370,7 +406,8 @@ export function MundoDashboard({ data }: { data: FullSnapshotResponse }) {
                   {fmtPct(m.desvio_pct)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <SubtotalEvolucionRow

@@ -40,6 +40,9 @@ export type FullSnapshotClienteTabla = {
   cadena: string;
   monto_2026: number;
   monto_2025: number;
+  /** Monto Obj del pivot (meta sobre 2025) — PDF cartera Streamlit. */
+  objetivo: number;
+  /** YoY Real 2026 vs Real 2025 (UI tablas). */
   variacion_pct: number | null;
   marca_principal: string;
 };
@@ -65,6 +68,8 @@ export type FullSnapshotClienteSinCompra = {
   nombre: string;
   cadena: string;
   ultimo_monto: number;
+  /** Monto Obj pivot (base sin compra) — PDF cartera Streamlit. */
+  objetivo: number;
   ultimo_mes: string;
 };
 

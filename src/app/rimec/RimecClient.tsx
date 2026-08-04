@@ -5,6 +5,7 @@ import {
   ALIAS_CURRENT_VALUE,
   ALIAS_TARGET_VALUE,
   ALIAS_VARIATION,
+  MES_MAP,
   MESES_LISTA,
 } from "@/modules/sales-report/constants";
 import { getMockAnalysisPackage, type RimecAnalysisPackage } from "@/lib/rimec/sales-logic";
@@ -27,6 +28,10 @@ const fmtPct = (n: number | null) =>
   n === null || Number.isNaN(n)
     ? "—"
     : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n)} %`;
+
+function mesIdxFromName(mes: string): number {
+  return MES_MAP[mes] ?? 0;
+}
 
 function formatCell(v: unknown): string {
   if (v === null || v === undefined) return "—";
@@ -219,9 +224,31 @@ export function RimecClient() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handlePdf = () => {
-    window.print();
-  };
+  const handlePdf = useCallback(async () => {
+    if (!pkg) {
+      window.alert("Consultá primero · o usá la vista inmersiva /rimec con botones PDF / BATCH PDF.");
+      return;
+    }
+    try {
+      const { downloadRimecPdf } = await import("@/lib/rimec/pdf-download-client");
+      await downloadRimecPdf({
+        title: "Ranking de Marcas",
+        rows: pkg.porMarca.map((r) => ({
+          Marca: r.marca ?? r.Marca,
+          [ALIAS_TARGET_VALUE]: r[ALIAS_TARGET_VALUE],
+          [ALIAS_CURRENT_VALUE]: r[ALIAS_CURRENT_VALUE],
+          [ALIAS_VARIATION]: r[ALIAS_VARIATION],
+        })),
+        meta: {
+          porcentaje: `${filtros.objetivo_pct}%`,
+          depto: filtros.departamento,
+          periodo: `${filtros.meses.length} meses`,
+        },
+      });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Error PDF");
+    }
+  }, [pkg, filtros]);
 
   return (
     <div className="overflow-hidden rounded-sm border border-exec-line bg-exec-surface shadow-exec">
@@ -456,7 +483,6 @@ export function RimecClient() {
                   openSem={openSem}
                   setOpenSem={setOpenSem}
                   onAmplify={(t, rows, pk) => setAmplify({ title: t, rows, priorityKeys: pk })}
-                  onPdf={handlePdf}
                 />
               </section>
 
@@ -688,25 +714,47 @@ function DashboardView({
   openSem,
   setOpenSem,
   onAmplify,
-  onPdf,
 }: {
   pkg: PkgState;
   filtros: SalesReportFilters;
   openSem: Record<string, boolean>;
   setOpenSem: Dispatch<SetStateAction<Record<string, boolean>>>;
   onAmplify: (t: string, rows: PivotRow[], pk?: string[]) => void;
-  onPdf: () => void;
 }) {
   const at = pkg.kpis.atendimientoPct;
   const groups = evolucionPorSemestre(pkg.evolucionMes, filtros);
+  /** Filas PDF/ampliar — Semestre · Mes · Monto Obj · Monto 26 · Variación % */
   const flatRows: PivotRow[] = groups.flatMap((g) =>
     g.rows.map((r) => ({
-      mes: r.mes,
+      Semestre: mesIdxFromName(r.mes) <= 6 ? "1er SEMESTRE" : "2do SEMESTRE",
+      Mes: r.mes,
       [ALIAS_TARGET_VALUE]: r.montoObjetivo,
       [ALIAS_CURRENT_VALUE]: r.montoActual,
       [ALIAS_VARIATION]: r.variacionPct,
-    }))
+    })),
   );
+
+  const runEvolPdf = async () => {
+    try {
+      const { downloadRimecPdf } = await import("@/lib/rimec/pdf-download-client");
+      await downloadRimecPdf({
+        title: "Evolución Mensual",
+        rows: flatRows,
+        groupCols: ["Semestre"],
+        showTotal: true,
+        meta: {
+          porcentaje: `${filtros.objetivo_pct}%`,
+          depto: filtros.departamento,
+          cat: filtros.categoria_ids?.length ? "TODAS" : "TODAS",
+          periodo: filtros.meses.length
+            ? `${filtros.meses[0]}-${filtros.meses[filtros.meses.length - 1]} ${new Date().getFullYear()}`
+            : "N/A",
+        },
+      });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Error PDF");
+    }
+  };
 
   return (
     <div className="space-y-10">
@@ -726,8 +774,9 @@ function DashboardView({
             <button
               type="button"
               onClick={() =>
-                onAmplify("Evolución mensual", flatRows, [
-                  "mes",
+                onAmplify("Evolución Mensual", flatRows, [
+                  "Semestre",
+                  "Mes",
                   ALIAS_TARGET_VALUE,
                   ALIAS_CURRENT_VALUE,
                   ALIAS_VARIATION,
@@ -739,7 +788,7 @@ function DashboardView({
             </button>
             <button
               type="button"
-              onClick={onPdf}
+              onClick={() => void runEvolPdf()}
               className="border border-exec-ink bg-exec-ink px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-exec-surface transition hover:bg-exec-navy"
             >
               PDF
@@ -750,11 +799,11 @@ function DashboardView({
           <table className="w-full min-w-[640px] border-collapse text-left text-[12px]">
             <thead>
               <tr className="border-b border-exec-line text-[10px] font-semibold uppercase tracking-[0.12em] text-exec-subtle">
-                <th className="px-5 py-3 font-medium">Estructura</th>
+                <th className="px-5 py-3 font-medium">Semestre</th>
                 <th className="py-3 pl-0 font-medium">Mes</th>
-                <th className="px-5 py-3 text-right font-medium">Monto obj.</th>
-                <th className="px-5 py-3 text-right font-medium">Monto actual</th>
-                <th className="px-5 py-3 text-right font-medium">Variación</th>
+                <th className="px-5 py-3 text-right font-medium">Monto Obj</th>
+                <th className="px-5 py-3 text-right font-medium">Monto 26</th>
+                <th className="px-5 py-3 text-right font-medium">Variación %</th>
               </tr>
             </thead>
             <tbody>

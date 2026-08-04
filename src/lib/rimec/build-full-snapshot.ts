@@ -167,6 +167,7 @@ function mapClienteTabla(pivot: PivotRow[], list: PivotRow[]): FullSnapshotClien
       cadena: String(base?.cadena ?? "").trim(),
       monto_2026: m26,
       monto_2025: m25,
+      objetivo: obj,
       variacion_pct: variacionYoy(m26, m25),
       marca_principal: marcaPrincipal(pivot, nombre),
     };
@@ -184,6 +185,7 @@ function pickUltimoMes(base: PivotRow | undefined): string {
 }
 
 function mapSinCompra(pivot: PivotRow[], list: PivotRow[]): FullSnapshotClienteSinCompra[] {
+  const t = ALIAS_TARGET_VALUE;
   return list.map((r) => {
     const nombre = String(r.cliente ?? "").trim();
     const base = firstPivotRowForCliente(pivot, nombre);
@@ -197,6 +199,7 @@ function mapSinCompra(pivot: PivotRow[], list: PivotRow[]): FullSnapshotClienteS
       nombre,
       cadena: String(base?.cadena ?? "").trim(),
       ultimo_monto: num(base?.monto_25),
+      objetivo: num(r[t]),
       ultimo_mes: pickUltimoMes(base),
     };
   });

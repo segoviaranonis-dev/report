@@ -1,7 +1,10 @@
 import React from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import type { FullSnapshotResponse } from "@/lib/rimec/full-snapshot-types";
+import { metaFromSnapshot } from "@/lib/rimec/pdf-gerencial";
+import { rowsDetalleOperativo, rowsRankingVendedores } from "@/lib/rimec/pdf-rows-from-snapshot";
 import { variacionPctVsObjetivo } from "@/lib/rimec/variacion-objetivo";
+import { PdfExportBar } from "./PdfExportBar";
 import { TablaJerarquiaVendedorCadenaClienteMarcaMes } from "./TablaJerarquiaVendedorCadenaClienteMarcaMes";
 
 const fmtGs = (n: number) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n);
@@ -9,6 +12,9 @@ const fmtPct = (n: number | null) => (n === null ? "—" : `${n > 0 ? "+" : ""}$
 
 export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
   const { ranking_vendedores, detalle_operativo } = data;
+  const pdfMeta = metaFromSnapshot(data.meta);
+  const pdfRanking = rowsRankingVendedores(data);
+  const pdfDetalle = rowsDetalleOperativo(data);
 
   const top3 = ranking_vendedores.slice(0, 3);
   const total2026 = ranking_vendedores.reduce((s, v) => s + v.monto_2026, 0);
@@ -94,13 +100,18 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
       {/* Tabla 7 · Ranking vendedores (paridad RimecClient / Sales Report — `porVendedor`) */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white backdrop-blur-md">
         <div className="border-b border-rimec-azul/15 bg-app-bg p-6">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 7 · Ranking vendedores</p>
-          <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Ranking de vendedores</h3>
-          <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-            Totales por vendedor desde el pivot enriquecido (<span className="text-neutral-ink-muted">v_ventas_pivot</span>): objetivo
-            derivado de 2025 + % de meta y real del período filtrado. <span className="text-neutral-ink-muted">Var %</span> = variación vs
-            objetivo <span className="font-mono text-neutral-ink-muted">(Real − Obj) / Obj</span>.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 7 · Ranking vendedores</p>
+              <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Ranking de vendedores</h3>
+              <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
+                Totales por vendedor desde el pivot enriquecido (<span className="text-neutral-ink-muted">v_ventas_pivot</span>): objetivo
+                derivado de 2025 + % de meta y real del período filtrado. <span className="text-neutral-ink-muted">Var %</span> = variación vs
+                objetivo <span className="font-mono text-neutral-ink-muted">(Real − Obj) / Obj</span>.
+              </p>
+            </div>
+            <PdfExportBar title="Ranking de Vendedores" rows={pdfRanking} meta={pdfMeta} />
+          </div>
         </div>
         <div className="custom-scrollbar max-h-[min(52vh,560px)] flex-1 overflow-auto p-0">
           <table className="w-full table-auto whitespace-nowrap text-left text-sm">
@@ -138,13 +149,26 @@ export function MundoVendedores({ data }: { data: FullSnapshotResponse }) {
       {/* Tabla 8 · Gestión detallada (árbol 5 niveles, mismo universo que el pivot del snapshot) */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-rimec-azul/15 bg-white backdrop-blur-md">
         <div className="border-b border-rimec-azul/15 bg-app-bg p-6">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 8 · Gestión detallada</p>
-          <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Vendedor → Cadena → Cliente → Marca → Mes</h3>
-          <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
-            Paridad con el informe Streamlit / pestaña clásica tabla 8: se agrupa el{" "}
-            <span className="text-neutral-ink-muted">detalle_operativo</span> del snapshot (mismas columnas de monto objetivo y real) en cinco niveles; expandí
-            cada vendedor para bajar hasta el mes.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rimec-azul/80">Tabla 8 · Gestión detallada</p>
+              <h3 className="font-serif text-sm uppercase tracking-widest text-rimec-azul">Vendedor → Cadena → Cliente → Marca → Mes</h3>
+              <p className="mt-2 max-w-3xl text-[10px] leading-snug text-neutral-ink-muted">
+                Paridad con el informe Streamlit / pestaña clásica tabla 8: se agrupa el{" "}
+                <span className="text-neutral-ink-muted">detalle_operativo</span> del snapshot (mismas columnas de monto objetivo y real) en cinco niveles; expandí
+                cada vendedor para bajar hasta el mes. <strong className="text-rimec-azul">BATCH PDF</strong> = 1 PDF por vendedor (ZIP).
+              </p>
+            </div>
+            <PdfExportBar
+              title="Gestión Detallada"
+              rows={pdfDetalle}
+              groupCols={["Vendedor", "Cadena", "Cliente", "Marca", "Mes"]}
+              meta={pdfMeta}
+              batchCol="Vendedor"
+              batchTitlePrefix="Gestión Detallada"
+              batchGroupCols={["Vendedor", "Cadena", "Cliente", "Marca", "Mes"]}
+            />
+          </div>
         </div>
         <div className="custom-scrollbar max-h-[min(60vh,640px)] flex-1 overflow-auto p-3">
           <TablaJerarquiaVendedorCadenaClienteMarcaMes detalleOperativo={detalle_operativo as Record<string, unknown>[]} />
