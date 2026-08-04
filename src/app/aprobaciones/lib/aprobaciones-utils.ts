@@ -134,7 +134,8 @@ export function brutoDesdeNeto(
   return factor > 0 ? Math.round(neto / factor) : Math.round(neto);
 }
 
-/** Cascada d1→d4 · floor centenas Gs. (paridad RIMEC Web guardar-descuentos / confirmar). */
+/** Cascada d1→d4 · Gs enteros sin centena (paridad RIMEC Web).
+ *  Ley: neto post-descuento comercial no se redondea a centena. */
 export function precioNetoCascada(
   precioBase: number,
   d1: number,
@@ -146,7 +147,7 @@ export function precioNetoCascada(
   for (const d of [d1, d2, d3, d4]) {
     if (d > 0) p *= 1 - d / 100;
   }
-  return Math.floor(p / 100) * 100;
+  return Math.round(p);
 }
 
 export function normalizarDescuentos4(raw: unknown): [number, number, number, number] {

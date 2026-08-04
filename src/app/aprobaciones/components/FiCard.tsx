@@ -16,6 +16,7 @@ import {
   etiquetaCasoUiAprobaciones,
 } from "../lib/aprobaciones-utils";
 import { OrigenVentaChips } from "./OrigenVentaChips";
+import { FiObservacionesPanel } from "./FiObservacionesPanel";
 import {
   ClienteEditor,
   DescuentosEditor,
@@ -217,6 +218,17 @@ export function FiCard({
         )}
       </div>
 
+      <FiObservacionesPanel
+        fiId={fi.id}
+        estado={fi.estado}
+        origenPe={pe}
+        observacion={fi.observacion ?? null}
+        fechaEntregaCliente={fi.fecha_entrega_cliente ?? null}
+        logisticaEditable={editable}
+        onFeedback={onFeedback}
+        onApplied={applied}
+      />
+
       {(puedeConfirmar || puedeAnular) && (
         <div className="flex flex-wrap gap-2 border-b border-neutral-200 bg-neutral-50/80 px-4 py-3 sm:px-5">
           {puedeConfirmar && (
@@ -290,9 +302,9 @@ export function FiCard({
             {" · "}
             <span className="font-semibold text-neutral-700">Total:</span> {fmtGs(totalLocal)}
           </p>
-          {fi.notas && (
+          {fi.notas && estadoUpper === "ANULADA" && (
             <p>
-              <span className="font-semibold text-neutral-700">Notas:</span> {fi.notas}
+              <span className="font-semibold text-neutral-700">Motivo anulación:</span> {fi.notas}
             </p>
           )}
 

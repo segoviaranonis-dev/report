@@ -109,6 +109,23 @@ export function PedidoPendienteCard({
           </div>
           <p className="mb-4 text-xs text-neutral-600">Descuentos: {descuentosLabel(pedido)}</p>
 
+          {(pedido.observacion?.trim() || pedido.fecha_entrega_cliente) && (
+            <div className="mb-4 rounded-2xl border-2 border-emerald-600 bg-emerald-50 px-4 py-3">
+              <p className="text-[13px] font-black text-emerald-900">Obs. carrito Web (pedido)</p>
+              {pedido.fecha_entrega_cliente ? (
+                <p className="mt-1 text-sm text-emerald-800">
+                  <span className="font-semibold">Entrega cliente:</span>{" "}
+                  {pedido.fecha_entrega_cliente.slice(0, 10)}
+                </p>
+              ) : null}
+              {pedido.observacion?.trim() ? (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-emerald-900">
+                  {pedido.observacion.trim()}
+                </p>
+              ) : null}
+            </div>
+          )}
+
           <h3 className="mb-1 text-sm font-bold text-rimec-azul">Células de Aprobación</h3>
           <p className="mb-4 text-xs text-neutral-600">
             Cada célula = una factura (marca × caso). Pulsá <strong>Aprobar</strong> — pasa a

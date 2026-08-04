@@ -56,6 +56,9 @@ function mapFiRow(r: Record<string, unknown>): FiRecord {
     quincena_llegada: r.quincena_llegada != null ? String(r.quincena_llegada) : null,
     pp_estado: r.pp_estado != null ? String(r.pp_estado) : null,
     notas: r.notas != null ? String(r.notas) : null,
+    observacion: r.observacion != null ? String(r.observacion) : null,
+    fecha_entrega_cliente:
+      r.fecha_entrega_cliente != null ? String(r.fecha_entrega_cliente).slice(0, 10) : null,
     origen_pe: inferOrigenPeFi(r),
     created_at: r.created_at != null ? String(r.created_at) : null,
     fecha_confirmacion:
@@ -86,6 +89,14 @@ export async function fetchPedidosPendientes(): Promise<PedidoPendiente[]> {
       pvr.total_pares,
       pvr.total_monto,
       pvr.created_at,
+      COALESCE(
+        NULLIF(TRIM(pvr.observacion), ''),
+        NULLIF(TRIM(pvr.payload_json->>'observacion'), '')
+      ) AS observacion,
+      COALESCE(
+        pvr.fecha_entrega_cliente::text,
+        NULLIF(TRIM(pvr.payload_json->>'fecha_entrega_cliente'), '')
+      ) AS fecha_entrega_cliente,
       EXISTS (
         SELECT 1
         FROM jsonb_array_elements(COALESCE(pvr.payload_json->'lotes', '[]'::jsonb)) l
@@ -128,6 +139,9 @@ export async function fetchPedidosPendientes(): Promise<PedidoPendiente[]> {
     created_at: r.created_at != null ? String(r.created_at) : null,
     origen_pe: Boolean(r.origen_pe),
     tiene_compra_previa: Boolean(r.tiene_compra_previa),
+    observacion: r.observacion != null ? String(r.observacion) : null,
+    fecha_entrega_cliente:
+      r.fecha_entrega_cliente != null ? String(r.fecha_entrega_cliente).slice(0, 10) : null,
   }));
 }
 
@@ -232,6 +246,8 @@ const FI_DE_PEDIDO_SELECT = `
       fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4,
       fi.created_at,
       fi.fecha_confirmacion,
+      fi.observacion,
+      fi.fecha_entrega_cliente::text AS fecha_entrega_cliente,
       pp.numero_registro AS nro_pp,
       pp.numero_proforma AS proforma,
       pp.estado AS pp_estado,
@@ -447,7 +463,9 @@ const FI_LIST_SELECT = `
       qa.descripcion AS quincena_llegada,
       fi.created_at,
       fi.fecha_confirmacion,
-      fi.notas
+      fi.notas,
+      fi.observacion,
+      fi.fecha_entrega_cliente::text AS fecha_entrega_cliente
     FROM factura_interna fi
     LEFT JOIN cliente_v2 c ON c.id_cliente = fi.cliente_id
     ${SQL_VENDEDOR_FI_JOINS}
@@ -546,6 +564,14 @@ export async function fetchPedidosPendientesConFiltros(
       pvr.total_pares,
       pvr.total_monto,
       pvr.created_at,
+      COALESCE(
+        NULLIF(TRIM(pvr.observacion), ''),
+        NULLIF(TRIM(pvr.payload_json->>'observacion'), '')
+      ) AS observacion,
+      COALESCE(
+        pvr.fecha_entrega_cliente::text,
+        NULLIF(TRIM(pvr.payload_json->>'fecha_entrega_cliente'), '')
+      ) AS fecha_entrega_cliente,
       EXISTS (
         SELECT 1
         FROM jsonb_array_elements(COALESCE(pvr.payload_json->'lotes', '[]'::jsonb)) l
@@ -591,6 +617,9 @@ export async function fetchPedidosPendientesConFiltros(
     created_at: r.created_at != null ? String(r.created_at) : null,
     origen_pe: Boolean(r.origen_pe),
     tiene_compra_previa: Boolean(r.tiene_compra_previa),
+    observacion: r.observacion != null ? String(r.observacion) : null,
+    fecha_entrega_cliente:
+      r.fecha_entrega_cliente != null ? String(r.fecha_entrega_cliente).slice(0, 10) : null,
   }));
 }
 

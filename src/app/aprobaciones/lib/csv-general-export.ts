@@ -85,7 +85,12 @@ export async function buildCsvGeneralAprobaciones(): Promise<string> {
       fi.descuento_2 AS desc2,
       fi.descuento_3 AS desc3,
       fi.descuento_4 AS desc4,
-      COALESCE(u.descp_usuario, 'N/A') AS vendedor,
+      COALESCE(
+        NULLIF(TRIM(pvr.payload_json->>'vendedor_nombre'), ''),
+        NULLIF(TRIM(u.descp_usuario), ''),
+        NULLIF(TRIM(vd.descp_vendedor), ''),
+        'N/A'
+      ) AS vendedor,
       COALESCE(fi.caso, pl.nombre_caso_aplicado) AS caso,
       pl.nombre_caso_aplicado AS caso_lista
     FROM public.factura_interna fi
@@ -94,7 +99,9 @@ export async function buildCsvGeneralAprobaciones(): Promise<string> {
     LEFT JOIN public.pedido_proveedor pp ON pp.id = fi.pp_id
     LEFT JOIN public.marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN public.plazo_v2 plz ON plz.id_plazo = fi.plazo_id
+    LEFT JOIN public.pedido_venta_rimec pvr ON pvr.id = fi.pedido_id
     LEFT JOIN public.usuario_v2 u ON u.id_usuario = fi.vendedor_id
+    LEFT JOIN public.vendedor_v2 vd ON vd.id_vendedor = fi.vendedor_id
     LEFT JOIN public.linea l
       ON l.codigo_proveedor::text = ppd.linea
      AND l.proveedor_id = pp.proveedor_importacion_id

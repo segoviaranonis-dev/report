@@ -12,6 +12,7 @@ import {
   cambiarVendedorFi,
   actualizarEncabezadoFi,
   resincronizarFiDesdeListadoPp,
+  actualizarLogisticaFi,
 } from "./lib/aprobaciones-mutations";
 import { requireNivelDiosAction } from "./lib/require-nivel-dios";
 
@@ -134,5 +135,20 @@ export async function resincronizarFiDesdeListadoPpAction(fiId: number) {
     error: result.ok ? undefined : result.msg,
     totalMonto: result.totalMonto,
     lineas: result.lineas,
+  };
+}
+
+export async function actualizarLogisticaFiAction(
+  fiId: number,
+  input: { observacion: string | null; fecha_entrega_cliente: string | null },
+) {
+  const gate = await requireNivelDiosAction();
+  if (!gate.ok) return { success: false, error: gate.error };
+  const result = await actualizarLogisticaFi(fiId, input);
+  if (result.ok) revalidatePath("/aprobaciones");
+  return {
+    success: result.ok,
+    message: result.msg,
+    error: result.ok ? undefined : result.msg,
   };
 }

@@ -20,7 +20,7 @@ import {
 
 type Feedback = (tipo: "success" | "error", texto: string) => void;
 
-/** Factor cascada d1→d4 (sin floor por línea — preview de ratificación). */
+/** Factor cascada d1→d4 (preview de ratificación). */
 function factorCascada(desc: number[]): number {
   let f = 1;
   for (const d of desc) {
@@ -30,8 +30,9 @@ function factorCascada(desc: number[]): number {
   return f;
 }
 
-function floorCentenas(n: number): number {
-  return Math.floor(n / 100) * 100;
+/** Neto post-descuento: Gs enteros · sin centena (ley carrito / pre-FI). */
+function montoPostDescuento(n: number): number {
+  return Math.round(n);
 }
 
 export function ClienteEditor({
@@ -287,10 +288,10 @@ export function DescuentosEditor({
   const totalActual = Number(fi.total_monto) || 0;
   // Bruto estimado desde total actual ÷ factor de descuentos guardados
   const brutoEst =
-    fGuardado > 0.0001 ? floorCentenas(totalActual / fGuardado) : totalActual;
+    fGuardado > 0.0001 ? montoPostDescuento(totalActual / fGuardado) : totalActual;
   const montoSinDesc = brutoEst;
-  const monto20 = floorCentenas(brutoEst * f20);
-  const montoDraft = floorCentenas(brutoEst * fDraft);
+  const monto20 = montoPostDescuento(brutoEst * f20);
+  const montoDraft = montoPostDescuento(brutoEst * fDraft);
   const montoGuardado = totalActual;
 
   async function guardar() {

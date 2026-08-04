@@ -1126,3 +1126,65 @@ export async function resincronizarFiDesdeListadoPp(
     client.release();
   }
 }
+
+/** MIG-175 — observación + fecha entrega PE (Nivel Dios · Aprobaciones). */
+export async function actualizarLogisticaFi(
+  fiId: number,
+  input: { observacion: string | null; fecha_entrega_cliente: string | null },
+): Promise<MutationResult> {
+  if (!isRimecDatabaseConfigured()) {
+    return { ok: false, msg: "DATABASE_URL no configurada." };
+  }
+  const obs = input.observacion?.trim().slice(0, 2000) || null;
+  const fechaRaw = input.fecha_entrega_cliente?.trim().slice(0, 10) || null;
+  const fecha = fechaRaw && /^\d{4}-\d{2}-\d{2}$/.test(fechaRaw) ? fechaRaw : null;
+
+  const pool = getRimecPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ pedido_id: number | null }>(
+      `SELECT pedido_id FROM factura_interna WHERE id = $1 FOR UPDATE`,
+      [fiId],
+    );
+    if (!rows.length) {
+      await client.query("ROLLBACK");
+      return { ok: false, msg: "FI no encontrada." };
+    }
+    const pedidoId = rows[0].pedido_id;
+
+    await client.query(
+      `UPDATE factura_interna
+       SET observacion = $2,
+           fecha_entrega_cliente = $3::date
+       WHERE id = $1`,
+      [fiId, obs, fecha],
+    );
+
+    if (pedidoId != null) {
+      await client.query(
+        `UPDATE pedido_venta_rimec
+         SET observacion = $2,
+             fecha_entrega_cliente = $3::date
+         WHERE id = $1`,
+        [pedidoId, obs, fecha],
+      );
+    }
+
+    await client.query(
+      `UPDATE logistica_pendiente_confirmacion
+       SET observacion = COALESCE($2, observacion),
+           fecha_entrega_vendedor = COALESCE($3::date, fecha_entrega_vendedor)
+       WHERE factura_interna_id = $1`,
+      [fiId, obs, fecha],
+    );
+
+    await client.query("COMMIT");
+    return { ok: true, msg: "Observación logística actualizada." };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    return { ok: false, msg: e instanceof Error ? e.message : String(e) };
+  } finally {
+    client.release();
+  }
+}

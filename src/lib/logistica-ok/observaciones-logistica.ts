@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 
-export type OrigenObsLogistica = "IC" | "PP" | "PE_WEB";
+export type OrigenObsLogistica = "IC" | "PP" | "PE_WEB" | "APROBACION";
 
 export type LogisticaObservacionRow = {
   id: number;

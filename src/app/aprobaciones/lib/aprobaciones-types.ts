@@ -31,6 +31,9 @@ export type FiRecord = {
   quincena_llegada: string | null;
   pp_estado: string | null;
   notas?: string | null;
+  /** MIG-175 — texto carrito Web / logística PE */
+  observacion?: string | null;
+  fecha_entrega_cliente?: string | null;
   /** FI de stock local PE — pp_id NULL o nro PE-* */
   origen_pe: boolean;
   created_at?: string | null;
@@ -60,6 +63,8 @@ export type PedidoPendiente = {
   tiene_compra_previa: boolean;
   /** true si el pedido web es 100% Pronta entrega (payload lotes origen_pe o pp_id negativo). */
   origen_pe: boolean;
+  observacion?: string | null;
+  fecha_entrega_cliente?: string | null;
 };
 
 export type FiDetalle = {
