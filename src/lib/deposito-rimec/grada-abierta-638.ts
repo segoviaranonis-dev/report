@@ -81,3 +81,51 @@ export function claveGradaEnTarjeta(
 export function etiquetaUnidadStock(tipoV2Id: number | null | undefined): "p" | "u" {
   return isConfecciones638(tipoV2Id) ? "u" : "p";
 }
+
+/** Orden Director cabecera 638: 1·2·3 → P·M·G·GG → 4·6·8 → 10… (paridad Bazzar Estadísticas). */
+const ORDEN_LETRA_638: Record<string, number> = {
+  PP: 1,
+  P: 2,
+  M: 3,
+  G: 4,
+  GG: 5,
+  XG: 6,
+  XXG: 7,
+  RN: 8,
+  U: 9,
+  UNICO: 9,
+};
+
+export function sortTalle638Key(talle: string): number {
+  const u = String(talle).trim().toUpperCase();
+  if (!u) return 9999;
+  if (u.includes("/")) return 400 + (u.charCodeAt(0) || 0);
+  if (ORDEN_LETRA_638[u] != null) return 200 + ORDEN_LETRA_638[u];
+  const n = parseInt(u.replace(/[^\d]/g, ""), 10);
+  if (Number.isFinite(n) && n > 0) {
+    if (n >= 1 && n <= 3) return 100 + n;
+    return 300 + n;
+  }
+  return 9000 + (u.charCodeAt(0) || 0);
+}
+
+/** Curva caja 654 (`34(1 2 3…)39`) ≠ talle suelto Bazzar. */
+export function esCurvaCajaCerrada654(curva: string): boolean {
+  return /\(\s*\d+\s+\d+/.test(String(curva ?? ""));
+}
+
+export function sortGradaSiameseBazzar(
+  a: { curva: string; talle?: string | null },
+  b: { curva: string; talle?: string | null },
+  tipoV2Id?: number | null,
+): number {
+  if (isConfecciones638(tipoV2Id)) {
+    const ta = a.talle || parseGradaAbierta638(a.curva)?.talle || a.curva;
+    const tb = b.talle || parseGradaAbierta638(b.curva)?.talle || b.curva;
+    return sortTalle638Key(ta) - sortTalle638Key(tb);
+  }
+  const na = Number.parseFloat(String(a.curva).replace(",", "."));
+  const nb = Number.parseFloat(String(b.curva).replace(",", "."));
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+  return String(a.curva).localeCompare(String(b.curva), "es", { numeric: true });
+}

@@ -28,6 +28,13 @@ function NiifNavigationLatenciaInner({ children }: { children: ReactNode }) {
     setNavPending(false);
   }, [routeKey]);
 
+  // Anti-pegado: si no hubo cambio de ruta, soltar overlay (PDF / API / cancel)
+  useEffect(() => {
+    if (!navPending) return;
+    const t = window.setTimeout(() => setNavPending(false), 12_000);
+    return () => window.clearTimeout(t);
+  }, [navPending]);
+
   useEffect(() => {
     const origin = window.location.origin;
 
@@ -38,10 +45,16 @@ function NiifNavigationLatenciaInner({ children }: { children: ReactNode }) {
       }
       const anchor = (event.target as Element | null)?.closest("a[href]");
       if (!anchor) return;
+      // PDF / API / pestaña nueva: no son navegación de módulo — no overlay (sino queda pegado)
+      if (anchor.getAttribute("target") === "_blank") return;
+      if (anchor.hasAttribute("download")) return;
       const href = anchor.getAttribute("href");
       if (!href || !isInternalHref(href, origin)) return;
 
       const next = new URL(href, origin);
+      if (next.pathname.startsWith("/api/")) return;
+      if (/\.pdf($|\?)/i.test(next.pathname)) return;
+
       const nextKey = `${next.pathname}${next.search}`;
       const currentKey = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
       if (nextKey === currentKey) return;

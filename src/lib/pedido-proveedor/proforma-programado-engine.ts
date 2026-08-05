@@ -2497,7 +2497,11 @@ export async function borrarTodasFiPpEnTx(
     [ppId],
   );
 
-  await client.query(`DELETE FROM logistica_pendiente_confirmacion WHERE pedido_proveedor_id = $1`, [ppId]);
+  await client.query(
+    `DELETE FROM logistica_pendiente_confirmacion
+     WHERE pedido_proveedor_id = $1 AND estado <> 'EXITOSA'`,
+    [ppId],
+  );
 
   await client.query(
     `DELETE FROM factura_interna_detalle fid

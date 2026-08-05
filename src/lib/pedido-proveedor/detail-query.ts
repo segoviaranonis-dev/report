@@ -500,6 +500,8 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
            COALESCE(cv.descp_cliente, '—') AS cliente,
            fi.vendedor_id::text AS vendedor_id,
            COALESCE(
+             NULLIF(TRIM(pvr_vend.payload_json->>'vendedor_nombre'), ''),
+             NULLIF(TRIM(vu_fi.descp_usuario), ''),
              NULLIF(TRIM(vd_fi.descp_vendedor), ''),
              NULLIF(TRIM(vd_ic.descp_vendedor), ''),
              '—'
@@ -535,6 +537,8 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
       LIMIT 1
     ) ic ON true
     LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id
+    LEFT JOIN pedido_venta_rimec pvr_vend ON pvr_vend.id = fi.pedido_id
+    LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
     LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
     LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)

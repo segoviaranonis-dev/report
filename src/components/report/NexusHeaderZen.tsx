@@ -28,10 +28,13 @@ export type NexusNavKey =
   | "facturacion"
   | "deposito-rimec"
   | "logistica-ok"
+  | "automatizacion-informes"
+  | "mensajes-internos"
   | "bazzar-web-compra"
   | "bazzar-web-deposito"
   | "bazzar-web-motor"
   | "bazzar-web-stock"
+  | "bazzar-web-auditoria"
   | "informes"
   | "rrhh";
 

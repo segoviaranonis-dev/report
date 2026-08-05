@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
-import { ReportFooter } from "@/components/report/ReportFooter";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui";
 import {
+  COMPRA_WEB_TABS,
   ESTADO_COLOR,
-  ESTADO_FILTER_OPTIONS,
   ESTADO_LABEL,
-  type EstadoFilter,
-} from "@/lib/bazzar-web/compra-web/constants";
-import type {
+  type CompraWebTab,
+} from "@/lib/bazzar-web/compra-web/constants";import type {
   FacturaLineaLegacy,
   FiDetalleCanonico,
   FiRegistroRow,
@@ -26,8 +24,7 @@ import { buildControlCantidades } from "@/lib/bazzar-web/compra-web/control-cant
 const WEB_NAVY = "#1E3A5F";
 const WEB_ORANGE = "#F97316";
 
-type Metricas = { total: number; enviados: number; confirmados: number };
-
+type Metricas = { total: number; enviados: number; confirmados: number; borradores: number };
 type DetallePayload = {
   detail: TraspasoDetail;
   lineas: TraspasoDetalleLine[];
@@ -38,15 +35,13 @@ type DetallePayload = {
 };
 
 export function CompraWebClient() {
-  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("TODOS");
-  const [traspasos, setTraspasos] = useState<TraspasoListItem[]>([]);
-  const [metricas, setMetricas] = useState<Metricas>({ total: 0, enviados: 0, confirmados: 0 });
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [tab, setTab] = useState<CompraWebTab>("pendientes");
+  const [traspasosAll, setTraspasosAll] = useState<TraspasoListItem[]>([]);  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detalle, setDetalle] = useState<DetallePayload | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [confirmando, setConfirmando] = useState(false);
-  const [resyncing, setResyncing] = useState(false);
+  const [confirmandoId, setConfirmandoId] = useState<number | null>(null);
+  const [resyncingId, setResyncingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [tecnicaAbierta, setTecnicaAbierta] = useState(false);
@@ -56,25 +51,47 @@ export function CompraWebClient() {
     setLoadingList(true);
     setError(null);
     try {
-      const q = estadoFilter === "TODOS" ? "" : `?estado=${estadoFilter}`;
-      const res = await fetch(`/api/bazzar-web/compra/traspasos${q}`);
+      const res = await fetch("/api/bazzar-web/compra/traspasos");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al cargar traspasos");
       if (data.configured === false) {
         setConfigured(false);
-        setTraspasos([]);
+        setTraspasosAll([]);
         return;
       }
       setConfigured(true);
-      setTraspasos(data.traspasos ?? []);
-      setMetricas(data.metricas ?? { total: 0, enviados: 0, confirmados: 0 });
+      const list: TraspasoListItem[] = data.traspasos ?? [];
+      setTraspasosAll(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {
       setLoadingList(false);
     }
-  }, [estadoFilter]);
+  }, []);
 
+  const metricas = useMemo<Metricas>(() => {
+    return {
+      total: traspasosAll.length,
+      enviados: traspasosAll.filter((t) => t.estado === "ENVIADO").length,
+      confirmados: traspasosAll.filter((t) => t.estado === "CONFIRMADO").length,
+      borradores: traspasosAll.filter((t) => t.estado === "BORRADOR").length,
+    };
+  }, [traspasosAll]);
+
+  const tabCounts: Record<CompraWebTab, number> = useMemo(
+    () => ({
+      pendientes: metricas.enviados,
+      transito: metricas.borradores,
+      confirmados: metricas.confirmados,
+    }),
+    [metricas],
+  );
+
+  const estadoTab = COMPRA_WEB_TABS.find((t) => t.id === tab)?.estado ?? "ENVIADO";
+  const traspasos = useMemo(
+    () => traspasosAll.filter((t) => t.estado === estadoTab),
+    [traspasosAll, estadoTab],
+  );
   const loadDetail = useCallback(async (id: number) => {
     setLoadingDetail(true);
     setError(null);
@@ -104,205 +121,214 @@ export function CompraWebClient() {
     loadList();
   }, [loadList]);
 
-  async function resyncGradas() {
-    if (!selectedId) return;
-    setResyncing(true);
+  async function resyncGradas(id: number) {
+    setResyncingId(id);
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch(`/api/bazzar-web/compra/traspasos/${selectedId}/resync`, {
+      const res = await fetch(`/api/bazzar-web/compra/traspasos/${id}/resync`, {
         method: "POST",
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Resync falló");
       setSuccess(
-        `Gradas resincronizadas: ${data.paresAntes} → ${data.paresDespues} p (FI ${data.fiPares}).`,
+        `Gradas resincronizadas (${id}): ${data.paresAntes} → ${data.paresDespues} p (FI ${data.fiPares}).`,
       );
-      await loadDetail(selectedId);
+      if (selectedId === id) await loadDetail(id);
+      await loadList();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al resincronizar");
     } finally {
-      setResyncing(false);
+      setResyncingId(null);
     }
   }
 
-  async function confirmarRecepcion() {
-    if (!selectedId || !detalle) return;
-    setConfirmando(true);
+  async function confirmarRecepcion(id: number) {
+    const trp = traspasosAll.find((t) => t.id === id);
+    const pares = trp?.fi_pares || trp?.pares_detalle || 0;
+    const ok = window.confirm(
+      `¿Confirmar recepción de ${trp?.numero_registro ?? id}?\n` +
+        `${pares.toLocaleString("es-PY")} pares → ingreso ALM_WEB + Stock Sano + tienda.`,
+    );
+    if (!ok) return;
+
+    setConfirmandoId(id);
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch(`/api/bazzar-web/compra/traspasos/${selectedId}/confirmar`, {
+      const res = await fetch(`/api/bazzar-web/compra/traspasos/${id}/confirmar`, {
         method: "POST",
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "No se pudo confirmar");
       setSuccess(data.message);
-      setSelectedId(null);
-      setDetalle(null);
+      if (selectedId === id) {
+        setSelectedId(null);
+        setDetalle(null);
+      }
+      setTab("confirmados");
       await loadList();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al confirmar");
     } finally {
-      setConfirmando(false);
+      setConfirmandoId(null);
     }
   }
 
   const puedeConfirmar =
     detalle?.detail.estado === "ENVIADO" || detalle?.detail.estado === "BORRADOR";
 
+  function volverLista() {
+    setSelectedId(null);
+    setDetalle(null);
+    setSuccess(null);
+    setError(null);
+  }
+
   return (
-    <div className="min-h-screen bg-app-bg text-neutral-ink">
-      <NexusGlobalHeader maxWidthClass="max-w-6xl" />
-
-      <div className="mx-auto flex max-w-6xl gap-6 px-6 py-8">
-        {/* Sidebar — gemelo sidebar.py */}
-        <aside className="hidden w-44 shrink-0 lg:block">
-          <p
-            className="mb-3 text-xs font-bold uppercase tracking-widest"
-            style={{ color: WEB_ORANGE }}
-          >
-            Compra Web
-          </p>
-          <label className="sr-only" htmlFor="cw-estado">
-            Estado
-          </label>
-          <select
-            id="cw-estado"
-            value={estadoFilter}
-            onChange={(e) => {
-              setEstadoFilter(e.target.value as EstadoFilter);
-              setSelectedId(null);
-              setDetalle(null);
-            }}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            {ESTADO_FILTER_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-          {selectedId && (
-            <>
-              <hr className="my-4 border-slate-200" />
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedId(null);
-                  setDetalle(null);
-                  setSuccess(null);
-                  setError(null);
-                }}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
-              >
-                ← Volver
-              </button>
-            </>
-          )}
-        </aside>
-
-        <main className="min-w-0 flex-1">
-          <header className="mb-6">
-            <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
-              ← Inicio
-            </Link>
-            <h1 className="mt-2 font-serif text-2xl font-light" style={{ color: WEB_NAVY }}>
-              Compra Web
-            </h1>
-            <p className="text-sm text-slate-600">
-              Recepción de mercadería enviada desde Facturación RIMEC · solo cliente{" "}
-              <strong>5000</strong> (canal e-commerce)
+    <>
+      {/* Flujo operativo — paridad Aprobaciones */}
+      <section className="border-b border-neutral-300 bg-white py-4">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-2 text-sm text-neutral-700">
+            <p>
+              <strong className="text-rimec-azul-dark">Flujo:</strong> Facturación RIMEC envía traspaso{" "}
+              <code className="rounded bg-neutral-100 px-1 text-xs">ENVIADO</code> →{" "}
+              <strong>Pendientes</strong> (confirmar recepción) → ingreso ALM_WEB_01 +{" "}
+              <strong>Stock Sano</strong> automático → tienda <strong>bazzar-web</strong> vendible.
             </p>
-          </header>
-
-          {/* Filtro móvil */}
-          <div className="mb-4 lg:hidden">
-            <select
-              value={estadoFilter}
-              onChange={(e) => {
-                setEstadoFilter(e.target.value as EstadoFilter);
-                setSelectedId(null);
-                setDetalle(null);
-              }}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-            >
-              {ESTADO_FILTER_OPTIONS.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+            <p className="text-xs text-neutral-600">
+              Publicar precios WEB (opcional):{" "}
+              <Link href="/bazzar-web/motor-precio" className="font-semibold text-rimec-azul hover:underline">
+                Motor de precio
+              </Link>
+              {" · "}
+              Ver stock:{" "}
+              <Link href="/bazzar-web/deposito-web" className="font-semibold text-rimec-azul hover:underline">
+                Depósito Web
+              </Link>
+            </p>
           </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {selectedId && (
+              <Button variant="secondary" size="sm" onClick={volverLista}>
+                ← Bandeja
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => void loadList()} disabled={loadingList}>
+              {loadingList ? "Refrescando…" : "Refrescar"}
+            </Button>
+          </div>
+        </div>
+      </section>
 
-          {!configured && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              DATABASE_URL no configurada en el servidor.
-            </div>
-          )}
+      {!selectedId && (
+        <section className="border-b-2 border-rimec-azul bg-app-bg py-3">
+          <div className="mx-auto flex max-w-6xl flex-wrap gap-2 px-6">
+            {COMPRA_WEB_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                  tab === t.id
+                    ? "bg-rimec-azul text-white shadow"
+                    : "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                }`}
+              >
+                {t.icon} {t.label}
+                <span className="ml-1.5 tabular-nums opacity-80">({tabCounts[t.id]})</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-              {success}
-            </div>
-          )}
+      <div className="mx-auto max-w-6xl px-6 py-6">
+        {!configured && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            DATABASE_URL no configurada en el servidor.
+          </div>
+        )}
 
-          {loadingDetail && (
-            <p className="text-sm text-slate-500">Cargando detalle…</p>
-          )}
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {success}
+          </div>
+        )}
 
-          {detalle && !loadingDetail ? (
-            <DetalleView
-              payload={detalle}
-              puedeConfirmar={puedeConfirmar}
-              confirmando={confirmando}
-              resyncing={resyncing}
-              tecnicaAbierta={tecnicaAbierta}
-              onToggleTecnica={() => setTecnicaAbierta((v) => !v)}
-              onConfirmar={confirmarRecepcion}
-              onResync={resyncGradas}
-            />
-          ) : !selectedId ? (
-            <ListaView
-              traspasos={traspasos}
-              metricas={metricas}
-              loading={loadingList}
-              onSelect={loadDetail}
-            />
-          ) : null}
-        </main>
+        {loadingDetail && <p className="text-sm text-slate-500">Cargando detalle…</p>}
+
+        {detalle && !loadingDetail ? (
+          <DetalleView
+            payload={detalle}
+            puedeConfirmar={puedeConfirmar}
+            confirmando={confirmandoId === selectedId}
+            resyncing={resyncingId === selectedId}
+            tecnicaAbierta={tecnicaAbierta}
+            onToggleTecnica={() => setTecnicaAbierta((v) => !v)}
+            onConfirmar={() => selectedId && void confirmarRecepcion(selectedId)}
+            onResync={() => selectedId && void resyncGradas(selectedId)}
+          />
+        ) : !selectedId ? (
+          <ListaView
+            tab={tab}
+            traspasos={traspasos}
+            metricas={metricas}
+            loading={loadingList}
+            confirmandoId={confirmandoId}
+            resyncingId={resyncingId}
+            onSelect={loadDetail}
+            onConfirmar={(id) => void confirmarRecepcion(id)}
+            onResync={(id) => void resyncGradas(id)}
+          />
+        ) : null}
       </div>
-
-      <ReportFooter />
-    </div>
+    </>
   );
 }
-
 function ListaView({
+  tab,
   traspasos,
   metricas,
   loading,
+  confirmandoId,
+  resyncingId,
   onSelect,
+  onConfirmar,
+  onResync,
 }: {
+  tab: CompraWebTab;
   traspasos: TraspasoListItem[];
   metricas: Metricas;
   loading: boolean;
+  confirmandoId: number | null;
+  resyncingId: number | null;
   onSelect: (id: number) => void;
+  onConfirmar: (id: number) => void;
+  onResync: (id: number) => void;
 }) {
   if (loading) return <p className="text-sm text-slate-500">Cargando traspasos…</p>;
 
+  const tabMeta = COMPRA_WEB_TABS.find((t) => t.id === tab)!;
+
   if (!traspasos.length) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-700">
-        <p>No hay traspasos disponibles.</p>
-        <p className="mt-2 text-slate-500">
-          Los traspasos aparecen cuando Facturación envía a Web Bazar una FAC-INT del cliente{" "}
-          <strong>5000</strong> únicamente.
+      <div className="rounded-lg border-2 border-dashed border-neutral-300 bg-white px-6 py-10 text-center">
+        <p className="font-serif text-lg text-rimec-azul-dark">
+          Sin traspasos en <strong>{tabMeta.label}</strong>
+        </p>
+        <p className="mt-2 text-sm text-neutral-600">
+          {tab === "pendientes"
+            ? "Cuando Facturación envíe a Web Bazar (cliente 5000), aparecen aquí para confirmar recepción."
+            : tab === "confirmados"
+              ? "Los confirmados ya ingresaron stock al Depósito Web y aplicaron Stock Sano."
+              : "Traspasos en borrador antes del envío desde Facturación."}
         </p>
       </div>
     );
@@ -310,61 +336,118 @@ function ListaView({
 
   return (
     <>
-      <div className="mb-6 grid grid-cols-3 gap-4">
-        <MetricBox label="Traspasos" value={metricas.total} />
-        <MetricBox label="Listos p/ Recibir" value={metricas.enviados} />
-        <MetricBox label="Confirmados" value={metricas.confirmados} />
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricBox label="Total bandeja" value={metricas.total} />
+        <MetricBox label="Pendientes" value={metricas.enviados} accent={WEB_ORANGE} />
+        <MetricBox label="En tránsito" value={metricas.borradores} />
+        <MetricBox label="Confirmados" value={metricas.confirmados} accent="#22C55E" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-3">
         {traspasos.map((trp) => {
           const eCol = ESTADO_COLOR[trp.estado] ?? "#94A3B8";
           const eLab = ESTADO_LABEL[trp.estado] ?? trp.estado;
+          const borderClass =
+            trp.estado === "ENVIADO"
+              ? "border-amber-500/60"
+              : trp.estado === "CONFIRMADO"
+                ? "border-emerald-500/50"
+                : "border-neutral-300";
+
+          const puedeConfirmarCard =
+            trp.estado === "ENVIADO" || trp.estado === "BORRADOR";
+          const busy = confirmandoId === trp.id || resyncingId === trp.id;
+          const paresFi = trp.fi_pares;
+          const paresTd = trp.pares_detalle;
+          const delta = paresFi > 0 ? paresFi - paresTd : 0;
+
           return (
             <article
               key={trp.id}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className={`rounded-lg border-2 bg-white shadow-sm ${borderClass}`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-[10px] uppercase text-slate-500">Traspaso</p>
-                  <p className="font-bold text-slate-900">{trp.numero_registro}</p>
-                  <p className="mt-1 text-xs text-slate-600">
-                    FAC: {trp.factura} · Compra: {trp.compra}
-                  </p>
+              <div className="px-4 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-rimec-azul">
+                      Traspaso · {eLab}
+                    </p>
+                    <p className="font-serif text-lg font-semibold text-rimec-azul-dark">
+                      {trp.numero_registro}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      FAC: <strong>{trp.factura}</strong> · Compra: {trp.compra}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500">{trp.fecha_traspaso ?? "—"}</p>
+                  </div>
+                  <span
+                    className="self-start rounded-md px-2.5 py-1 text-[11px] font-black uppercase tracking-wide"
+                    style={{ backgroundColor: `${eCol}22`, color: eCol }}
+                  >
+                    {eLab}
+                  </span>
                 </div>
-                <span
-                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold"
-                  style={{ backgroundColor: `${eCol}22`, color: eCol }}
-                >
-                  {eLab}
-                </span>
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                {trp.pares_detalle.toLocaleString("es-PY")} pares resueltos
-                {trp.fi_pares > 0 && (
-                  <>
-                    {" "}
-                    · FI {trp.fi_pares.toLocaleString("es-PY")} p
-                    {!trp.integridad_ok && (
-                      <span className="ml-1 font-semibold text-red-700">
-                        (Δ {trp.fi_pares - trp.pares_detalle})
-                      </span>
+
+                {paresFi > 0 && (
+                  <div
+                    className={`mt-3 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                      trp.integridad_ok
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-950"
+                        : "border-red-300 bg-red-50 text-red-950"
+                    }`}
+                  >
+                    <span className="font-bold uppercase text-[10px] tracking-wide">
+                      Integridad calzado
+                    </span>
+                    <span className="tabular-nums">
+                      FI <strong>{paresFi.toLocaleString("es-PY")}</strong> p
+                      {" · "}
+                      Detalle <strong>{paresTd.toLocaleString("es-PY")}</strong> p
+                    </span>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-black ${
+                        trp.integridad_ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                      }`}
+                    >
+                      {trp.integridad_ok ? "✓ CUADRA" : `✗ Δ ${delta > 0 ? "+" : ""}${delta}`}
+                    </span>
+                  </div>
+                )}
+
+                {puedeConfirmarCard ? (
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onConfirmar(trp.id)}
+                      className="flex-1 rounded-lg px-5 py-3.5 text-sm font-black uppercase tracking-wide text-white shadow-md transition hover:brightness-110 disabled:opacity-50"
+                      style={{ backgroundColor: WEB_ORANGE }}
+                    >
+                      {confirmandoId === trp.id
+                        ? "Procesando ingreso…"
+                        : `Confirmar recepción · ${(paresFi || paresTd).toLocaleString("es-PY")} p`}
+                    </button>
+                    {!trp.integridad_ok && paresFi > 0 && (
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        disabled={busy}
+                        onClick={() => onResync(trp.id)}
+                      >
+                        {resyncingId === trp.id ? "Resync…" : "Resync gradas"}
+                      </Button>
                     )}
-                  </>
-                )}{" "}
-                · {trp.fecha_traspaso ?? "—"}
-              </p>
-              <button
-                type="button"
-                onClick={() => onSelect(trp.id)}
-                className="mt-3 w-full rounded-lg px-3 py-2 text-sm font-semibold text-white"
-                style={{
-                  backgroundColor: trp.estado === "ENVIADO" ? WEB_NAVY : "#64748B",
-                }}
-              >
-                Ver detalle
-              </button>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => onSelect(trp.id)}
+                  className="mt-3 text-xs font-semibold text-rimec-azul hover:underline"
+                >
+                  Ver detalle FI / tallas (opcional) →
+                </button>
+              </div>
             </article>
           );
         })}
@@ -373,17 +456,27 @@ function ListaView({
   );
 }
 
-function MetricBox({ label, value }: { label: string; value: number }) {
+function MetricBox({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: string;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: WEB_NAVY }}>
+    <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-500">{label}</p>
+      <p
+        className="text-xl font-semibold tabular-nums"
+        style={{ color: accent ?? WEB_NAVY }}
+      >
         {value}
       </p>
     </div>
   );
 }
-
 function DetalleView({
   payload,
   puedeConfirmar,
@@ -472,10 +565,18 @@ function DetalleView({
         </div>
       ) : detail.estado === "CONFIRMADO" ? (
         <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          Recepción confirmada — stock ingresado al Depósito Web.
+          <p className="font-semibold">Recepción confirmada — stock en Depósito Web</p>
+          <p className="mt-1 text-xs text-green-900">
+            Stock Sano + precios WEB se aplicaron al confirmar. La tienda{" "}
+            <strong>bazzar-web</strong> muestra artículos con estado SANO en{" "}
+            <code className="text-[10px]">v_stock_web</code>. Opcional: republicar en{" "}
+            <Link href="/bazzar-web/motor-precio" className="font-semibold underline">
+              Motor de precio
+            </Link>
+            .
+          </p>
         </div>
       ) : null}
-
       {docRef ? (
         fi ? (
           <div>

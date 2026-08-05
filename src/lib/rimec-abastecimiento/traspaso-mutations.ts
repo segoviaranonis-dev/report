@@ -2,8 +2,11 @@
  * Traspaso + combinacion — gemelo compra_legal/logic.py + facturacion/logic.py
  */
 import type { PoolClient } from "pg";
-import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonical";
+import { gradesJsonTallasTraspaso } from "@/lib/pedido-proveedor/grades-json-canonical";
 import { ALM_TRANSITO, ALM_WEB_BAZAR } from "./constants";
+
+const RE_GRADA_NUM_638 = /^(\d+)\((\d+)\)(\d+)$/;
+const RE_GRADA_LET_638 = /^([A-Za-z]+)\((\d+)\)([A-Za-z]+)$/;
 
 export type ItemTallas = {
   linea: string;
@@ -91,7 +94,7 @@ export function scaleGradesToPares(grades: Record<string, number>, pares: number
   return tallas;
 }
 
-/** Parsea grada textual RIMEC (ej. `38(1 2 3 3 2 1)43`, `37/8(2-4-4-2)43/4`). */
+/** Parsea grada textual RIMEC calzado (ej. `38(1 2 3 3 2 1)43`). */
 export function gradasFmtToTallas(gradasFmt: string): Record<string, number> {
   if (!gradasFmt.includes("(") || !gradasFmt.includes(")")) return {};
   try {
@@ -114,28 +117,104 @@ export function gradasFmtToTallas(gradasFmt: string): Record<string, number> {
   }
 }
 
+/**
+ * Grada abierta 638 Carlos: `1(1)1` · `P(1)M` · `4/6/8` · `10`.
+ * 1 fila = 1 talle = N prendas (pares de FI).
+ */
+export function gradaAbierta638ToTallas(gradasFmt: string, pares = 1): Record<string, number> {
+  const s = String(gradasFmt ?? "").trim();
+  if (!s) return {};
+  const qty = Math.max(1, Math.trunc(Number(pares) || 1));
+  let m = s.match(RE_GRADA_NUM_638);
+  if (m) return { [m[1]]: qty };
+  m = s.match(RE_GRADA_LET_638);
+  if (m) return { [m[1].toUpperCase()]: qty };
+  if (/^[A-Za-z]{1,3}$/.test(s)) return { [s.toUpperCase()]: qty };
+  if (/^\d{1,2}(\/\d{1,2})+$/.test(s)) return { [s]: qty };
+  if (/^\d{1,2}$/.test(s)) {
+    const n = Number(s);
+    if (n >= 1 && n <= 16) return { [s]: qty };
+  }
+  return {};
+}
+
+/** Escala abierta 638 (no curva zapato): 1 clave → pares FI. */
+export function scaleGradesAbierta638(
+  grades: Record<string, number>,
+  pares: number,
+): Record<string, number> {
+  const entries = Object.entries(grades)
+    .map(([k, q]) => [String(k).replace(/^t/i, ""), Number(q)] as const)
+    .filter(([, q]) => Number.isFinite(q) && q > 0);
+  if (!entries.length || pares <= 0) return {};
+  if (entries.length === 1) return { [entries[0][0]]: pares };
+  const suma = entries.reduce((a, [, q]) => a + q, 0);
+  if (suma <= 0) return {};
+  if (suma === pares) {
+    const out: Record<string, number> = {};
+    for (const [k, q] of entries) out[k] = q;
+    return out;
+  }
+  const factor = pares / suma;
+  const out: Record<string, number> = {};
+  let assigned = 0;
+  const ranked = entries.map(([k, q]) => {
+    const exact = q * factor;
+    const base = Math.floor(exact);
+    assigned += base;
+    return { k, base, frac: exact - base };
+  });
+  let remain = pares - assigned;
+  ranked.sort((a, b) => b.frac - a.frac || a.k.localeCompare(b.k));
+  for (const r of ranked) {
+    if (remain <= 0) break;
+    r.base += 1;
+    remain -= 1;
+  }
+  for (const r of ranked) {
+    if (r.base > 0) out[r.k] = r.base;
+  }
+  return out;
+}
+
 export function extractTallasFromFiRow(row: {
   grades_json: unknown;
   linea_snapshot: unknown;
   pares: number;
 }): Record<string, number> {
   let tallas: Record<string, number> = {};
-  const grades = gradesJsonSoloTallas(row.grades_json);
+  const grades = gradesJsonTallasTraspaso(row.grades_json);
   if (Object.keys(grades).length && row.pares > 0) {
-    tallas = scaleGradesToPares(grades, row.pares);
+    const shoeKeys = Object.keys(grades).filter((k) => tallaKeyToNum(k) != null);
+    tallas =
+      shoeKeys.length === Object.keys(grades).length
+        ? scaleGradesToPares(grades, row.pares)
+        : scaleGradesAbierta638(grades, row.pares);
   }
   if (!Object.keys(tallas).length && row.linea_snapshot) {
     const snap = parseJsonRecord(row.linea_snapshot);
-    const fmt = snap ? String(snap.gradas_fmt ?? snap.grada ?? "") : "";
+    const fmt = snap
+      ? String(snap.gradas_fmt ?? snap.grada ?? snap.am_talle ?? snap.talle ?? "")
+      : "";
     if (fmt) {
-      const raw = gradasFmtToTallas(fmt);
-      tallas =
-        row.pares > 0 && Object.keys(raw).length
-          ? scaleGradesToPares(raw, row.pares)
-          : raw;
+      const abierta = gradaAbierta638ToTallas(fmt, row.pares);
+      if (Object.keys(abierta).length) {
+        tallas = abierta;
+      } else {
+        const raw = gradasFmtToTallas(fmt);
+        tallas =
+          row.pares > 0 && Object.keys(raw).length
+            ? scaleGradesToPares(raw, row.pares)
+            : raw;
+      }
     }
     if (!Object.keys(tallas).length && snap?.tallas && typeof snap.tallas === "object") {
-      tallas = scaleGradesToPares(snap.tallas as Record<string, number>, row.pares);
+      const raw = gradesJsonTallasTraspaso(snap.tallas);
+      const shoeKeys = Object.keys(raw).filter((k) => tallaKeyToNum(k) != null);
+      tallas =
+        shoeKeys.length === Object.keys(raw).length && Object.keys(raw).length
+          ? scaleGradesToPares(raw, row.pares)
+          : scaleGradesAbierta638(raw, row.pares);
     }
   }
   // Prohibido volcar todo a t37: rompe la grada (caja 8/12).
@@ -155,6 +234,56 @@ export async function getNextTraspasoNum(client: PoolClient, anio: number): Prom
   return `TRP-${anio}-${String(ultimo + 1).padStart(4, "0")}`;
 }
 
+/** Quita prefijo K de códigos Kyly (`K1000059` → `1000059`, `K70170` → `70170`). */
+function stripPrefijoK(cod: string): string {
+  const s = String(cod ?? "").trim();
+  if (/^K\d+/i.test(s)) return s.slice(1);
+  return s;
+}
+
+function sistemaTalla638(etiqueta: string): "NUMERICO" | "FRACCIONARIO" | "TEXTUAL" {
+  const e = etiqueta.trim();
+  if (e.includes("/")) return "FRACCIONARIO";
+  if (/^\d{1,2}$/.test(e)) return "NUMERICO";
+  return "TEXTUAL";
+}
+
+/** Asegura fila en `talla` (UNIQUE talla_etiqueta). Grada abierta 638: 1·P·M·4/6/8… */
+export async function ensureTallaId(client: PoolClient, talla: string): Promise<number | null> {
+  const etiq = String(talla ?? "").trim();
+  if (!etiq) return null;
+  const found = await client.query<{ id: number }>(
+    `SELECT id FROM talla WHERE talla_etiqueta = $1 LIMIT 1`,
+    [etiq],
+  );
+  if (found.rows[0]?.id != null) return Number(found.rows[0].id);
+
+  const sistema = sistemaTalla638(etiq);
+  // talla_valor es numeric: solo dígitos; P/M/G y 4/6/8 → NULL
+  const tallaValor = /^\d{1,2}$/.test(etiq) ? Number(etiq) : null;
+  await client.query("SAVEPOINT sp_ensure_talla");
+  try {
+    const ins = await client.query<{ id: number }>(
+      `
+      INSERT INTO talla (talla_valor, talla_etiqueta, sistema, activo)
+      VALUES ($1, $2, $3, true)
+      ON CONFLICT (talla_etiqueta) DO UPDATE SET talla_etiqueta = EXCLUDED.talla_etiqueta
+      RETURNING id
+      `,
+      [tallaValor, etiq, sistema],
+    );
+    await client.query("RELEASE SAVEPOINT sp_ensure_talla");
+    return ins.rows[0]?.id != null ? Number(ins.rows[0].id) : null;
+  } catch {
+    await client.query("ROLLBACK TO SAVEPOINT sp_ensure_talla");
+    const again = await client.query<{ id: number }>(
+      `SELECT id FROM talla WHERE talla_etiqueta = $1 LIMIT 1`,
+      [etiq],
+    );
+    return again.rows[0]?.id != null ? Number(again.rows[0].id) : null;
+  }
+}
+
 export async function resolveCombinacionId(
   client: PoolClient,
   linea: string,
@@ -168,15 +297,30 @@ export async function resolveCombinacionId(
   const tallaCod = String(talla).trim();
   const matCod = String(mat).trim();
   const colCod = String(col).trim();
+  const matBare = stripPrefijoK(matCod);
+  const colBare = stripPrefijoK(colCod);
 
-  const matMatch = `
+  const tallaId = await ensureTallaId(client, tallaCod);
+  if (tallaId == null) return null;
+
+  // Material: descripción · código exacto · código sin K · K||codigo (NO K||linea suelto — false positive).
+  const matMatch = (pMat: string, pBare: string) => `
     (
-      NULLIF(btrim(mat.descripcion), '') = $4
-      OR mat.codigo_proveedor::text = $4
-      OR ('K' || l.codigo_proveedor::text) = $4
+      NULLIF(btrim(mat.descripcion), '') = ${pMat}
+      OR mat.codigo_proveedor::text = ${pMat}
+      OR mat.codigo_proveedor::text = ${pBare}
+      OR ('K' || mat.codigo_proveedor::text) = ${pMat}
+      OR (mat.codigo_proveedor::text = l.codigo_proveedor::text AND ('K' || l.codigo_proveedor::text) = ${pMat})
     )
   `;
-  const colMatch = `(col.nombre = $5 OR col.codigo_proveedor::text = $5)`;
+  const colMatch = (pCol: string, pBare: string) => `
+    (
+      col.nombre = ${pCol}
+      OR col.codigo_proveedor::text = ${pCol}
+      OR col.codigo_proveedor::text = ${pBare}
+      OR ('K' || col.codigo_proveedor::text) = ${pCol}
+    )
+  `;
 
   const found = await client.query<{ id: number }>(
     `
@@ -184,38 +328,37 @@ export async function resolveCombinacionId(
     FROM combinacion c
     JOIN linea l ON l.id = c.linea_id AND l.codigo_proveedor::text = $1
     JOIN referencia r ON r.id = c.referencia_id AND r.codigo_proveedor::text = $2 AND r.linea_id = l.id
-    JOIN talla tl ON tl.id = c.talla_id AND tl.talla_etiqueta = $3
-    JOIN material mat ON mat.id = c.material_id AND ${matMatch}
-    JOIN color col ON col.id = c.color_id AND ${colMatch}
+    JOIN talla tl ON tl.id = c.talla_id AND tl.id = $3
+    JOIN material mat ON mat.id = c.material_id AND ${matMatch("$4", "$6")}
+    JOIN color col ON col.id = c.color_id AND ${colMatch("$5", "$7")}
     LIMIT 1
     `,
-    [lineaCod, refCod, tallaCod, matCod, colCod],
+    [lineaCod, refCod, tallaId, matCod, colCod, matBare, colBare],
   );
   if (found.rows[0]?.id) return found.rows[0].id;
 
-  const ids = await client.query<{ linea_id: number; ref_id: number; mat_id: number; col_id: number; talla_id: number }>(
+  const ids = await client.query<{ linea_id: number; ref_id: number; mat_id: number; col_id: number }>(
     `
-    SELECT l.id AS linea_id, r.id AS ref_id, mat.id AS mat_id, col.id AS col_id, tl.id AS talla_id
+    SELECT l.id AS linea_id, r.id AS ref_id, mat.id AS mat_id, col.id AS col_id
     FROM linea l
     JOIN referencia r ON r.linea_id = l.id AND r.codigo_proveedor::text = $2
-    JOIN talla tl ON tl.talla_etiqueta = $3
-    JOIN material mat ON mat.proveedor_id = l.proveedor_id AND ${matMatch}
-    JOIN color col ON col.proveedor_id = l.proveedor_id AND ${colMatch}
+    JOIN material mat ON mat.proveedor_id = l.proveedor_id AND ${matMatch("$3", "$5")}
+    JOIN color col ON col.proveedor_id = l.proveedor_id AND ${colMatch("$4", "$6")}
     WHERE l.codigo_proveedor::text = $1
     LIMIT 1
     `,
-    [lineaCod, refCod, tallaCod, matCod, colCod],
+    [lineaCod, refCod, matCod, colCod, matBare, colBare],
   );
   if (!ids.rows.length) return null;
 
-  const { linea_id, ref_id, mat_id, col_id, talla_id } = ids.rows[0];
+  const { linea_id, ref_id, mat_id, col_id } = ids.rows[0];
   const ins = await client.query<{ id: number }>(
     `
     INSERT INTO combinacion (linea_id, referencia_id, material_id, color_id, talla_id, activo_web)
     VALUES ($1, $2, $3, $4, $5, false)
     RETURNING id
     `,
-    [linea_id, ref_id, mat_id, col_id, talla_id],
+    [linea_id, ref_id, mat_id, col_id, tallaId],
   );
   return ins.rows[0]?.id ?? null;
 }

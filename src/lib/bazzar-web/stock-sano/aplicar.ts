@@ -4,7 +4,11 @@
  */
 import type { PoolClient } from "pg";
 import { ALM_WEB_BAZAR } from "@/lib/bazzar-web/compra-web/constants";
-import { LPN_CASO_LATERAL_SQL, LPN_CASO_SELECT } from "@/lib/bazzar-web/motor-precio/lpn-caso-sql";
+import {
+  LPN_CASO_GROUP_BY,
+  LPN_CASO_LATERAL_SQL,
+  LPN_CASO_SELECT,
+} from "@/lib/bazzar-web/motor-precio/lpn-caso-sql";
 
 const STOCK_DET_SQL = `
 WITH det AS (
@@ -32,7 +36,7 @@ WITH det AS (
     AND m.estado = 'CONFIRMADO'
     AND m.tipo = 'INGRESO_COMPRA'
   GROUP BY c.id, l.id, r.id, mat.id, mat.descripcion, l.codigo_proveedor, r.codigo_proveedor,
-           pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio
+           ${LPN_CASO_GROUP_BY}
   HAVING SUM(md.cantidad * md.signo) > 0
 )
 SELECT * FROM det ORDER BY linea, referencia, material, combinacion_id

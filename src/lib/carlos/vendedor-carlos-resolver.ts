@@ -21,9 +21,11 @@ export const CASOS_ORDEN = [
   "ACT-BRSPORT",
   "CARTERAS",
   "PROMOCIONAL",
+  "LIQUIDACION",
   "CLASICOS",
   "TENIS",
   "CHINELO",
+  "REGULAR",
   "BR-VZ-MD-ML-MKA-O",
 ] as const;
 
@@ -35,6 +37,7 @@ export function normalizeVendedorNombre(raw: string | null | undefined): string 
   if (n === "IRMA") return "YRMA";
   if (n === "GRACIELA") return "GRICELDA";
   if (n === "LUIS") return "LUISLV";
+  if (n === "ADMINISTRACION" || n === "ADMINISTRACIÓN") return "HECTOR";
   if (n.startsWith("EDUARDO")) return "EDUARDO ARAUJO G.";
   if (n.startsWith("ENRIQUE")) return "ENRIQUE";
   return n;
@@ -60,7 +63,9 @@ export function extractCasoCanonicoFromText(
  * Caso comercial Carlos.
  * 1) Clave Hoja2 en el string (aunque empiece con PE ·)
  * 2) Payload lotes/facturas
- * 3) Fallback BR-VZ solo si no hay clave comercial detectable
+ * 3) Fallback BR-VZ = **columna default Excel Hoja2** (código vendedor).
+ *    NO significa mercadería proveedor 654: un PE `PE · sdrm…` sin
+ *    PROMOCIONAL/CARTERAS/… también cae acá (ej. KYLY 638).
  */
 export function resolveCasoComercialCarlos(
   caso: string | null | undefined,
@@ -86,12 +91,7 @@ export function resolveCasoComercialCarlos(
     }
   }
 
-  const raw = String(caso ?? "").trim();
-  if (raw && !extractCasoCanonicoFromText(raw)) {
-    // Texto no vacío sin clave Hoja2 (p.ej. solo "PE · 228") → calzado default.
-    return "BR-VZ-MD-ML-MKA-O";
-  }
-
+  // Texto PE batch sin clave Hoja2 (p.ej. "PE · sdrm2745") → slot Excel default.
   return "BR-VZ-MD-ML-MKA-O";
 }
 
@@ -118,12 +118,22 @@ function matchCaso(casoRaw: string | null | undefined, casos: Record<string, num
 
   if (casos[canonCaso] != null) return casos[canonCaso];
 
+  // PE REGULAR / LIQUIDACION sin columna Excel → mismo código que slot BR-VZ (default Hoja2).
+  if (canonCaso === "REGULAR" || canonCaso === "LIQUIDACION") {
+    const br = casos["BR-VZ-MD-ML-MKA-O"];
+    if (br != null) return br;
+  }
+
   const raw = canonCaso.toUpperCase();
   for (const key of CASOS_ORDEN) {
     const mk = key.toUpperCase();
     if (raw === mk || raw.includes(mk) || mk.includes(raw)) {
       const hit = casos[key];
       if (hit != null) return hit;
+      if (key === "REGULAR" || key === "LIQUIDACION") {
+        const br = casos["BR-VZ-MD-ML-MKA-O"];
+        if (br != null) return br;
+      }
     }
   }
 
@@ -233,6 +243,9 @@ export function resolveVendedorCarlosParaCsv(opts: {
   });
   if (cod) return cod;
   throw new Error(
-    `Código de vendedor real no resuelto · vendedor=${opts.vendedor_nombre ?? "—"} · caso=${casoCarlos}`,
+    `Código de vendedor real no resuelto · vendedor=${opts.vendedor_nombre ?? "—"} · caso=${casoCarlos}` +
+      (casoCarlos === "BR-VZ-MD-ML-MKA-O" || casoCarlos === "REGULAR"
+        ? " · (slot Excel default Hoja2 · no implica proveedor 654)"
+        : ""),
   );
 }

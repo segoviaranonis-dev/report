@@ -280,6 +280,7 @@ export function PeCardMiniatura({
               resetKey={!expanded}
               showVentas={showVentas}
               modoConfecciones={esConf}
+              tipoV2Id={p.tipo_v2_id}
             />
           </div>
         </div>

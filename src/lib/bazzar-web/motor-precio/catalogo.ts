@@ -4,15 +4,28 @@
  */
 import { getRimecPool } from "@/lib/rimec/pool";
 import { ALM_WEB_BAZAR } from "@/lib/bazzar-web/compra-web/constants";
-import { LPN_CASO_LATERAL_SQL, LPN_CASO_SELECT } from "./lpn-caso-sql";
+import { LPN_CASO_GROUP_BY, LPN_CASO_LATERAL_SQL, LPN_CASO_SELECT } from "./lpn-caso-sql";
 import type { CatalogoPrecioRow } from "./types";
+
+/** Paridad depósito-web: tipo_v2 desde proveedor_id (no hay columna linea.tipo_v2_id). */
+const TIPO_V2_ID_SQL = `
+  CASE l.proveedor_id
+    WHEN 654 THEN 1
+    WHEN 638 THEN 2
+    ELSE 1
+  END
+`;
 
 const CATALOGO_SQL = `
 WITH det AS (
   SELECT
     l.codigo_proveedor::text AS linea,
     r.codigo_proveedor::text AS referencia,
-    COALESCE(mat.descripcion, '—') AS material,
+    mat.codigo_proveedor::text AS material_codigo,
+    COALESCE(NULLIF(btrim(mat.descripcion), ''), mat.codigo_proveedor::text, '—') AS material,
+    col.codigo_proveedor::text AS color_codigo,
+    NULLIF(btrim(col.nombre::text), '') AS imagen_color_excel,
+    (${TIPO_V2_ID_SQL})::int AS tipo_v2_id,
     c.id AS combinacion_id,
     SUM(md.cantidad * md.signo)::int AS stock,
     ${LPN_CASO_SELECT},
@@ -34,20 +47,26 @@ WITH det AS (
   JOIN linea l ON l.id = c.linea_id
   JOIN referencia r ON r.id = c.referencia_id
   LEFT JOIN material mat ON mat.id = c.material_id
+  LEFT JOIN color col ON col.id = c.color_id
   LEFT JOIN pedido_proveedor pp ON pp.id = NULLIF(tr.snapshot_json->>'id_pp', '')::int
   LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
   ${LPN_CASO_LATERAL_SQL}
   WHERE m.almacen_destino_id = $1
     AND m.estado = 'CONFIRMADO'
     AND m.tipo = 'INGRESO_COMPRA'
-  GROUP BY l.codigo_proveedor, r.codigo_proveedor, mat.descripcion, c.id,
-           pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio
+  GROUP BY l.codigo_proveedor, r.codigo_proveedor, mat.codigo_proveedor, mat.descripcion,
+           col.codigo_proveedor, col.nombre, l.proveedor_id, c.id,
+           ${LPN_CASO_GROUP_BY}
   HAVING SUM(md.cantidad * md.signo) > 0
 )
 SELECT
   linea,
   referencia,
-  material,
+  material_codigo,
+  MAX(material) AS material,
+  MAX(color_codigo) AS color_codigo,
+  MAX(imagen_color_excel) AS imagen_color_excel,
+  MAX(tipo_v2_id)::int AS tipo_v2_id,
   SUM(stock)::int AS stock_pares,
   MAX(lpn)::float AS lpn,
   MAX(caso_precio) AS caso_precio,
@@ -61,8 +80,8 @@ SELECT
   MAX(precio_publicado)::float AS precio_web_publicado,
   COUNT(DISTINCT combinacion_id)::int AS combinaciones
 FROM det
-GROUP BY linea, referencia, material
-ORDER BY linea, referencia, material
+GROUP BY linea, referencia, material_codigo
+ORDER BY linea, referencia, material_codigo
 `;
 
 export async function getCatalogoPrecios(): Promise<CatalogoPrecioRow[]> {
@@ -71,6 +90,10 @@ export async function getCatalogoPrecios(): Promise<CatalogoPrecioRow[]> {
     linea: string;
     referencia: string;
     material: string;
+    material_codigo: string | null;
+    color_codigo: string | null;
+    imagen_color_excel: string | null;
+    tipo_v2_id: number | null;
     stock_pares: number;
     lpn: number | null;
     caso_precio: string | null;
@@ -84,6 +107,10 @@ export async function getCatalogoPrecios(): Promise<CatalogoPrecioRow[]> {
     linea: r.linea,
     referencia: r.referencia,
     material: r.material,
+    material_codigo: r.material_codigo,
+    color_codigo: r.color_codigo,
+    imagen_color_excel: r.imagen_color_excel,
+    tipo_v2_id: r.tipo_v2_id != null ? Number(r.tipo_v2_id) : null,
     stock_pares: Number(r.stock_pares) || 0,
     lpn: r.lpn != null ? Number(r.lpn) : null,
     caso_precio: r.caso_precio,
@@ -144,7 +171,7 @@ export async function publicarPreciosWeb(): Promise<{
         WHERE m.almacen_destino_id = $1
           AND m.estado = 'CONFIRMADO'
           AND m.tipo = 'INGRESO_COMPRA'
-        GROUP BY c.id, pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio
+        GROUP BY c.id, ${LPN_CASO_GROUP_BY}
         HAVING SUM(md.cantidad * md.signo) > 0
       )
       SELECT

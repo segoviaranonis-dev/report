@@ -16,6 +16,8 @@ export type LogisticaPendienteRow = {
   entidad_am: EntidadAmLogistica;
   fecha_orden: string;
   id_cliente: number;
+  /** Código cliente Carlos · Logística Rimec (cabecera tradicional). */
+  codigo_cliente_carlos?: number | null;
   id_cadena: number | null;
   id_vendedor: number | null;
   /** Código Carlos col F · solo Logística Rimec (mostrar en fila FI). */
@@ -59,6 +61,8 @@ export type LogisticaPendienteRow = {
   obs_count: number;
   /** MIG-179: hay mensajes no leídos en esta pestaña */
   obs_no_leida: boolean;
+  /** Texto observación Carlos/Excel · siempre visible en orden tradicional Rimec */
+  observacion?: string | null;
 };
 
 export type LogisticaGrupoCliente = {
@@ -82,13 +86,13 @@ export type LogisticaGrupoDia = {
   cajas: number;
 };
 
-/** Nombre comercial: vendedor_v2 (catálogo) + fallback usuario_v2 / FI (PE legacy). */
+/** Nombre: logística.id_vendedor → catálogo; FI Web PE: usuario antes que vendedor_v2 (4.02.04.004). */
 const LOGISTICA_VENDEDOR_SELECT = `
   COALESCE(
     NULLIF(BTRIM(vd.descp_vendedor), ''),
     NULLIF(BTRIM(vu.descp_usuario), ''),
-    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
     NULLIF(BTRIM(vu_fi.descp_usuario), ''),
+    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
     '—'
   ) AS vendedor`;
 

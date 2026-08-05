@@ -53,7 +53,8 @@ import {
   PE_GRUPO_UNIFICADO_KEY,
   type LogisticaStatsPp,
 } from "@/lib/logistica-ok/queries-bandeja";
-import { groupLogisticaRimecPorEntidad } from "@/lib/logistica-rimec/group-entidad";
+import { groupLogisticaRimecPorCliente, groupLogisticaRimecPorEntidad } from "@/lib/logistica-rimec/group-entidad";
+import type { LogisticaRimecGrupoCliente } from "@/lib/logistica-rimec/group-entidad";
 import { ObsLogisticaGrupoIcon, ObsLogisticaIcon } from "./ObsLogisticaIcon";
 import {
   LogisticaFiDetalleCell,
@@ -64,6 +65,206 @@ import {
 function formatGs(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return Math.round(Number(n)).toLocaleString("es-PY");
+}
+
+/** Fecha YYYY-MM-DD → DD/MM/YY (listado Carlos). */
+function formatFechaCarlos(iso: string | null | undefined): string {
+  if (!iso || iso.length < 10) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
+type OrdenRimecUi = "tradicional" | "origen";
+const ORDEN_RIMEC_STORAGE = "logistica-rimec-orden";
+
+function ChipEntidadCorto({ entidad }: { entidad: EntidadAmLogistica }) {
+  const m = ENTIDAD_AM_META[entidad];
+  const label =
+    entidad === "PROGRAMADO" ? "PROG" : entidad === "PE" ? "PE" : entidad === "CP" ? "CP" : entidad;
+  return (
+    <span
+      className="inline-flex rounded px-1.5 py-0.5 text-[9px] font-black uppercase text-white"
+      style={{ backgroundColor: m?.color ?? "#002B4E" }}
+      title={m?.label ?? entidad}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Tabla densa estilo LISTADO DE FACTURAS A ENTREGAR (PDF Graciela). */
+function TablaTradicionalRimec({
+  filas,
+  selected,
+  onToggle,
+  multiEnabled,
+  handlers,
+}: {
+  filas: LogisticaPendienteRow[];
+  tab: LogisticaTabId;
+  selected: Set<number>;
+  onToggle: (id: number) => void;
+  multiEnabled: boolean;
+  handlers: SemaforoHandlers;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1100px] border-collapse text-left font-mono text-[11px] leading-tight">
+        <thead>
+          <tr className="border-b-2 border-slate-800 bg-slate-100 text-[9px] uppercase tracking-wide text-slate-700">
+            {multiEnabled && <th className="px-1.5 py-1.5 w-7">✓</th>}
+            <th className="px-1.5 py-1.5">Sem.</th>
+            <th className="min-w-[12rem] px-1.5 py-1.5">Observación</th>
+            <th className="px-1.5 py-1.5">Nro factura</th>
+            <th className="px-1.5 py-1.5">F. doc</th>
+            <th className="px-1.5 py-1.5">Tipo</th>
+            <th className="px-1.5 py-1.5">Lista</th>
+            <th className="px-1.5 py-1.5">A entregar</th>
+            <th className="px-1.5 py-1.5">Cod ven</th>
+            <th className="px-1.5 py-1.5">Vendedor</th>
+            <th className="px-1.5 py-1.5">Nro prev.</th>
+            <th className="px-1.5 py-1.5 text-right">Días</th>
+            <th className="px-1.5 py-1.5 text-right">Caj.</th>
+            <th className="px-1.5 py-1.5 text-right">Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((row) => {
+            const obs = (row.observacion ?? "").trim();
+            const tieneObs = obs.length > 0;
+            return (
+              <tr
+                key={row.id}
+                className="border-b border-slate-200 align-top hover:bg-amber-50/40"
+              >
+                {multiEnabled && (
+                  <td className="px-1.5 py-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => onToggle(row.id)}
+                      aria-label={`Seleccionar ${row.nro_factura}`}
+                    />
+                  </td>
+                )}
+                <td className="px-1.5 py-1.5">
+                  <SemaforoTresPelotas row={row} handlers={handlers} />
+                </td>
+                <td
+                  className={`max-w-[16rem] px-1.5 py-1.5 text-[10px] leading-snug ${
+                    tieneObs
+                      ? "line-clamp-3 whitespace-pre-wrap bg-amber-50 font-semibold text-amber-950"
+                      : "text-slate-400"
+                  }`}
+                  title={tieneObs ? obs : undefined}
+                >
+                  {tieneObs ? obs : "—"}
+                </td>
+                <td className="px-1.5 py-1.5 font-bold tabular-nums text-slate-900">
+                  {row.factura_carlos || row.nro_factura || "—"}
+                </td>
+                <td className="px-1.5 py-1.5 tabular-nums">{formatFechaCarlos(row.fecha_orden)}</td>
+                <td className="px-1.5 py-1.5">
+                  <ChipEntidadCorto entidad={row.entidad_am} />
+                </td>
+                <td className="max-w-[4.5rem] truncate px-1.5 py-1.5" title={row.marca}>
+                  {row.marca || "—"}
+                </td>
+                <td className="px-1.5 py-1.5 tabular-nums">
+                  {formatFechaCarlos(row.fecha_entrega_cliente)}
+                </td>
+                <td className="px-1.5 py-1.5 tabular-nums text-violet-900">
+                  {row.codigo_vendedor_carlos != null && row.codigo_vendedor_carlos > 0
+                    ? row.codigo_vendedor_carlos
+                    : "—"}
+                </td>
+                <td className="max-w-[7rem] truncate px-1.5 py-1.5 uppercase" title={row.vendedor}>
+                  {row.vendedor || "—"}
+                </td>
+                <td className="px-1.5 py-1.5 tabular-nums">
+                  {row.nro_pedido_externo?.trim() || "—"}
+                </td>
+                <td className="px-1.5 py-1.5 text-right font-semibold tabular-nums text-amber-800">
+                  {row.dias_atraso}
+                </td>
+                <td className="px-1.5 py-1.5 text-right tabular-nums">
+                  {row.cajas.toLocaleString("es-PY")}
+                </td>
+                <td className="px-1.5 py-1.5 text-right tabular-nums">
+                  {formatGs(row.monto_neto)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AcordeonClientesTradicional({
+  grupos,
+  tab,
+  openCliente,
+  setOpenCliente,
+  selected,
+  onToggle,
+  multiEnabled,
+  handlers,
+}: {
+  grupos: LogisticaRimecGrupoCliente[];
+  tab: LogisticaTabId;
+  openCliente: Record<string, boolean>;
+  setOpenCliente: Dispatch<SetStateAction<Record<string, boolean>>>;
+  selected: Set<number>;
+  onToggle: (id: number) => void;
+  multiEnabled: boolean;
+  handlers: SemaforoHandlers;
+}) {
+  return (
+    <div className="space-y-2">
+      {grupos.map((g) => {
+        const open = openCliente[g.key] ?? true;
+        return (
+          <div
+            key={g.key}
+            className="overflow-hidden rounded border border-slate-400 bg-white shadow-sm"
+          >
+            <button
+              type="button"
+              onClick={() => setOpenCliente((o) => ({ ...o, [g.key]: !open }))}
+              className="flex w-full items-center justify-between border-b border-slate-300 bg-slate-50 px-3 py-2 text-left hover:bg-slate-100"
+            >
+              <span className="font-serif text-sm font-bold text-slate-900">
+                ({g.codigo_cliente}) {g.cliente}
+              </span>
+              <span className="font-mono text-[10px] font-semibold text-slate-600">
+                {g.n_fi} FI · {g.cajas.toLocaleString("es-PY")} c · {formatGs(g.monto)} Gs{" "}
+                {open ? "▲" : "▼"}
+              </span>
+            </button>
+            {open && (
+              <>
+                <TablaTradicionalRimec
+                  filas={g.filas}
+                  tab={tab}
+                  selected={selected}
+                  onToggle={onToggle}
+                  multiEnabled={multiEnabled}
+                  handlers={handlers}
+                />
+                <div className="flex justify-end gap-6 border-t border-slate-300 bg-slate-50 px-3 py-1.5 font-mono text-[11px] font-bold tabular-nums text-slate-800">
+                  <span>{g.cajas.toLocaleString("es-PY")} cajas</span>
+                  <span>{formatGs(g.monto)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 /** Pedido externo legible: PE no muestra el batch pe-import completo en la fila. */
@@ -975,9 +1176,12 @@ export type LogisticaOkModo = "proceso" | "rimec";
 export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo } = {}) {
   const apiBase = modo === "rimec" ? "/api/logistica-rimec" : "/api/logistica-ok";
   const esRimec = modo === "rimec";
-  const [tab, setTab] = useState<LogisticaTabId>("entregas");
+  /** Rimec: General (orden tradicional). Proceso: se corrige al cargar ACL. */
+  const [tab, setTab] = useState<LogisticaTabId>(esRimec ? "general" : "entregas");
   const [tabsPermitidas, setTabsPermitidas] = useState<LogisticaTabId[]>([]);
   const [categoriaSesion, setCategoriaSesion] = useState<string>("");
+  /** Sin sesión / sin pestañas · mensaje claro (no “Sin filas”). */
+  const [sinSesion, setSinSesion] = useState(false);
   /** No pedir bandeja hasta saber pestañas del perfil (evita 403 general en JEFE/VENDEDOR). */
   const [aclReady, setAclReady] = useState(false);
   const fetchGen = useRef(0);
@@ -1009,6 +1213,8 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
   const [openCadenaResumen, setOpenCadenaResumen] = useState<Record<string, boolean>>({});
   const [openDia, setOpenDia] = useState<Record<string, boolean>>({});
   const [openChofer, setOpenChofer] = useState<Record<string, boolean>>({});
+  const [openClienteTrad, setOpenClienteTrad] = useState<Record<string, boolean>>({});
+  const [ordenRimec, setOrdenRimec] = useState<OrdenRimecUi>("tradicional");
   const [pdfBusyId, setPdfBusyId] = useState<number | null>(null);
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -1140,21 +1346,32 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
         const res = await fetch("/api/auth/me", { credentials: "same-origin" });
         const data = await res.json();
         if (res.ok && data.user) {
-          const cat = String(data.user.categoria || data.user.role || "").toUpperCase();
+          const cat = String(
+            data.user.categoria || data.user.role || "",
+          ).toUpperCase();
           setCategoriaSesion(cat);
+          setSinSesion(false);
           const tabs = tabsPermitidasLogistica(cat);
           setTabsPermitidas(tabs);
-          setTab((prev) => (tabs.includes(prev) ? prev : tabInicialLogistica(cat)));
+          // Rimec DIOS/ADMIN: preferir General (orden tradicional). JEFE: su inicial.
+          if (esRimec && tabs.includes("general")) {
+            setTab("general");
+          } else {
+            setTab(tabInicialLogistica(cat));
+          }
         } else {
           setTabsPermitidas([]);
+          setSinSesion(true);
         }
       } catch {
         setTabsPermitidas([]);
+        setSinSesion(true);
       } finally {
         setAclReady(true);
+        setLoading(false);
       }
     })();
-  }, []);
+  }, [esRimec]);
 
   useEffect(() => {
     if (!aclReady) return;
@@ -1218,6 +1435,35 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
     if (!esTabGeneral) return gruposPedidoDuro;
     return enriquecerGruposConStatsPp(groupLogisticaPorPedidoDuro(filasFiltradas), statsPorPp);
   }, [esRimec, esTabGeneral, gruposPedidoDuro, filasFiltradas, statsPorPp]);
+
+  const gruposClienteTradicional = useMemo(
+    () => (esRimec ? groupLogisticaRimecPorCliente(filasFiltradas) : []),
+    [esRimec, filasFiltradas],
+  );
+
+  const esVistaTradicionalRimec =
+    esRimec &&
+    ordenRimec === "tradicional" &&
+    (tab === "general" || tab === "general_exitoso" || tab === "confirmadas");
+
+  useEffect(() => {
+    if (!esRimec || typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem(ORDEN_RIMEC_STORAGE);
+      if (raw === "tradicional" || raw === "origen") setOrdenRimec(raw);
+    } catch {
+      /* ignore */
+    }
+  }, [esRimec]);
+
+  useEffect(() => {
+    if (!esRimec || typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem(ORDEN_RIMEC_STORAGE, ordenRimec);
+    } catch {
+      /* ignore */
+    }
+  }, [esRimec, ordenRimec]);
 
   const gruposVendedorFiltrados = useMemo(
     () => groupLogisticaPorVendedorTipoMarcaPp(filasFiltradas),
@@ -1539,15 +1785,17 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
         ? gruposExitosasHistorico.length > 0
         : tab === "entregas"
           ? gruposDiaChoferFiltrados.length > 0
-          : tab === "confirmadas"
-            ? esRimec
-              ? gruposPedidoFiltrados.length > 0
-              : gruposTipoFiltrados.length > 0
-            : gruposPedidoFiltrados.length > 0;
+          : esVistaTradicionalRimec
+            ? gruposClienteTradicional.length > 0
+            : tab === "confirmadas"
+              ? esRimec
+                ? gruposPedidoFiltrados.length > 0
+                : gruposTipoFiltrados.length > 0
+              : gruposPedidoFiltrados.length > 0;
 
   return (
     <>
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className={`mx-auto px-6 py-10 ${esRimec ? "max-w-7xl" : "max-w-6xl"}`}>
         <Link href="/logistica-ok" className="text-sm font-semibold text-rimec-azul hover:underline">
           ← Logística OK
         </Link>
@@ -1567,19 +1815,43 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
         </h1>
         <p className="mt-2 text-sm text-neutral-700">
           {esRimec
-            ? "Mismo embudo que Proceso · origen Excel/Carlos · color violeta"
+            ? "Listado Carlos · orden tradicional por cliente · observación siempre visible"
             : "Filtros multi-select · PDF = resultado filtrado · atraso desde publicación PP"}
         </p>
 
         {esRimec ? (
           <div className="mt-4 rounded-xl border-4 border-violet-500 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-4 py-3">
             <p className="text-xs font-black uppercase tracking-widest text-violet-900">
-              Logística Rimec · backlog Carlos
+              Logística Rimec · listado Carlos
             </p>
             <p className="mt-1 text-sm font-bold text-violet-950">
-              Tres bloques PE · Programado · CP · atraso en cabecera · multi-select vendedores · detalle con
-              miniaturas. Tabla <code className="text-xs">logistica_rimec_pendiente</code>.
+              Inicio = <strong>Orden tradicional</strong> (por cliente · obs columna visible). Alternativa:{" "}
+              <strong>Ordenar por origen</strong> (PE · Programado · CP).
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setOrdenRimec("tradicional")}
+                className={`rounded-lg px-3 py-2 text-xs font-bold uppercase ${
+                  ordenRimec === "tradicional"
+                    ? "bg-violet-800 text-white"
+                    : "border border-violet-400 bg-white text-violet-900"
+                }`}
+              >
+                Orden tradicional
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrdenRimec("origen")}
+                className={`rounded-lg px-3 py-2 text-xs font-bold uppercase ${
+                  ordenRimec === "origen"
+                    ? "bg-violet-800 text-white"
+                    : "border border-violet-400 bg-white text-violet-900"
+                }`}
+              >
+                Ordenar por origen
+              </button>
+            </div>
           </div>
         ) : (
           <div className="mt-4 rounded-xl border-4 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3">
@@ -1814,7 +2086,32 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>
         ) : !hayDatos ? (
           <p className="mt-8 rounded-xl border border-dashed border-slate-300 px-4 py-12 text-center text-slate-500">
-            Sin filas en esta pestaña.
+            {sinSesion || !tabsKey ? (
+              <>
+                Sesión requerida.{" "}
+                <Link href="/login" className="font-semibold text-rimec-azul hover:underline">
+                  Iniciá sesión
+                </Link>{" "}
+                y volvé a Logística Rimec · pestaña <strong>General</strong>.
+              </>
+            ) : tab === "entregas" ? (
+              <>
+                Sin filas en Entregas. Si buscás el listado Carlos, abrí{" "}
+                <button
+                  type="button"
+                  className="font-semibold text-rimec-azul hover:underline"
+                  onClick={() => {
+                    if (tabsPermitidas.includes("general")) setTab("general");
+                    else if (tabsPermitidas.includes("confirmadas")) setTab("confirmadas");
+                  }}
+                >
+                  {tabsPermitidas.includes("general") ? "General" : "Confirmadas"}
+                </button>
+                .
+              </>
+            ) : (
+              "Sin filas en esta pestaña."
+            )}
           </p>
         ) : tab === "vendedor" ? (
           <div className="mt-6 space-y-3">
@@ -1979,7 +2276,18 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
           </div>
         ) : tab === "confirmadas" ? (
           <div className="mt-6">
-            {esRimec ? (
+            {esVistaTradicionalRimec ? (
+              <AcordeonClientesTradicional
+                grupos={gruposClienteTradicional}
+                tab={tab}
+                openCliente={openClienteTrad}
+                setOpenCliente={setOpenClienteTrad}
+                selected={selected}
+                onToggle={toggle}
+                multiEnabled={multiEnabled}
+                handlers={handlers}
+              />
+            ) : esRimec ? (
               <AcordeonPedidoDuro
                 grupos={gruposPedidoFiltrados}
                 tab={tab}
@@ -2014,6 +2322,19 @@ export function LogisticaOkClient({ modo = "proceso" }: { modo?: LogisticaOkModo
                 handlers={handlers}
               />
             )}
+          </div>
+        ) : esVistaTradicionalRimec ? (
+          <div className="mt-6">
+            <AcordeonClientesTradicional
+              grupos={gruposClienteTradicional}
+              tab={tab}
+              openCliente={openClienteTrad}
+              setOpenCliente={setOpenClienteTrad}
+              selected={selected}
+              onToggle={toggle}
+              multiEnabled={multiEnabled}
+              handlers={handlers}
+            />
           </div>
         ) : (
           <div className="mt-6">

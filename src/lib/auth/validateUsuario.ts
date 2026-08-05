@@ -7,7 +7,10 @@
  * SECURITY: Usa bcrypt para verificar contraseñas hasheadas.
  */
 
-import { getRimecPool } from '@/lib/rimec/pool'
+import {
+  getRimecPool,
+  isRimecDbUnreachableError,
+} from '@/lib/rimec/pool'
 import bcrypt from 'bcryptjs'
 import { aplicarAccesoCanonicoBzz } from '@/lib/auth/bzz-acceso'
 
@@ -173,6 +176,8 @@ export async function validateUsuario(
     }
   } catch (e) {
     console.error('[validateUsuario] excepción:', e)
+    // No enmascarar caída de BD como "contraseña incorrecta"
+    if (isRimecDbUnreachableError(e)) throw e
     return null
   }
 }

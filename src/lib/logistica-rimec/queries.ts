@@ -86,6 +86,7 @@ export function rimecToPendienteRow(r: LogisticaRimecRow): LogisticaPendienteRow
     entidad_am: entidad,
     fecha_orden: r.fecha_factura,
     id_cliente: idCliente,
+    codigo_cliente_carlos: Number(r.codigo_cliente_carlos) || idCliente,
     id_cadena: null,
     id_vendedor: resolved.idNexus ?? (r.id_vendedor ?? null),
     codigo_vendedor_carlos: codigoVend > 0 ? codigoVend : null,
@@ -119,6 +120,7 @@ export function rimecToPendienteRow(r: LogisticaRimecRow): LogisticaPendienteRow
     dias_atraso: diasAtrasoDesdePublicacion(r.fecha_factura),
     obs_count: r.observacion ? 1 : 0,
     obs_no_leida: Boolean(r.observacion),
+    observacion: r.observacion?.trim() || null,
   };
 }
 

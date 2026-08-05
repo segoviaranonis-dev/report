@@ -45,7 +45,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/logistica-ok', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/logistica-ok', '/automatizacion-informes', '/mensajes-internos', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
   // Base rol 3; Logística se abre con LOGISTICA_VENDEDOR_LANZADA vía isVendedorRimecReport
   3: ['/ventas-fotos'],
@@ -209,7 +209,9 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/bazzar-web/motor-precio') ||
       pathname.startsWith('/api/bazzar-web/motor-precio') ||
       pathname.startsWith('/bazzar-web/stock-sano') ||
-      pathname.startsWith('/api/bazzar-web/stock-sano')
+      pathname.startsWith('/api/bazzar-web/stock-sano') ||
+      pathname.startsWith('/bazzar-web/auditoria-integridad') ||
+      pathname.startsWith('/api/bazzar-web/auditoria-integridad')
     ) {
       if (rol_id !== 1) {
         if (isApiRoute) {
@@ -328,6 +330,14 @@ export const config = {
     '/deposito-rimec/:path*',
     '/logistica-ok',
     '/logistica-ok/:path*',
+    '/automatizacion-informes',
+    '/automatizacion-informes/:path*',
+    '/api/automatizacion-informes',
+    '/api/automatizacion-informes/:path*',
+    '/mensajes-internos',
+    '/mensajes-internos/:path*',
+    '/api/mensajes-internos',
+    '/api/mensajes-internos/:path*',
     '/holding/:path*',
     '/proceso-importacion/:path*',
     '/api/holding/:path*',

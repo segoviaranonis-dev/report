@@ -1,6 +1,7 @@
 /**
  * Agrupación UI Logística Rimec (sin deps de BD).
- * Orden Director: PE → PROGRAMADO → CP · atraso DESC dentro del acordeón.
+ * Orden tradicional = por cliente (PDF Carlos).
+ * Ordenar por origen = PE → PROGRAMADO → CP · atraso DESC.
  */
 import {
   ENTIDAD_AM_META,
@@ -13,7 +14,55 @@ import {
   type LogisticaPendienteRow,
 } from "@/lib/logistica-ok/queries-bandeja";
 
+/** Bloque cliente · listado Carlos (orden tradicional). */
+export type LogisticaRimecGrupoCliente = {
+  key: string;
+  codigo_cliente: number;
+  cliente: string;
+  filas: LogisticaPendienteRow[];
+  n_fi: number;
+  cajas: number;
+  monto: number;
+};
+
 const RIMEC_ENTIDAD_ORDER: EntidadAmLogistica[] = ["PE", "PROGRAMADO", "CP"];
+
+/** Agrupa por cliente Carlos · orden COD ASC · facturas por atraso DESC (PDF Graciela). */
+export function groupLogisticaRimecPorCliente(
+  filas: LogisticaPendienteRow[],
+): LogisticaRimecGrupoCliente[] {
+  const map = new Map<string, LogisticaPendienteRow[]>();
+  for (const f of filas) {
+    const cod = Number(f.codigo_cliente_carlos ?? f.id_cliente) || 0;
+    const key = `cli-${cod}`;
+    const bucket = map.get(key) ?? [];
+    bucket.push(f);
+    map.set(key, bucket);
+  }
+
+  return [...map.entries()]
+    .map(([key, rows]) => {
+      const head = rows[0]!;
+      const codigo = Number(head.codigo_cliente_carlos ?? head.id_cliente) || 0;
+      const sorted = [...rows].sort(
+        (a, b) =>
+          (b.dias_atraso ?? 0) - (a.dias_atraso ?? 0) ||
+          String(a.factura_carlos || a.nro_factura || "").localeCompare(
+            String(b.factura_carlos || b.nro_factura || ""),
+          ),
+      );
+      return {
+        key,
+        codigo_cliente: codigo,
+        cliente: (head.cliente ?? "").trim() || `CLI ${codigo}`,
+        filas: sorted,
+        n_fi: sorted.length,
+        cajas: sorted.reduce((s, r) => s + r.cajas, 0),
+        monto: sorted.reduce((s, r) => s + (r.monto_neto ?? 0), 0),
+      };
+    })
+    .sort((a, b) => a.codigo_cliente - b.codigo_cliente);
+}
 
 export function groupLogisticaRimecPorEntidad(
   filas: LogisticaPendienteRow[],

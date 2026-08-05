@@ -4,6 +4,10 @@
  */
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { SQL_FI_ES_PE } from "@/lib/facturacion/filters";
+import {
+  SQL_VENDEDOR_FI_DISPLAY,
+  SQL_VENDEDOR_FI_JOINS,
+} from "@/lib/facturacion/vendedor-fi-display";
 
 export type BovedaOrigen = "pronta-entrega" | "transito";
 
@@ -153,7 +157,7 @@ export async function listarBoveda(
         COALESCE(fi.marca, '—') AS marca,
         COALESCE(c.descp_cliente, fi.cliente_id::text, '—') AS cliente,
         COALESCE(fi.cliente_id::text, '—') AS codigo_cliente,
-        COALESCE(v.descp_usuario, '—') AS vendedor,
+        ${SQL_VENDEDOR_FI_DISPLAY} AS vendedor,
         COALESCE(fi.total_monto, 0)::text AS total_monto,
         COALESCE(fi.total_pares, 0)::text AS total_pares,
         fi.estado AS fi_estado,
@@ -164,7 +168,7 @@ export async function listarBoveda(
       FROM facturacion_boveda_rimec b
       JOIN factura_interna fi ON fi.id = b.factura_interna_id
       LEFT JOIN cliente_v2 c ON c.id_cliente = fi.cliente_id
-      LEFT JOIN usuario_v2 v ON v.id_usuario = fi.vendedor_id
+      ${SQL_VENDEDOR_FI_JOINS}
       WHERE b.origen = $1
       ORDER BY b.archivado_en DESC, b.id DESC
       LIMIT 500

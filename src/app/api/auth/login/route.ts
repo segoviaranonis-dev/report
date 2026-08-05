@@ -14,6 +14,10 @@ import {
   VENDEDOR_RIMEC_HOME,
   isVendedorRimecReport,
 } from '@/lib/auth/vendedor-rimec-report'
+import {
+  isRimecDbUnreachableError,
+  mensajeRimecDbOffline,
+} from '@/lib/rimec/pool'
 
 export async function POST(request: Request) {
   try {
@@ -60,6 +64,17 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('[API /auth/login] Error:', error)
+    if (isRimecDbUnreachableError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            'Base de datos no disponible (Supabase). No se puede validar la contraseña. Avisá a sistemas.',
+          detail: mensajeRimecDbOffline(error),
+          code: 'DB_UNREACHABLE',
+        },
+        { status: 503 },
+      )
+    }
     return NextResponse.json(
       { error: 'Error en el servidor' },
       { status: 500 }

@@ -176,6 +176,30 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     navKey: "logistica-ok",
     roles: [1, 3],
   },
+  {
+    href: "/automatizacion-informes",
+    title: "Automatización de informes",
+    shortLabel: "Informes auto",
+    description:
+      "Admin gerentes · catálogo · export Excel · envío SMTP servicio (2.3.1.35).",
+    icon: "⚙️",
+    group: "rimec",
+    navKey: "automatizacion-informes",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
+  {
+    href: "/mensajes-internos",
+    title: "Mensajes internos",
+    shortLabel: "Mensajes",
+    description:
+      "Bandeja Nexus por usuario · avisos y PDF pesados en backend (2.3.1.36).",
+    icon: "✉️",
+    group: "rimec",
+    navKey: "mensajes-internos",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
 
   // ── BAZZAR tiendas (2.3.2, 2.3.6, 2.3.9/tablet) ──
   {
@@ -266,6 +290,18 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     icon: "✓",
     group: "bazzar-web",
     navKey: "bazzar-web-stock",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
+  {
+    href: "/bazzar-web/auditoria-integridad",
+    title: "Auditoría integridad stock",
+    shortLabel: "Auditoría",
+    description:
+      "Cuadro stock ALM_WEB_01 + protocolo siameses Depósito Web ↔ tienda bazzar-web.",
+    icon: "🔍",
+    group: "bazzar-web",
+    navKey: "bazzar-web-auditoria",
     roles: [1],
     rimecAdminOnly: true,
   },

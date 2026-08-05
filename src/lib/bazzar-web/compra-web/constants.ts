@@ -54,3 +54,17 @@ export const ESTADO_LABEL: Record<string, string> = {
 export const ESTADO_FILTER_OPTIONS = ["TODOS", "ENVIADO", "CONFIRMADO", "BORRADOR"] as const;
 
 export type EstadoFilter = (typeof ESTADO_FILTER_OPTIONS)[number];
+
+/** Tabs UI — paridad Aprobaciones · default Pendientes */
+export type CompraWebTab = "pendientes" | "transito" | "confirmados";
+
+export const COMPRA_WEB_TABS: ReadonlyArray<{
+  id: CompraWebTab;
+  label: string;
+  icon: string;
+  estado: "ENVIADO" | "BORRADOR" | "CONFIRMADO";
+}> = [
+  { id: "pendientes", label: "Pendientes", icon: "📋", estado: "ENVIADO" },
+  { id: "transito", label: "En tránsito", icon: "🚚", estado: "BORRADOR" },
+  { id: "confirmados", label: "Confirmados", icon: "✓", estado: "CONFIRMADO" },
+] as const;

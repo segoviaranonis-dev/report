@@ -1,15 +1,35 @@
 /**
- * CSV ventas PE — formato Carlos stock pronta entrega.
- * Referencia canónica: csv's/stock's/ventas PE/7954_3114.csv
- * · TSV 14 cols · CRLF · sin BOM · fila 1 cabecera completa · resto solo cols 11–14
+ * CSV ventas PE — veneno Carlos (stock pronta entrega).
+ * Formato Director (inviolable — no alterar nombres/orden/cantidad de columnas):
+ * Cliente · Cod. Oper. · F. Pedido · Lista precios · cobrador · vendedor · DEPOSITO ·
+ * Des. 1–4 · Codigo Articulo · Cant. Pares · Precio sin descuento · Precio con descuento
+ *
+ * DEPOSITO = dato de CABECERA (una sola vez en la 1ª fila de datos): S00_D1 | S00_DEP2 | S00_D3
+ * Cant. Pares = cantidad por artículo (columna única — NO tres columnas de depósito).
  */
 import type { Pool } from "pg";
-import { brutoDesdeNeto, listaPrecioLabel } from "@/app/aprobaciones/lib/aprobaciones-utils";
+import {
+  brutoDesdeNeto,
+  listaPrecioLabel,
+  precioNetoCascada,
+} from "@/app/aprobaciones/lib/aprobaciones-utils";
 import { resolveCodOperCarlos } from "@/lib/carlos/plazo-carlos-resolver";
-import { resolveCodigoVendedorReal, resolveCasoComercialCarlos } from "@/lib/carlos/vendedor-carlos-resolver";
+import { resolveVendedorCarlosParaCsv } from "@/lib/carlos/vendedor-carlos-resolver";
+import {
+  type RimecCsvDepositoColumn,
+  RIMEC_SDRM_DEPOSIT_MAP,
+} from "@/lib/deposito-rimec/rimec-csv-sdrm";
 
+/** Valores legales permitidos en col DEPOSITO (cabecera FI). */
+export const PE_CSV_DEPOSITO_VALORES: RimecCsvDepositoColumn[] = [
+  "S00_D1",
+  "S00_DEP2",
+  "S00_D3",
+];
+
+/** Header canónico — 15 columnas · orden fijo · no tocar. */
 const HEADER =
-  "Cliente\tCod. Oper.\tF. Pedido\tLista precios\tcobrador\tvendedor\tDes. 1\tDes. 2\tDes. 3\tDes. 4\tCodigo Articulo\tCant. Pares\tPrecio sin descuento\tPrecio con descuento";
+  "Cliente\tCod. Oper.\tF. Pedido\tLista precios\tcobrador\tvendedor\tDEPOSITO\tDes. 1\tDes. 2\tDes. 3\tDes. 4\tCodigo Articulo\tCant. Pares\tPrecio sin descuento\tPrecio con descuento";
 
 const COBRADOR = "90";
 
@@ -19,6 +39,8 @@ export type PeVentasCsvRow = {
   fecha_pedido: string;
   lista_precios: string;
   vendedor: string;
+  /** Cabecera FI: S00_D1 | S00_DEP2 | S00_D3 — solo 1ª fila de datos. */
+  deposito: RimecCsvDepositoColumn;
   descuento_1: string;
   descuento_2: string;
   descuento_3: string;
@@ -42,12 +64,6 @@ type FiDetRow = {
   vendedor_id: string | null;
   vendedor_nombre: string | null;
   fecha_pedido: Date | string | null;
-  linea: string | null;
-  referencia: string | null;
-  material_code: string | null;
-  color_code: string | null;
-  grades_json: unknown;
-  grada_text: string | null;
   linea_snapshot: unknown;
   precio_unit: string | null;
   precio_neto: string | null;
@@ -60,8 +76,8 @@ type FiDetRow = {
   cod_oper_carlos: string | null;
   codigo_barras: string | null;
   pares: string | null;
-  cajas: string | null;
-  proveedor_importacion_id: string | null;
+  columna_stock_legal: string | null;
+  deposito_codigo: string | null;
 };
 
 function isPeFi(meta: { nro_factura: string; pp_id: number | null }): boolean {
@@ -90,7 +106,6 @@ function fmtDescCsv(n: string | null | undefined): string {
   return String(Math.trunc(v));
 }
 
-/** Cod. Oper. — traductor Carlos (Condiciones Hector col A). Sin fallback cliente+plazo. */
 function resolveCodOper(
   payload: unknown,
   clienteId: string | null,
@@ -115,19 +130,14 @@ function resolveVendedorCarlos(
   payload: unknown,
   codigoPinned?: string | null,
 ): string {
-  const casoCarlos = resolveCasoComercialCarlos(caso, payload);
-  const cod = resolveCodigoVendedorReal({
+  return resolveVendedorCarlosParaCsv({
     vendedor_nombre: vendedorNombre,
-    caso: casoCarlos,
+    caso,
+    payload,
     codigo_vendedor_carlos: codigoPinned,
   });
-  if (cod) return cod;
-  throw new Error(
-    `Código de vendedor real no resuelto · vendedor=${vendedorNombre ?? "—"} · caso=${casoCarlos}`,
-  );
 }
 
-/** Col A Excel SDRM · fallback stock por snapshot si ppd huérfano. */
 function resolveCodigoArticuloCarlos(r: FiDetRow): string {
   const barra = String(r.codigo_barras ?? "").trim();
   if (barra) return barra;
@@ -142,6 +152,23 @@ function resolveCodigoArticuloCarlos(r: FiDetRow): string {
   throw new Error(
     `CODIGO ARTICULO Carlos faltante · fid=${r.fid_id} · sin barra SDRM (654./638.)`,
   );
+}
+
+/** Resuelve valor cabecera DEPOSITO ∈ {S00_D1, S00_DEP2, S00_D3}. */
+export function resolveColumnaDepositoCarlos(
+  columnaLegal: string | null | undefined,
+  depositoCodigo: string | null | undefined,
+): RimecCsvDepositoColumn {
+  const raw = String(columnaLegal ?? "").trim().toUpperCase();
+  for (const col of PE_CSV_DEPOSITO_VALORES) {
+    if (raw === col) return col;
+  }
+  const dep = String(depositoCodigo ?? "").trim().toUpperCase();
+  const hit = RIMEC_SDRM_DEPOSIT_MAP.find(
+    (x) => x.deposito_codigo === dep || x.csvColumn === dep,
+  );
+  if (hit) return hit.csvColumn;
+  return "S00_D3";
 }
 
 function fmtCantidad(n: string | null | undefined): string {
@@ -162,17 +189,19 @@ function resolvePreciosLinea(r: FiDetRow): { bruto: string; neto: string } {
   const d4 = Number(r.descuento_4) || 0;
   const hayDesc = d1 + d2 + d3 + d4 > 0;
 
-  const netoRaw = Number(r.precio_neto);
-  const neto = Number.isFinite(netoRaw) && netoRaw > 0 ? netoRaw : Number(r.precio_unit);
-
   let bruto = Number(r.precio_base_snap);
   if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.precio_lista);
   if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.unit_fob_ajustado);
   if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.precio_unit);
-  if ((!Number.isFinite(bruto) || bruto <= 0) && Number.isFinite(neto) && neto > 0 && hayDesc) {
-    bruto = brutoDesdeNeto(neto, d1, d2, d3, d4);
+
+  const netoBd = Number(r.precio_neto);
+  if ((!Number.isFinite(bruto) || bruto <= 0) && Number.isFinite(netoBd) && netoBd > 0 && hayDesc) {
+    bruto = brutoDesdeNeto(netoBd, d1, d2, d3, d4);
   }
-  if (!Number.isFinite(bruto) || bruto <= 0) bruto = neto;
+  if (!Number.isFinite(bruto) || bruto <= 0) bruto = netoBd;
+
+  const neto =
+    hayDesc && bruto > 0 ? precioNetoCascada(bruto, d1, d2, d3, d4) : netoBd > 0 ? netoBd : bruto;
 
   return {
     bruto: fmtPrecioGs(bruto),
@@ -180,10 +209,23 @@ function resolvePreciosLinea(r: FiDetRow): { bruto: string; neto: string } {
   };
 }
 
-function mapDetalleRow(r: FiDetRow, cabecera: PeVentasCsvRow): PeVentasCsvRow {
+type CabeceraCsv = {
+  cliente_id: string;
+  cod_oper: string;
+  fecha_pedido: string;
+  lista_precios: string;
+  vendedor: string;
+  deposito: RimecCsvDepositoColumn;
+  descuento_1: string;
+  descuento_2: string;
+  descuento_3: string;
+  descuento_4: string;
+};
+
+function mapDetalleRow(r: FiDetRow, cab: CabeceraCsv): PeVentasCsvRow {
   const { bruto, neto } = resolvePreciosLinea(r);
   return {
-    ...cabecera,
+    ...cab,
     codigo_articulo: resolveCodigoArticuloCarlos(r),
     cant_pares: fmtCantidad(r.pares),
     precio_sin_descuento: bruto,
@@ -192,6 +234,10 @@ function mapDetalleRow(r: FiDetRow, cabecera: PeVentasCsvRow): PeVentasCsvRow {
   };
 }
 
+/**
+ * Fila 1 datos = cabecera FI completa (incl. DEPOSITO una vez) + 1er artículo.
+ * Filas siguientes = solo cols artículo (Codigo · Cant. Pares · precios).
+ */
 export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
   if (!rows.length) return "";
   const lines: string[] = [HEADER];
@@ -205,6 +251,7 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
       cab.lista_precios,
       COBRADOR,
       cab.vendedor,
+      cab.deposito,
       cab.descuento_1,
       cab.descuento_2,
       cab.descuento_3,
@@ -228,6 +275,7 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
         "",
         "",
         "",
+        "", // DEPOSITO vacío — solo cabecera
         "",
         "",
         "",
@@ -259,14 +307,13 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       COALESCE(fi.descuento_3, 0)::text AS descuento_3,
       COALESCE(fi.descuento_4, 0)::text AS descuento_4,
       fi.vendedor_id::text AS vendedor_id,
-      COALESCE(NULLIF(TRIM(u.descp_usuario), ''), NULLIF(TRIM(pvr.payload_json->>'vendedor_nombre'), '')) AS vendedor_nombre,
+      COALESCE(
+        NULLIF(TRIM(pvr.payload_json->>'vendedor_nombre'), ''),
+        NULLIF(TRIM(u.descp_usuario), ''),
+        NULLIF(TRIM(vd.descp_vendedor), ''),
+        '—'
+      ) AS vendedor_nombre,
       COALESCE(pp.fecha_arribo_real::timestamp, fi.fecha_confirmacion, fi.created_at) AS fecha_pedido,
-      TRIM(COALESCE(ppd.linea, fid.linea_snapshot->>'linea_codigo', fid.linea_snapshot->>'linea')) AS linea,
-      TRIM(COALESCE(ppd.referencia, fid.linea_snapshot->>'ref_codigo', fid.linea_snapshot->>'referencia')) AS referencia,
-      COALESCE(ppd.material_code, fid.linea_snapshot->>'material_code', fid.linea_snapshot->>'material_codigo') AS material_code,
-      COALESCE(ppd.color_code, fid.linea_snapshot->>'color_code', fid.linea_snapshot->>'color_codigo') AS color_code,
-      COALESCE(ppd.grades_json, fid.linea_snapshot->'grades_json', fid.linea_snapshot->'gradas') AS grades_json,
-      ppd.grada AS grada_text,
       fid.linea_snapshot,
       fid.precio_unit::text AS precio_unit,
       fid.precio_neto::text AS precio_neto,
@@ -275,22 +322,33 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       ppd.unit_fob_ajustado::text AS unit_fob_ajustado,
       fid.id AS fid_id,
       fid.pares::text AS pares,
-      fid.cajas::text AS cajas,
       COALESCE(
         pe_stg.codigo_barras,
         snap_stock.codigo_barras,
         NULLIF(TRIM(fid.linea_snapshot->>'codigo_barras'), ''),
         NULLIF(TRIM(fid.linea_snapshot->>'codigo_articulo'), '')
       ) AS codigo_barras,
-      pp.proveedor_importacion_id::text AS proveedor_importacion_id,
+      COALESCE(
+        pe_stg.columna_stock_legal,
+        CASE UPPER(TRIM(COALESCE(pp.deposito_codigo, pe_stg.deposito_codigo, '')))
+          WHEN 'D1' THEN 'S00_D1'
+          WHEN 'DEP2' THEN 'S00_DEP2'
+          WHEN 'D3' THEN 'S00_D3'
+          ELSE NULL
+        END
+      ) AS columna_stock_legal,
+      COALESCE(pp.deposito_codigo, pe_stg.deposito_codigo) AS deposito_codigo,
       NULLIF(TRIM(fi.caso), '') AS caso,
       pvr.payload_json
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
-    LEFT JOIN pedido_proveedor pp ON pp.id = ppd.pedido_proveedor_id
+    LEFT JOIN pedido_proveedor pp ON pp.id = COALESCE(ppd.pedido_proveedor_id, fi.pp_id)
     LEFT JOIN LATERAL (
-      SELECT NULLIF(btrim(s.codigo_barras), '') AS codigo_barras
+      SELECT
+        NULLIF(btrim(s.codigo_barras), '') AS codigo_barras,
+        NULLIF(btrim(s.columna_stock_legal), '') AS columna_stock_legal,
+        NULLIF(btrim(s.deposito_codigo), '') AS deposito_codigo
       FROM stock_pe_staging_migrated m
       JOIN stock_pronta_entrega_rimec s ON s.id = m.staging_id
       WHERE m.ppd_id = ppd.id
@@ -298,7 +356,10 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       LIMIT 1
     ) pe_stg ON TRUE
     LEFT JOIN LATERAL (
-      SELECT NULLIF(btrim(s.codigo_barras), '') AS codigo_barras
+      SELECT
+        NULLIF(btrim(s.codigo_barras), '') AS codigo_barras,
+        NULLIF(btrim(s.columna_stock_legal), '') AS columna_stock_legal,
+        NULLIF(btrim(s.deposito_codigo), '') AS deposito_codigo
       FROM stock_pronta_entrega_rimec s
       JOIN linea l ON l.id = s.linea_id
       JOIN referencia r ON r.id = s.referencia_id
@@ -313,6 +374,7 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
     ) snap_stock ON TRUE
     LEFT JOIN pedido_venta_rimec pvr ON pvr.id = fi.pedido_id
     LEFT JOIN usuario_v2 u ON u.id_usuario = fi.vendedor_id
+    LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = fi.vendedor_id
     WHERE fi.id = $1
       AND fi.estado = 'CONFIRMADA'
     ORDER BY fid.id
@@ -323,7 +385,8 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
   if (!rows.length) return [];
 
   const head = rows[0];
-  const cabeceraBase = {
+  const deposito = resolveColumnaDepositoCarlos(head.columna_stock_legal, head.deposito_codigo);
+  const cabeceraBase: CabeceraCsv = {
     cliente_id: String(head.cliente_id ?? "").trim(),
     cod_oper: resolveCodOper(head.payload_json, head.cliente_id, head.plazo_id, head.cod_oper_carlos),
     fecha_pedido: fmtFechaPedido(head.fecha_pedido),
@@ -331,15 +394,11 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       head.lista_precio_id != null ? Number(head.lista_precio_id) : 1,
     ),
     vendedor: resolveVendedorCarlos(head.vendedor_nombre, head.caso, head.payload_json, null),
+    deposito,
     descuento_1: fmtDescCsv(head.descuento_1),
     descuento_2: fmtDescCsv(head.descuento_2),
     descuento_3: fmtDescCsv(head.descuento_3),
     descuento_4: fmtDescCsv(head.descuento_4),
-    codigo_articulo: "",
-    cant_pares: "",
-    precio_sin_descuento: "",
-    precio_con_descuento: "",
-    fid_id: head.fid_id,
   };
 
   return rows.map((r) => mapDetalleRow(r, cabeceraBase));

@@ -1,8 +1,8 @@
 /**
- * Traductor vendedor FRANCIS → IDs sistema Carlos.
- * Espejo de: csv's/programado/casos francis.xlsx (Hoja1 · fila MATRIZ)
- * Nexus id_vendedor 9 = FRANCIS · Carlos id según matriz caso comercial.
+ * @deprecated Usar `@/lib/carlos/vendedor-carlos-resolver` (matriz Hoja2 completa).
  */
+import { resolveCodigoVendedorReal } from "@/lib/carlos/vendedor-carlos-resolver";
+
 export type FrancisTranslator = {
   nexusVendedorId: number;
   nombre: string;
@@ -27,18 +27,12 @@ export function loadFrancisTranslator(): FrancisTranslator {
   return FRANCIS_TRANSLATOR;
 }
 
-/** Caso comercial (nombre_caso_aplicado) → id vendedor Carlos. */
+/** @deprecated */
 export function carlosVendedorIdFrancis(
   casoNombre: string | null | undefined,
   translator: FrancisTranslator = FRANCIS_TRANSLATOR,
 ): number {
-  const raw = (casoNombre ?? "").trim().toUpperCase();
-  if (!raw) return translator.defaultCarlosId;
-
-  for (const [matriz, id] of Object.entries(translator.carlosByMatriz)) {
-    const mk = matriz.toUpperCase();
-    if (raw === mk || raw.includes(mk) || mk.includes(raw)) return id;
-  }
-
+  const cod = resolveCodigoVendedorReal({ vendedor_nombre: "FRANCIS", caso: casoNombre });
+  if (cod) return Number(cod);
   return translator.defaultCarlosId;
 }

@@ -6,7 +6,6 @@ import {
   enrichCsvFilasCompletas,
   type CsvCarlosRow,
 } from "@/lib/pedido-proveedor/csv-ventas-export";
-import { loadFrancisTranslator } from "@/lib/pedido-proveedor/csv-vendedor-francis";
 import { exportCsvPeVentasFi, isPeFi } from "@/lib/facturacion/csv-pe-ventas-export";
 
 /** Filas CSV Carlos — FI tránsito / PP (no PE). */
@@ -35,7 +34,13 @@ export async function fetchCsvCarlosRowsByFiId(pool: Pool, fiId: number): Promis
       COALESCE(fi.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, 0)::text AS descuento_3,
       COALESCE(fi.descuento_4, 0)::text AS descuento_4,
-      fi.vendedor_id::text AS vendedor_nexus_id
+      fi.vendedor_id::text AS vendedor_nexus_id,
+      COALESCE(
+        NULLIF(BTRIM(vu_fi.descp_usuario), ''),
+        NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
+        NULLIF(BTRIM(vd_ic.descp_vendedor), ''),
+        '—'
+      ) AS vendedor_nombre
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
@@ -53,13 +58,17 @@ export async function fetchCsvCarlosRowsByFiId(pool: Pool, fiId: number): Promis
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
     LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
     LEFT JOIN LATERAL (
-      SELECT icp.precio_evento_id
+      SELECT icp.precio_evento_id, ic.id_vendedor
       FROM intencion_compra_pedido icp
+      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
       WHERE icp.pedido_proveedor_id = fi.pp_id
         AND icp.precio_evento_id IS NOT NULL
       ORDER BY icp.id
       LIMIT 1
     ) icp ON TRUE
+    LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
+    LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
+    LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = icp.id_vendedor
     LEFT JOIN LATERAL (
       SELECT pe.nombre_evento AS evento_nombre
       FROM precio_evento pe
@@ -109,7 +118,7 @@ export async function exportCsvVentasFi(
       ? `${display}.csv`
       : csvCarlosFilename(meta.proforma ?? null, meta.pedido ?? meta.nro_factura);
   return {
-    content: buildCsvCarlosContent(rows, loadFrancisTranslator()),
+    content: buildCsvCarlosContent(rows),
     filename,
     rowCount: rows.length,
   };

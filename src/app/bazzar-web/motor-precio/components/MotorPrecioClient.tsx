@@ -548,13 +548,29 @@ function CatalogoTable({
                 className={`border-b border-slate-100 ${highlight === "warn" ? "bg-amber-50/50" : ""}`}
               >
                 <td className="px-2 py-2 align-middle">
-                  <DepositoProductThumb
-                    linea={r.linea}
-                    referencia={r.referencia}
-                    material={r.material}
-                    color=""
-                    size={36}
-                  />
+                  {/* NIIF + Ley Universal 2.01.04.021 · marco contain · códigos proveedor */}
+                  <div
+                    className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-rimec-azul/30 bg-white shadow-sm"
+                    title={
+                      r.tipo_v2_id === 2
+                        ? `${r.linea}_${r.imagen_color_excel ?? r.color_codigo ?? "?"}`
+                        : `${r.linea}-${r.referencia}-${r.material_codigo ?? "?"}-${r.color_codigo ?? "?"}`
+                    }
+                  >
+                    <DepositoProductThumb
+                      linea={r.linea}
+                      referencia={r.referencia}
+                      material={r.material_codigo ?? ""}
+                      color={r.color_codigo ?? ""}
+                      size={40}
+                      variant="frame"
+                      imageCtx={{
+                        tipoV2Id: r.tipo_v2_id,
+                        protocol: r.tipo_v2_id === 2 ? "638" : "654",
+                        imagenColorExcel: r.imagen_color_excel,
+                      }}
+                    />
+                  </div>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{r.linea}</td>
                 <td className="px-3 py-2 font-mono text-xs">{r.referencia}</td>

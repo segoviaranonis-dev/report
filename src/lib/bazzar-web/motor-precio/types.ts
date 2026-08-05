@@ -10,7 +10,16 @@ export type ReglaMarkup = {
 export type CatalogoPrecioRow = {
   linea: string;
   referencia: string;
+  /** Descripción material (UI). */
   material: string;
+  /** Código proveedor material — naming imagen 654 L-R-M-C. */
+  material_codigo: string | null;
+  /** Color representante con stock — naming imagen 654. */
+  color_codigo: string | null;
+  /** Color Excel Kyly (col.nombre) — stem 638 L_C. */
+  imagen_color_excel: string | null;
+  /** 1 calzado 654 · 2 confecciones 638 (desde linea.proveedor_id). */
+  tipo_v2_id: number | null;
   stock_pares: number;
   lpn: number | null;
   caso_precio: string | null;

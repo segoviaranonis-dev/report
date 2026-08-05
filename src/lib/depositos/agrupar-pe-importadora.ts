@@ -7,6 +7,7 @@ import {
   claveGradaEnTarjeta,
   isConfecciones638,
   parseGradaAbierta638,
+  sortGradaSiameseBazzar,
 } from "@/lib/deposito-rimec/grada-abierta-638";
 
 export type GradaImportadoraLine = {
@@ -164,6 +165,8 @@ export function agruparPeImportadora(
         totalVendidos += vend;
       }
 
+      const p = items[0];
+      const tipoV2 = p.tipo_v2_id;
       const gradas = Array.from(gradaMap.entries())
         .map(([curva, g]) => ({
           curva: curva.includes("|LPN:") ? curva.split("|LPN:")[0] : curva,
@@ -173,14 +176,9 @@ export function agruparPeImportadora(
           talle: g.talle,
         }))
         .filter((g) => g.pares > 0 || g.vendidos > 0)
-        .sort(
-          (a, b) =>
-            b.vendidos + b.pares - (a.vendidos + a.pares) ||
-            a.curva.localeCompare(b.curva, "es"),
-        );
+        .sort((a, b) => sortGradaSiameseBazzar(a, b, tipoV2));
 
       const totalPares = gradas.reduce((s, g) => s + g.pares, 0);
-      const p = items[0];
       const molKey = moleculeKey(p);
 
       return {

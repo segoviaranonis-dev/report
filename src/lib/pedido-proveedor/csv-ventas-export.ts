@@ -8,15 +8,25 @@ import { listaPrecioLabel } from "@/app/aprobaciones/lib/aprobaciones-utils";
 import { parseGradesJson } from "@/lib/pedido-proveedor/ala-norte-grades";
 import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonical";
 import {
-  carlosVendedorIdFrancis,
-  loadFrancisTranslator,
-  type FrancisTranslator,
-} from "./csv-vendedor-francis";
-import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
-import {
   casoLineaFromMapa,
   resolverEstiloListadoMotor,
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
+import { resolveVendedorCarlosParaCsv } from "@/lib/carlos/vendedor-carlos-resolver";
+import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
+
+/** Nombre comercial FI — Web PE: usuario primero (4.02.04.004); fallback vendedor_v2 / IC. */
+const VENDEDOR_NOMBRE_SQL = `
+  COALESCE(
+    NULLIF(BTRIM(vu_fi.descp_usuario), ''),
+    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
+    NULLIF(BTRIM(vd_ic.descp_vendedor), ''),
+    '—'
+  ) AS vendedor_nombre`;
+
+const VENDEDOR_JOINS_SQL = `
+  LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
+  LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
+  LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor`;
 
 /** Header único — sin fila instructiva (formato final Director). */
 const HEADER_FILA =
@@ -52,10 +62,12 @@ type CsvCarlosRow = {
   descuento_2: string | null;
   descuento_3: string | null;
   descuento_4: string | null;
-  /** PE / override — id numérico Carlos; si null → matriz Francis por caso */
+  /** PE / override — id numérico Carlos explícito */
   vendedor_carlos?: string | null;
-  /** FI cabecera · vendedor_v2.id_vendedor (Nexus) */
+  /** FI cabecera · vendedor_v2.id_vendedor o usuario_v2.id_usuario */
   vendedor_nexus_id?: string | null;
+  /** Nombre comercial para matriz Hoja2 */
+  vendedor_nombre?: string | null;
   /** Col ABoCR ya normalizada por L+R (pilares) */
   abocr?: string | null;
 };
@@ -222,20 +234,17 @@ export async function enrichCsvPilaresCanonical(
   });
 }
 
-/** Vendedor Carlos: FI cabecera manda; Francis (Nexus #9) → matriz por caso. */
+/** Vendedor Carlos — matriz Hoja2 (nombre + caso). */
 export function resolveCsvVendedorCarlos(
-  vendedorNexusId: string | null | undefined,
+  vendedorNombre: string | null | undefined,
   caso: string | null | undefined,
-  translator: FrancisTranslator = loadFrancisTranslator(),
+  override?: string | null,
 ): string {
-  const n = Number(vendedorNexusId);
-  if (Number.isFinite(n) && n > 0) {
-    if (n === translator.nexusVendedorId) {
-      return String(carlosVendedorIdFrancis(caso, translator));
-    }
-    return String(Math.trunc(n));
-  }
-  return String(carlosVendedorIdFrancis(caso, translator));
+  return resolveVendedorCarlosParaCsv({
+    vendedor_nombre: vendedorNombre,
+    caso,
+    override,
+  });
 }
 
 export async function enrichCsvFilasCompletas(
@@ -315,7 +324,8 @@ export async function fetchCsvCarlosRows(
       COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
       COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
-      fi.vendedor_id::text AS vendedor_nexus_id
+      fi.vendedor_id::text AS vendedor_nexus_id,
+      ${VENDEDOR_NOMBRE_SQL}
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
@@ -323,7 +333,7 @@ export async function fetchCsvCarlosRows(
     JOIN marca_v2 mv ON mv.id_marca = ppd.id_marca
     LEFT JOIN plazo_v2 pl_fi ON pl_fi.id_plazo = fi.plazo_id
     LEFT JOIN LATERAL (
-      SELECT ic.id_plazo, ic.numero_registro AS ic_nro,
+      SELECT ic.id_plazo, ic.numero_registro AS ic_nro, ic.id_vendedor,
              ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4
       FROM intencion_compra_pedido icp
       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
@@ -332,6 +342,7 @@ export async function fetchCsvCarlosRows(
       ORDER BY ic.id
       LIMIT 1
     ) ic ON TRUE
+    ${VENDEDOR_JOINS_SQL}
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = ic.id_plazo
     LEFT JOIN linea l
       ON l.proveedor_id = pp.proveedor_importacion_id
@@ -395,7 +406,8 @@ export async function fetchCsvCarlosRows(
       COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
       COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
-      fi.vendedor_id::text AS vendedor_nexus_id
+      fi.vendedor_id::text AS vendedor_nexus_id,
+      ${VENDEDOR_NOMBRE_SQL}
     FROM factura_interna fi
     LEFT JOIN intencion_compra ic
       ON ic.numero_registro = TRIM(fi.notas)
@@ -403,6 +415,7 @@ export async function fetchCsvCarlosRows(
        SELECT 1 FROM intencion_compra_pedido icp
        WHERE icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
      )
+    ${VENDEDOR_JOINS_SQL}
     LEFT JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
     LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
     LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
@@ -442,10 +455,7 @@ export async function fetchCsvCarlosRows(
   return enrichCsvFilasCompletas(pool, ppId, rows);
 }
 
-export function buildCsvCarlosContent(
-  rows: CsvCarlosRow[],
-  translator: FrancisTranslator = loadFrancisTranslator(),
-): string {
+export function buildCsvCarlosContent(rows: CsvCarlosRow[]): string {
   const lines: string[] = [HEADER_FILA];
   let prevBlock = "";
 
@@ -482,7 +492,7 @@ export function buildCsvCarlosContent(
         fmtDesc(r.descuento_4),
         r.vendedor_carlos != null && r.vendedor_carlos !== ""
           ? r.vendedor_carlos
-          : resolveCsvVendedorCarlos(r.vendedor_nexus_id, r.caso, translator),
+          : resolveCsvVendedorCarlos(r.vendedor_nombre, r.caso, r.vendedor_carlos),
         COBRADOR,
       ]),
     );
@@ -501,10 +511,9 @@ export async function exportCsvVentasPp(
   },
 ): Promise<{ content: string; filename: string; rowCount: number }> {
   const programado = opts.categoriaId === 3;
-  const translator = loadFrancisTranslator();
   const rows = await fetchCsvCarlosRows(pool, ppId, programado);
   return {
-    content: buildCsvCarlosContent(rows, translator),
+    content: buildCsvCarlosContent(rows),
     filename: csvCarlosFilename(opts.numeroProforma, opts.numeroRegistro),
     rowCount: rows.length,
   };
@@ -620,10 +629,9 @@ export async function exportCsvInicialPp(
   },
 ): Promise<{ content: string; filename: string; rowCount: number }> {
   const programado = opts.categoriaId === 3;
-  const translator = loadFrancisTranslator();
   const rows = await fetchCsvCarlosRowsInicial(pool, ppId, programado);
   return {
-    content: buildCsvCarlosContent(rows, translator),
+    content: buildCsvCarlosContent(rows),
     filename: csvCarlosInicialFilename(opts.numeroProforma, opts.numeroRegistro),
     rowCount: rows.length,
   };

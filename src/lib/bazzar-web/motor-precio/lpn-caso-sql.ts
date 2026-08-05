@@ -1,7 +1,15 @@
 /**
- * Resuelve LPN + caso comercial para ingresos ALM_WEB:
+ * Resuelve LPN + caso comercial para ingresos ALM_WEB.
+ *
+ * Orden de prioridad:
  * 1) PP clásico: snapshot id_pp → precio_lista del evento IC
- * 2) PE / FI sin pp_id: documento_ref → factura_interna → PPD (precio_lpn + descp_caso_snapshot)
+ * 2) PE / FI: documento_ref → factura_interna_detalle
+ *    - PPD vivo si existe
+ *    - si ppd_id huérfano: fid.precio_lista + caso en linea_snapshot / fi.caso
+ * 3) Stock Sano ya aplicado: stock_sano_deposito (L+R+M)
+ *
+ * Lección 2026-08-01: ~95% FID PE tenían ppd_id sin fila en pedido_proveedor_detalle
+ * → Motor precio mostraba LPN/CASO vacíos (103 SKUs).
  */
 export const LPN_CASO_LATERAL_SQL = `
   LEFT JOIN LATERAL (
@@ -20,27 +28,74 @@ export const LPN_CASO_LATERAL_SQL = `
   ) pl ON true
   LEFT JOIN LATERAL (
     SELECT
-      COALESCE(ppd.precio_lpn, ppd.unit_fob_ajustado)::numeric AS lpn,
-      COALESCE(NULLIF(btrim(ppd.descp_caso_snapshot), ''), 'DEFAULT') AS caso_precio
+      COALESCE(ppd.precio_lpn, ppd.unit_fob_ajustado, fid.precio_lista)::numeric AS lpn,
+      COALESCE(
+        NULLIF(btrim(ppd.descp_caso_snapshot), ''),
+        CASE
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%CARTERAS%' THEN 'CARTERAS'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%PROMOCIONAL%' THEN 'PROMOCIONAL'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%CHINELO%' THEN 'CHINELO'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%ACT-BRSPORT%' THEN 'ACT-BRSPORT'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%BR-VZ%' THEN 'BR-VZ-MD-ML-MKA-O'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%LIQUIDACION%' THEN 'DEFAULT'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%COMUN%' THEN 'DEFAULT'
+          ELSE NULL
+        END,
+        'DEFAULT'
+      ) AS caso_precio
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
-    JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+    LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
     WHERE fi.nro_factura = tr.documento_ref
-      AND ppd.linea = l.codigo_proveedor::text
-      AND ppd.referencia = r.codigo_proveedor::text
       AND (
-        c.material_id IS NULL
-        OR NULLIF(btrim(ppd.descp_material), '') = NULLIF(btrim(mat.descripcion), '')
-        OR ppd.descp_material = mat.codigo_proveedor::text
-        OR ppd.descp_material = ('K' || l.codigo_proveedor::text)
-        OR mat.codigo_proveedor::text = ppd.descp_material
+        (
+          (fid.linea_snapshot->>'linea_codigo') = l.codigo_proveedor::text
+          AND (fid.linea_snapshot->>'ref_codigo') = r.codigo_proveedor::text
+        )
+        OR (
+          ppd.id IS NOT NULL
+          AND ppd.linea = l.codigo_proveedor::text
+          AND ppd.referencia = r.codigo_proveedor::text
+          AND (
+            c.material_id IS NULL
+            OR NULLIF(btrim(ppd.descp_material), '') = NULLIF(btrim(mat.descripcion), '')
+            OR ppd.descp_material = mat.codigo_proveedor::text
+            OR ppd.descp_material = ('K' || l.codigo_proveedor::text)
+            OR mat.codigo_proveedor::text = ppd.descp_material
+          )
+        )
       )
-    ORDER BY ppd.precio_lpn DESC NULLS LAST, ppd.id DESC
+    ORDER BY
+      CASE WHEN ppd.id IS NOT NULL THEN 0 ELSE 1 END,
+      CASE
+        WHEN ppd.id IS NOT NULL
+          AND NULLIF(btrim(ppd.descp_material), '') = NULLIF(btrim(mat.descripcion), '')
+        THEN 0 ELSE 1
+      END,
+      COALESCE(ppd.precio_lpn, fid.precio_lista) DESC NULLS LAST,
+      fid.id DESC
     LIMIT 1
-  ) pe_pl ON tr.documento_ref LIKE 'PE-%'
+  ) pe_pl ON true
+  LEFT JOIN LATERAL (
+    SELECT
+      ssd.lpn::numeric AS lpn,
+      COALESCE(NULLIF(btrim(ssd.caso_codigo), ''), 'DEFAULT') AS caso_precio
+    FROM stock_sano_deposito ssd
+    WHERE ssd.almacen_id = m.almacen_destino_id
+      AND ssd.linea_id = l.id
+      AND ssd.referencia_id = r.id
+      AND ssd.material_id IS NOT DISTINCT FROM c.material_id
+    ORDER BY ssd.updated_at DESC NULLS LAST, ssd.id DESC
+    LIMIT 1
+  ) ssd_lp ON true
 `;
 
 export const LPN_CASO_SELECT = `
-  COALESCE(pl.lpn, pe_pl.lpn) AS lpn,
-  COALESCE(pl.nombre_caso_aplicado, pe_pl.caso_precio) AS caso_precio
+  COALESCE(pl.lpn, pe_pl.lpn, ssd_lp.lpn) AS lpn,
+  COALESCE(pl.nombre_caso_aplicado, pe_pl.caso_precio, ssd_lp.caso_precio) AS caso_precio
+`;
+
+/** Columnas a incluir en GROUP BY cuando se usa LPN_CASO_LATERAL_SQL */
+export const LPN_CASO_GROUP_BY = `
+  pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio, ssd_lp.lpn, ssd_lp.caso_precio
 `;

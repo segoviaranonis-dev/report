@@ -213,6 +213,19 @@
       },
       "nota": "Primera venta PE 638 (KYLY/MILON) 2026-08-03 · código Carlos Logística EXTRA 101 · no confundir con 654"
     },
+    "HECTOR": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      },
+      "nota": "Usuario DIOS / administración · código Carlos 90 (mismo slot BZZ* admin) · CSV PE 2026-08-04"
+    },
     "DARIO": {
       "cod_nexus_excel": 5,
       "casos": {
