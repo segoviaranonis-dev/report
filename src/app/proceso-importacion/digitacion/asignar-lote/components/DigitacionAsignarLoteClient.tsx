@@ -24,6 +24,30 @@ type IcData = {
   precio_evento_id: number | null;
 };
 
+const IC_FETCH_CONCURRENCIA = 4;
+const IC_FETCH_REINTENTOS = 4;
+
+function esErrorConexiones(msg: string): boolean {
+  return /remaining connection slots|too many (clients|connections)|EMAXCONN|max client connections/i.test(
+    msg,
+  );
+}
+
+async function fetchIcConReintento(id: number): Promise<IcData> {
+  let ultimo = "";
+  for (let intento = 0; intento < IC_FETCH_REINTENTOS; intento++) {
+    const res = await fetch(`/api/proceso-importacion/digitacion/ic/${id}`, {
+      credentials: "same-origin",
+    });
+    const data = await res.json();
+    if (res.ok) return data.ic as IcData;
+    ultimo = data.error || `IC ${id} no disponible`;
+    if (!esErrorConexiones(ultimo)) break;
+    await new Promise((r) => setTimeout(r, 400 * 2 ** intento + Math.random() * 300));
+  }
+  throw new Error(ultimo);
+}
+
 function parseIds(raw: string | null): number[] {
   if (!raw) return [];
   return [
@@ -75,16 +99,14 @@ export function DigitacionAsignarLoteClient() {
       if (firstData.ic?.precio_evento_id) setEventoId(firstData.ic.precio_evento_id);
 
       const restIds = ids.slice(1);
-      const rest = await Promise.all(
-        restIds.map(async (id) => {
-          const res = await fetch(`/api/proceso-importacion/digitacion/ic/${id}`, {
-            credentials: "same-origin",
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || `IC ${id} no disponible`);
-          return data.ic as IcData;
-        }),
-      );
+      const rest: IcData[] = [];
+      // Tandas chicas: 1 request = 1 lambda = 1 conexión Supabase (max_connections 60).
+      // Lotes grandes en paralelo agotaban los slots (53300) y rompían la carga.
+      for (let i = 0; i < restIds.length; i += IC_FETCH_CONCURRENCIA) {
+        const tanda = restIds.slice(i, i + IC_FETCH_CONCURRENCIA);
+        const datos = await Promise.all(tanda.map((id) => fetchIcConReintento(id)));
+        rest.push(...datos);
+      }
       setIcs([firstData.ic as IcData, ...rest]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
