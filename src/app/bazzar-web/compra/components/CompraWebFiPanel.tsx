@@ -71,7 +71,8 @@ export function CompraWebFiPanel({ fi, detalles }: Props) {
       <div className="border-b border-slate-200 px-4 py-3 sm:px-5">
         <p className="text-sm text-slate-700">
           Descuentos: {descuentosLabel(fi)} · Total:{" "}
-          <strong>{fmtGs(fi.total_monto)}</strong> · {fi.total_pares.toLocaleString("es-PY")} pares
+          <strong>{fmtGs(Number(fi.total_monto) || 0)}</strong> ·{" "}
+          {(Number(fi.total_pares) || 0).toLocaleString("es-PY")} pares
         </p>
       </div>
 
@@ -79,39 +80,50 @@ export function CompraWebFiPanel({ fi, detalles }: Props) {
         <p className="mb-3 text-sm font-semibold text-slate-800">
           Productos ({detalles.length})
         </p>
-        <ul className="space-y-3">
-          {detalles.map((d) => {
-            const snap = parseLineaSnapshotForDisplay(d.linea_snapshot);
-            return (
-              <li
-                key={d.id}
-                className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3"
-              >
-                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200">
-                  <RetailProductImage
-                    candidates={snap.imageCandidates}
-                    alt={`${snap.linea_codigo}-${snap.ref_codigo}`}
-                    aspect="square"
-                    placeholderClass="h-16 w-16 bg-slate-100"
-                    searchFileName={snap.imageSearchName}
-                  />
-                </div>
-                <div className="min-w-0 flex-1 text-sm">
-                  <p className="font-semibold text-slate-900">
-                    L{snap.linea_codigo} · R{snap.ref_codigo}
-                  </p>
-                  <p className="text-slate-600">
-                    {snap.material_nombre || "—"} · {snap.color_nombre || "—"}
-                  </p>
-                  <p className="text-slate-500">{snap.gradas_display || "—"}</p>
-                  <p className="mt-1 tabular-nums text-slate-800">
-                    {d.pares} pares · {fmtGs(d.precio_neto ?? d.subtotal)}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        {detalles.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-600">
+            Sin líneas en factura_interna_detalle para esta FI.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {detalles.map((d) => {
+              const snap = parseLineaSnapshotForDisplay(d.linea_snapshot);
+              const marcaSnap =
+                d.linea_snapshot && typeof d.linea_snapshot === "object"
+                  ? String((d.linea_snapshot as Record<string, unknown>).marca ?? "").trim()
+                  : "";
+              return (
+                <li
+                  key={d.id}
+                  className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3"
+                >
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-slate-200">
+                    <RetailProductImage
+                      candidates={snap.imageCandidates}
+                      alt={`${snap.linea_codigo}-${snap.ref_codigo}`}
+                      aspect="square"
+                      placeholderClass="h-16 w-16 bg-slate-100"
+                      searchFileName={snap.imageSearchName}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="font-semibold text-slate-900">
+                      L{snap.linea_codigo} · R{snap.ref_codigo}
+                      {marcaSnap ? ` · ${marcaSnap}` : ""}
+                    </p>
+                    <p className="text-slate-600">
+                      {snap.material_nombre || "—"} · {snap.color_nombre || "—"}
+                    </p>
+                    <p className="text-slate-500">{snap.gradas_display || "—"}</p>
+                    <p className="mt-1 tabular-nums text-slate-800">
+                      {Number(d.pares) || 0} pares · {fmtGs(d.precio_neto ?? d.subtotal)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </section>
   );

@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CompraWebFiPanel } from "@/app/bazzar-web/compra/components/CompraWebFiPanel";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { FACTURACION_BOVEDA, FACTURACION_PRONTA_ENTREGA } from "@/lib/report/routes";
 import type { BovedaRow } from "@/lib/facturacion/boveda";
+import type { FiDetalleCanonico, FiRegistroRow } from "@/lib/bazzar-web/compra-web/types";
 
 function fmtGs(n: number): string {
   return Math.round(n).toLocaleString("es-PY");
@@ -30,6 +32,14 @@ export function FacturacionBovedaClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [fiDetail, setFiDetail] = useState<{
+    fi: FiRegistroRow;
+    detalles: FiDetalleCanonico[];
+  } | null>(null);
+  const [fiDetailLoading, setFiDetailLoading] = useState(false);
+  const [fiDetailError, setFiDetailError] = useState<string | null>(null);
+  const fiDetailReqRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +69,32 @@ export function FacturacionBovedaClient() {
     void load();
   }, [load]);
 
+  async function loadFiDetail(nroFactura: string) {
+    const nro = String(nroFactura ?? "").trim();
+    const reqId = ++fiDetailReqRef.current;
+    setExpanded(nro);
+    setFiDetail(null);
+    setFiDetailError(null);
+    setFiDetailLoading(true);
+    try {
+      const res = await fetch(`/api/facturacion/${encodeURIComponent(nro)}`, {
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (reqId !== fiDetailReqRef.current) return;
+      if (!res.ok || !data.fi) {
+        setFiDetailError(data.error || `No se pudo cargar el detalle (${res.status})`);
+        return;
+      }
+      setFiDetail({ fi: data.fi, detalles: data.detalles ?? [] });
+    } catch (e) {
+      if (reqId !== fiDetailReqRef.current) return;
+      setFiDetailError(e instanceof Error ? e.message : "Error al cargar detalle");
+    } finally {
+      if (reqId === fiDetailReqRef.current) setFiDetailLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader active="facturacion" />
@@ -83,8 +119,8 @@ export function FacturacionBovedaClient() {
         </p>
         <h1 className="mt-2 font-serif text-3xl text-rimec-azul-dark">Bóveda RIMEC</h1>
         <p className="mt-2 max-w-3xl text-neutral-700">
-          Facturas internas de Pronta entrega archivadas desde la bandeja de trabajo. Solo
-          consulta — el estado de la FI no cambia al archivar.
+          Facturas internas de Pronta entrega archivadas desde la bandeja de trabajo. Podés abrir el
+          detalle de productos (mismas líneas que en bandeja). Archivar no anula la FI.
         </p>
 
         {!configured && (
@@ -102,59 +138,98 @@ export function FacturacionBovedaClient() {
           <p className="mt-8 text-neutral-600">Cargando bóveda…</p>
         ) : (
           <div className="mt-8 space-y-3">
-            {items.map((row) => (
-              <article
-                key={row.boveda_id}
-                className="rounded-xl border-2 border-slate-200 bg-white px-4 py-3 shadow-sm"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Factura interna
-                    </p>
-                    <p className="font-mono text-lg font-bold text-rimec-azul-dark">
-                      {row.factura_display}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">{row.nro_factura}</p>
+            {items.map((row) => {
+              const isOpen = expanded === row.nro_factura;
+              return (
+                <article
+                  key={row.boveda_id}
+                  className="overflow-hidden rounded-xl border-2 border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Factura interna
+                        </p>
+                        <p className="font-mono text-lg font-bold text-rimec-azul-dark">
+                          {row.factura_display}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">{row.nro_factura}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold uppercase text-slate-500">Archivada</p>
+                        <p className="text-sm font-semibold tabular-nums text-slate-800">
+                          {fmtFecha(row.archivado_en)}
+                        </p>
+                        <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                          {row.fi_estado}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-500">Cliente</p>
+                        <p className="text-sm font-semibold">
+                          {row.cliente} · {row.codigo_cliente}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-500">Marca</p>
+                        <p className="text-sm font-semibold">{row.marca}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-500">Vendedor</p>
+                        <p className="text-sm font-semibold">{row.vendedor}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-500">Pares · Monto</p>
+                        <p className="text-sm font-bold tabular-nums text-emerald-800">
+                          {(Number(row.total_pares) || 0).toLocaleString("es-PY")} p · Gs.{" "}
+                          {fmtGs(Number(row.total_monto) || 0)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          isOpen ? setExpanded(null) : void loadFiDetail(row.nro_factura)
+                        }
+                        className="rounded-lg border border-neutral-400 px-3 py-2 text-xs font-semibold hover:bg-neutral-50"
+                      >
+                        {isOpen ? "Cerrar detalle" : "Ver detalle"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold uppercase text-slate-500">Archivada</p>
-                    <p className="text-sm font-semibold tabular-nums text-slate-800">
-                      {fmtFecha(row.archivado_en)}
-                    </p>
-                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
-                      {row.fi_estado}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-500">Cliente</p>
-                    <p className="text-sm font-semibold">
-                      {row.cliente} · {row.codigo_cliente}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-500">Marca</p>
-                    <p className="text-sm font-semibold">{row.marca}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-500">Vendedor</p>
-                    <p className="text-sm font-semibold">{row.vendedor}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-500">Pares · Monto</p>
-                    <p className="text-sm font-bold tabular-nums text-emerald-800">
-                      {row.total_pares.toLocaleString("es-PY")} p · Gs. {fmtGs(row.total_monto)}
-                    </p>
-                  </div>
-                </div>
-              </article>
-            ))}
+                  {isOpen && (
+                    <div className="border-t border-slate-200 p-4">
+                      {fiDetailLoading && (
+                        <p className="text-sm text-neutral-600">Cargando detalle…</p>
+                      )}
+                      {!fiDetailLoading && fiDetailError && (
+                        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                          {fiDetailError}
+                        </p>
+                      )}
+                      {!fiDetailLoading &&
+                        !fiDetailError &&
+                        fiDetail &&
+                        String(fiDetail.fi.nro_factura ?? "").trim() ===
+                          String(row.nro_factura ?? "").trim() && (
+                          <CompraWebFiPanel fi={fiDetail.fi} detalles={fiDetail.detalles} />
+                        )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
             {!items.length && configured && !error && (
               <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-600">
                 Bóveda vacía. Desde{" "}
-                <Link href={FACTURACION_PRONTA_ENTREGA} className="font-semibold text-rimec-azul underline">
+                <Link
+                  href={FACTURACION_PRONTA_ENTREGA}
+                  className="font-semibold text-rimec-azul underline"
+                >
                   Facturación Pronta entrega
                 </Link>{" "}
                 usá el botón grande <strong>PROCESAR</strong> en la bandeja PE.
@@ -163,7 +238,7 @@ export function FacturacionBovedaClient() {
           </div>
         )}
       </main>
-      <ReportFooter note={`Bóveda RIMEC · ${FACTURACION_BOVEDA} · MIG-186 · solo lectura`} />
+      <ReportFooter note={`Bóveda RIMEC · ${FACTURACION_BOVEDA} · MIG-186 · detalle FI habilitado`} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FacturaInternaCabecera } from "./FacturaInternaCabecera";
 import { CompraWebFiPanel } from "@/app/bazzar-web/compra/components/CompraWebFiPanel";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
@@ -72,6 +72,9 @@ export function FacturacionBandejaClient({
     fi: FiRegistroRow;
     detalles: FiDetalleCanonico[];
   } | null>(null);
+  const [fiDetailLoading, setFiDetailLoading] = useState(false);
+  const [fiDetailError, setFiDetailError] = useState<string | null>(null);
+  const fiDetailReqRef = useRef(0);
 
   const apiUrl = `/api/facturacion?origen=${origen}`;
 
@@ -125,16 +128,26 @@ export function FacturacionBandejaClient({
   );
 
   async function loadFiDetail(facturaLegacy: string) {
-    setExpanded(facturaLegacy);
+    const nro = String(facturaLegacy ?? "").trim();
+    const reqId = ++fiDetailReqRef.current;
+    setExpanded(nro);
     setFiDetail(null);
+    setFiDetailError(null);
+    setFiDetailLoading(true);
     try {
-      const res = await fetch(`/api/facturacion/${encodeURIComponent(facturaLegacy)}`);
-      const data = await res.json();
-      if (res.ok && data.fi) {
-        setFiDetail({ fi: data.fi, detalles: data.detalles ?? [] });
+      const res = await fetch(`/api/facturacion/${encodeURIComponent(nro)}`);
+      const data = await res.json().catch(() => ({}));
+      if (reqId !== fiDetailReqRef.current) return;
+      if (!res.ok || !data.fi) {
+        setFiDetailError(data.error || `No se pudo cargar el detalle (${res.status})`);
+        return;
       }
-    } catch {
-      /* opcional */
+      setFiDetail({ fi: data.fi, detalles: data.detalles ?? [] });
+    } catch (e) {
+      if (reqId !== fiDetailReqRef.current) return;
+      setFiDetailError(e instanceof Error ? e.message : "Error al cargar detalle");
+    } finally {
+      if (reqId === fiDetailReqRef.current) setFiDetailLoading(false);
     }
   }
 
@@ -308,9 +321,28 @@ export function FacturacionBandejaClient({
             </button>
           )}
         </div>
-        {isOpen && fiDetail && fiDetail.fi.nro_factura === f.factura_legacy && (
+        {isOpen && (
           <div className="border-t border-neutral-300 p-4">
-            <CompraWebFiPanel fi={fiDetail.fi} detalles={fiDetail.detalles} />
+            {fiDetailLoading && (
+              <p className="text-sm text-neutral-600">Cargando detalle de {TERMINO_FI}…</p>
+            )}
+            {!fiDetailLoading && fiDetailError && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {fiDetailError}
+              </p>
+            )}
+            {!fiDetailLoading &&
+              !fiDetailError &&
+              fiDetail &&
+              String(fiDetail.fi.nro_factura ?? "").trim() === String(f.factura_legacy ?? "").trim() && (
+                <CompraWebFiPanel fi={fiDetail.fi} detalles={fiDetail.detalles} />
+              )}
+            {!fiDetailLoading &&
+              !fiDetailError &&
+              fiDetail &&
+              String(fiDetail.fi.nro_factura ?? "").trim() !== String(f.factura_legacy ?? "").trim() && (
+                <p className="text-sm text-neutral-600">Cargando detalle…</p>
+              )}
           </div>
         )}
       </article>
