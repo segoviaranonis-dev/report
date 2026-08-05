@@ -30,7 +30,11 @@ function parseJsonRecord(raw: unknown): Record<string, unknown> | null {
   }
 }
 
-/** Normaliza clave talla: "t38" | "38" | "38.0" → 38 */
+/**
+ * Normaliza clave talla: "t38" | "38" | "38.0" → 38
+ * Rango **14–55**: calzado adulto + infantil (Molekinho/Molekinha 19–26, etc.).
+ * Antes 20–55 descartaba gradas `19(…)23` → TRP corto vs FI (4.05.03.001).
+ */
 export function tallaKeyToNum(tallaStr: string): number | null {
   const head = String(tallaStr ?? "")
     .trim()
@@ -40,7 +44,7 @@ export function tallaKeyToNum(tallaStr: string): number | null {
   const n = Number(head);
   if (!Number.isFinite(n)) return null;
   const i = Math.trunc(n);
-  if (i < 20 || i > 55) return null;
+  if (i < 14 || i > 55) return null;
   return i;
 }
 
@@ -126,7 +130,20 @@ export function gradaAbierta638ToTallas(gradasFmt: string, pares = 1): Record<st
   if (!s) return {};
   const qty = Math.max(1, Math.trunc(Number(pares) || 1));
   let m = s.match(RE_GRADA_NUM_638);
-  if (m) return { [m[1]]: qty };
+  if (m) {
+    const start = Number(m[1]);
+    const end = Number(m[3]);
+    // `23(12)27` / `28(12)33` = curva calzado (un qty), NO grada abierta 638 `1(1)1`.
+    if (
+      Number.isFinite(start) &&
+      Number.isFinite(end) &&
+      start !== end &&
+      (start >= 14 || end >= 14)
+    ) {
+      return {};
+    }
+    return { [m[1]]: qty };
+  }
   m = s.match(RE_GRADA_LET_638);
   if (m) return { [m[1].toUpperCase()]: qty };
   if (/^[A-Za-z]{1,3}$/.test(s)) return { [s.toUpperCase()]: qty };
@@ -175,6 +192,68 @@ export function scaleGradesAbierta638(
     if (r.base > 0) out[r.k] = r.base;
   }
   return out;
+}
+
+/** Material/color desde URL canónica productos: `{linea}-{ref}-{mat}-{color}.jpg` */
+export function materialColorFromImagenUrl(url: string | null | undefined): {
+  material: string;
+  color: string;
+} {
+  const s = String(url ?? "");
+  const m = s.match(/\/productos\/([^/?#]+)\.(?:jpe?g|png|webp)/i);
+  if (!m) return { material: "", color: "" };
+  const stem = decodeURIComponent(m[1]);
+  const parts = stem.split("-");
+  if (parts.length < 4) return { material: "", color: "" };
+  // linea-ref-mat-color… (color puede traer más segmentos)
+  return {
+    material: parts[2] ?? "",
+    color: parts.slice(3).join("-"),
+  };
+}
+
+function snapStr(snap: Record<string, unknown> | null, ...keys: string[]): string {
+  if (!snap) return "";
+  for (const k of keys) {
+    const v = snap[k];
+    if (v != null && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+/** Arma ItemTallas desde FID (+ PPD opcional / snapshot / URL imagen). */
+export function itemTallasFromFiDetalle(row: {
+  linea?: unknown;
+  referencia?: unknown;
+  descp_material?: unknown;
+  descp_color?: unknown;
+  grades_json?: unknown;
+  linea_snapshot?: unknown;
+  pares: number;
+}): ItemTallas | null {
+  const snap = parseJsonRecord(row.linea_snapshot);
+  const fromImg = materialColorFromImagenUrl(snapStr(snap, "imagen_url", "imagen"));
+  const linea =
+    String(row.linea ?? "").trim() ||
+    snapStr(snap, "linea_codigo", "linea", "codigo_linea");
+  const referencia =
+    String(row.referencia ?? "").trim() ||
+    snapStr(snap, "ref_codigo", "referencia", "codigo_referencia");
+  const material =
+    String(row.descp_material ?? "").trim() ||
+    snapStr(snap, "material_nombre", "material_codigo", "descp_material", "material") ||
+    fromImg.material;
+  const color =
+    String(row.descp_color ?? "").trim() ||
+    snapStr(snap, "color_nombre", "color_codigo", "descp_color", "color") ||
+    fromImg.color;
+  const tallas = extractTallasFromFiRow({
+    grades_json: row.grades_json ?? null,
+    linea_snapshot: row.linea_snapshot,
+    pares: Number(row.pares) || 0,
+  });
+  if (!linea || !referencia || !Object.keys(tallas).length) return null;
+  return { linea, referencia, material, color, tallas };
 }
 
 export function extractTallasFromFiRow(row: {
@@ -664,11 +743,12 @@ export async function resyncTraspasoDetalleFromFactura(
   const idPp = fi.rows[0].pp_id;
   const fiPares = fi.rows[0].total_pares;
 
+  // LEFT JOIN: ppd puede estar huérfano post-purge; snapshot FI + URL imagen bastan.
   const det = await client.query<{
-    linea: string;
-    referencia: string;
-    descp_material: string;
-    descp_color: string;
+    linea: string | null;
+    referencia: string | null;
+    descp_material: string | null;
+    descp_color: string | null;
     grades_json: unknown;
     linea_snapshot: unknown;
     pares: number;
@@ -676,9 +756,10 @@ export async function resyncTraspasoDetalleFromFactura(
   }>(
     `
     SELECT ppd.linea, ppd.referencia, ppd.descp_material, ppd.descp_color,
-           ppd.grades_json, fid.linea_snapshot, fid.pares, COALESCE(ppd.id_marca, 0)::int AS id_marca
+           ppd.grades_json, fid.linea_snapshot, fid.pares,
+           COALESCE(ppd.id_marca, 0)::int AS id_marca
     FROM factura_interna_detalle fid
-    JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+    LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
     WHERE fid.factura_id = $1
     `,
     [fiId],
@@ -686,17 +767,21 @@ export async function resyncTraspasoDetalleFromFactura(
 
   const items: ItemTallas[] = [];
   for (const r of det.rows) {
-    const tallas = extractTallasFromFiRow(r);
-    if (!Object.keys(tallas).length) continue;
-    items.push({
-      linea: String(r.linea ?? ""),
-      referencia: String(r.referencia ?? ""),
-      material: String(r.descp_material ?? ""),
-      color: String(r.descp_color ?? ""),
-      tallas,
-    });
+    const item = itemTallasFromFiDetalle(r);
+    if (item) items.push(item);
   }
   if (!items.length) return { ok: false, error: "Sin líneas resolubles desde FI." };
+
+  const expandPares = items.reduce(
+    (s, it) => s + Object.values(it.tallas).reduce((a, b) => a + (Number(b) || 0), 0),
+    0,
+  );
+  if (fiPares > 0 && expandPares !== fiPares) {
+    return {
+      ok: false,
+      error: `Expansión grada incompleta: FI ${fiPares} p vs expand ${expandPares} p (${items.length}/${det.rows.length} líneas).`,
+    };
+  }
 
   const antesRes = await client.query<{ n: string }>(
     `SELECT COALESCE(SUM(cantidad), 0)::text AS n FROM traspaso_detalle WHERE traspaso_id = $1`,
@@ -814,14 +899,20 @@ export async function enviarFacturaABazar(numeroFactura: string): Promise<Mutati
     const fiId = fi.rows[0].id;
     const idPp = fi.rows[0].pp_id;
     const det = await client.query<{
-      linea: string; referencia: string; descp_material: string; descp_color: string;
-      grades_json: unknown; linea_snapshot: unknown; pares: number; id_marca: number;
+      linea: string | null;
+      referencia: string | null;
+      descp_material: string | null;
+      descp_color: string | null;
+      grades_json: unknown;
+      linea_snapshot: unknown;
+      pares: number;
+      id_marca: number;
     }>(
       `
       SELECT ppd.linea, ppd.referencia, ppd.descp_material, ppd.descp_color,
              ppd.grades_json, fid.linea_snapshot, fid.pares, COALESCE(ppd.id_marca, 0)::int AS id_marca
       FROM factura_interna_detalle fid
-      JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+      LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
       WHERE fid.factura_id = $1
       `,
       [fiId],
@@ -830,19 +921,28 @@ export async function enviarFacturaABazar(numeroFactura: string): Promise<Mutati
     const idMarca = det.rows[0]?.id_marca ?? 0;
     const items: ItemTallas[] = [];
     for (const r of det.rows) {
-      const tallas = extractTallasFromFiRow(r);
-      if (!Object.keys(tallas).length) continue;
-      items.push({
-        linea: String(r.linea ?? ""),
-        referencia: String(r.referencia ?? ""),
-        material: String(r.descp_material ?? ""),
-        color: String(r.descp_color ?? ""),
-        tallas,
-      });
+      const item = itemTallasFromFiDetalle(r);
+      if (item) items.push(item);
     }
     if (!items.length) {
       await client.query("ROLLBACK");
       return { ok: false, error: "No se pudo extraer distribución de tallas." };
+    }
+    const fiParesQ = await client.query<{ n: number }>(
+      `SELECT COALESCE(total_pares,0)::int AS n FROM factura_interna WHERE id = $1`,
+      [fiId],
+    );
+    const fiPares = Number(fiParesQ.rows[0]?.n || 0);
+    const expandPares = items.reduce(
+      (s, it) => s + Object.values(it.tallas).reduce((a, b) => a + (Number(b) || 0), 0),
+      0,
+    );
+    if (fiPares > 0 && expandPares !== fiPares) {
+      await client.query("ROLLBACK");
+      return {
+        ok: false,
+        error: `Distribución grada incompleta: FI ${fiPares} ≠ expand ${expandPares}. Abortado.`,
+      };
     }
 
     const trpId = await crearTraspasoPorFactura(client, idPp, idMarca, factura, items);
