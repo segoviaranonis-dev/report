@@ -252,9 +252,9 @@ export function MotorPrecioClient() {
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
-      <NexusGlobalHeader maxWidthClass="max-w-6xl" />
+      <NexusGlobalHeader maxWidthClass="max-w-[1600px]" />
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6">
         <header className="mb-6">
           <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
             ← Inicio
@@ -351,24 +351,20 @@ export function MotorPrecioClient() {
               </span>
             </div>
 
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-              <aside className="w-full shrink-0 lg:w-72">
-                <div className="rounded-lg border border-slate-200 bg-white p-2 lg:sticky lg:top-4">
-                  <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    Cascada · grupo uno DPE
-                  </p>
-                  <ReposicionFiltrosSidebar
-                    variant="pe"
-                    filtros={filtros}
-                    onChange={setFiltros}
-                    opciones={opciones}
-                    emptyFilters={EMPTY_OPERATIVA_FILTERS}
-                  />
-                </div>
+            <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:gap-3">
+              {/* Ancho = contenido (rails o bloques abiertos) · no reserva 28rem fijos */}
+              <aside className="w-auto max-w-full shrink-0 self-start lg:sticky lg:top-4">
+                <ReposicionFiltrosSidebar
+                  variant="pe"
+                  filtros={filtros}
+                  onChange={setFiltros}
+                  opciones={opciones}
+                  emptyFilters={EMPTY_OPERATIVA_FILTERS}
+                />
               </aside>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 {sinPrecioRows.length > 0 && (
-                  <div className="mb-6">
+                  <div className="mb-6 w-full">
                     <h2 className="mb-2 text-sm font-semibold text-amber-800">
                       Sin precio calculable ({sinPrecioRows.length})
                     </h2>
@@ -605,8 +601,8 @@ function CatalogoTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="min-w-full text-left text-sm">
+    <div className="w-full max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <table className="w-full min-w-[720px] table-auto text-left text-sm">
         <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
             <th className="px-2 py-2 w-12" aria-label="Foto" />

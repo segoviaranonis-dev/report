@@ -1,15 +1,15 @@
 /**
- * Resuelve LPN + caso comercial para ingresos ALM_WEB.
+ * Resuelve LPN + caso para ingresos ALM_WEB.
  *
- * Orden de prioridad:
- * 1) PP clásico: snapshot id_pp → precio_lista del evento IC
- * 2) PE / FI: documento_ref → factura_interna_detalle
- *    - PPD vivo si existe
- *    - si ppd_id huérfano: fid.precio_lista + caso en linea_snapshot / fi.caso
- * 3) Stock Sano ya aplicado: stock_sano_deposito (L+R+M)
+ * Orden de prioridad CASO:
+ * 1) PP clásico: precio_lista.nombre_caso_aplicado (BCL / evento IC)
+ * 2) DPE triunvirato: v_stock_pe_rimec.cadena_comercial (COD.GRUPO) — Ley 2.3.1.10.1.2.1
+ * 3) PE / FI: descp_caso_snapshot o mapa BCL-like en snapshot (no etiqueta "PE · sdrm…")
+ * 4) Stock Sano
+ * 5) DEFAULT
  *
- * Lección 2026-08-01: ~95% FID PE tenían ppd_id sin fila en pedido_proveedor_detalle
- * → Motor precio mostraba LPN/CASO vacíos (103 SKUs).
+ * Lección 2026-08-01: FID PE con ppd huérfano → LPN desde fid.precio_lista.
+ * Lección 2026-08-06: CASO quedaba DEFAULT porque fi.caso = "PE · sdrm…" ≠ DPE.
  */
 export const LPN_CASO_LATERAL_SQL = `
   LEFT JOIN LATERAL (
@@ -27,6 +27,32 @@ export const LPN_CASO_LATERAL_SQL = `
     LIMIT 1
   ) pl ON true
   LEFT JOIN LATERAL (
+    /* DPE — COD.GRUPO · etiqueta RIMEC CASO = NORMAL (nunca REGULAR en UI) */
+    SELECT
+      CASE UPPER(NULLIF(btrim(v.cadena_comercial), ''))
+        WHEN 'PROMOCIONAL' THEN 'PROMOCIONAL'
+        WHEN 'LIQUIDACION' THEN 'LIQUIDACION'
+        WHEN 'COMUN' THEN 'COMUN'
+        WHEN 'NORMAL' THEN 'NORMAL'
+        WHEN 'REGULAR' THEN 'NORMAL'
+        ELSE NULL
+      END AS cadena_dpe,
+      NULLIF(btrim(v.cod_grupo::text), '') AS cod_grupo
+    FROM v_stock_pe_rimec v
+    WHERE v.linea_codigo::text = l.codigo_proveedor::text
+      AND v.referencia_codigo::text = r.codigo_proveedor::text
+      AND NULLIF(btrim(v.cod_grupo::text), '') IS NOT NULL
+    ORDER BY
+      CASE UPPER(NULLIF(btrim(v.cadena_comercial), ''))
+        WHEN 'PROMOCIONAL' THEN 0
+        WHEN 'LIQUIDACION' THEN 1
+        WHEN 'COMUN' THEN 2
+        ELSE 3
+      END,
+      COALESCE(v.saldo_pares, v.cantidad_pares, 0) DESC NULLS LAST
+    LIMIT 1
+  ) dpe ON true
+  LEFT JOIN LATERAL (
     SELECT
       COALESCE(ppd.precio_lpn, ppd.unit_fob_ajustado, fid.precio_lista)::numeric AS lpn,
       COALESCE(
@@ -37,11 +63,12 @@ export const LPN_CASO_LATERAL_SQL = `
           WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%CHINELO%' THEN 'CHINELO'
           WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%ACT-BRSPORT%' THEN 'ACT-BRSPORT'
           WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%BR-VZ%' THEN 'BR-VZ-MD-ML-MKA-O'
-          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%LIQUIDACION%' THEN 'DEFAULT'
-          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%COMUN%' THEN 'DEFAULT'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%LIQUIDACION%' THEN 'LIQUIDACION'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%COMUN%' THEN 'COMUN'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%NORMAL%' THEN 'NORMAL'
+          WHEN UPPER(COALESCE(fid.linea_snapshot->>'caso', fi.caso, '')) LIKE '%REGULAR%' THEN 'NORMAL'
           ELSE NULL
-        END,
-        'DEFAULT'
+        END
       ) AS caso_precio
     FROM factura_interna fi
     JOIN factura_interna_detalle fid ON fid.factura_id = fi.id
@@ -79,7 +106,7 @@ export const LPN_CASO_LATERAL_SQL = `
   LEFT JOIN LATERAL (
     SELECT
       ssd.lpn::numeric AS lpn,
-      COALESCE(NULLIF(btrim(ssd.caso_codigo), ''), 'DEFAULT') AS caso_precio
+      NULLIF(btrim(ssd.caso_codigo), '') AS caso_precio
     FROM stock_sano_deposito ssd
     WHERE ssd.almacen_id = m.almacen_destino_id
       AND ssd.linea_id = l.id
@@ -92,10 +119,38 @@ export const LPN_CASO_LATERAL_SQL = `
 
 export const LPN_CASO_SELECT = `
   COALESCE(pl.lpn, pe_pl.lpn, ssd_lp.lpn) AS lpn,
-  COALESCE(pl.nombre_caso_aplicado, pe_pl.caso_precio, ssd_lp.caso_precio) AS caso_precio
+  COALESCE(
+    NULLIF(btrim(pl.nombre_caso_aplicado), ''),
+    dpe.cadena_dpe,
+    NULLIF(btrim(pe_pl.caso_precio), ''),
+    NULLIF(btrim(ssd_lp.caso_precio), ''),
+    'DEFAULT'
+  ) AS caso_precio
 `;
 
 /** Columnas a incluir en GROUP BY cuando se usa LPN_CASO_LATERAL_SQL */
 export const LPN_CASO_GROUP_BY = `
-  pl.lpn, pl.nombre_caso_aplicado, pe_pl.lpn, pe_pl.caso_precio, ssd_lp.lpn, ssd_lp.caso_precio
+  pl.lpn, pl.nombre_caso_aplicado, dpe.cadena_dpe, dpe.cod_grupo,
+  pe_pl.lpn, pe_pl.caso_precio, ssd_lp.lpn, ssd_lp.caso_precio
 `;
+
+/**
+ * Markup WEB: DPE REGULAR/LIQUIDACION/COMUN → regla homónima o DEFAULT.
+ * PROMOCIONAL y casos BCL (CARTERAS…) usan su propia regla.
+ */
+export function casoMarkupWebSql(casoExpr: string): string {
+  return `
+    CASE UPPER(TRIM(COALESCE(${casoExpr}, 'DEFAULT')))
+      WHEN 'PROMOCIONAL' THEN 'PROMOCIONAL'
+      WHEN 'CARTERAS' THEN 'CARTERAS'
+      WHEN 'CHINELO' THEN 'CHINELO'
+      WHEN 'ACT-BRSPORT' THEN 'ACT-BRSPORT'
+      WHEN 'BR-VZ-MD-ML-MKA-O' THEN 'BR-VZ-MD-ML-MKA-O'
+      WHEN 'NORMAL' THEN 'NORMAL'
+      WHEN 'REGULAR' THEN 'NORMAL'
+      WHEN 'LIQUIDACION' THEN 'LIQUIDACION'
+      WHEN 'COMUN' THEN 'COMUN'
+      ELSE 'DEFAULT'
+    END
+  `;
+}

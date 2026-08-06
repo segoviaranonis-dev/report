@@ -198,8 +198,8 @@ export async function getTraspasoDetalleLines(idTrp: number): Promise<TraspasoDe
       td.cantidad,
       COALESCE(
         NULLIF(btrim(pl.nombre_caso_aplicado), ''),
+        dpe.cadena_dpe,
         NULLIF(btrim(pe_pl.caso_precio), ''),
-        NULLIF(btrim(fi.caso), ''),
         '—'
       ) AS caso_nombre
     FROM traspaso_detalle td
@@ -240,8 +240,8 @@ export async function getTraspasoDetalleLines(idTrp: number): Promise<TraspasoDe
       tr.snapshot_json,
       COALESCE(
         NULLIF(btrim(MAX(pl.nombre_caso_aplicado)), ''),
+        MAX(dpe.cadena_dpe),
         NULLIF(btrim(MAX(pe_pl.caso_precio)), ''),
-        NULLIF(btrim(MAX(fi.caso)), ''),
         '—'
       ) AS caso_nombre
     FROM traspaso tr

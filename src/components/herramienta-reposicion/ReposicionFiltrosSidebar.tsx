@@ -392,7 +392,7 @@ function BloqueColapsable({
   }
 
   return (
-    <div className="flex max-h-[calc(100vh-5rem)] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-sm lg:w-56">
+    <div className="flex max-h-[calc(100vh-5rem)] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-sm sm:min-w-[13.5rem] lg:w-64 lg:min-w-[16rem]">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-rimec-azul">{title}</p>
@@ -482,7 +482,7 @@ export function ReposicionFiltrosSidebar({
 
   return (
     <div
-      className={`flex w-full min-h-0 flex-col gap-3 sm:flex-row sm:items-start ${className}`}
+      className={`flex w-auto max-w-full min-h-0 flex-col gap-3 sm:flex-row sm:items-start ${className}`}
       aria-label="Filtros reposición · dos bloques ocultables"
     >
       <BloqueColapsable
