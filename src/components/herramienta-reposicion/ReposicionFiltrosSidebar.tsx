@@ -9,6 +9,13 @@ import {
   type OperativaOpciones,
 } from "@/lib/depositos/operativa-filters";
 import {
+  cascadaDimensionesOperativa,
+  cascadaEstiloOperativa,
+  toggleEstiloCascadaOp,
+  toggleLineaCascadaOp,
+  toggleMaterialCascadaOp,
+} from "@/lib/depositos/operativa-cascada";
+import {
   PE_TIPO_DICCIONARIO_OPCIONES,
   parsePeTipoSelected,
   togglePeTipoDiccionario,
@@ -597,10 +604,14 @@ export function ReposicionFiltrosSidebar({
           onToggle={(id) =>
             onChange((prev) => ({
               ...prev,
-              tipo1Ids: toggleOperativaId(prev.tipo1Ids, id),
+              ...cascadaDimensionesOperativa({
+                tipo1Ids: toggleOperativaId(prev.tipo1Ids, id),
+              }),
             }))
           }
-          onClear={() => patch({ tipo1Ids: [] })}
+          onClear={() =>
+            onChange((prev) => ({ ...prev, ...cascadaDimensionesOperativa({ tipo1Ids: [] }) }))
+          }
           defaultOpen={esPe}
         />
 
@@ -611,10 +622,14 @@ export function ReposicionFiltrosSidebar({
           onToggle={(id) =>
             onChange((prev) => ({
               ...prev,
-              marcaIds: toggleOperativaId(prev.marcaIds, id),
+              ...cascadaDimensionesOperativa({
+                marcaIds: toggleOperativaId(prev.marcaIds, id),
+              }),
             }))
           }
-          onClear={() => patch({ marcaIds: [] })}
+          onClear={() =>
+            onChange((prev) => ({ ...prev, ...cascadaDimensionesOperativa({ marcaIds: [] }) }))
+          }
           maxH="max-h-44"
         />
 
@@ -624,11 +639,18 @@ export function ReposicionFiltrosSidebar({
             onToggle={(id) =>
               onChange((prev) => ({
                 ...prev,
-                tipoGrupos: togglePeTipoDiccionario(peTipoSelected, id),
-                cadenaComercial: null,
+                ...cascadaDimensionesOperativa({
+                  tipoGrupos: togglePeTipoDiccionario(peTipoSelected, id),
+                  cadenaComercial: null,
+                }),
               }))
             }
-            onClear={() => patch({ tipoGrupos: [], cadenaComercial: null })}
+            onClear={() =>
+              onChange((prev) => ({
+                ...prev,
+                ...cascadaDimensionesOperativa({ tipoGrupos: [], cadenaComercial: null }),
+              }))
+            }
           />
         ) : (
           <TipoMultiSelectGroup
@@ -637,13 +659,20 @@ export function ReposicionFiltrosSidebar({
             onToggle={(id) =>
               onChange((prev) => ({
                 ...prev,
-                tipoGrupos: sanitizeTipoGruposParaRamo(
-                  toggleTipoGrupo(prev.tipoGrupos, id),
-                  prev.ramoTipo,
-                ),
+                ...cascadaDimensionesOperativa({
+                  tipoGrupos: sanitizeTipoGruposParaRamo(
+                    toggleTipoGrupo(prev.tipoGrupos, id),
+                    prev.ramoTipo,
+                  ),
+                }),
               }))
             }
-            onClear={() => patch({ tipoGrupos: [] })}
+            onClear={() =>
+              onChange((prev) => ({
+                ...prev,
+                ...cascadaDimensionesOperativa({ tipoGrupos: [] }),
+              }))
+            }
           />
         )}
 
@@ -654,10 +683,14 @@ export function ReposicionFiltrosSidebar({
           onToggle={(id) =>
             onChange((prev) => ({
               ...prev,
-              generoIds: toggleOperativaId(prev.generoIds, id),
+              ...cascadaDimensionesOperativa({
+                generoIds: toggleOperativaId(prev.generoIds, id),
+              }),
             }))
           }
-          onClear={() => patch({ generoIds: [] })}
+          onClear={() =>
+            onChange((prev) => ({ ...prev, ...cascadaDimensionesOperativa({ generoIds: [] }) }))
+          }
         />
 
         {!esPe && onSoloConStockChange ? (
@@ -693,10 +726,15 @@ export function ReposicionFiltrosSidebar({
           onToggle={(id) =>
             onChange((prev) => ({
               ...prev,
-              grupoEstiloIds: toggleOperativaId(prev.grupoEstiloIds, id),
+              ...toggleEstiloCascadaOp(prev.grupoEstiloIds, id),
             }))
           }
-          onClear={() => patch({ grupoEstiloIds: [] })}
+          onClear={() =>
+            onChange((prev) => ({
+              ...prev,
+              ...cascadaEstiloOperativa([]),
+            }))
+          }
           defaultOpen
         />
 
@@ -707,10 +745,17 @@ export function ReposicionFiltrosSidebar({
           onToggle={(id) =>
             onChange((prev) => ({
               ...prev,
-              lineaIds: toggleOperativaId(prev.lineaIds, id),
+              ...toggleLineaCascadaOp(prev.lineaIds, id),
             }))
           }
-          onClear={() => patch({ lineaIds: [] })}
+          onClear={() =>
+            onChange((prev) => ({
+              ...prev,
+              lineaIds: [],
+              materialFamilias: [],
+              colorFamilias: [],
+            }))
+          }
           maxH="max-h-48"
         />
 
@@ -721,10 +766,16 @@ export function ReposicionFiltrosSidebar({
           onToggle={(key) =>
             onChange((prev) => ({
               ...prev,
-              materialFamilias: toggleFamiliaKey(prev.materialFamilias, key),
+              ...toggleMaterialCascadaOp(prev.materialFamilias, key),
             }))
           }
-          onClear={() => patch({ materialFamilias: [] })}
+          onClear={() =>
+            onChange((prev) => ({
+              ...prev,
+              materialFamilias: [],
+              colorFamilias: [],
+            }))
+          }
           maxH="max-h-52"
         />
         <FamiliaMultiSelectGroup

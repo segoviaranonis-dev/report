@@ -42,6 +42,8 @@ type SqlDepositoRow = {
   tipo_v2_id: number | string | null;
   tipo_1: string | null;
   tipo_1_id: number | string | null;
+  cod_grupo: string | null;
+  sdrm_tipo1: string | null;
   tono_etiqueta: string | null;
   descp_material: string | null;
   descp_color: string | null;
@@ -53,7 +55,7 @@ type SqlDepositoRow = {
 };
 
 function mapSqlRow(r: SqlDepositoRow): DepositoRow {
-  return normalizeDepositoRow({
+  const base = {
     linea_codigo_proveedor: String(r.linea_codigo_proveedor ?? ""),
     referencia_codigo_proveedor: String(r.referencia_codigo_proveedor ?? ""),
     material_code: String(r.material_code ?? "0"),
@@ -72,6 +74,7 @@ function mapSqlRow(r: SqlDepositoRow): DepositoRow {
     tipo_v2_id: r.tipo_v2_id != null ? Number(r.tipo_v2_id) : null,
     tipo_1: r.tipo_1,
     tipo_1_id: r.tipo_1_id != null ? Number(r.tipo_1_id) : null,
+    cod_grupo: r.cod_grupo ? String(r.cod_grupo).trim() : null,
     tono_etiqueta: r.tono_etiqueta,
     descp_material: r.descp_material,
     descp_color: r.descp_color,
@@ -83,8 +86,38 @@ function mapSqlRow(r: SqlDepositoRow): DepositoRow {
       r.precio_unitario != null && Number(r.precio_unitario) > 0
         ? Number(r.precio_unitario)
         : null,
-  });
+  } as DepositoRow & { sdrm_tipo1?: string | null };
+  if (r.sdrm_tipo1) {
+    (base as DepositoRow & { sdrm_tipo1?: string }).sdrm_tipo1 = String(r.sdrm_tipo1).trim();
+  }
+  return normalizeDepositoRow(base);
 }
+
+/** Tipología AB-CR: linea_referencia + tipo_1; COD.GRUPO desde PE si hay match L+R. */
+const TIPOLOGIA_SELECT = `
+  COALESCE(
+    NULLIF(btrim(t1.descp_tipo_1::text), ''),
+    NULLIF(btrim(pe_tip.descp_tipo_1::text), ''),
+    NULL
+  ) AS tipo_1,
+  COALESCE(lr.tipo_1_id, pe_tip.tipo_1_id)::int AS tipo_1_id,
+  NULLIF(btrim(pe_tip.cod_grupo::text), '') AS cod_grupo,
+  NULLIF(btrim(pe_tip.sdrm_tipo1::text), '') AS sdrm_tipo1
+`;
+
+const TIPOLOGIA_JOINS = `
+    LEFT JOIN linea_referencia lr
+      ON lr.linea_id = l.id AND lr.referencia_id = r.id
+    LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
+    LEFT JOIN LATERAL (
+      SELECT pe.cod_grupo, pe.sdrm_tipo1, pe.tipo_1_id, pe.descp_tipo_1
+      FROM v_stock_pe_rimec pe
+      WHERE pe.linea_codigo::text = l.codigo_proveedor::text
+        AND pe.referencia_codigo::text = r.codigo_proveedor::text
+      ORDER BY pe.cod_grupo NULLS LAST
+      LIMIT 1
+    ) pe_tip ON true
+`;
 
 const MATERIAL_CODE_SQL = `
   CASE
@@ -100,6 +133,83 @@ const COLOR_CODE_SQL = `
     WHEN col.codigo_proveedor = -999001::bigint THEN '0'
     ELSE trim(col.codigo_proveedor::text)
   END
+`;
+
+/**
+ * PE tiene la foto con material/color Excel correctos; ALM post-compra
+ * a menudo trae otro codigo pilar (313 vs 15758, 8553 vs 0460).
+ * Match amplio + orden: color → descp color → material → descp material.
+ */
+const PE_IMG_LATERAL_INGRESO = `
+    LEFT JOIN LATERAL (
+      SELECT v.imagen_url, v.color_code AS pe_color_code
+      FROM v_stock_pe_rimec v
+      WHERE v.linea_codigo::text = l.codigo_proveedor::text
+        AND v.referencia_codigo::text = r.codigo_proveedor::text
+        AND NULLIF(btrim(v.imagen_url::text), '') IS NOT NULL
+        AND (
+          NULLIF(btrim(v.color_code::text), '') = NULLIF(btrim(col.codigo_proveedor::text), '')
+          OR NULLIF(btrim(v.material_code::text), '') = NULLIF(btrim(mat.codigo_proveedor::text), '')
+          OR lower(btrim(COALESCE(v.descp_color, ''))) = lower(btrim(COALESCE(col.nombre::text, '')))
+          OR (
+            NULLIF(btrim(col.nombre::text), '') IS NOT NULL
+            AND lower(btrim(COALESCE(v.descp_color, '')))
+              LIKE lower(split_part(btrim(col.nombre::text), '/', 1)) || '%'
+          )
+          OR lower(btrim(COALESCE(v.descp_material, ''))) = lower(btrim(COALESCE(mat.descripcion::text, '')))
+        )
+      ORDER BY
+        CASE WHEN NULLIF(btrim(v.color_code::text), '') = NULLIF(btrim(col.codigo_proveedor::text), '')
+          THEN 0 ELSE 1 END,
+        CASE WHEN lower(btrim(COALESCE(v.descp_color, ''))) = lower(btrim(COALESCE(col.nombre::text, '')))
+          THEN 0 ELSE 1 END,
+        CASE WHEN NULLIF(btrim(col.nombre::text), '') IS NOT NULL
+          AND lower(btrim(COALESCE(v.descp_color, '')))
+            LIKE lower(split_part(btrim(col.nombre::text), '/', 1)) || '%'
+          THEN 0 ELSE 1 END,
+        CASE WHEN NULLIF(btrim(v.material_code::text), '') = NULLIF(btrim(mat.codigo_proveedor::text), '')
+          THEN 0 ELSE 1 END,
+        CASE WHEN lower(btrim(COALESCE(v.descp_material, ''))) = lower(btrim(COALESCE(mat.descripcion::text, '')))
+          THEN 0 ELSE 1 END,
+        v.imagen_url NULLS LAST
+      LIMIT 1
+    ) pe_img ON true
+`;
+
+const PE_IMG_LATERAL_VENDIBLE = `
+    LEFT JOIN LATERAL (
+      SELECT pe.imagen_url, pe.color_code AS pe_color_code
+      FROM v_stock_pe_rimec pe
+      WHERE pe.linea_codigo::text = v.linea_codigo::text
+        AND pe.referencia_codigo::text = v.referencia_codigo::text
+        AND NULLIF(btrim(pe.imagen_url::text), '') IS NOT NULL
+        AND (
+          NULLIF(btrim(pe.color_code::text), '') = NULLIF(btrim(v.color_code::text), '')
+          OR NULLIF(btrim(pe.material_code::text), '') = NULLIF(btrim(v.material_code::text), '')
+          OR lower(btrim(COALESCE(pe.descp_color, ''))) = lower(btrim(COALESCE(v.color_nombre, '')))
+          OR (
+            NULLIF(btrim(v.color_nombre::text), '') IS NOT NULL
+            AND lower(btrim(COALESCE(pe.descp_color, '')))
+              LIKE lower(split_part(btrim(v.color_nombre::text), '/', 1)) || '%'
+          )
+          OR lower(btrim(COALESCE(pe.descp_material, ''))) = lower(btrim(COALESCE(v.material_descripcion, '')))
+        )
+      ORDER BY
+        CASE WHEN NULLIF(btrim(pe.color_code::text), '') = NULLIF(btrim(v.color_code::text), '')
+          THEN 0 ELSE 1 END,
+        CASE WHEN lower(btrim(COALESCE(pe.descp_color, ''))) = lower(btrim(COALESCE(v.color_nombre, '')))
+          THEN 0 ELSE 1 END,
+        CASE WHEN NULLIF(btrim(v.color_nombre::text), '') IS NOT NULL
+          AND lower(btrim(COALESCE(pe.descp_color, '')))
+            LIKE lower(split_part(btrim(v.color_nombre::text), '/', 1)) || '%'
+          THEN 0 ELSE 1 END,
+        CASE WHEN NULLIF(btrim(pe.material_code::text), '') = NULLIF(btrim(v.material_code::text), '')
+          THEN 0 ELSE 1 END,
+        CASE WHEN lower(btrim(COALESCE(pe.descp_material, ''))) = lower(btrim(COALESCE(v.material_descripcion, '')))
+          THEN 0 ELSE 1 END,
+        pe.imagen_url NULLS LAST
+      LIMIT 1
+    ) pe_img ON true
 `;
 
 export async function getDepositoRowsIngreso(): Promise<DepositoRow[]> {
@@ -135,16 +245,25 @@ export async function getDepositoRowsIngreso(): Promise<DepositoRow[]> {
       l.grupo_estilo_id,
       ${TIPO_V2_SQL} AS tipo_v2,
       ${TIPO_V2_ID_SQL} AS tipo_v2_id,
-      NULL::text AS tipo_1,
-      NULL::int AS tipo_1_id,
+      ${TIPOLOGIA_SELECT},
       NULLIF(btrim(col.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
       NULLIF(btrim(mat.descripcion::text), '') AS descp_material,
       NULLIF(btrim(col.nombre::text), '') AS descp_color,
-      NULLIF(btrim(col.nombre::text), '') AS imagen_color_excel,
-      NULL::text AS imagen_nombre,
+      -- 638: color Excel/PE (no nombre ni FK hash ALM)
+      CASE
+        WHEN l.proveedor_id = 638 THEN COALESCE(
+          NULLIF(btrim(pe_img.pe_color_code::text), ''),
+          NULLIF(btrim(pw.id_color_f9::text), ''),
+          NULLIF(btrim(pw.ppd_color_codigo::text), ''),
+          NULLIF(btrim(col.codigo_proveedor::text), '')
+        )
+        ELSE NULLIF(btrim(col.nombre::text), '')
+      END AS imagen_color_excel,
+      -- Solo URL/stem PE real — prohibido inventar L-R-M-C con códigos ALM rotos
+      NULLIF(btrim(pe_img.imagen_url::text), '') AS imagen_nombre,
       tl.talla_etiqueta AS grada,
       st.cantidad,
-      NULL::float8 AS precio_unitario
+      NULLIF(pw.precio_web, 0)::float8 AS precio_unitario
     FROM stock_talla st
     JOIN combinacion c ON c.id = st.combinacion_id
     JOIN linea l ON l.id = c.linea_id
@@ -155,6 +274,15 @@ export async function getDepositoRowsIngreso(): Promise<DepositoRow[]> {
     LEFT JOIN marca_v2 mv ON mv.id_marca = l.marca_id
     LEFT JOIN genero g ON g.id = l.genero_id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = l.grupo_estilo_id
+    ${TIPOLOGIA_JOINS}
+    LEFT JOIN LATERAL (
+      SELECT v.precio_web, v.id_color_f9, v.ppd_color_codigo
+      FROM v_stock_web v
+      WHERE v.combinacion_id = c.id
+      ORDER BY CASE WHEN COALESCE(v.precio_web, 0) > 0 THEN 0 ELSE 1 END
+      LIMIT 1
+    ) pw ON true
+    ${PE_IMG_LATERAL_INGRESO}
     ORDER BY mv.descp_marca, l.codigo_proveedor, r.codigo_proveedor, tl.talla_etiqueta
     `,
     [ALM_WEB_BAZAR],
@@ -183,18 +311,28 @@ export async function getDepositoRowsVendible(): Promise<DepositoRow[]> {
       v.grupo_estilo_id,
       ${TIPO_V2_SQL} AS tipo_v2,
       ${TIPO_V2_ID_SQL} AS tipo_v2_id,
-      NULL::text AS tipo_1,
-      NULL::int AS tipo_1_id,
+      ${TIPOLOGIA_SELECT},
       NULL::text AS tono_etiqueta,
       NULLIF(btrim(v.material_descripcion::text), '') AS descp_material,
       NULLIF(btrim(v.color_nombre::text), '') AS descp_color,
-      NULLIF(btrim(v.color_nombre::text), '') AS imagen_color_excel,
-      NULL::text AS imagen_nombre,
+      CASE
+        WHEN l.proveedor_id = 638 THEN COALESCE(
+          NULLIF(btrim(pe_img.pe_color_code::text), ''),
+          NULLIF(btrim(v.id_color_f9::text), ''),
+          NULLIF(btrim(v.ppd_color_codigo::text), ''),
+          NULLIF(btrim(v.color_code::text), '')
+        )
+        ELSE NULLIF(btrim(v.color_nombre::text), '')
+      END AS imagen_color_excel,
+      NULLIF(btrim(pe_img.imagen_url::text), '') AS imagen_nombre,
       v.talla_codigo AS grada,
       v.stock_web::float8 AS cantidad,
       COALESCE(v.precio_web, 0)::float8 AS precio_unitario
     FROM v_stock_web v
     JOIN linea l ON l.id = v.linea_id
+    JOIN referencia r ON r.id = v.referencia_id
+    ${TIPOLOGIA_JOINS}
+    ${PE_IMG_LATERAL_VENDIBLE}
     WHERE v.stock_web > 0
     ORDER BY v.marca, v.linea_codigo, v.referencia_codigo, v.talla_codigo
     `,

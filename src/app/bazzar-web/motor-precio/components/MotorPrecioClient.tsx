@@ -1,10 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
+import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
 import type { CatalogoPrecioRow, ReglaMarkup, SimularPrecioResult } from "@/lib/bazzar-web/motor-precio/types";
+import {
+  catalogoSkuKey,
+  catalogoToDepositoRows,
+} from "@/lib/bazzar-web/motor-precio/catalogo-filtro-siamese";
+import {
+  EMPTY_OPERATIVA_FILTERS,
+  hayFiltrosActivos,
+  type OperativaFilterState,
+} from "@/lib/depositos/operativa-filters";
+import {
+  applyStockPeFilters,
+  buildStockPeOpciones,
+} from "@/lib/stock-pronta-entrega/stock-pe-filters";
 import { DepositoProductThumb } from "@/app/depositos-bazzar/components/DepositoProductThumb";
 
 const WEB_NAVY = "#1E3A5F";
@@ -27,6 +41,8 @@ export function MotorPrecioClient() {
   const [reglas, setReglas] = useState<ReglaMarkup[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoPrecioRow[]>([]);
   const [metricas, setMetricas] = useState({ skus: 0, con_precio: 0, sin_precio: 0, pares: 0 });
+  /** Cascada siamese 2.2.1.44 · mismo motor que Depósito Web / Stock PE */
+  const [filtros, setFiltros] = useState<OperativaFilterState>(EMPTY_OPERATIVA_FILTERS);
 
   const [nuevoCaso, setNuevoCaso] = useState("");
   const [nuevoMarkup, setNuevoMarkup] = useState("50");
@@ -84,8 +100,48 @@ export function MotorPrecioClient() {
     refresh();
   }, [refresh]);
 
-  const sinPrecioRows = useMemo(() => catalogo.filter((r) => r.sin_precio), [catalogo]);
-  const conPrecioRows = useMemo(() => catalogo.filter((r) => !r.sin_precio), [catalogo]);
+  const filtrosDeferred = useDeferredValue(filtros);
+  const depositoRows = useMemo(() => catalogoToDepositoRows(catalogo), [catalogo]);
+  const filtradasDep = useMemo(
+    () => applyStockPeFilters(depositoRows, filtrosDeferred, ""),
+    [depositoRows, filtrosDeferred],
+  );
+  const opciones = useMemo(
+    () => buildStockPeOpciones(depositoRows, filtrosDeferred, ""),
+    [depositoRows, filtrosDeferred],
+  );
+  const keysFiltradas = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of filtradasDep) {
+      s.add(
+        `${r.linea_codigo_proveedor}|${r.referencia_codigo_proveedor}|${r.material_code ?? ""}`,
+      );
+    }
+    return s;
+  }, [filtradasDep]);
+
+  const catalogoFiltrado = useMemo(() => {
+    if (!hayFiltrosActivos(filtrosDeferred)) return catalogo;
+    return catalogo.filter((r) => keysFiltradas.has(catalogoSkuKey(r)));
+  }, [catalogo, filtrosDeferred, keysFiltradas]);
+
+  const sinPrecioRows = useMemo(
+    () => catalogoFiltrado.filter((r) => r.sin_precio),
+    [catalogoFiltrado],
+  );
+  const conPrecioRows = useMemo(
+    () => catalogoFiltrado.filter((r) => !r.sin_precio),
+    [catalogoFiltrado],
+  );
+  const metricasVista = useMemo(
+    () => ({
+      skus: catalogoFiltrado.length,
+      con_precio: conPrecioRows.length,
+      sin_precio: sinPrecioRows.length,
+      pares: catalogoFiltrado.reduce((s, r) => s + (r.stock_pares || 0), 0),
+    }),
+    [catalogoFiltrado, conPrecioRows.length, sinPrecioRows.length],
+  );
 
   async function crearRegla(e: React.FormEvent) {
     e.preventDefault();
@@ -198,7 +254,7 @@ export function MotorPrecioClient() {
     <div className="min-h-screen bg-app-bg text-neutral-ink">
       <NexusGlobalHeader maxWidthClass="max-w-6xl" />
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-6 py-8">
         <header className="mb-6">
           <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">
             ← Inicio
@@ -207,8 +263,9 @@ export function MotorPrecioClient() {
             Motor de precio
           </h1>
           <p className="text-sm text-slate-600">
-            Guardián del precio de venta WEB — LPN RIMEC × markup del caso comercial del ingreso (ej. +50% →
-            100.000 → 150.000).
+            Guardián del precio de venta WEB — LPN RIMEC × markup del caso (DPE:{" "}
+            <strong>NORMAL</strong> / PROMO / LIQ). Filtros cascada siameses{" "}
+            <strong>2.2.1.44</strong> · hermano Depósito Web / Stock PE.
           </p>
         </header>
 
@@ -257,10 +314,13 @@ export function MotorPrecioClient() {
           <section>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: "SKUs (L+R+Mat)", value: metricas.skus },
-                { label: "Con precio", value: metricas.con_precio },
-                { label: "Sin LPN/caso", value: metricas.sin_precio },
-                { label: "Pares stock", value: metricas.pares },
+                {
+                  label: hayFiltrosActivos(filtros) ? "SKUs filtrados" : "SKUs (L+R+Mat)",
+                  value: metricasVista.skus,
+                },
+                { label: "Con precio", value: metricasVista.con_precio },
+                { label: "Sin LPN/caso", value: metricasVista.sin_precio },
+                { label: "Pares stock", value: metricasVista.pares },
               ].map((m) => (
                 <div key={m.label} className="rounded-lg border border-slate-200 bg-white p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500">{m.label}</p>
@@ -270,6 +330,11 @@ export function MotorPrecioClient() {
                 </div>
               ))}
             </div>
+            {hayFiltrosActivos(filtros) && (
+              <p className="mb-3 text-xs text-slate-500">
+                Universo ALM_WEB: {metricas.skus} SKUs · cascada acota facetas (replace, no universo)
+              </p>
+            )}
 
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <button
@@ -286,19 +351,40 @@ export function MotorPrecioClient() {
               </span>
             </div>
 
-            {sinPrecioRows.length > 0 && (
-              <div className="mb-6">
-                <h2 className="mb-2 text-sm font-semibold text-amber-800">
-                  Sin precio calculable ({sinPrecioRows.length})
-                </h2>
-                <CatalogoTable rows={sinPrecioRows} highlight="warn" />
-              </div>
-            )}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+              <aside className="w-full shrink-0 lg:w-72">
+                <div className="rounded-lg border border-slate-200 bg-white p-2 lg:sticky lg:top-4">
+                  <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Cascada · grupo uno DPE
+                  </p>
+                  <ReposicionFiltrosSidebar
+                    variant="pe"
+                    filtros={filtros}
+                    onChange={setFiltros}
+                    opciones={opciones}
+                    emptyFilters={EMPTY_OPERATIVA_FILTERS}
+                  />
+                </div>
+              </aside>
+              <div className="min-w-0 flex-1">
+                {sinPrecioRows.length > 0 && (
+                  <div className="mb-6">
+                    <h2 className="mb-2 text-sm font-semibold text-amber-800">
+                      Sin precio calculable ({sinPrecioRows.length})
+                    </h2>
+                    <CatalogoTable rows={sinPrecioRows} highlight="warn" />
+                  </div>
+                )}
 
-            <h2 className="mb-2 text-sm font-semibold text-slate-700">
-              Catálogo con precio ({conPrecioRows.length})
-            </h2>
-            <CatalogoTable rows={conPrecioRows.length ? conPrecioRows : catalogo} highlight="ok" />
+                <h2 className="mb-2 text-sm font-semibold text-slate-700">
+                  Catálogo con precio ({conPrecioRows.length})
+                </h2>
+                <CatalogoTable
+                  rows={conPrecioRows.length ? conPrecioRows : catalogoFiltrado}
+                  highlight="ok"
+                />
+              </div>
+            </div>
           </section>
         )}
 
@@ -536,8 +622,10 @@ function CatalogoTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
-            const key = `${r.linea}-${r.referencia}-${r.material}`;
+          {rows.map((r, idx) => {
+            // Identidad = L+R+código material (GROUP BY catálogo · 2.5.1.5).
+            // No usar descripción: dos códigos pueden compartir texto (ej. PELICA) → same key React.
+            const key = `${r.linea}-${r.referencia}-${r.material_codigo ?? r.material}-${idx}`;
             const diff =
               r.precio_web_calculado != null &&
               r.precio_web_publicado != null &&
@@ -562,6 +650,7 @@ function CatalogoTable({
                       referencia={r.referencia}
                       material={r.material_codigo ?? ""}
                       color={r.color_codigo ?? ""}
+                      imagenNombre={r.imagen_nombre}
                       size={40}
                       variant="frame"
                       imageCtx={{

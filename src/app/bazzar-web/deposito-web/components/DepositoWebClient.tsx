@@ -298,7 +298,9 @@ export function DepositoWebClient() {
 
             <p className="text-xs text-neutral-600">
 
-              Grilla y filtros siameses (PE / Alejandro Magno / RIMEC Web). Protocolo imagen 654 + 638.
+              Grilla y filtros siameses (PE / Alejandro Magno / RIMEC Web) · protocolo{' '}
+              <strong>2.2.1.44</strong> · cascada dimensión→molécula <strong>2.2.1.42</strong>.
+              Protocolo imagen 654 + 638.
 
             </p>
 
