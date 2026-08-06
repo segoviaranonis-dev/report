@@ -1,0 +1,10 @@
+tmp
+.tmp
+.tmp/
+scripts/output
+*.log
+_backfill_log.txt
+_regen_fi_*.log
+tmp_*.json
+.next
+node_modules

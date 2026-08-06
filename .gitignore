@@ -22,6 +22,10 @@
 .DS_Store
 *.pem
 Thumbs.db
+/tmp/
+/.tmp/
+*.log
+tmp_*.json
 
 # debug
 npm-debug.log*
