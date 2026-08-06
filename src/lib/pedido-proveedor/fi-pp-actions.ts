@@ -1,7 +1,6 @@
 import type { Pool } from "pg";
 import type { ListadoMotorFiReport } from "@/lib/pedido-proveedor/listado-motor-fi-types";
 import { actualizarEncabezadoFi, actualizarListaPrecioFi, resincronizarFiDesdeListadoPp } from "@/app/aprobaciones/lib/aprobaciones-mutations";
-import { calcularNeto } from "@/lib/intencion-compra/calcular-neto";
 import { esListadoPrecioValido } from "@/lib/intencion-compra/listado-precio-tiers";
 import {
   FACTURA_CARLOS_MAX_LEN,
@@ -11,17 +10,20 @@ import {
 } from "@/lib/logistica-ok/factura-real";
 import { syncLogisticaPpIfBandera } from "@/lib/logistica-ok/sync-pp";
 import { syncLogisticaMontosDesdeFi } from "@/lib/logistica-ok/sync-fi-montos";
+import {
+  resolveIcIdPorFiNotas,
+  syncIcDesdeFiPatch,
+} from "@/lib/pedido-proveedor/trinidad-ic-pf-fi-sync";
 
-/** Rellena plazo/LP/descuentos FI desde IC vinculada (SHOP = id_cliente). */
+/** Bootstrap FI vacíos desde IC emparejada por fi.notas. */
 export async function syncFiEncabezadoDesdeIc(pool: Pool, ppId: number): Promise<void> {
   await pool.query(
     `UPDATE factura_interna fi
      SET plazo_id = ic.id_plazo
-     FROM intencion_compra_pedido icp
-     JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
-     WHERE icp.pedido_proveedor_id = fi.pp_id
-       AND ic.id_cliente = fi.cliente_id
-       AND fi.pp_id = $1
+     FROM intencion_compra ic
+     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+     WHERE fi.pp_id = $1
+       AND TRIM(ic.numero_registro) = TRIM(COALESCE(fi.notas, ''))
        AND fi.plazo_id IS NULL
        AND ic.id_plazo IS NOT NULL`,
     [ppId],
@@ -29,11 +31,10 @@ export async function syncFiEncabezadoDesdeIc(pool: Pool, ppId: number): Promise
   await pool.query(
     `UPDATE factura_interna fi
      SET lista_precio_id = ic.listado_precio_id
-     FROM intencion_compra_pedido icp
-     JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
-     WHERE icp.pedido_proveedor_id = fi.pp_id
-       AND ic.id_cliente = fi.cliente_id
-       AND fi.pp_id = $1
+     FROM intencion_compra ic
+     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+     WHERE fi.pp_id = $1
+       AND TRIM(ic.numero_registro) = TRIM(COALESCE(fi.notas, ''))
        AND ic.listado_precio_id IS NOT NULL
        AND (fi.lista_precio_id IS NULL OR fi.lista_precio_id = 1)
        AND ic.listado_precio_id <> COALESCE(fi.lista_precio_id, 0)`,
@@ -64,16 +65,7 @@ export async function actualizarListaPrecioFiDesdePp(
     return { ok: false, error: result.msg };
   }
 
-  await pool.query(
-    `UPDATE intencion_compra ic
-     SET listado_precio_id = $3
-     FROM intencion_compra_pedido icp
-     JOIN factura_interna fi ON fi.pp_id = icp.pedido_proveedor_id AND fi.cliente_id = ic.id_cliente
-     WHERE ic.id = icp.intencion_compra_id
-       AND icp.pedido_proveedor_id = $1
-       AND fi.id = $2`,
-    [ppId, fiId, listaPrecioId],
-  );
+  await syncIcDesdeFiPatch(pool, ppId, fiId, { listado_precio_id: listaPrecioId });
 
   return { ok: true, totalMonto: result.totalMonto };
 }
@@ -115,39 +107,20 @@ export async function actualizarListadoMotorFiDesdePp(
     return { ok: false, error: "FI sin cliente SHOP — no hay IC para vincular listado." };
   }
 
-  const evAntesRes = await pool.query<{ evento_id: string | null }>(
-    `SELECT ic.precio_evento_id::text AS evento_id
-     FROM intencion_compra ic
-     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id
-     WHERE icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2
-     ORDER BY ic.id LIMIT 1`,
-    [ppId, Number(fi.cliente_id)],
-  );
+  const icIdEmparejada = await resolveIcIdPorFiNotas(pool, ppId, fiId);
+  const evAntesRes = icIdEmparejada
+    ? await pool.query<{ evento_id: string | null }>(
+        `SELECT precio_evento_id::text AS evento_id FROM intencion_compra WHERE id = $1`,
+        [icIdEmparejada],
+      )
+    : { rows: [] as { evento_id: string | null }[] };
   const eventoIdAntes =
     evAntesRes.rows[0]?.evento_id != null ? Number(evAntesRes.rows[0].evento_id) : null;
 
-  const updIc = await pool.query(
-    `UPDATE intencion_compra ic
-     SET precio_evento_id = $3
-     FROM intencion_compra_pedido icp
-     WHERE ic.id = icp.intencion_compra_id
-       AND icp.pedido_proveedor_id = $1
-       AND ic.id_cliente = $2`,
-    [ppId, Number(fi.cliente_id), eventoId],
-  );
-  if ((updIc.rowCount ?? 0) === 0) {
-    return { ok: false, error: "Sin IC vinculada a este cliente en el PP." };
+  const updIc = await syncIcDesdeFiPatch(pool, ppId, fiId, { precio_evento_id: eventoId });
+  if (!updIc) {
+    return { ok: false, error: "Sin IC emparejada (fi.notas) — no se puede imponer listado motor." };
   }
-
-  await pool.query(
-    `UPDATE intencion_compra_pedido icp
-     SET precio_evento_id = $3
-     FROM intencion_compra ic
-     WHERE icp.intencion_compra_id = ic.id
-       AND icp.pedido_proveedor_id = $1
-       AND ic.id_cliente = $2`,
-    [ppId, Number(fi.cliente_id), eventoId],
-  );
 
   const resync = await resincronizarFiDesdeListadoPp(fiId, {
     usarRedondeoComercial: true,
@@ -156,32 +129,8 @@ export async function actualizarListadoMotorFiDesdePp(
     precioEventoIdOverride: eventoId,
   });
   if (!resync.ok) {
-    if (eventoIdAntes != null) {
-      await pool.query(
-        `UPDATE intencion_compra ic SET precio_evento_id = $3
-         FROM intencion_compra_pedido icp
-         WHERE ic.id = icp.intencion_compra_id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
-        [ppId, Number(fi.cliente_id), eventoIdAntes],
-      );
-      await pool.query(
-        `UPDATE intencion_compra_pedido icp SET precio_evento_id = $3
-         FROM intencion_compra ic
-         WHERE icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
-        [ppId, Number(fi.cliente_id), eventoIdAntes],
-      );
-    } else {
-      await pool.query(
-        `UPDATE intencion_compra ic SET precio_evento_id = NULL
-         FROM intencion_compra_pedido icp
-         WHERE ic.id = icp.intencion_compra_id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
-        [ppId, Number(fi.cliente_id)],
-      );
-      await pool.query(
-        `UPDATE intencion_compra_pedido icp SET precio_evento_id = NULL
-         FROM intencion_compra ic
-         WHERE icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
-        [ppId, Number(fi.cliente_id)],
-      );
+    if (icIdEmparejada) {
+      await syncIcDesdeFiPatch(pool, ppId, fiId, { precio_evento_id: eventoIdAntes });
     }
     return { ok: false, error: resync.msg };
   }
@@ -260,15 +209,22 @@ export async function actualizarVendedorFiDesdePp(
 
     await client.query(`UPDATE factura_interna SET vendedor_id = $2 WHERE id = $1`, [fiId, vendedorId]);
 
-    if (fiRes.rows[0].cliente_id != null) {
-      await client.query(
-        `UPDATE intencion_compra ic SET id_vendedor = $3
-         FROM intencion_compra_pedido icp
-         WHERE ic.id = icp.intencion_compra_id
-           AND icp.pedido_proveedor_id = $1
-           AND ic.id_cliente = $2`,
-        [ppId, fiRes.rows[0].cliente_id, vendedorId],
-      );
+    const icLink = await client.query<{ id: number }>(
+      `SELECT ic.id
+       FROM factura_interna fi
+       JOIN intencion_compra ic ON TRIM(ic.numero_registro) = TRIM(COALESCE(fi.notas, ''))
+       JOIN intencion_compra_pedido icp
+         ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+       WHERE fi.id = $1 AND fi.pp_id = $2
+         AND TRIM(COALESCE(fi.notas, '')) <> ''
+       LIMIT 1`,
+      [fiId, ppId],
+    );
+    if (icLink.rows[0]) {
+      await client.query(`UPDATE intencion_compra SET id_vendedor = $2 WHERE id = $1`, [
+        icLink.rows[0].id,
+        vendedorId,
+      ]);
     }
 
     await client.query(
@@ -315,41 +271,13 @@ export async function actualizarEncabezadoFiDesdePp(
     return { ok: false, error: result.msg };
   }
 
-  const clienteId = link.rows[0].cliente_id;
-  if (clienteId != null) {
-    const icRows = await pool.query<{ id: number; monto_bruto: number }>(
-      `SELECT ic.id, COALESCE(ic.monto_bruto, 0)::float AS monto_bruto
-       FROM intencion_compra_pedido icp
-       JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
-       WHERE icp.pedido_proveedor_id = $1 AND ic.id_cliente = $2`,
-      [ppId, clienteId],
-    );
-    for (const ic of icRows.rows) {
-      const neto = calcularNeto(
-        ic.monto_bruto,
-        input.descuento_1,
-        input.descuento_2,
-        input.descuento_3,
-        input.descuento_4,
-      );
-      await pool.query(
-        `UPDATE intencion_compra
-         SET id_plazo = $2,
-             descuento_1 = $3, descuento_2 = $4, descuento_3 = $5, descuento_4 = $6,
-             monto_neto = $7
-         WHERE id = $1`,
-        [
-          ic.id,
-          input.plazoId,
-          input.descuento_1,
-          input.descuento_2,
-          input.descuento_3,
-          input.descuento_4,
-          neto,
-        ],
-      );
-    }
-  }
+  await syncIcDesdeFiPatch(pool, ppId, fiId, {
+    id_plazo: input.plazoId,
+    descuento_1: input.descuento_1,
+    descuento_2: input.descuento_2,
+    descuento_3: input.descuento_3,
+    descuento_4: input.descuento_4,
+  });
 
   return { ok: true, totalMonto: result.totalMonto ?? 0 };
 }

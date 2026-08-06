@@ -342,19 +342,6 @@ export async function updateIcVinculadaPp(
       await client.query(`UPDATE intencion_compra SET ${icSets.join(", ")} WHERE id = $1`, icVals);
     }
 
-    if (fields.listado_precio_id !== undefined && esListadoPrecioValido(fields.listado_precio_id)) {
-      await client.query(
-        `UPDATE factura_interna fi
-         SET lista_precio_id = $3
-         FROM intencion_compra ic
-         WHERE fi.pp_id = $1
-           AND fi.cliente_id = ic.id_cliente
-           AND ic.id = $2
-           AND fi.estado IN ('RESERVADA', 'CONFIRMADA')`,
-        [ppId, icId, fields.listado_precio_id],
-      );
-    }
-
     const icpSets: string[] = [];
     const icpVals: unknown[] = [ppId, icId];
     let j = 3;

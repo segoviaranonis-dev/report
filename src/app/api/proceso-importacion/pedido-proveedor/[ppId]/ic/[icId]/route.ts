@@ -6,6 +6,7 @@ import {
 } from "@/lib/logistica-ok/observaciones-logistica";
 import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { desasignarIcDePp, updateIcVinculadaPp, type UpdateIcVinculadaInput } from "@/lib/pedido-proveedor/cabecera-actions";
+import { propagarTrinidadDesdeIc } from "@/lib/pedido-proveedor/trinidad-ic-pf-fi-sync";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
 type Params = { params: Promise<{ ppId: string; icId: string }> };
@@ -38,6 +39,11 @@ export async function PATCH(req: Request, { params }: Params) {
     const result = await updateIcVinculadaPp(pool, ppId, icId, fields);
     if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
 
+    const trinidad = await propagarTrinidadDesdeIc(pool, ppId, icId, fields);
+    if (!trinidad.ok) {
+      return NextResponse.json({ ok: false, error: trinidad.error }, { status: 400 });
+    }
+
     if (obsNueva) {
       const session = gate.session!;
       const append = await appendObservacionLogistica(pool, {
@@ -58,7 +64,13 @@ export async function PATCH(req: Request, { params }: Params) {
       await vincularObsIcAFisExistentes(pool, icId, ppId);
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      trinidad: {
+        fi_ids: trinidad.fi_ids,
+        avisos: trinidad.avisos,
+      },
+    });
   } catch (e) {
     return icApiErrorResponse(e, "Error al actualizar IC vinculada");
   }

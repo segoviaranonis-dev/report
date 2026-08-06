@@ -529,11 +529,10 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
       SELECT ic.id_vendedor, ic.listado_precio_id, ic.id_plazo, ic.id_marca,
              ic.descuento_1, ic.descuento_2, ic.descuento_3, ic.descuento_4,
              ic.precio_evento_id
-      FROM intencion_compra_pedido icp
-      JOIN intencion_compra ic ON ic.id = icp.intencion_compra_id
-      WHERE icp.pedido_proveedor_id = fi.pp_id
-        AND ic.id_cliente = fi.cliente_id
-      ORDER BY ABS(ic.cantidad_total_pares - COALESCE(fi.total_pares, 0)) ASC, ic.id ASC
+      FROM intencion_compra ic
+      JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+      WHERE TRIM(COALESCE(fi.notas, '')) <> ''
+        AND TRIM(ic.numero_registro) = TRIM(fi.notas)
       LIMIT 1
     ) ic ON true
     LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id

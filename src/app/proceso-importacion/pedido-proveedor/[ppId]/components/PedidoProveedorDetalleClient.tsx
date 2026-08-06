@@ -415,7 +415,15 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
       if (!res.ok) throw new Error(data.error || "Error al guardar IC");
       setIcObsNueva((o) => ({ ...o, [icId]: "" }));
       await cargarObsIc(icId);
-      setMsg("IC actualizada.");
+      const avisos = (data.trinidad?.avisos as string[] | undefined) ?? [];
+      const fiN = (data.trinidad?.fi_ids as number[] | undefined)?.length ?? 0;
+      setMsg(
+        fiN > 0
+          ? `IC actualizada · trinidad FI (${fiN}) sincronizada${avisos.length ? ` · ${avisos.join(" · ")}` : "."}`
+          : avisos.length
+            ? `IC actualizada · ${avisos.join(" · ")}`
+            : "IC actualizada · trinidad PF alineada (sin FI aún).",
+      );
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Error");
