@@ -57,6 +57,8 @@ export type DepositoRow = {
   sdrm_marca?: string | null;
   cadena_comercial?: string | null;
   es_liquidacion?: boolean | null;
+  /** PE / ALM — promo vía diccionario o caso */
+  es_promo?: boolean | null;
   /** Kyly 638 · TEMPORADA (VERANO|INVIERNO) — tipo_1 / am_temporada */
   temporada?: string | null;
   /**
