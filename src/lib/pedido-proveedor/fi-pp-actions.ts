@@ -21,7 +21,7 @@ export async function syncFiEncabezadoDesdeIc(pool: Pool, ppId: number): Promise
     `UPDATE factura_interna fi
      SET plazo_id = ic.id_plazo
      FROM intencion_compra ic
-     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1
      WHERE fi.pp_id = $1
        AND TRIM(ic.numero_registro) = TRIM(COALESCE(fi.notas, ''))
        AND fi.plazo_id IS NULL
@@ -32,7 +32,7 @@ export async function syncFiEncabezadoDesdeIc(pool: Pool, ppId: number): Promise
     `UPDATE factura_interna fi
      SET lista_precio_id = ic.listado_precio_id
      FROM intencion_compra ic
-     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
+     JOIN intencion_compra_pedido icp ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = $1
      WHERE fi.pp_id = $1
        AND TRIM(ic.numero_registro) = TRIM(COALESCE(fi.notas, ''))
        AND ic.listado_precio_id IS NOT NULL
