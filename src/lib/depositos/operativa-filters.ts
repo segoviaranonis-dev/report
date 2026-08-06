@@ -47,7 +47,8 @@ import {
   rowMatchesAccesoriosSubtipo,
   tiposMetaModuloAccesorios,
 } from "@/lib/filtros/modulo-accesorios";
-import { esFilaMedias, PE_TIPO1_MEDIAS_ID } from "@/lib/filtros/pe-modulo-medias";
+import { PE_TIPO1_ESCOLAR_ID } from "@/lib/filtros/pe-modulo-escolar";
+import { rowMatchesPeAbcrTipo1 } from "@/lib/filtros/pe-abcr-tipo1";
 import { TIPO_V2_CALZADO, TIPO_V2_CONFECCIONES } from "@/lib/retail/product-image-protocol";
 
 export type CantidadOp = "gt" | "lt" | null;
@@ -264,17 +265,31 @@ export function rowMatchesOperativaFilters(
   if (eff.grupoEstiloIds.length && !matchFk(r.grupo_estilo_id, eff.grupoEstiloIds)) return false
   if (eff.tipo1Ids.length) {
     const synthKeys = eff.tipo1Ids
-      .filter((id) => id < 0)
+      .filter((id) => id < 0 && id !== PE_TIPO1_ESCOLAR_ID)
       .map((id) => accesoriosSubtipoFromSyntheticId(id))
       .filter((k): k is string => Boolean(k));
-    const fkIds = eff.tipo1Ids.filter((id) => id > 0);
+    const abcrIds = eff.tipo1Ids.filter((id) => id > 0 || id === PE_TIPO1_ESCOLAR_ID);
     if (synthKeys.length && !rowMatchesAccesoriosSubtipo(r, synthKeys)) return false;
-    if (fkIds.length) {
-      const fkOk = fkIds.some((id) => {
-        if (id === PE_TIPO1_MEDIAS_ID) return esFilaMedias(r);
-        return matchFk(r.tipo_1_id, [id]);
-      });
-      if (!fkOk) return false;
+    if (abcrIds.length) {
+      if (
+        !rowMatchesPeAbcrTipo1(
+          {
+            tipo_1_id: r.tipo_1_id,
+            tipo_1: r.tipo_1,
+            descp_tipo_1: r.tipo_1,
+            sdrm_tipo1: (r as { sdrm_tipo1?: string | null }).sdrm_tipo1,
+            marca: r.marca,
+            sdrm_marca: (r as { sdrm_marca?: string | null }).sdrm_marca,
+            cod_grupo: r.cod_grupo,
+            linea_codigo_proveedor: r.linea_codigo_proveedor,
+          },
+          abcrIds,
+        )
+      ) {
+        return false;
+      }
+    } else if (!synthKeys.length) {
+      return false;
     }
   }
 

@@ -81,6 +81,7 @@ const CALZ_D45_CADENA: Record<string, string> = {
   "02": "PROMOCIONAL",
   "04": "LIQUIDACION",
   "06": "COMUN",
+  "08": "REGULAR", // ESCOLAR en AB-CR; cadena comercial REGULAR (seed Carlos)
 };
 
 /** Calzado · dígitos 07–08 → estilo (estructural). */

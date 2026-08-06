@@ -301,9 +301,12 @@ export function tiposMetaModuloAccesorios(
 export { mergePeAbcrTipo1Items, rowMatchesPeAbcrTipo1 } from "@/lib/filtros/pe-abcr-tipo1";
 
 export function peTieneSubfamiliaAccesorios(tipo1Ids: readonly number[]): boolean {
-
-  return tipo1Ids.some((id) => id < 0);
-
+  // Solo Carteras/Anteojos (-1/-2). ESCOLAR (-8) no es módulo accesorios.
+  return tipo1Ids.some(
+    (id) =>
+      id === ACCESORIOS_SUBTIPO_SYNTHETIC_ID.CARTERAS ||
+      id === ACCESORIOS_SUBTIPO_SYNTHETIC_ID.LENTES,
+  );
 }
 
 
