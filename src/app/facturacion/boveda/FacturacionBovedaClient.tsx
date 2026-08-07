@@ -27,6 +27,26 @@ function fmtFecha(iso: string): string {
   }
 }
 
+async function descargarCsvPorNro(nroFactura: string): Promise<void> {
+  const res = await fetch(`/api/facturacion/${encodeURIComponent(nroFactura)}/csv`, {
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Error al descargar CSV");
+  }
+  const blob = await res.blob();
+  const disp = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(disp);
+  const filename = match?.[1] ?? "factura.csv";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function FacturacionBovedaClient() {
   const [items, setItems] = useState<BovedaRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +59,7 @@ export function FacturacionBovedaClient() {
   } | null>(null);
   const [fiDetailLoading, setFiDetailLoading] = useState(false);
   const [fiDetailError, setFiDetailError] = useState<string | null>(null);
+  const [descargandoCsv, setDescargandoCsv] = useState<string | null>(null);
   const fiDetailReqRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -94,6 +115,20 @@ export function FacturacionBovedaClient() {
       if (reqId === fiDetailReqRef.current) setFiDetailLoading(false);
     }
   }
+
+  async function onDescargarCsv(nroFactura: string) {
+    setDescargandoCsv(nroFactura);
+    setError(null);
+    try {
+      await descargarCsvPorNro(nroFactura);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error CSV");
+    } finally {
+      setDescargandoCsv(null);
+    }
+  }
+
+  const puedeCsvPe = (estado: string) => estado === "CONFIRMADA";
 
   return (
     <div className="min-h-screen bg-app-bg text-neutral-ink">
@@ -189,7 +224,17 @@ export function FacturacionBovedaClient() {
                         </p>
                       </div>
                     </div>
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      {puedeCsvPe(row.fi_estado) && (
+                        <button
+                          type="button"
+                          disabled={descargandoCsv === row.nro_factura}
+                          onClick={() => void onDescargarCsv(row.nro_factura)}
+                          className="rounded-lg border-2 border-rimec-azul bg-rimec-azul/5 px-4 py-2 text-xs font-bold text-rimec-azul-dark hover:bg-rimec-azul/10 disabled:opacity-50"
+                        >
+                          {descargandoCsv === row.nro_factura ? "Generando…" : "Descargar CSV"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
@@ -238,7 +283,7 @@ export function FacturacionBovedaClient() {
           </div>
         )}
       </main>
-      <ReportFooter note={`Bóveda RIMEC · ${FACTURACION_BOVEDA} · MIG-186 · detalle FI habilitado`} />
+      <ReportFooter note={`Bóveda RIMEC · ${FACTURACION_BOVEDA} · MIG-186 · CSV PE desde bóveda`} />
     </div>
   );
 }
