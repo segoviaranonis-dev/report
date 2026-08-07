@@ -2,7 +2,10 @@
  * CSV ventas PE — veneno Carlos (stock pronta entrega).
  * Formato Director (inviolable — no alterar nombres/orden/cantidad de columnas):
  * Cliente · Cod. Oper. · F. Pedido · Lista precios · cobrador · vendedor · DEPOSITO ·
- * Des. 1–4 · Codigo Articulo · Cant. Pares · Precio sin descuento · Precio con descuento
+ * Des. 1–4 · Codigo Articulo · Cant. Pares · Precio con descuento · Precio sin descuento
+ *
+ * Orden precios (2026-08-07 hotfix Director): neto antes que bruto — Carlos aplica Des.1–4
+ * de cabecera; si la col «sin descuento» va primero puede duplicar el descuento.
  *
  * DEPOSITO = dato de CABECERA (una sola vez en la 1ª fila de datos): S00_D1 | S00_DEP2 | S00_D3
  * Cant. Pares = cantidad por artículo (columna única — NO tres columnas de depósito).
@@ -16,9 +19,18 @@ import {
 import { resolveCodOperCarlos } from "@/lib/carlos/plazo-carlos-resolver";
 import { resolveVendedorCarlosParaCsv } from "@/lib/carlos/vendedor-carlos-resolver";
 import {
+  fiListaTier,
+} from "@/lib/pedido-proveedor/aritmetica-programado";
+import type { ListadoPrecioTierId } from "@/lib/intencion-compra/listado-precio-tiers";
+import {
   type RimecCsvDepositoColumn,
   RIMEC_SDRM_DEPOSIT_MAP,
 } from "@/lib/deposito-rimec/rimec-csv-sdrm";
+import {
+  assertPeCsvTierOrThrow,
+  auditPeCsvTierIntegrity,
+  type PeCsvFiDetAudit,
+} from "@/lib/facturacion/csv-pe-tier-audit";
 
 /** Valores legales permitidos en col DEPOSITO (cabecera FI). */
 export const PE_CSV_DEPOSITO_VALORES: RimecCsvDepositoColumn[] = [
@@ -27,9 +39,9 @@ export const PE_CSV_DEPOSITO_VALORES: RimecCsvDepositoColumn[] = [
   "S00_D3",
 ];
 
-/** Header canónico — 15 columnas · orden fijo · no tocar. */
+/** Header canónico — 15 columnas · orden fijo (precios: con descuento → sin descuento · 2026-08-07). */
 const HEADER =
-  "Cliente\tCod. Oper.\tF. Pedido\tLista precios\tcobrador\tvendedor\tDEPOSITO\tDes. 1\tDes. 2\tDes. 3\tDes. 4\tCodigo Articulo\tCant. Pares\tPrecio sin descuento\tPrecio con descuento";
+  "Cliente\tCod. Oper.\tF. Pedido\tLista precios\tcobrador\tvendedor\tDEPOSITO\tDes. 1\tDes. 2\tDes. 3\tDes. 4\tCodigo Articulo\tCant. Pares\tPrecio con descuento\tPrecio sin descuento";
 
 const COBRADOR = "90";
 
@@ -52,29 +64,20 @@ export type PeVentasCsvRow = {
   fid_id: number;
 };
 
-type FiDetRow = {
+type FiDetRow = PeCsvFiDetAudit & {
   cliente_id: string | null;
   plazo_id: string | null;
   pedido_id: string | null;
   lista_precio_id: string | null;
-  descuento_1: string | null;
-  descuento_2: string | null;
-  descuento_3: string | null;
-  descuento_4: string | null;
   vendedor_id: string | null;
   vendedor_nombre: string | null;
   fecha_pedido: Date | string | null;
   linea_snapshot: unknown;
-  precio_unit: string | null;
-  precio_neto: string | null;
   precio_lista: string | null;
-  precio_base_snap: string | null;
   unit_fob_ajustado: string | null;
-  fid_id: number;
   payload_json: unknown;
   caso: string | null;
   cod_oper_carlos: string | null;
-  codigo_barras: string | null;
   pares: string | null;
   columna_stock_legal: string | null;
   deposito_codigo: string | null;
@@ -182,26 +185,54 @@ function fmtPrecioGs(n: number): string {
   return String(Math.round(n));
 }
 
-function resolvePreciosLinea(r: FiDetRow): { bruto: string; neto: string } {
+function brutoDesdePpdTier(r: FiDetRow, tier: ListadoPrecioTierId): number {
+  const pick = (raw: string | null | undefined): number => {
+    const v = Number(raw);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  };
+  const byTier: Record<ListadoPrecioTierId, number> = {
+    1: pick(r.ppd_precio_lpn),
+    2: pick(r.ppd_precio_lpc02),
+    3: pick(r.ppd_precio_lpc03),
+    4: pick(r.ppd_precio_lpc04),
+  };
+  const direct = byTier[tier];
+  if (direct > 0) return direct;
+  return pick(r.ppd_precio_lpn);
+}
+
+/**
+ * Precios CSV = los de la FI (precio_unit / precio_neto) respetando lista_precio_id.
+ * Prohibido priorizar linea_snapshot.precio_base o fid.precio_lista — suelen ser LPN.
+ */
+export function resolvePreciosLineaPeCsv(r: FiDetRow, listaPrecioId: number): { bruto: string; neto: string } {
   const d1 = Number(r.descuento_1) || 0;
   const d2 = Number(r.descuento_2) || 0;
   const d3 = Number(r.descuento_3) || 0;
   const d4 = Number(r.descuento_4) || 0;
   const hayDesc = d1 + d2 + d3 + d4 > 0;
+  const tier = fiListaTier(listaPrecioId);
 
-  let bruto = Number(r.precio_base_snap);
-  if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.precio_lista);
-  if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.unit_fob_ajustado);
-  if (!Number.isFinite(bruto) || bruto <= 0) bruto = Number(r.precio_unit);
-
+  const unitBd = Number(r.precio_unit);
   const netoBd = Number(r.precio_neto);
-  if ((!Number.isFinite(bruto) || bruto <= 0) && Number.isFinite(netoBd) && netoBd > 0 && hayDesc) {
-    bruto = brutoDesdeNeto(netoBd, d1, d2, d3, d4);
-  }
-  if (!Number.isFinite(bruto) || bruto <= 0) bruto = netoBd;
 
-  const neto =
-    hayDesc && bruto > 0 ? precioNetoCascada(bruto, d1, d2, d3, d4) : netoBd > 0 ? netoBd : bruto;
+  if (Number.isFinite(unitBd) && unitBd > 0 && Number.isFinite(netoBd) && netoBd > 0) {
+    return { bruto: fmtPrecioGs(unitBd), neto: fmtPrecioGs(netoBd) };
+  }
+
+  let bruto = Number.isFinite(unitBd) && unitBd > 0 ? unitBd : brutoDesdePpdTier(r, tier);
+  if (bruto <= 0) bruto = Number(r.precio_base_snap);
+  if (bruto <= 0) bruto = Number(r.unit_fob_ajustado);
+
+  let neto = Number.isFinite(netoBd) && netoBd > 0 ? netoBd : 0;
+  if (neto <= 0 && bruto > 0 && hayDesc) {
+    neto = precioNetoCascada(bruto, d1, d2, d3, d4);
+  }
+  if (neto <= 0 && bruto > 0 && hayDesc && Number.isFinite(netoBd) && netoBd > 0) {
+    bruto = brutoDesdeNeto(netoBd, d1, d2, d3, d4);
+    neto = netoBd;
+  }
+  if (neto <= 0) neto = bruto;
 
   return {
     bruto: fmtPrecioGs(bruto),
@@ -222,8 +253,8 @@ type CabeceraCsv = {
   descuento_4: string;
 };
 
-function mapDetalleRow(r: FiDetRow, cab: CabeceraCsv): PeVentasCsvRow {
-  const { bruto, neto } = resolvePreciosLinea(r);
+function mapDetalleRow(r: FiDetRow, cab: CabeceraCsv, listaPrecioId: number): PeVentasCsvRow {
+  const { bruto, neto } = resolvePreciosLineaPeCsv(r, listaPrecioId);
   return {
     ...cab,
     codigo_articulo: resolveCodigoArticuloCarlos(r),
@@ -258,8 +289,8 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
       cab.descuento_4,
       cab.codigo_articulo,
       cab.cant_pares,
-      cab.precio_sin_descuento,
       cab.precio_con_descuento,
+      cab.precio_sin_descuento,
     ]
       .map(tsvCell)
       .join("\t"),
@@ -282,8 +313,8 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
         "",
         r.codigo_articulo,
         r.cant_pares,
-        r.precio_sin_descuento,
         r.precio_con_descuento,
+        r.precio_sin_descuento,
       ]
         .map(tsvCell)
         .join("\t"),
@@ -293,7 +324,7 @@ export function buildPeVentasCsvContent(rows: PeVentasCsvRow[]): string {
   return `${lines.join("\r\n")}\r\n`;
 }
 
-export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise<PeVentasCsvRow[]> {
+export async function fetchPeVentasDetRowsByFiId(pool: Pool, fiId: number): Promise<FiDetRow[]> {
   const { rows } = await pool.query<FiDetRow>(
     `
     SELECT
@@ -320,6 +351,10 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
       fid.precio_lista::text AS precio_lista,
       fid.linea_snapshot->>'precio_base' AS precio_base_snap,
       ppd.unit_fob_ajustado::text AS unit_fob_ajustado,
+      ppd.precio_lpn::text AS ppd_precio_lpn,
+      ppd.precio_lpc02::text AS ppd_precio_lpc02,
+      ppd.precio_lpc03::text AS ppd_precio_lpc03,
+      ppd.precio_lpc04::text AS ppd_precio_lpc04,
       fid.id AS fid_id,
       fid.pares::text AS pares,
       COALESCE(
@@ -381,18 +416,20 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
     `,
     [fiId],
   );
+  return rows;
+}
 
-  if (!rows.length) return [];
-
-  const head = rows[0];
+/** Expuesto para auditoría masiva — una sola query FI. */
+export function buildCsvRowsFromFiDet(detRows: FiDetRow[]): PeVentasCsvRow[] {
+  if (!detRows.length) return [];
+  const head = detRows[0];
   const deposito = resolveColumnaDepositoCarlos(head.columna_stock_legal, head.deposito_codigo);
+  const listaPrecioId = head.lista_precio_id != null ? Number(head.lista_precio_id) : 1;
   const cabeceraBase: CabeceraCsv = {
     cliente_id: String(head.cliente_id ?? "").trim(),
     cod_oper: resolveCodOper(head.payload_json, head.cliente_id, head.plazo_id, head.cod_oper_carlos),
     fecha_pedido: fmtFechaPedido(head.fecha_pedido),
-    lista_precios: listaPrecioLabel(
-      head.lista_precio_id != null ? Number(head.lista_precio_id) : 1,
-    ),
+    lista_precios: listaPrecioLabel(listaPrecioId),
     vendedor: resolveVendedorCarlos(head.vendedor_nombre, head.caso, head.payload_json, null),
     deposito,
     descuento_1: fmtDescCsv(head.descuento_1),
@@ -400,8 +437,12 @@ export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise
     descuento_3: fmtDescCsv(head.descuento_3),
     descuento_4: fmtDescCsv(head.descuento_4),
   };
+  return detRows.map((r) => mapDetalleRow(r, cabeceraBase, listaPrecioId));
+}
 
-  return rows.map((r) => mapDetalleRow(r, cabeceraBase));
+export async function fetchPeVentasRowsByFiId(pool: Pool, fiId: number): Promise<PeVentasCsvRow[]> {
+  const rows = await fetchPeVentasDetRowsByFiId(pool, fiId);
+  return buildCsvRowsFromFiDet(rows);
 }
 
 export function peVentasFilename(
@@ -428,10 +469,15 @@ export async function exportCsvPeVentasFi(
   if (!isPeFi({ nro_factura: meta.nro_factura, pp_id: meta.pp_id })) {
     throw new Error("No es Factura interna Pronta entrega");
   }
-  const rows = await fetchPeVentasRowsByFiId(pool, fiId);
-  if (!rows.length) {
+  const detRows = await fetchPeVentasDetRowsByFiId(pool, fiId);
+  if (!detRows.length) {
     throw new Error("Sin líneas PE confirmadas para CSV ventas");
   }
+  const listaPrecioId = detRows[0].lista_precio_id != null ? Number(detRows[0].lista_precio_id) : 1;
+  const rows = buildCsvRowsFromFiDet(detRows);
+  const violations = auditPeCsvTierIntegrity(detRows, rows, listaPrecioId);
+  assertPeCsvTierOrThrow(violations, { fiId, nroFactura: meta.nro_factura });
+
   return {
     content: buildPeVentasCsvContent(rows),
     filename: peVentasFilename({

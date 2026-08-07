@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRimecAdmin } from "@/lib/rimec-admin/auth-api";
 import { exportCsvVentasFi } from "@/lib/facturacion/csv-fi-export";
 import { isPeFi } from "@/lib/facturacion/csv-pe-ventas-export";
+import { isPeCsvRentabilidadDiosError } from "@/lib/facturacion/csv-pe-rentabilidad-error";
 import { getFiRegistroPorNumero } from "@/lib/bazzar-web/compra-web/queries";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 
@@ -58,6 +59,10 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       },
     });
   } catch (err) {
+    if (isPeCsvRentabilidadDiosError(err)) {
+      console.error("[api/facturacion/csv] NIVEL_DIOS_RENTABILIDAD", err.toApiBody());
+      return NextResponse.json(err.toApiBody(), { status: 422 });
+    }
     console.error("[api/facturacion/[nro]/csv]", err);
     const msg = err instanceof Error ? err.message : "Error generando CSV";
     return NextResponse.json({ error: msg }, { status: 500 });

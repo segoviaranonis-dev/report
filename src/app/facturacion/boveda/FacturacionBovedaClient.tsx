@@ -27,25 +27,7 @@ function fmtFecha(iso: string): string {
   }
 }
 
-async function descargarCsvPorNro(nroFactura: string): Promise<void> {
-  const res = await fetch(`/api/facturacion/${encodeURIComponent(nroFactura)}/csv`, {
-    credentials: "same-origin",
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Error al descargar CSV");
-  }
-  const blob = await res.blob();
-  const disp = res.headers.get("Content-Disposition") ?? "";
-  const match = /filename="([^"]+)"/.exec(disp);
-  const filename = match?.[1] ?? "factura.csv";
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+import { descargarCsvFacturacionPorNro } from "@/lib/facturacion/csv-download-client";
 
 export function FacturacionBovedaClient() {
   const [items, setItems] = useState<BovedaRow[]>([]);
@@ -120,7 +102,7 @@ export function FacturacionBovedaClient() {
     setDescargandoCsv(nroFactura);
     setError(null);
     try {
-      await descargarCsvPorNro(nroFactura);
+      await descargarCsvFacturacionPorNro(nroFactura);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error CSV");
     } finally {
@@ -164,7 +146,13 @@ export function FacturacionBovedaClient() {
           </p>
         )}
         {error && (
-          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p
+            className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
+              error.includes("NIVEL DIOS")
+                ? "border-red-600 bg-red-100 font-semibold text-red-950 whitespace-pre-line"
+                : "border-red-200 bg-red-50 text-red-800"
+            }`}
+          >
             {error}
           </p>
         )}
