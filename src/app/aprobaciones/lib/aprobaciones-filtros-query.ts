@@ -5,6 +5,8 @@ type BuildOpts = {
   fiAlias?: string;
   /** Campo fecha principal para rango */
   fechaExpr?: string;
+  /** Primer índice $n de bind params (default 1) */
+  paramOffset?: number;
 };
 
 function pvDigits(raw: string): number | null {
@@ -28,7 +30,7 @@ export function buildFiFiltrosSql(
   const fechaExpr = opts.fechaExpr ?? `COALESCE(${fi}.fecha_confirmacion, ${fi}.created_at)`;
   const parts: string[] = [];
   const params: unknown[] = [];
-  let i = 1;
+  let i = opts.paramOffset ?? 1;
 
   const push = (clause: string, ...vals: unknown[]) => {
     parts.push(clause);
@@ -103,18 +105,23 @@ export function buildFiFiltrosSql(
   }
 
   const detalleParts: string[] = [];
+  const lineaExpr = `COALESCE(ppd_f.linea, fid_f.linea_snapshot->>'linea_codigo', '')`;
+  const refExpr = `COALESCE(ppd_f.referencia, fid_f.linea_snapshot->>'ref_codigo', '')`;
+
   if (f.codigosArticulo.length) {
-    detalleParts.push(`(ppd_f.linea || '.' || ppd_f.referencia) = ANY($${i}::text[])`);
+    detalleParts.push(
+      `(COALESCE(ppd_f.linea, fid_f.linea_snapshot->>'linea_codigo', '') || '.' || COALESCE(ppd_f.referencia, fid_f.linea_snapshot->>'ref_codigo', '')) = ANY($${i}::text[])`,
+    );
     params.push(f.codigosArticulo);
     i++;
   }
   if (f.lineaQ.trim()) {
-    detalleParts.push(`ppd_f.linea ILIKE $${i}`);
+    detalleParts.push(`${lineaExpr} ILIKE $${i}`);
     params.push(`%${f.lineaQ.trim()}%`);
     i++;
   }
   if (f.referenciaQ.trim()) {
-    detalleParts.push(`ppd_f.referencia ILIKE $${i}`);
+    detalleParts.push(`${refExpr} ILIKE $${i}`);
     params.push(`%${f.referenciaQ.trim()}%`);
     i++;
   }
@@ -128,7 +135,7 @@ export function buildFiFiltrosSql(
     parts.push(`EXISTS (
       SELECT 1
       FROM factura_interna_detalle fid_f
-      JOIN pedido_proveedor_detalle ppd_f ON ppd_f.id = fid_f.ppd_id
+      LEFT JOIN pedido_proveedor_detalle ppd_f ON ppd_f.id = fid_f.ppd_id
       LEFT JOIN pedido_proveedor pp_f ON pp_f.id = ${fi}.pp_id
       LEFT JOIN linea l_f
         ON l_f.codigo_proveedor::text = ppd_f.linea
@@ -140,7 +147,7 @@ export function buildFiFiltrosSql(
         ON lr_f.linea_id = l_f.id
        AND lr_f.referencia_id = ref_f.id
       WHERE fid_f.factura_id = ${fi}.id
-        AND (${detalleParts.join(" OR ")})
+        AND (${detalleParts.join(" AND ")})
     )`);
   }
 
@@ -201,6 +208,7 @@ export function buildPedidoFiltrosSql(
   const fiDet = buildFiFiltrosSql(fiOnly, {
     fiAlias: "fi_p",
     fechaExpr: "fi_p.created_at",
+    paramOffset: i,
   });
 
   if (fiDet.sql) {
