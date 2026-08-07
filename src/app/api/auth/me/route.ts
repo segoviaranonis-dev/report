@@ -23,6 +23,16 @@ export async function GET() {
       session.ente_codigo ?? null,
     )
 
+    void import('@/lib/holding/bitacora-monitoreo')
+      .then((m) =>
+        m.registrarPresenciaWeb({
+          id_usuario: session.id_usuario,
+          app: 'report',
+          descp_usuario: session.name,
+        }),
+      )
+      .catch(() => undefined)
+
     return NextResponse.json({
       authenticated: true,
       user: {

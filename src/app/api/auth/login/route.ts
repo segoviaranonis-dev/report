@@ -18,6 +18,7 @@ import {
   isRimecDbUnreachableError,
   mensajeRimecDbOffline,
 } from '@/lib/rimec/pool'
+import { registrarAccesoWeb } from '@/lib/holding/bitacora-monitoreo'
 
 export async function POST(request: Request) {
   try {
@@ -40,6 +41,13 @@ export async function POST(request: Request) {
       rol_id: user.rol_id,
       ente_id: user.ente_id,
       ente_codigo: user.ente_codigo,
+    })
+
+    void registrarAccesoWeb({
+      id_usuario: user.id_usuario,
+      app: 'report',
+      evento: 'LOGIN',
+      detalle: { descp_usuario: user.descp_usuario },
     })
 
     // Home: VENDEDOR → solo ventas-fotos. Bazzar (2) → /retail vía middleware.

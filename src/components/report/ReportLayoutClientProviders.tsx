@@ -26,12 +26,21 @@ const NotificacionBarraPrompt = dynamic(
   { ssr: false },
 );
 
+const BitacoraPresenciaReport = dynamic(
+  () =>
+    import("@/components/report/BitacoraPresenciaReport").then(
+      (m) => m.BitacoraPresenciaReport,
+    ),
+  { ssr: false },
+);
+
 export function ReportLayoutClientProviders({ children }: { children: ReactNode }) {
   return (
     <NiifNavigationLatenciaProvider>
       {children}
       <AlertaCriticaModal />
       <NotificacionBarraPrompt />
+      <BitacoraPresenciaReport />
     </NiifNavigationLatenciaProvider>
   );
 }
