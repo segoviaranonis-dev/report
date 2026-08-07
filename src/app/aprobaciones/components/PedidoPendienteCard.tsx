@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import { actualizarPlazoPedidoAction } from "../actions";
 import type { AprobacionesCatalogos, FiRecord, PedidoPendiente } from "../lib/aprobaciones-types";
 import { descuentosLabel, fmtGs, listaPrecioLabel, badgeProntaEntrega, badgeCompraPrevia } from "../lib/aprobaciones-utils";
 import { FiCard } from "./FiCard";
@@ -23,6 +24,7 @@ type Props = {
   rechazando: boolean;
   onFeedback?: (tipo: "success" | "error", texto: string) => void;
   onEditorApplied?: () => void;
+  onRetryFis?: () => void;
 };
 
 export function PedidoPendienteCard({
@@ -41,8 +43,15 @@ export function PedidoPendienteCard({
   rechazando,
   onFeedback,
   onEditorApplied,
+  onRetryFis,
 }: Props) {
   const [motivoRechazo, setMotivoRechazo] = useState("");
+  const [plazoLocal, setPlazoLocal] = useState(pedido.plazo_id ?? 0);
+  const [guardandoPlazo, setGuardandoPlazo] = useState(false);
+
+  useEffect(() => {
+    setPlazoLocal(pedido.plazo_id ?? 0);
+  }, [pedido.plazo_id]);
 
   const peBadge = pedido.origen_pe ? badgeProntaEntrega() : null;
   const cpBadge = pedido.tiene_compra_previa ? badgeCompraPrevia() : null;
@@ -104,7 +113,40 @@ export function PedidoPendienteCard({
           <div className="mb-4 grid gap-3 sm:grid-cols-4">
             <Metric label="Cliente" value={pedido.cliente_nombre} />
             <Metric label="Vendedor" value={pedido.vendedor_nombre || "—"} />
-            <Metric label="Plazo" value={pedido.plazo_nombre || "—"} />
+            <div className="rounded-lg border-2 border-rimec-azul/40 bg-rimec-azul/10 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rimec-azul">
+                Plazo · pedido + FI pendientes
+              </p>
+              <select
+                value={plazoLocal || ""}
+                disabled={guardandoPlazo}
+                onChange={async (e) => {
+                  const v = Number(e.target.value);
+                  if (!v || v === plazoLocal || guardandoPlazo) return;
+                  setGuardandoPlazo(true);
+                  const res = await actualizarPlazoPedidoAction(pedido.id, v);
+                  if (res.success) {
+                    setPlazoLocal(v);
+                    onFeedback?.("success", res.message ?? "Plazo actualizado.");
+                    onEditorApplied?.();
+                  } else {
+                    onFeedback?.("error", res.error ?? "No se pudo cambiar el plazo.");
+                  }
+                  setGuardandoPlazo(false);
+                }}
+                className="mt-1 w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm font-bold text-rimec-azul-dark"
+              >
+                <option value="">—</option>
+                {catalogos.plazos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+              {guardandoPlazo ? (
+                <p className="mt-1 text-[10px] text-rimec-azul">Guardando…</p>
+              ) : null}
+            </div>
             <Metric label="Lista" value={listaPrecioLabel(pedido.lista_precio_id)} />
           </div>
           <p className="mb-4 text-xs text-neutral-600">Descuentos: {descuentosLabel(pedido)}</p>
@@ -135,12 +177,25 @@ export function PedidoPendienteCard({
           {cargandoFis && (
             <p className="text-sm font-medium text-rimec-azul">
               Cargando facturas…{" "}
-              <span className="font-normal text-neutral-500">(máx. 20 s)</span>
+              <span className="font-normal text-neutral-500">(máx. 45 s)</span>
             </p>
+          )}
+          {!cargandoFis && fis == null && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-semantic-warning">
+                No se cargaron las facturas. Reintentá.
+              </p>
+              {onRetryFis ? (
+                <Button size="sm" variant="secondary" onClick={onRetryFis}>
+                  Reintentar carga
+                </Button>
+              ) : null}
+            </div>
           )}
           {!cargandoFis && fis && fis.length === 0 && (
             <p className="text-sm text-semantic-warning">
-              Sin facturas pendientes en este pedido. Refrescá o revisá Aprobados.
+              Sin facturas pendientes en este pedido (puede haber FIs ya en Aprobados). Refrescá
+              o revisá la pestaña Aprobados.
             </p>
           )}
           {!cargandoFis && fis && fis.length > 0 && (

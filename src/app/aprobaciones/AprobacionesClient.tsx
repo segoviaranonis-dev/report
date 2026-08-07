@@ -44,18 +44,13 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     setData(dataInicial);
     setDetallesPorFi(dataInicial.detallesPorFi);
     setFisPorPedido(dataInicial.fisPorPedido ?? {});
-    const first = dataInicial.pendientes[0]?.id ?? null;
-    setPedidoExpandido(first);
-    if (first != null && !(dataInicial.fisPorPedido ?? {})[first]) {
-      void cargarFisPedido(first);
-    }
+    // No auto-expandir: lista plegada = más ágil (queja usuarios · 2026-08-07).
+    setPedidoExpandido(null);
   }, [dataInicial]);
   const [mensaje, setMensaje] = useState<MensajeFeedback | null>(null);
   const [procesandoFi, setProcesandoFi] = useState<number | null>(null);
   const [rechazandoPedido, setRechazandoPedido] = useState<number | null>(null);
-  const [pedidoExpandido, setPedidoExpandido] = useState<number | null>(
-    dataInicial.pendientes[0]?.id ?? null,
-  );
+  const [pedidoExpandido, setPedidoExpandido] = useState<number | null>(null);
   const [fisPorPedido, setFisPorPedido] = useState<Record<number, FiRecord[]>>(
     dataInicial.fisPorPedido ?? {},
   );
@@ -108,16 +103,21 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   }
 
   async function cargarFisPedido(pedidoId: number, opts?: { force?: boolean }) {
-    if (!opts?.force && fisPorPedido[pedidoId]) return;
+    // [] vacío tras error era truthy → bloqueaba reintento (hotfix 2026-08-07).
+    if (!opts?.force && Array.isArray(fisPorPedido[pedidoId])) return;
     setCargandoFisPedido(pedidoId);
     try {
       const res = await fetch(`/api/aprobaciones/${pedidoId}/facturas`, {
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(45_000),
         cache: "no-store",
       });
       if (!res.ok) {
         flash("error", `No se pudieron cargar las FIs (${res.status})`);
-        setFisPorPedido((prev) => ({ ...prev, [pedidoId]: [] }));
+        setFisPorPedido((prev) => {
+          const next = { ...prev };
+          delete next[pedidoId];
+          return next;
+        });
         return;
       }
       const fis: FiRecord[] = await res.json();
@@ -125,7 +125,11 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     } catch (e) {
       console.error(e);
       flash("error", "Timeout o error al cargar facturas — reintentá expandir");
-      setFisPorPedido((prev) => ({ ...prev, [pedidoId]: [] }));
+      setFisPorPedido((prev) => {
+        const next = { ...prev };
+        delete next[pedidoId];
+        return next;
+      });
     } finally {
       setCargandoFisPedido(null);
     }
@@ -140,13 +144,17 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   async function cargarListaTab(
     tabId: TabAprobaciones,
     filtros: AprobacionesFiltros,
+    signal?: AbortSignal,
   ): Promise<void> {
     setCargandoLista(true);
     setCountFiltrado(null);
     const sp = filtrosToSearchParams(filtros);
     sp.set("tab", tabId);
     try {
-      const res = await fetch(`/api/aprobaciones/lista?${sp.toString()}`, { cache: "no-store" });
+      const res = await fetch(`/api/aprobaciones/lista?${sp.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
       if (!res.ok) throw new Error(String(res.status));
       const j = (await res.json()) as {
         fis?: FiRecord[];
@@ -163,16 +171,16 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
         setListaLazy(Array.isArray(j.fis) ? j.fis : []);
         setCountFiltrado(j.countFiltrado ?? null);
       }
-    } catch {
+    } catch (e) {
+      if (signal?.aborted) return;
       flash("error", "No se pudo cargar con filtros");
     } finally {
-      setCargandoLista(false);
+      if (!signal?.aborted) setCargandoLista(false);
     }
   }
 
   function aplicarFiltros() {
     setFiltrosAplicados(filtrosDraft);
-    void cargarListaTab(tab, filtrosDraft);
   }
 
   function limpiarFiltros() {
@@ -181,43 +189,29 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
     setCountFiltrado(null);
     setPendientesFiltrados(null);
     setFisPorPedido(dataInicial.fisPorPedido ?? {});
-    if (tab === "aprobados" || tab === "anulados") {
-      void cargarListaTab(tab, FILTROS_VACIOS);
-    }
   }
 
   useEffect(() => {
-    if (tab !== "aprobados" && tab !== "anulados") {
-      if (!filtrosActivos(filtrosAplicados)) {
-        setPendientesFiltrados(null);
-      }
-      return;
+    const ac = new AbortController();
+
+    if (tab === "pendientes" && !filtrosActivos(filtrosAplicados)) {
+      setPendientesFiltrados(null);
+      setCountFiltrado(null);
+      return () => ac.abort();
     }
-    let cancelled = false;
-    setCargandoLista(true);
-    setListaLazy([]);
-    const sp = filtrosToSearchParams(filtrosAplicados);
-    sp.set("tab", tab);
-    void fetch(`/api/aprobaciones/lista?${sp.toString()}`, { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(String(res.status));
-        const j = (await res.json()) as { fis?: FiRecord[]; countFiltrado?: number | null };
-        if (!cancelled) {
-          setListaLazy(Array.isArray(j.fis) ? j.fis : []);
-          setCountFiltrado(j.countFiltrado ?? null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) flash("error", "No se pudo cargar la lista");
-      })
-      .finally(() => {
-        if (!cancelled) setCargandoLista(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+
+    if (
+      tab === "aprobados" ||
+      tab === "anulados" ||
+      (tab === "pendientes" && filtrosActivos(filtrosAplicados))
+    ) {
+      setListaLazy([]);
+      void cargarListaTab(tab, filtrosAplicados, ac.signal);
+    }
+
+    return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, filtrosAplicados]);
 
   function evictFiDeVistasActivas(fiId: number) {
     setFisPorPedido((prev) => {
@@ -415,6 +409,7 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
                       onLoadDetalle={loadDetalle}
                       onFeedback={flash}
                       onEditorApplied={refrescar}
+                      onRetryFis={() => void cargarFisPedido(p.id, { force: true })}
                     />
                   ))}
                 </div>
@@ -428,7 +423,14 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
             {cargandoLista ? (
               <p className="text-sm text-neutral-600">Cargando aprobados…</p>
             ) : listaLazy.length === 0 ? (
-              <EmptyState icon="✓" text="No hay facturas aprobadas aún." />
+              <EmptyState
+                icon="✓"
+                text={
+                  filtrosActivos(filtrosAplicados)
+                    ? "Ninguna FI aprobada coincide con los filtros aplicados."
+                    : "No hay facturas aprobadas aún."
+                }
+              />
             ) : (
               <>
                 <p className="mb-4 text-sm text-neutral-600">

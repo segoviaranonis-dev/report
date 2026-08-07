@@ -7,6 +7,7 @@ import type {
   AprobacionesFiltrosOpciones,
 } from "../lib/aprobaciones-filtros-types";
 import { FILTROS_VACIOS, filtrosActivos } from "../lib/aprobaciones-filtros-types";
+import { filtrosToSearchParams } from "../lib/aprobaciones-filtros-parse";
 
 type Props = {
   filtros: AprobacionesFiltros;
@@ -196,35 +197,60 @@ export function AprobacionesFiltrosPanel({
   const [opciones, setOpciones] = useState<AprobacionesFiltrosOpciones | null>(null);
   const [opcionesError, setOpcionesError] = useState<string | null>(null);
   const [cargandoOpciones, setCargandoOpciones] = useState(false);
-  const [open, setOpen] = useState(true);
+  // Cerrado por defecto — evita “Cargando listas…” + doble fetch al abrir Aprobaciones.
+  const [open, setOpen] = useState(false);
   const [detalleCompleto, setDetalleCompleto] = useState(false);
 
   useEffect(() => {
-    if (!open || opciones) return;
-    setCargandoOpciones(true);
-    setOpcionesError(null);
-    void fetch("/api/aprobaciones/filtros/opciones?scope=basico", { cache: "no-store" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json() as Promise<AprobacionesFiltrosOpciones>;
+    if (!open) return;
+    const ac = new AbortController();
+    const timer = window.setTimeout(() => {
+      setCargandoOpciones(true);
+      setOpcionesError(null);
+      const sp = filtrosToSearchParams(filtros);
+      sp.set("scope", "basico");
+      void fetch(`/api/aprobaciones/filtros/opciones?${sp.toString()}`, {
+        cache: "no-store",
+        signal: ac.signal,
       })
-      .then((j) => setOpciones(j))
-      .catch(() => {
-        setOpcionesError("No se pudieron cargar listas — usá los campos de texto abajo.");
-        setOpciones({
-          clientes: [],
-          marcas: [],
-          vendedores: [],
-          codigosArticulo: [],
-          codigosGrupoDpe: [],
+        .then(async (r) => {
+          if (!r.ok) throw new Error(String(r.status));
+          return r.json() as Promise<AprobacionesFiltrosOpciones>;
+        })
+        .then((j) => {
+          setOpciones(j);
+          setDetalleCompleto(false);
+        })
+        .catch((e) => {
+          if (ac.signal.aborted) return;
+          setOpcionesError("No se pudieron cargar listas — usá los campos de texto abajo.");
+          setOpciones({
+            clientes: [],
+            marcas: [],
+            vendedores: [],
+            codigosArticulo: [],
+            codigosGrupoDpe: [],
+          });
+        })
+        .finally(() => {
+          if (!ac.signal.aborted) setCargandoOpciones(false);
         });
-      })
-      .finally(() => setCargandoOpciones(false));
-  }, [open, opciones]);
+    }, 280);
+    return () => {
+      window.clearTimeout(timer);
+      ac.abort();
+    };
+  }, [open, filtros]);
 
   useEffect(() => {
     if (!open || !opciones || detalleCompleto) return;
-    void fetch("/api/aprobaciones/filtros/opciones?scope=completo", { cache: "no-store" })
+    const ac = new AbortController();
+    const sp = filtrosToSearchParams(filtros);
+    sp.set("scope", "completo");
+    void fetch(`/api/aprobaciones/filtros/opciones?${sp.toString()}`, {
+      cache: "no-store",
+      signal: ac.signal,
+    })
       .then(async (r) => {
         if (!r.ok) return null;
         return r.json() as Promise<AprobacionesFiltrosOpciones>;
@@ -243,9 +269,11 @@ export function AprobacionesFiltrosPanel({
         setDetalleCompleto(true);
       })
       .catch(() => {
+        if (ac.signal.aborted) return;
         /* artículo/DPE opcional — campos texto siguen funcionando */
       });
-  }, [open, opciones, detalleCompleto]);
+    return () => ac.abort();
+  }, [open, opciones, detalleCompleto, filtros]);
 
   const patch = (p: Partial<AprobacionesFiltros>) => onChange({ ...filtros, ...p });
 
@@ -271,7 +299,10 @@ export function AprobacionesFiltrosPanel({
         {open ? (
           <div className="mt-3 space-y-3">
             <p className="text-[11px] text-neutral-600">
-              Multi-select · paridad CSV · línea/referencia · PV · nro FI · fechas
+              Multi-select en cascada · paridad CSV · línea/referencia · PV · nro FI · fechas
+              {filtrosActivos(filtros) ? (
+                <span className="ml-1 font-semibold text-rimec-azul">· listas acotadas a la selección</span>
+              ) : null}
             </p>
 
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

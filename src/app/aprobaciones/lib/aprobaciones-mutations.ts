@@ -840,6 +840,16 @@ export async function actualizarEncabezadoFi(
       descuento_4: input.descuento_4,
     });
 
+    // Plazo siempre al PVR (aunque haya varias FI): el sync de cabecera solo corre si n=1.
+    if (lock.pedidoId != null) {
+      await client.query(
+        `UPDATE public.pedido_venta_rimec
+         SET plazo_id = $2
+         WHERE id = $1 AND UPPER(TRIM(estado)) = 'PENDIENTE'`,
+        [lock.pedidoId, input.plazoId],
+      );
+    }
+
     await restoreFiEstadoTrasEdicion(client, lock);
 
     await client.query("COMMIT");
@@ -854,6 +864,108 @@ export async function actualizarEncabezadoFi(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Plazo a nivel pedido — aplica a todas las FI RESERVADA + cabecera PVR.
+ * Evita depender de expandir cada célula cuando el listado falla/timeout.
+ */
+export async function actualizarPlazoPedido(
+  pedidoId: number,
+  plazoId: number,
+): Promise<MutationResult & { fisActualizadas?: number }> {
+  if (!isRimecDatabaseConfigured()) {
+    return { ok: false, msg: "DATABASE_URL no configurada." };
+  }
+  if (!Number.isFinite(pedidoId) || pedidoId <= 0) {
+    return { ok: false, msg: "Pedido inválido." };
+  }
+  if (!Number.isFinite(plazoId) || plazoId <= 0) {
+    return { ok: false, msg: "Plazo inválido." };
+  }
+
+  const pool = getRimecPool();
+  const { rows: fiRows } = await pool.query<{
+    id: number;
+    descuento_1: number;
+    descuento_2: number;
+    descuento_3: number;
+    descuento_4: number;
+    pp_estado: string | null;
+  }>(
+    `
+    SELECT fi.id, fi.descuento_1, fi.descuento_2, fi.descuento_3, fi.descuento_4,
+           pp.estado AS pp_estado
+    FROM public.factura_interna fi
+    LEFT JOIN public.pedido_proveedor pp ON pp.id = fi.pp_id
+    WHERE fi.pedido_id = $1
+      AND UPPER(TRIM(fi.estado)) = 'RESERVADA'
+    ORDER BY fi.id
+    `,
+    [pedidoId],
+  );
+
+  if (!fiRows.length) {
+    // Solo cabecera PVR si aún no hay FI reservada
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const plazoOk = await client.query(
+        `SELECT 1 FROM public.plazo_v2 WHERE id_plazo = $1 LIMIT 1`,
+        [plazoId],
+      );
+      if (!plazoOk.rows[0]) {
+        await client.query("ROLLBACK");
+        return { ok: false, msg: "Plazo no encontrado." };
+      }
+      await client.query(
+        `UPDATE public.pedido_venta_rimec SET plazo_id = $2 WHERE id = $1 AND estado = 'PENDIENTE'`,
+        [pedidoId, plazoId],
+      );
+      await client.query("COMMIT");
+      return { ok: true, msg: "Plazo del pedido actualizado (sin FI pendientes).", fisActualizadas: 0 };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      return { ok: false, msg: e instanceof Error ? e.message : String(e) };
+    } finally {
+      client.release();
+    }
+  }
+
+  let okCount = 0;
+  const errores: string[] = [];
+  for (const fi of fiRows) {
+    if ((fi.pp_estado || "").toUpperCase() === "ENVIADO") {
+      errores.push(`FI ${fi.id}: PP enviado`);
+      continue;
+    }
+    const res = await actualizarEncabezadoFi(fi.id, {
+      plazoId,
+      descuento_1: Number(fi.descuento_1) || 0,
+      descuento_2: Number(fi.descuento_2) || 0,
+      descuento_3: Number(fi.descuento_3) || 0,
+      descuento_4: Number(fi.descuento_4) || 0,
+    });
+    if (res.ok) okCount += 1;
+    else errores.push(`FI ${fi.id}: ${res.msg}`);
+  }
+
+  if (okCount === 0) {
+    return {
+      ok: false,
+      msg: errores[0] || "No se pudo actualizar el plazo en ninguna FI.",
+      fisActualizadas: 0,
+    };
+  }
+
+  return {
+    ok: true,
+    msg:
+      errores.length === 0
+        ? `Plazo aplicado a ${okCount} FI pendiente(s).`
+        : `Plazo en ${okCount} FI · avisos: ${errores.join("; ")}`,
+    fisActualizadas: okCount,
+  };
 }
 
 type ResyncLineRow = {

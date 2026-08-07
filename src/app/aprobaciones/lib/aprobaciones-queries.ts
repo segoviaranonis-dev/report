@@ -265,34 +265,74 @@ const FI_DE_PEDIDO_SELECT = `
 
 /** get_fis_de_pedido() — path rápido por pedido_id (índice); fallback huérfanas sin scan global. */
 export async function fetchFisDePedido(pedidoId: number): Promise<FiRecord[]> {
-  if (!isRimecDatabaseConfigured()) return [];
-  const pool = getRimecPool();
+  const map = await fetchFisDePedidosBatch([pedidoId]);
+  return map[pedidoId] ?? [];
+}
 
+/** Batch FIs RESERVADA por varios pedido_id — evita N+1 en /api/aprobaciones/lista. */
+export async function fetchFisDePedidosBatch(
+  pedidoIds: number[],
+): Promise<Record<number, FiRecord[]>> {
+  const out: Record<number, FiRecord[]> = {};
+  const ids = [...new Set(pedidoIds.filter((id) => Number.isFinite(id) && id > 0))];
+  for (const id of ids) out[id] = [];
+  if (!isRimecDatabaseConfigured() || ids.length === 0) return out;
+
+  const pool = getRimecPool();
   const primary = await pool.query(
     `
     ${FI_DE_PEDIDO_SELECT}
-    WHERE fi.pedido_id = $1
+    WHERE fi.pedido_id = ANY($1::int[])
       AND UPPER(TRIM(fi.estado)) = 'RESERVADA'
-    ORDER BY fi.pp_id NULLS LAST, fi.marca, fi.caso
+    ORDER BY fi.pedido_id, fi.pp_id NULLS LAST, fi.marca, fi.caso
     `,
-    [pedidoId],
+    [ids],
   );
-  if (primary.rows.length > 0) return primary.rows.map(mapFiRow);
+  for (const r of primary.rows) {
+    const pid = num(r.pedido_id);
+    if (!out[pid]) out[pid] = [];
+    out[pid].push(mapFiRow(r));
+  }
 
-  // Fallback legacy: FI sin pedido_id creadas en la misma ventana (±30s) del PVR
+  const missing = ids.filter((id) => (out[id]?.length ?? 0) === 0);
+  if (missing.length === 0) return out;
+
+  // Fallback legacy: FI sin pedido_id en ventana ±30s del PVR (solo huérfanas)
   const fallback = await pool.query(
     `
     ${FI_DE_PEDIDO_SELECT}
     WHERE fi.pedido_id IS NULL
       AND UPPER(TRIM(fi.estado)) = 'RESERVADA'
-      AND fi.created_at BETWEEN
-        (SELECT created_at - INTERVAL '30 seconds' FROM public.pedido_venta_rimec WHERE id = $1)
-        AND (SELECT created_at + INTERVAL '30 seconds' FROM public.pedido_venta_rimec WHERE id = $1)
+      AND EXISTS (
+        SELECT 1 FROM public.pedido_venta_rimec pvr
+        WHERE pvr.id = ANY($1::int[])
+          AND fi.created_at BETWEEN pvr.created_at - INTERVAL '30 seconds'
+                               AND pvr.created_at + INTERVAL '30 seconds'
+      )
     ORDER BY fi.pp_id NULLS LAST, fi.marca, fi.caso
     `,
-    [pedidoId],
+    [missing],
   );
-  return fallback.rows.map(mapFiRow);
+  // Asignar huérfanas al PVR cuya ventana matchea (1ª coincidencia)
+  if (fallback.rows.length) {
+    const { rows: pvrRows } = await pool.query<{ id: number; created_at: Date }>(
+      `SELECT id, created_at FROM public.pedido_venta_rimec WHERE id = ANY($1::int[])`,
+      [missing],
+    );
+    for (const r of fallback.rows) {
+      const fiAt = r.created_at ? new Date(String(r.created_at)).getTime() : NaN;
+      if (!Number.isFinite(fiAt)) continue;
+      const match = pvrRows.find((p) => {
+        const t = new Date(p.created_at).getTime();
+        return Math.abs(fiAt - t) <= 30_000;
+      });
+      if (!match) continue;
+      const pid = num(match.id);
+      if ((out[pid]?.length ?? 0) > 0) continue;
+      out[pid].push(mapFiRow(r));
+    }
+  }
+  return out;
 }
 
 function mapDetalleRow(r: Record<string, unknown>): FiDetalle {
@@ -408,11 +448,13 @@ export async function fetchAprobacionesData(): Promise<AprobacionesData> {
     countFiEstado("ANULADA"),
   ]);
 
-  // FIs por pedido: lazy en cliente al expandir (evita N×query en SSR).
-  const fisPorPedido: Record<number, FiRecord[]> = {};
+  // Batch 1 query — evita timeout cliente al expandir (hotfix 2026-08-07).
+  const fisPorPedido = pendientes.length
+    ? await fetchFisDePedidosBatch(pendientes.map((p) => p.id))
+    : {};
 
   console.log(
-    `[aprobaciones] SSR liviano ${Date.now() - t0}ms · pendientes=${pendientes.length} · aprobados=${countAprobados}`,
+    `[aprobaciones] SSR liviano ${Date.now() - t0}ms · pendientes=${pendientes.length} · fisBatch=${Object.values(fisPorPedido).reduce((n, a) => n + a.length, 0)} · aprobados=${countAprobados}`,
   );
 
   return {
@@ -527,6 +569,7 @@ export async function countFiConFiltros(
   const pool = getRimecPool();
   const { sql: fSql, params: fParams } = buildFiFiltrosSql(filtros, {
     fechaExpr: "COALESCE(fi.fecha_confirmacion, fi.created_at)",
+    paramOffset: 2,
   });
   const { rows } = await pool.query<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM factura_interna fi WHERE UPPER(TRIM(fi.estado)) = $1 ${fSql}`,
@@ -623,48 +666,64 @@ export async function fetchPedidosPendientesConFiltros(
   }));
 }
 
-/** Ventana de FIs para opciones — evita full scan de detalle (timeout 150s). */
-const FI_OPCIONES_CTE = `
+/** Ventana de FIs para opciones — acotada + filtros en cascada (hermanos siameses). */
+function buildFiOpcionesCte(fSql: string): string {
+  return `
   WITH fi_recientes AS (
     SELECT fi.id
     FROM factura_interna fi
     WHERE fi.estado IN ('RESERVADA', 'CONFIRMADA', 'ANULADA')
+    ${fSql}
     ORDER BY COALESCE(fi.fecha_confirmacion, fi.created_at) DESC NULLS LAST
     LIMIT 600
   )
 `;
+}
 
-/** Opciones multi-select desde FIs recientes (paridad CSV). */
+/** Opciones multi-select desde FIs recientes (paridad CSV · cascada por selección). */
 export async function fetchAprobacionesFiltrosOpciones(
   scope: "basico" | "completo" = "basico",
+  filtros?: AprobacionesFiltros,
 ): Promise<AprobacionesFiltrosOpciones> {
   if (!isRimecDatabaseConfigured()) {
     return { clientes: [], marcas: [], vendedores: [], codigosArticulo: [], codigosGrupoDpe: [] };
   }
   const pool = getRimecPool();
   const t0 = Date.now();
+  const f = filtros ?? ({} as AprobacionesFiltros);
+  const { sql: fSql, params: fParams } = filtrosActivos(f)
+    ? buildFiFiltrosSql(f, { fechaExpr: "COALESCE(fi.fecha_confirmacion, fi.created_at)" })
+    : { sql: "", params: [] };
+  const cte = buildFiOpcionesCte(fSql);
 
   const [clientesRes, marcasRes, vendRes] = await Promise.all([
-    pool.query<{ id: number; nombre: string }>(`
-      ${FI_OPCIONES_CTE}
+    pool.query<{ id: number; nombre: string }>(
+      `
+      ${cte}
       SELECT DISTINCT c.id_cliente AS id, TRIM(c.descp_cliente) AS nombre
       FROM fi_recientes fr
       JOIN factura_interna fi ON fi.id = fr.id
       JOIN cliente_v2 c ON c.id_cliente = fi.cliente_id
       ORDER BY nombre
       LIMIT 300
-    `),
-    pool.query<{ marca: string }>(`
-      ${FI_OPCIONES_CTE}
+    `,
+      fParams,
+    ),
+    pool.query<{ marca: string }>(
+      `
+      ${cte}
       SELECT DISTINCT TRIM(fi.marca) AS marca
       FROM fi_recientes fr
       JOIN factura_interna fi ON fi.id = fr.id
       WHERE TRIM(fi.marca) <> ''
       ORDER BY 1
       LIMIT 80
-    `),
-    pool.query<{ nombre: string }>(`
-      ${FI_OPCIONES_CTE}
+    `,
+      fParams,
+    ),
+    pool.query<{ nombre: string }>(
+      `
+      ${cte}
       SELECT DISTINCT TRIM(COALESCE(
         NULLIF(TRIM(pvr.payload_json->>'vendedor_nombre'), ''),
         NULLIF(TRIM(u.descp_usuario), ''),
@@ -678,7 +737,9 @@ export async function fetchAprobacionesFiltrosOpciones(
       LEFT JOIN vendedor_v2 vd ON vd.id_vendedor = fi.vendedor_id
       ORDER BY 1
       LIMIT 60
-    `),
+    `,
+      fParams,
+    ),
   ]);
 
   let codigosArticulo: string[] = [];
@@ -686,25 +747,34 @@ export async function fetchAprobacionesFiltrosOpciones(
 
   if (scope === "completo") {
     const [artRes, grupoRes] = await Promise.all([
-      pool.query<{ codigo: string }>(`
-        ${FI_OPCIONES_CTE}
-        SELECT DISTINCT (ppd.linea || '.' || ppd.referencia) AS codigo
+      pool.query<{ codigo: string }>(
+        `
+        ${cte}
+        SELECT DISTINCT (
+          COALESCE(ppd.linea, fid.linea_snapshot->>'linea_codigo', '')
+          || '.'
+          || COALESCE(ppd.referencia, fid.linea_snapshot->>'ref_codigo', '')
+        ) AS codigo
         FROM fi_recientes fr
         JOIN factura_interna_detalle fid ON fid.factura_id = fr.id
-        JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
-        WHERE ppd.linea IS NOT NULL AND ppd.referencia IS NOT NULL
+        LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+        WHERE COALESCE(ppd.linea, fid.linea_snapshot->>'linea_codigo', '') <> ''
+          AND COALESCE(ppd.referencia, fid.linea_snapshot->>'ref_codigo', '') <> ''
         ORDER BY 1
         LIMIT 250
-      `),
-      pool.query<{ id: string; label: string }>(`
-        ${FI_OPCIONES_CTE}
+      `,
+        fParams,
+      ),
+      pool.query<{ id: string; label: string }>(
+        `
+        ${cte}
         SELECT DISTINCT
           lr.grupo_estilo_id::text AS id,
           COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), lr.grupo_estilo_id::text) AS label
         FROM fi_recientes fr
         JOIN factura_interna fi ON fi.id = fr.id
         JOIN factura_interna_detalle fid ON fid.factura_id = fr.id
-        JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
+        LEFT JOIN pedido_proveedor_detalle ppd ON ppd.id = fid.ppd_id
         LEFT JOIN pedido_proveedor pp ON pp.id = fi.pp_id
         LEFT JOIN linea l ON l.codigo_proveedor::text = ppd.linea
           AND l.proveedor_id = COALESCE(pp.proveedor_importacion_id, 654)
@@ -714,7 +784,9 @@ export async function fetchAprobacionesFiltrosOpciones(
         WHERE lr.grupo_estilo_id IS NOT NULL
         ORDER BY 2
         LIMIT 120
-      `),
+      `,
+        fParams,
+      ),
     ]);
     codigosArticulo = artRes.rows.map((r) => String(r.codigo)).filter(Boolean);
     codigosGrupoDpe = grupoRes.rows.map((r) => ({

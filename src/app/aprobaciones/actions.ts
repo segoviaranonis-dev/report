@@ -11,6 +11,7 @@ import {
   cambiarClienteFi,
   cambiarVendedorFi,
   actualizarEncabezadoFi,
+  actualizarPlazoPedido,
   resincronizarFiDesdeListadoPp,
   actualizarLogisticaFi,
 } from "./lib/aprobaciones-mutations";
@@ -121,6 +122,19 @@ export async function actualizarEncabezadoFiAction(
     message: result.msg,
     error: result.ok ? undefined : result.msg,
     totalMonto: result.totalMonto,
+  };
+}
+
+export async function actualizarPlazoPedidoAction(pedidoId: number, plazoId: number) {
+  const gate = await requireNivelDiosAction();
+  if (!gate.ok) return { success: false, error: gate.error };
+  const result = await actualizarPlazoPedido(pedidoId, plazoId);
+  if (result.ok) revalidatePath("/aprobaciones");
+  return {
+    success: result.ok,
+    message: result.msg,
+    error: result.ok ? undefined : result.msg,
+    fisActualizadas: result.fisActualizadas,
   };
 }
 

@@ -7,7 +7,7 @@ import {
   fetchFiAnuladasConFiltros,
   fetchFiConfirmadas,
   fetchFiConfirmadasConFiltros,
-  fetchFisDePedido,
+  fetchFisDePedidosBatch,
   fetchPedidosPendientes,
   fetchPedidosPendientesConFiltros,
 } from "@/app/aprobaciones/lib/aprobaciones-queries";
@@ -47,13 +47,9 @@ export async function GET(req: NextRequest) {
       const pendientes = conFiltros
         ? await fetchPedidosPendientesConFiltros(filtros)
         : await fetchPedidosPendientes();
-      const fisPorPedido: Record<number, Awaited<ReturnType<typeof fetchFisDePedido>>> = {};
-      if (pendientes.length) {
-        const pairs = await Promise.all(
-          pendientes.map(async (p) => [p.id, await fetchFisDePedido(p.id)] as const),
-        );
-        for (const [id, fis] of pairs) fisPorPedido[id] = fis;
-      }
+      const fisPorPedido = pendientes.length
+        ? await fetchFisDePedidosBatch(pendientes.map((p) => p.id))
+        : {};
       return NextResponse.json({ pendientes, fisPorPedido });
     }
 

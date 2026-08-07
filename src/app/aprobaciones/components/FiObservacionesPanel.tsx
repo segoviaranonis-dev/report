@@ -67,9 +67,13 @@ export function FiObservacionesPanel({
   const [fechaLocal, setFechaLocal] = useState(fechaEntregaCliente?.slice(0, 10) ?? "");
   const [guardandoLog, setGuardandoLog] = useState(false);
   const [hilo, setHilo] = useState<ObsHiloItem[]>([]);
-  const [cargandoHilo, setCargandoHilo] = useState(true);
+  const [cargandoHilo, setCargandoHilo] = useState(false);
+  const [hiloSolicitado, setHiloSolicitado] = useState(false);
   const [adminDraft, setAdminDraft] = useState("");
   const [enviandoAdmin, setEnviandoAdmin] = useState(false);
+
+  // PE pendiente: pocos cards — auto-cargar hilo. Aprobados×N: NO (era el hang).
+  const autoCargarHilo = origenPe && estadoUpper === "RESERVADA";
 
   useEffect(() => {
     setObsLocal(observacion ?? "");
@@ -81,6 +85,7 @@ export function FiObservacionesPanel({
     try {
       const res = await fetch(`/api/aprobaciones/facturas/${fiId}/observaciones`, {
         cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) throw new Error(String(res.status));
       const j = (await res.json()) as { items?: ObsHiloItem[] };
@@ -89,20 +94,23 @@ export function FiObservacionesPanel({
       setHilo([]);
     } finally {
       setCargandoHilo(false);
+      setHiloSolicitado(true);
     }
   }, [fiId]);
 
   useEffect(() => {
+    if (!autoCargarHilo || hiloSolicitado) return;
     void cargarHilo();
-  }, [cargarHilo]);
+  }, [autoCargarHilo, hiloSolicitado, cargarHilo]);
 
+  // RESERVADA: panel siempre (edición). CONFIRMADA/otros: solo si ya hay obs/fecha/PE.
+  // Evita pintar 200 paneles verdes en pestaña Aprobados (UI + fetches).
   const tieneContenido =
     origenPe ||
     obsLocal.trim() ||
     fechaLocal.trim() ||
     hilo.length > 0 ||
-    puedeAdmin ||
-    puedeLogistica;
+    (estadoUpper === "RESERVADA" && (puedeAdmin || puedeLogistica));
 
   if (!tieneContenido) return null;
 
@@ -223,11 +231,24 @@ export function FiObservacionesPanel({
         <p className="mb-2 text-[13px] font-bold text-emerald-900">
           Observaciones administrativas · Aprobación
         </p>
+        {!hiloSolicitado && !autoCargarHilo ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="mb-3 border-emerald-600 text-emerald-900 hover:bg-emerald-100"
+            disabled={cargandoHilo}
+            onClick={() => void cargarHilo()}
+          >
+            {cargandoHilo ? "Cargando…" : "Ver historial de notas"}
+          </Button>
+        ) : null}
         {cargandoHilo ? (
-          <p className="text-xs text-emerald-700">Cargando historial…</p>
-        ) : hilo.length === 0 ? (
+          <p className="mb-2 text-xs text-emerald-700">Cargando historial…</p>
+        ) : null}
+        {hiloSolicitado && !cargandoHilo && hilo.length === 0 ? (
           <p className="mb-2 text-xs text-emerald-700/80">Sin notas en el hilo aún.</p>
-        ) : (
+        ) : null}
+        {hiloSolicitado && !cargandoHilo && hilo.length > 0 ? (
           <ul className="mb-3 max-h-40 space-y-2 overflow-y-auto">
             {hilo.map((item) => (
               <li
@@ -249,7 +270,7 @@ export function FiObservacionesPanel({
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
 
         {puedeLogistica ? (
           <>
