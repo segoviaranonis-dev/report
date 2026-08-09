@@ -1,0 +1,981 @@
+{
+  "fechaAl": "2026-08-03",
+  "tasaUsd": 5970.96,
+  "titulo": "SF AL 03-08",
+  "rows": [
+    {
+      "kind": "tasa",
+      "r": 1,
+      "mes": null,
+      "label": "TASA DE CAMBIO DÓLAR A LA FECHA",
+      "gs": 5970.96,
+      "usd": null,
+      "bold": true
+    },
+    {
+      "kind": "prevision",
+      "r": 2,
+      "mes": null,
+      "label": "PREVISION A LA FECHA 03/08/2026",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "subheader",
+      "r": 3,
+      "mes": null,
+      "label": "SALDOS",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 4,
+      "mes": null,
+      "label": "SALDO EN USD. BANCO CONTINENTAL",
+      "gs": 925101193.7736,
+      "usd": 154933.41,
+      "bold": true
+    },
+    {
+      "kind": "row",
+      "r": 5,
+      "mes": null,
+      "label": "SALDO EN GS. BANCO CONTINENTAL",
+      "gs": 1718236201.0,
+      "usd": 287765.4851146214,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 6,
+      "mes": null,
+      "label": "SALDO EN GS. BANCO ITAU",
+      "gs": 359782579.0,
+      "usd": 60255.39929927516,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 7,
+      "mes": null,
+      "label": "SALDO EN USD. BANCOOP",
+      "gs": 2352986596.6704,
+      "usd": 394071.74,
+      "bold": true
+    },
+    {
+      "kind": "row",
+      "r": 8,
+      "mes": null,
+      "label": "SALDO EN GS .BANCOOP",
+      "gs": 990211535.0,
+      "usd": 165837.9113241422,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 9,
+      "mes": null,
+      "label": "SALDO EN GS GNB",
+      "gs": 10000000.0,
+      "usd": 1674.7725658855527,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 10,
+      "mes": null,
+      "label": "SALDO EN GS BANCO BNF",
+      "gs": 15006624.0,
+      "usd": 2513.2682181759715,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 11,
+      "mes": null,
+      "label": "CHEQUES A VENCER",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 12,
+      "mes": null,
+      "label": "SALDO DE CLIENTES",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 13,
+      "mes": null,
+      "label": "MERCADERIAS A ENTREGAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 14,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 15,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 16,
+      "mes": null,
+      "label": "PAGOS BAZZAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 17,
+      "mes": null,
+      "label": "PV Y PROG A COBRAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 18,
+      "mes": null,
+      "label": "PAGO LUISITO",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 19,
+      "mes": null,
+      "label": "PAGO A PROVEEDORES",
+      "gs": -280266114.672,
+      "usd": -46938.2,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 20,
+      "mes": null,
+      "label": "GASTOS DE DESPACHO",
+      "gs": -115000000.0,
+      "usd": -19259.884507683855,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 21,
+      "mes": null,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "gs": -2338191000.0,
+      "usd": -391593.81406005064,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 22,
+      "mes": null,
+      "label": "PRESTAMO BANCARIO",
+      "gs": -157000000.0,
+      "usd": -26293.929284403177,
+      "bold": false
+    },
+    {
+      "kind": "total_yellow",
+      "r": 23,
+      "mes": null,
+      "label": "SALDO DISPONIBLE AGOSTO 2026",
+      "gs": 3480867614.7720003,
+      "usd": 582966.1586699625,
+      "bold": true
+    },
+    {
+      "kind": "row",
+      "r": 24,
+      "mes": "2026-09",
+      "label": "CHEQUES A VENCER",
+      "gs": 1362318476.0,
+      "usd": 228157.36096038157,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 25,
+      "mes": null,
+      "label": "SALDO DE CLIENTES",
+      "gs": 956137930.0,
+      "usd": 160131.3574366601,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 26,
+      "mes": null,
+      "label": "MERCADERIAS A ENTREGAR",
+      "gs": 58938301.0,
+      "usd": 9870.824959470503,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 27,
+      "mes": null,
+      "label": "PAGOS DE BAZZAR",
+      "gs": 1300000000.0,
+      "usd": 217720.43356512184,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 28,
+      "mes": null,
+      "label": "PAGO LUISITO",
+      "gs": 650638664.0,
+      "usd": 108967.1784771628,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 29,
+      "mes": null,
+      "label": "PV Y PROG A COBRAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 30,
+      "mes": null,
+      "label": "PAGO A PROVEEDORES",
+      "gs": -3429587943.4607997,
+      "usd": -574377.98,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 31,
+      "mes": null,
+      "label": "GASTOS DE DESPACHO",
+      "gs": -385000000.0,
+      "usd": -64478.74378659378,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 32,
+      "mes": null,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "gs": -1819655000.0,
+      "usd": -304750.82733764756,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 33,
+      "mes": null,
+      "label": "PRESTAMO BANCARIO",
+      "gs": -157000000.0,
+      "usd": -26293.929284403177,
+      "bold": false
+    },
+    {
+      "kind": "total_yellow",
+      "r": 34,
+      "mes": null,
+      "label": "SALDO DISPONIBLE SEPTIEMBRE 2026",
+      "gs": 2017658042.311201,
+      "usd": 337911.83366011485,
+      "bold": true
+    },
+    {
+      "kind": "row",
+      "r": 35,
+      "mes": "2026-10",
+      "label": "CHEQUES A VENCER",
+      "gs": 858126057.0,
+      "usd": 143716.5978335142,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 36,
+      "mes": null,
+      "label": "SALDO DE CLIENTES",
+      "gs": 456952862.0,
+      "usd": 76529.21171804868,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 37,
+      "mes": null,
+      "label": "MERCADERIAS A ENTREGAR",
+      "gs": 171826712.0,
+      "usd": 28777.066334391788,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 38,
+      "mes": null,
+      "label": "PAGOS DE BAZZAR",
+      "gs": 245000000.0,
+      "usd": 41031.92786419604,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 39,
+      "mes": null,
+      "label": "PAGO LUISITO",
+      "gs": 113173716.0,
+      "usd": 18954.023473612284,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 40,
+      "mes": null,
+      "label": "PV Y PROG A COBRAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 41,
+      "mes": null,
+      "label": "PAGO A PROVEEDORES",
+      "gs": -4123230246.6984,
+      "usd": -690547.29,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 42,
+      "mes": null,
+      "label": "GASTOS DE DESPACHO",
+      "gs": -478000000.0,
+      "usd": -80054.12864932942,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 43,
+      "mes": null,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "gs": -1962355000.0,
+      "usd": -328649.8318528344,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 44,
+      "mes": null,
+      "label": "PRESTAMO BANCARIO",
+      "gs": -157000000.0,
+      "usd": -26293.929284403177,
+      "bold": false
+    },
+    {
+      "kind": "total_yellow",
+      "r": 45,
+      "mes": null,
+      "label": "SALDO DISPONIBLE OCTUBRE 2026",
+      "gs": -2857847857.387199,
+      "usd": -478624.5189026891,
+      "bold": true
+    },
+    {
+      "kind": "row",
+      "r": 46,
+      "mes": "2026-11",
+      "label": "CHEQUES A VENCER",
+      "gs": 359309225.0,
+      "usd": 60176.12326995994,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 47,
+      "mes": null,
+      "label": "SALDO DE CLIENTES",
+      "gs": 179368377.0,
+      "usd": 30040.123698701715,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 48,
+      "mes": null,
+      "label": "MERCADERIAS A ENTREGAR",
+      "gs": 93343634.0,
+      "usd": 15632.935742326192,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 49,
+      "mes": null,
+      "label": "PAGOS DE BAZZAR",
+      "gs": 900000000.0,
+      "usd": 150729.53092969974,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 50,
+      "mes": null,
+      "label": "PAGO LUISITO",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 51,
+      "mes": null,
+      "label": "PV Y PROG A COBRAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 52,
+      "mes": null,
+      "label": "PAGO A PROVEEDORES",
+      "gs": -4510165053.967199,
+      "usd": -755350.07,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 53,
+      "mes": null,
+      "label": "GASTOS DE DESPACHO",
+      "gs": -91000000.0,
+      "usd": -15240.43034955853,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 54,
+      "mes": null,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "gs": -2257715000.0,
+      "usd": -378115.9143588301,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 55,
+      "mes": null,
+      "label": "PRESTAMO BANCARIO",
+      "gs": -157000000.0,
+      "usd": -26293.929284403177,
+      "bold": false
+    },
+    {
+      "kind": "total_yellow",
+      "r": 56,
+      "mes": null,
+      "label": "SALDO DISPONIBLE NOVIEMBRE 2026",
+      "gs": null,
+      "usd": null,
+      "bold": true
+    },
+    {
+      "kind": "row",
+      "r": 57,
+      "mes": "2026-12",
+      "label": "CHEQUES A VENCER",
+      "gs": 27144860.0,
+      "usd": 4546.146683280411,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 58,
+      "mes": null,
+      "label": "SALDO DE CLIENTES",
+      "gs": 35573400.0,
+      "usd": 5957.735439527312,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 59,
+      "mes": null,
+      "label": "MERCADERIAS A ENTREGAR",
+      "gs": 45714813.0,
+      "usd": 7656.191466698822,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 60,
+      "mes": null,
+      "label": "PAGOS DE BAZZAR",
+      "gs": 750000000.0,
+      "usd": 125607.94244141645,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 61,
+      "mes": null,
+      "label": "PAGO LUISITO",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 62,
+      "mes": null,
+      "label": "PV Y PROG A COBRAR",
+      "gs": null,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 63,
+      "mes": null,
+      "label": "PAGO A PROVEEDORES",
+      "gs": -1485046238.9112,
+      "usd": -248711.47,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 64,
+      "mes": null,
+      "label": "GASTOS DE DESPACHO",
+      "gs": 0.0,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 65,
+      "mes": null,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "gs": -2707646000.0,
+      "usd": -453469.12389297533,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 66,
+      "mes": null,
+      "label": "PRESTAMO BANCARIO",
+      "gs": -157000000.0,
+      "usd": -26293.929284403177,
+      "bold": false
+    },
+    {
+      "kind": "total_yellow",
+      "r": 67,
+      "mes": null,
+      "label": "SALDO DISPONIBLE DICIEMBRE 2026",
+      "gs": null,
+      "usd": null,
+      "bold": true
+    },
+    {
+      "kind": "spacer",
+      "r": 68
+    },
+    {
+      "kind": "reserva",
+      "r": 69,
+      "mes": null,
+      "label": "FONDOS EN USD DISPONIBLES (BAZZAR + SR. SERGIO)",
+      "gs": 597096000.0,
+      "usd": 100000.0,
+      "bold": false
+    },
+    {
+      "kind": "total_green",
+      "r": 70,
+      "mes": null,
+      "label": "TOTAL",
+      "gs": 597096000.0,
+      "usd": 100000.0,
+      "bold": true
+    },
+    {
+      "kind": "spacer",
+      "r": 71
+    },
+    {
+      "kind": "subheader",
+      "r": 72,
+      "mes": null,
+      "label": "SALDO DE CLIENTES A COBRAR",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 73,
+      "mes": null,
+      "label": "CHEQUES A VENCER-ENERO 27",
+      "gs": 0.0,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 74,
+      "mes": null,
+      "label": "CHEQUES A VENCER-FEBRERO 27 - HASTA ULTIMO VTO",
+      "gs": 0.0,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 75,
+      "mes": null,
+      "label": "SALDO DE CLIENTES - ENERO 26",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 76,
+      "mes": null,
+      "label": "MERCADERIAS A ENTREGAR ENERO 26",
+      "gs": 2919676.0,
+      "usd": 488.9793266074467,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 77,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS",
+      "gs": 69541202.0,
+      "usd": 11646.569730830553,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 78,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS",
+      "gs": 41422915.0,
+      "usd": 6937.3961641009155,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 79,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS",
+      "gs": 20744795.0,
+      "usd": 3474.2813550919786,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 80,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS",
+      "gs": 39391708.0,
+      "usd": 6597.215188177445,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 81,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS MAYOR A  180 DIAS",
+      "gs": 43710442.0,
+      "usd": 7320.504910433163,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 82,
+      "mes": null,
+      "label": "CONSIGNACIONES",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 83,
+      "mes": null,
+      "label": "Bazzar Vto. OCTUBRE-26",
+      "gs": 990749743.0,
+      "usd": 165928.0489234562,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 84,
+      "mes": null,
+      "label": "Bazzar Vto. NOVIEMBRE-26",
+      "gs": 749348892.0,
+      "usd": 125498.8966598336,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 85,
+      "mes": null,
+      "label": "Bazzar Vto. DICIEMBRE-26",
+      "gs": 651791399.0,
+      "usd": 109160.23537253641,
+      "bold": false
+    },
+    {
+      "kind": "total_gray",
+      "r": 86,
+      "mes": null,
+      "label": "TOTAL VENCIDOS",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "spacer",
+      "r": 87
+    },
+    {
+      "kind": "subheader",
+      "r": 88,
+      "mes": null,
+      "label": "CLIENTES DE DIFICIL COBRO",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 89,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS (DIF.COBRO)",
+      "gs": 176623101.0,
+      "usd": 29580.352405643313,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 90,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS (DIF.COBRO)",
+      "gs": 199774973.0,
+      "usd": 33457.7644130927,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 91,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS (DIF.COBRO)",
+      "gs": 65741220.0,
+      "usd": 11010.159170384663,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 92,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS (DIF.COBRO)",
+      "gs": 134601749.0,
+      "usd": 22542.731654541312,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 93,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS (DIF.COBRO)",
+      "gs": 12460141.0,
+      "usd": 2086.7902313865775,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 94,
+      "mes": null,
+      "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS (DIF.COBRO)",
+      "gs": 14124387.0,
+      "usd": 2365.5135857550545,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 95,
+      "mes": null,
+      "label": "MAYORES A 180 DIAS(DIF COBRO)",
+      "gs": 66793008.0,
+      "usd": 11186.309739137425,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 96,
+      "mes": null,
+      "label": "AGOSTO 26 (DIF COBRO)",
+      "gs": 636166543.0,
+      "usd": 106543.42735506519,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 97,
+      "mes": null,
+      "label": "SETIEMBRE 26 (DIF COBRO)",
+      "gs": 346413764.0,
+      "usd": 58016.42683923523,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 98,
+      "mes": null,
+      "label": "OCTUBRE 26 (DIF COBRO)",
+      "gs": 130290050.0,
+      "usd": 21820.620134785695,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 99,
+      "mes": null,
+      "label": "NOVIEMBRE 26 (DIF COBRO)",
+      "gs": 38910630.0,
+      "usd": 6516.645564532337,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 100,
+      "mes": null,
+      "label": "DICIEMBRE 26 (DIF COBRO)",
+      "gs": 6568488.0,
+      "usd": 1100.0723501748462,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 101,
+      "mes": null,
+      "label": "CONSIGNACIONES",
+      "gs": 0.0,
+      "usd": 0.0,
+      "bold": false
+    },
+    {
+      "kind": "total_gray",
+      "r": 102,
+      "mes": null,
+      "label": "TOTAL DIFICIL COBRO",
+      "gs": 1828468054.0,
+      "usd": 306226.8134437343,
+      "bold": false
+    },
+    {
+      "kind": "spacer",
+      "r": 103
+    },
+    {
+      "kind": "subheader",
+      "r": 104,
+      "mes": null,
+      "label": "STOCK",
+      "gs": null,
+      "usd": null,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 105,
+      "mes": null,
+      "label": "ACCESORIOS/CARTERAS",
+      "gs": 81468912.7224,
+      "usd": 13644.189999999999,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 106,
+      "mes": null,
+      "label": "CALZADOS ABIERTO",
+      "gs": 3477353533.624803,
+      "usd": 582377.6300000005,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 107,
+      "mes": null,
+      "label": "CALZADOS CERRADO",
+      "gs": 4697214033.8592005,
+      "usd": 786676.5200000001,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 108,
+      "mes": null,
+      "label": "CONFECCIONES INVIERNO",
+      "gs": 222434321.88239992,
+      "usd": 37252.68999999999,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 109,
+      "mes": null,
+      "label": "CONFECCIONES VERANO",
+      "gs": 289434852.1547996,
+      "usd": 48473.754999999925,
+      "bold": false
+    },
+    {
+      "kind": "row",
+      "r": 110,
+      "mes": null,
+      "label": "",
+      "gs": null,
+      "usd": 1468424.7850000004,
+      "bold": false
+    },
+    {
+      "kind": "spacer",
+      "r": 111
+    }
+  ]
+}

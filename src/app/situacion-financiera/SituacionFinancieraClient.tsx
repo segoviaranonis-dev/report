@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from "react";
 import type { SfCorteResumen, SfOrigen } from "@/lib/situacion-financiera/types";
+import {
+  SF_TABS,
+  type SfTabId,
+} from "@/lib/situacion-financiera/versiones-guido";
+import { SitFinExcelAlTab } from "./SitFinExcelAlTab";
+import { GuidoHtmlRolesTab } from "./GuidoHtmlRolesTab";
+import { GuidoHtmlExcelLookTab } from "./GuidoHtmlExcelLookTab";
+import { GuidoCuadroVencimientosTab } from "./GuidoCuadroVencimientosTab";
+import { GuidoAnalisisCobrosTab } from "./GuidoAnalisisCobrosTab";
+import { SitFinGraficosTab } from "./SitFinGraficosTab";
 
 function fmtGs(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -46,6 +56,7 @@ export function SituacionFinancieraClient() {
   const [corte, setCorte] = useState<SfCorteResumen | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<SfTabId>("excel-al");
 
   useEffect(() => {
     let alive = true;
@@ -69,24 +80,67 @@ export function SituacionFinancieraClient() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <p className="mt-8 text-sm text-slate-500">Cargando corte Sit Fin…</p>
-    );
-  }
-  if (err || !corte) {
-    return (
-      <p className="mt-8 text-sm text-red-600">
-        No se pudo cargar el corte: {err || "sin datos"}
-      </p>
-    );
-  }
+  const meta = SF_TABS.find((t) => t.id === tab);
+  const needsCorte =
+    tab === "nexus" ||
+    tab === "guido-html-roles" ||
+    tab === "graficos";
 
+  return (
+    <div className="mt-6">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 pb-0">
+        {SF_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            title={t.desc}
+            onClick={() => setTab(t.id)}
+            className={`shrink-0 rounded-t-lg px-3 py-2 text-xs font-medium transition sm:text-sm ${
+              tab === t.id
+                ? "border border-b-0 border-slate-300 bg-white text-[#1F4E79]"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {meta ? (
+        <p className="mt-2 text-[11px] text-slate-500">
+          {meta.desc} · <span className="italic">{meta.fuenteGuido}</span>
+        </p>
+      ) : null}
+
+      {tab === "excel-al" ? (
+        <SitFinExcelAlTab />
+      ) : tab === "guido-html-excel" ? (
+        <GuidoHtmlExcelLookTab />
+      ) : tab === "guido-cuadro" ? (
+        <GuidoCuadroVencimientosTab />
+      ) : tab === "guido-cobros" ? (
+        <GuidoAnalisisCobrosTab />
+      ) : needsCorte && loading ? (
+        <p className="mt-8 text-sm text-slate-500">Cargando corte Sit Fin…</p>
+      ) : needsCorte && (err || !corte) ? (
+        <p className="mt-8 text-sm text-red-600">
+          No se pudo cargar el corte: {err || "sin datos"}
+        </p>
+      ) : tab === "guido-html-roles" && corte ? (
+        <GuidoHtmlRolesTab corte={corte} />
+      ) : tab === "graficos" && corte ? (
+        <SitFinGraficosTab corte={corte} />
+      ) : tab === "nexus" && corte ? (
+        <VistaNexus corte={corte} />
+      ) : null}
+    </div>
+  );
+}
+
+function VistaNexus({ corte }: { corte: SfCorteResumen }) {
   const tasa = corte.tasaUsd || 5970.96;
 
   return (
     <div className="mt-8 space-y-8">
-      {/* Meta corte */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -123,7 +177,6 @@ export function SituacionFinancieraClient() {
         </div>
       </section>
 
-      {/* Ciclo económico importadora */}
       <section>
         <h3 className="font-serif text-lg text-slate-900">
           Estructura económica · importadora
@@ -147,7 +200,6 @@ export function SituacionFinancieraClient() {
         </ol>
       </section>
 
-      {/* Leyenda colores Guido */}
       <section className="flex flex-wrap gap-2 text-xs">
         {(Object.keys(ORIGEN_STYLE) as SfOrigen[]).map((k) => (
           <span
@@ -159,7 +211,6 @@ export function SituacionFinancieraClient() {
         ))}
       </section>
 
-      {/* Bloques mes */}
       {corte.bloques.map((b) => (
         <section
           key={b.mesYm}
@@ -213,7 +264,6 @@ export function SituacionFinancieraClient() {
         </section>
       ))}
 
-      {/* Cheques + aging resumen */}
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="font-serif text-base text-slate-900">
@@ -250,12 +300,6 @@ export function SituacionFinancieraClient() {
           </table>
         </section>
       </div>
-
-      <p className="text-xs text-slate-500">
-        Próximo: cablear cuadro de vencimientos + verdes Guido al peso del Excel
-        `SF AL 03-08.xlsx`. Lilas (saldo clientes / mercadería / Luisito) salen del
-        detalle auditable.
-      </p>
     </div>
   );
 }

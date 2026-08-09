@@ -16,6 +16,26 @@ export type SfBloqueMes = {
   saldoDisponibleGs: number | null;
 };
 
+export type ExcelAlRow = {
+  kind:
+    | "spacer"
+    | "row"
+    | "section"
+    | "subheader"
+    | "tasa"
+    | "prevision"
+    | "total_yellow"
+    | "total_green"
+    | "total_gray"
+    | "reserva";
+  r: number;
+  mes?: string | null;
+  label: string;
+  gs: number | null;
+  usd: number | null;
+  bold?: boolean;
+};
+
 export type SfCorteResumen = {
   fechaAl: string;
   tasaUsd: number;
