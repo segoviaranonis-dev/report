@@ -16,6 +16,20 @@ export type SfBloqueMes = {
   saldoDisponibleGs: number | null;
 };
 
+/** Nodo de detalle molecular (acordeón multi-nivel). */
+export type MolNode = {
+  id: string;
+  label: string;
+  gs?: number | null;
+  usd?: number | null;
+  meta?: string;
+  /** Archivo TXT / Excel que respalda el nodo */
+  fuente?: string;
+  /** Línea limpia del TXT (documentación molecular) */
+  doc?: string;
+  children?: MolNode[];
+};
+
 export type ExcelAlRow = {
   kind:
     | "spacer"

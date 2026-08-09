@@ -28,40 +28,60 @@ def _es_guiones(l: str) -> bool:
 
 
 def parse_cheques_vencer(path: Path) -> dict[str, Any]:
+    """Lista ERP ifcqvg$ · cada fila = 1 cheque respaldado por línea limpia del TXT."""
     texto = leer_texto(path)
     filas = []
-    for l in texto.splitlines():
-        if _es_guiones(l) or "[" in l or "SUB" in l.upper() and "TOTAL" in l.upper():
+    for nro_linea, l in enumerate(texto.splitlines(), start=1):
+        if _es_guiones(l) or "[" in l:
+            continue
+        up = l.upper()
+        if "SUB" in up and "TOTAL" in up:
+            continue
+        if "TOTAL" in up and "GENERAL" in up:
             continue
         if not re.search(r"\d{2}/\d{2}/\d{2}", l):
             continue
-        m = re.search(r"([\d,]{3,})\s+(Gs|Dls|R\$)\s*$", l)
+        m = re.search(r"([\d,]{3,})\s+(Gs|Dls|R\$)\s*$", l.rstrip())
         if not m:
             continue
         importe = _entero(m.group(1))
         moneda = m.group(2)
-        # tokens fecha
         fechas = re.findall(r"\d{2}/\d{2}/\d{2}", l)
         fvto = fechas[0] if fechas else ""
-        # cod banco al inicio alfanumérico
-        mban = re.match(r"\s*([A-Z]{2,5})\s+", l)
-        banco = mban.group(1) if mban else ""
-        # cod cliente: número cerca de la fecha
-        mcli = re.search(r"(\d{3,5})\s+\d{2}/\d{2}/\d{2}", l)
-        cod = mcli.group(1) if mcli else ""
-        nro = ""
-        mcheque = re.search(r"\b(\d{5,10})\b", l)
-        if mcheque:
-            nro = mcheque.group(1)
+        fproc = fechas[1] if len(fechas) > 1 else ""
+        mban = re.match(r"\s*([A-Z]{2,5})\s+(.+?)\s{2,}(\d{5,10})\s+(.+?)\s+(\d{3,5})\s+\d{2}/\d{2}/\d{2}", l)
+        if mban:
+            banco, banco_nom, nro, emitente, cod = (
+                mban.group(1),
+                mban.group(2).strip(),
+                mban.group(3),
+                mban.group(4).strip(),
+                mban.group(5),
+            )
+        else:
+            mban2 = re.match(r"\s*([A-Z]{2,5})\s+", l)
+            banco = mban2.group(1) if mban2 else ""
+            banco_nom = ""
+            mcli = re.search(r"(\d{3,5})\s+\d{2}/\d{2}/\d{2}", l)
+            cod = mcli.group(1) if mcli else ""
+            mcheque = re.search(r"\b(\d{5,10})\b", l)
+            nro = mcheque.group(1) if mcheque else ""
+            emitente = ""
+        linea_limpia = " ".join(l.split())
         filas.append(
             {
                 "Banco_Cod": banco,
+                "Banco_Nombre": banco_nom,
                 "Nro_Cheque": nro,
+                "Emitente": emitente,
                 "Cod_Cliente": cod,
                 "Fecha_Vto": fvto,
+                "Fecha_Proc": fproc,
                 "Importe": importe,
                 "Moneda": moneda,
                 "Fuente": path.name,
+                "Nro_Linea": nro_linea,
+                "Linea_Limpia": linea_limpia,
             }
         )
     total_gs = sum(f["Importe"] for f in filas if f["Moneda"] == "Gs")
