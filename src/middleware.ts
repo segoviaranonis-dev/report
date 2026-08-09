@@ -45,7 +45,7 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/aut
 
 // Rutas permitidas por rol
 const ROLE_ROUTES: Record<number, string[]> = {
-  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/logistica-ok', '/automatizacion-informes', '/mensajes-internos', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
+  1: ['/', '/rimec', '/retail', '/ventas-fotos', '/aprobaciones', '/pilares', '/proceso-importacion', '/compra-legal', '/facturacion', '/deposito-rimec', '/logistica-ok', '/automatizacion-informes', '/mensajes-internos', '/situacion-financiera', '/depositos-bazzar', '/tablet-bazzar', '/informes', '/bazzar-web', '/rrhh', '/holding', '/herramienta-reposicion', '/stock-pronta-entrega', '/stock-transito', '/stock-programado'],
   2: ['/retail', '/depositos-bazzar', '/tablet-bazzar'],
   // Base rol 3; Logística se abre con LOGISTICA_VENDEDOR_LANZADA vía isVendedorRimecReport
   3: ['/ventas-fotos'],
@@ -338,6 +338,10 @@ export const config = {
     '/mensajes-internos/:path*',
     '/api/mensajes-internos',
     '/api/mensajes-internos/:path*',
+    '/situacion-financiera',
+    '/situacion-financiera/:path*',
+    '/api/situacion-financiera',
+    '/api/situacion-financiera/:path*',
     '/holding/:path*',
     '/proceso-importacion/:path*',
     '/api/holding/:path*',

@@ -200,6 +200,18 @@ export const REPORT_HUB_MODULES: ReportHubModule[] = [
     roles: [1],
     rimecAdminOnly: true,
   },
+  {
+    href: "/situacion-financiera",
+    title: "Situación financiera",
+    shortLabel: "Sit. financiera",
+    description:
+      "Previsión liquidez importadora · CxC · cheques · PV · cobros · Sit Fin (2.3.1.50).",
+    icon: "💹",
+    group: "rimec",
+    navKey: "situacion-financiera",
+    roles: [1],
+    rimecAdminOnly: true,
+  },
 
   // ── BAZZAR tiendas (2.3.2, 2.3.6, 2.3.9/tablet) ──
   {

@@ -30,6 +30,7 @@ export type NexusNavKey =
   | "logistica-ok"
   | "automatizacion-informes"
   | "mensajes-internos"
+  | "situacion-financiera"
   | "bazzar-web-compra"
   | "bazzar-web-deposito"
   | "bazzar-web-motor"

@@ -1,0 +1,8 @@
+# Intake TXT/XLSX y salidas LAB — no inflar git (quedan en disco local)
+intake/
+out/
+data/catalogo_local/cortes/
+data/catalogo_local/staging/
+data/catalogo_local/eventos.jsonl
+__pycache__/
+*.pyc

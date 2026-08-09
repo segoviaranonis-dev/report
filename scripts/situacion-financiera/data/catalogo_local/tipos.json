@@ -1,0 +1,80 @@
+{
+  "cheques_vencer": {
+    "codigo": "cheques_vencer",
+    "parser_version": 1,
+    "columnas_esperadas": [
+      "Banco_Cod",
+      "Cod_Cliente",
+      "Fecha_Vto",
+      "Importe",
+      "Moneda",
+      "Nro_Cheque"
+    ],
+    "activo": true
+  },
+  "ventas_bzz": {
+    "codigo": "ventas_bzz",
+    "parser_version": 1,
+    "columnas_esperadas": [],
+    "activo": true
+  },
+  "pv_prog": {
+    "codigo": "pv_prog",
+    "parser_version": 1,
+    "columnas_esperadas": [
+      "Cant_Cuotas",
+      "Cod_Cliente",
+      "Cod_Operacion",
+      "Fecha_Entrega",
+      "Fecha_Pedido",
+      "Importe_Cuota",
+      "Importe_Pedido",
+      "Nro_Ped_Cliente",
+      "Nro_Ped_Prov",
+      "Proforma",
+      "Vencimientos"
+    ],
+    "activo": true
+  },
+  "saldos_resumen": {
+    "codigo": "saldos_resumen",
+    "parser_version": 1,
+    "columnas_esperadas": [
+      "Cod_Cliente",
+      "Moneda",
+      "Nombre",
+      "Saldo"
+    ],
+    "activo": true
+  },
+  "saldos_detallado": {
+    "codigo": "saldos_detallado",
+    "parser_version": 1,
+    "columnas_esperadas": [
+      "Cod_Cliente",
+      "Dias_Vencido",
+      "Nombre",
+      "Nro_Factura",
+      "Saldo"
+    ],
+    "activo": true
+  },
+  "ventas_dto": {
+    "codigo": "ventas_dto",
+    "parser_version": 1,
+    "columnas_esperadas": [],
+    "activo": true
+  },
+  "ventas_mensuales": {
+    "codigo": "ventas_mensuales",
+    "parser_version": 1,
+    "columnas_esperadas": [],
+    "activo": true
+  },
+  "ventas_dia": {
+    "codigo": "ventas_dia",
+    "parser_version": 1,
+    "columnas_esperadas": [],
+    "activo": true
+  }
+}
