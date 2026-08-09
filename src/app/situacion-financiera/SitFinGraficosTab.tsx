@@ -41,11 +41,14 @@ function bancosSeries() {
       (r) =>
         r.kind === "row" &&
         r.gs != null &&
+        !!r.label &&
         /BANCO|BANCOOP/i.test(r.label) &&
         r.r <= 12
     )
     .map((r) => ({
-      banco: r.label.replace(/^SALDO EN (USD\.|GS\.?\s*)/i, "").trim(),
+      banco: (r.label || "")
+        .replace(/^SALDO EN (USD\.|GS\.?\s*)/i, "")
+        .trim(),
       gs: r.gs as number,
     }));
 }
