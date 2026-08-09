@@ -1,0 +1,317 @@
+{
+  "corte": "AL-03-08-26",
+  "n_archivos_intake": 19,
+  "n_items_mapa": 20,
+  "por_estado": {
+    "mapeado_auditado": 12,
+    "inventariado": 3,
+    "inventariado_control": 5
+  },
+  "completo_intake": true,
+  "items": [
+    {
+      "archivo": "1.CHEQUES A VENCER_AGO26.txt",
+      "tipo": "txt",
+      "familia": "cheques",
+      "sit_fin": "CHEQUES A VENCER · 2026-08",
+      "mol_key": "cheques:2026-08",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 241,
+      "gs": 1915766316,
+      "nota": "Canon documentado = Σ líneas TXT"
+    },
+    {
+      "archivo": "2.CHEQUES A VENCER_SEPT26.txt",
+      "tipo": "txt",
+      "familia": "cheques",
+      "sit_fin": "CHEQUES A VENCER · 2026-09",
+      "mol_key": "cheques:2026-09",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 139,
+      "gs": 1182581582,
+      "nota": "Canon documentado = Σ líneas TXT"
+    },
+    {
+      "archivo": "3.CHEQUES A VENCER_OCT26.txt",
+      "tipo": "txt",
+      "familia": "cheques",
+      "sit_fin": "CHEQUES A VENCER · 2026-10",
+      "mol_key": "cheques:2026-10",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 75,
+      "gs": 640107523,
+      "nota": "Canon documentado = Σ líneas TXT"
+    },
+    {
+      "archivo": "4.CHEQUES A VENCER_NOV26.txt",
+      "tipo": "txt",
+      "familia": "cheques",
+      "sit_fin": "CHEQUES A VENCER · 2026-11",
+      "mol_key": "cheques:2026-11",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 22,
+      "gs": 158165615,
+      "nota": "Canon documentado = Σ líneas TXT"
+    },
+    {
+      "archivo": "5.CHEQUES A VENCER_DIC26.txt",
+      "tipo": "txt",
+      "familia": "cheques",
+      "sit_fin": "CHEQUES A VENCER · 2026-12",
+      "mol_key": "cheques:2026-12",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 11,
+      "gs": 103460486,
+      "nota": "Canon documentado = Σ líneas TXT"
+    },
+    {
+      "archivo": "6.CHEQUES A VENCER_ENE26 AL 2029.txt",
+      "tipo": "txt",
+      "familia": "cheques",
+      "sit_fin": "CHEQUES A VENCER · 2027+",
+      "mol_key": "cheques:2027+",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 3,
+      "gs": 2970000,
+      "nota": "Canon documentado = Σ líneas TXT"
+    },
+    {
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
+      "tipo": "txt",
+      "familia": "cxc_detalle",
+      "sit_fin": "AGING / SALDO CLIENTES VENCIDOS (OK)",
+      "mol_key": "aging:* + clientes:corte",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 1061,
+      "gs": 6910810021,
+      "nota": "Fuente aging 30…>180 y detalle molecular facturas"
+    },
+    {
+      "archivo": "SALDO CLIENTES AL 03-08.txt",
+      "tipo": "txt",
+      "familia": "cxc_resumen",
+      "sit_fin": "Control cruzado Σ clientes (no proyecta mes)",
+      "mol_key": "clientes:corte",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 195,
+      "gs": 6817427272,
+      "nota": "Resumen por cliente; Sit Fin mes usa Excel/cuadro Guido"
+    },
+    {
+      "archivo": "PV Y PROG.txt",
+      "tipo": "txt",
+      "familia": "pv_prog",
+      "sit_fin": "PV Y PROG / MERCADERIAS A ENTREGAR (ref)",
+      "mol_key": "pv:YYYY-MM",
+      "origen": "txt",
+      "estado": "mapeado_auditado",
+      "n": 1214,
+      "gs": 15008183796,
+      "nota": "TXT = universo; fila Sit Fin = verde Guido (subconjunto)",
+      "extra": {
+        "por_mes_cuota": {
+          "2026-08": 256109218,
+          "2026-09": 1409144170,
+          "2026-10": 3956624249,
+          "2026-11": 4062543162,
+          "2026-12": 3338187792,
+          "2027-01": 890578204,
+          "2027-02": 1077089946,
+          "2027-03": 17907090
+        }
+      }
+    },
+    {
+      "archivo": "PV Y PROG - EXCEL.xlsx",
+      "tipo": "xlsx",
+      "familia": "pv_apoyo",
+      "sit_fin": "Apoyo PV (no sustituye TXT)",
+      "mol_key": null,
+      "origen": "excel_apoyo",
+      "estado": "inventariado",
+      "n": 316,
+      "gs": null,
+      "nota": "Hoja Hoja1 · Apoyo Excel PV en sistema / no importados",
+      "extra": {
+        "sheet": "Hoja1",
+        "n_numeros": 316,
+        "suma_abs": 637234.0,
+        "muestra_labels": [
+          "NO",
+          "NO",
+          "NO",
+          "NO",
+          "NO",
+          "TEIGE",
+          "NO",
+          "NO"
+        ]
+      }
+    },
+    {
+      "archivo": "PV Y PROG (NO IMPORTADOS).xlsx",
+      "tipo": "xlsx",
+      "familia": "pv_apoyo",
+      "sit_fin": "Apoyo PV (no sustituye TXT)",
+      "mol_key": null,
+      "origen": "excel_apoyo",
+      "estado": "inventariado",
+      "n": 427,
+      "gs": null,
+      "nota": "Hoja Hoja2 · Apoyo Excel PV no importados",
+      "extra": {
+        "sheet": "Hoja2",
+        "n_numeros": 427,
+        "suma_abs": 11834637367.0,
+        "muestra_labels": [
+          "CR30-60-90",
+          "Total MODARE",
+          "CR30-60-90",
+          "Total MOLECA",
+          "CR30-60-90",
+          "Total MODARE",
+          "CR-30A120D",
+          "Total ACTVITTA"
+        ]
+      }
+    },
+    {
+      "archivo": "GASTOS OPERATIVOS 26.xlsx",
+      "tipo": "xlsx",
+      "familia": "gastos",
+      "sit_fin": "PREVISION GASTOS OPERATIVOS (manual)",
+      "mol_key": "manual:PREVISION GASTOS OPERATIVOS",
+      "origen": "manual",
+      "estado": "mapeado_auditado",
+      "n": 893,
+      "gs": 27180212000.0,
+      "nota": "Excel apoyo → fila manual Sit Fin",
+      "extra": {
+        "sheet": "PREVISION 2026",
+        "prevision_detectada": 27180212000.0
+      }
+    },
+    {
+      "archivo": "VTO.BAZZAR AGOSTO26 .xlsx",
+      "tipo": "xlsx",
+      "familia": "bazzar",
+      "sit_fin": "PAGOS BAZZAR (manual)",
+      "mol_key": "bazzar:manual",
+      "origen": "manual",
+      "estado": "mapeado_auditado",
+      "n": 12,
+      "gs": 1300000000.0,
+      "nota": "Excel VTO.BAZZAR → fila manual Sit Fin (ago = previsión mes)",
+      "extra": {
+        "sheet": "PREVISION PAGOS BAZZAR26",
+        "por_mes": {
+          "2026-01": 310000000.0,
+          "2026-02": 290000000.0,
+          "2026-03": 1300000000.0,
+          "2026-04": 330000000.0,
+          "2026-05": 520000000.0,
+          "2026-06": 300000000.0,
+          "2026-07": 550000000.0,
+          "2026-08": 1300000000.0,
+          "2026-09": 245000000.0,
+          "2026-10": 900000000.0,
+          "2026-11": 750000000.0,
+          "2026-12": 2600000000.0
+        },
+        "total_anio": 9395000000.0
+      }
+    },
+    {
+      "archivo": "VENTAS CON DTO AGOSTO 26.txt",
+      "tipo": "txt",
+      "familia": "ventas_dto",
+      "sit_fin": "Control cobros/ventas (fuera fila Sit Fin)",
+      "mol_key": null,
+      "origen": "control",
+      "estado": "inventariado_control",
+      "n": 0,
+      "gs": null,
+      "nota": "No mueve celda Sit Fin; insumo análisis cobros / Bazzar"
+    },
+    {
+      "archivo": "VENTAS MENSUALES AGOSTO 26.txt",
+      "tipo": "txt",
+      "familia": "ventas_mes",
+      "sit_fin": "Control ventas mes (fuera fila Sit Fin)",
+      "mol_key": null,
+      "origen": "control",
+      "estado": "inventariado_control",
+      "n": 0,
+      "gs": null,
+      "nota": "No mueve celda Sit Fin; insumo análisis cobros / Bazzar"
+    },
+    {
+      "archivo": "VENTAS POR DIA CONTROL AGOSTO26.txt",
+      "tipo": "txt",
+      "familia": "ventas_dia",
+      "sit_fin": "Control ventas día (fuera fila Sit Fin)",
+      "mol_key": null,
+      "origen": "control",
+      "estado": "inventariado_control",
+      "n": 0,
+      "gs": null,
+      "nota": "No mueve celda Sit Fin; insumo análisis cobros / Bazzar"
+    },
+    {
+      "archivo": "INFORME DE VENTAS BZZ CLI + FACT.txt",
+      "tipo": "txt",
+      "familia": "ventas_bzz_cli",
+      "sit_fin": "Ventas Bazzar cli+fact (apoyo)",
+      "mol_key": null,
+      "origen": "control",
+      "estado": "inventariado_control",
+      "n": 0,
+      "gs": null,
+      "nota": "No mueve celda Sit Fin; insumo análisis cobros / Bazzar"
+    },
+    {
+      "archivo": "INFORME DE VENTAS BZZ FACT + ART.txt",
+      "tipo": "txt",
+      "familia": "ventas_bzz_art",
+      "sit_fin": "Ventas Bazzar fact+art (apoyo)",
+      "mol_key": null,
+      "origen": "control",
+      "estado": "inventariado_control",
+      "n": 0,
+      "gs": null,
+      "nota": "No mueve celda Sit Fin; insumo análisis cobros / Bazzar"
+    },
+    {
+      "archivo": "SF AL 03-08.xlsx",
+      "tipo": "xlsx",
+      "familia": "sit_fin_objetivo",
+      "sit_fin": "Plantilla SIT FIN (todas las filas UI)",
+      "mol_key": "excel-al-0308",
+      "origen": "excel_objetivo",
+      "estado": "mapeado_auditado",
+      "n": null,
+      "gs": null,
+      "nota": "Snapshot UI + filas manuales/cálculo"
+    },
+    {
+      "archivo": "SF AL 03-08.xlsx (bloque DIF.COBRO)",
+      "tipo": "xlsx",
+      "familia": "dificil_cobro",
+      "sit_fin": "VENCIDOS (DIF.COBRO) / TOTAL DIFICIL",
+      "mol_key": "dificil:total",
+      "origen": "excel_prevision",
+      "estado": "inventariado",
+      "n": 12,
+      "gs": 1828468054.0,
+      "nota": "Canon = Excel Guido. TXT sin tipo DIFICIL/SALEMMA — no reusar aging OK"
+    }
+  ]
+}

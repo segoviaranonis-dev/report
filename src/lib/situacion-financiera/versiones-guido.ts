@@ -7,6 +7,7 @@ export type SfTabId =
   | "guido-cuadro"
   | "guido-cobros"
   | "graficos"
+  | "auditoria"
   | "nexus";
 
 export type SfTabMeta = {
@@ -60,6 +61,13 @@ export const SF_TABS: SfTabMeta[] = [
     short: "Charts",
     desc: "Saldo disponible, cheques, aging y composición — vista gerencial",
     fuenteGuido: "Nexus · datos Excel AL + pipeline LAB",
+  },
+  {
+    id: "auditoria",
+    label: "Auditoría mapa",
+    short: "Audit",
+    desc: "Cruce Excel vs TXT limpio · canon · descuadres",
+    fuenteGuido: "audit-mapa-al-0308 · mapa-canon-al-0308",
   },
   {
     id: "nexus",

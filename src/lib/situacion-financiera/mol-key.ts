@@ -3,6 +3,39 @@ import type { ExcelAlRow } from "./types";
 /** Origen de respaldo visual: TXT limpio vs carga manual vs cálculo. */
 export type SfRespaldoOrigen = "txt" | "manual" | "calc" | "pendiente";
 
+const MES_ES: Record<string, string> = {
+  ENERO: "01",
+  FEBRERO: "02",
+  MARZO: "03",
+  ABRIL: "04",
+  MAYO: "05",
+  JUNIO: "06",
+  JULIO: "07",
+  AGOSTO: "08",
+  SEPTIEMBRE: "09",
+  SETIEMBRE: "09",
+  OCTUBRE: "10",
+  NOVIEMBRE: "11",
+  DICIEMBRE: "12",
+};
+
+/**
+ * Mes embebido en el concepto Excel, p.ej. "CHEQUES A VENCER-ENERO 27" → 2027-01.
+ * "HASTA ULTIMO" / cola futura → 2027+ (TXT ENE26 AL 2029).
+ */
+export function mesDesdeLabel(label: string): string | null {
+  const u = (label || "").toUpperCase();
+  if (u.includes("HASTA ULTIMO") || u.includes("ULTIMO VTO")) return "2027+";
+  const m = u.match(
+    /\b(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s*(\d{2,4})\b/
+  );
+  if (!m) return null;
+  const mm = MES_ES[m[1]] || "01";
+  let yy = m[2];
+  if (yy.length === 2) yy = `20${yy}`;
+  return `${yy}-${mm}`;
+}
+
 export function origenRespaldo(molKey: string | null): SfRespaldoOrigen | null {
   if (!molKey) return null;
   if (molKey.startsWith("disponible:")) return "calc";
@@ -15,11 +48,13 @@ export function origenRespaldo(molKey: string | null): SfRespaldoOrigen | null {
   ) {
     return "txt";
   }
-  if (molKey.startsWith("luisito:")) return "pendiente";
+  if (molKey.startsWith("luisito:") || molKey.startsWith("pendiente:"))
+    return "pendiente";
   if (
     molKey.startsWith("banco:") ||
     molKey.startsWith("manual:") ||
-    molKey.startsWith("bazzar:")
+    molKey.startsWith("bazzar:") ||
+    molKey.startsWith("dificil:")
   ) {
     return "manual";
   }
@@ -41,7 +76,9 @@ export function molKeyForExcelRow(
     return null;
   }
   const label = (row.label || "").trim().toUpperCase();
-  const mes = row.mes || mesCtx;
+  /** Prioridad: mes en el texto del concepto > columna Mes > contexto de bloque */
+  const mesLabel = mesDesdeLabel(row.label || "");
+  const mes = mesLabel || row.mes || mesCtx;
 
   if (label.includes("BANCO CONTINENTAL") && label.includes("USD"))
     return "banco:CONTINENTAL:USD";
@@ -54,27 +91,48 @@ export function molKeyForExcelRow(
   if (label.includes("BNF")) return "banco:BNF:GS";
 
   if (label.includes("CHEQUES A VENCER") && mes) return `cheques:${mes}`;
+
+  const labNorm = label.replace(/\s+/g, " ");
+  /** Difícil cobro: Excel Sit Fin (sin filtro DIFICIL/SALEMMA en TXT) */
+  if (labNorm.includes("DIF") && labNorm.includes("COBRO")) {
+    if (labNorm.includes("TOTAL")) return "dificil:total";
+    if (labNorm.includes("MAYOR") && labNorm.includes("180"))
+      return "dificil:v180p";
+    if (labNorm.includes("VENCIDOS A 30")) return "dificil:v30";
+    if (labNorm.includes("VENCIDOS A 60")) return "dificil:v60";
+    if (labNorm.includes("VENCIDOS A 90")) return "dificil:v90";
+    if (labNorm.includes("VENCIDOS A 120") || labNorm.includes("120 DIAS"))
+      return "dificil:v120";
+    if (labNorm.includes("VENCIDOS A 150") || labNorm.includes("150 DIAS"))
+      return "dificil:v150";
+    if (labNorm.includes("VENCIDOS A 180") || labNorm.includes("180 DIAS"))
+      return "dificil:v180";
+    if (mes) return `dificil:${mes}`;
+    return "dificil:total";
+  }
+
   if (label === "SALDO DE CLIENTES" || label.startsWith("SALDO DE CLIENTES ")) {
-    if (label.includes("VENCIDOS A 30")) return "aging:v30";
-    if (label.includes("VENCIDOS A 60")) return "aging:v60";
-    if (label.includes("VENCIDOS A 90")) return "aging:v90";
-    if (label.includes("VENCIDOS A 120")) return "aging:v120";
-    if (label.includes("VENCIDOS A 150")) return "aging:v150";
-    if (label.includes("VENCIDOS A 180") && !label.includes("MAYOR"))
-      return "aging:v180";
-    if (label.includes("MAYOR A 180") || label.includes(">180"))
+    if (labNorm.includes("MAYOR") && labNorm.includes("180"))
       return "aging:v180p";
+    if (labNorm.includes("VENCIDOS A 30")) return "aging:v30";
+    if (labNorm.includes("VENCIDOS A 60")) return "aging:v60";
+    if (labNorm.includes("VENCIDOS A 90")) return "aging:v90";
+    if (labNorm.includes("VENCIDOS A 120")) return "aging:v120";
+    if (labNorm.includes("VENCIDOS A 150")) return "aging:v150";
+    if (labNorm.includes("VENCIDOS A 180")) return "aging:v180";
     return mes ? `clientes:${mes}` : "clientes:corte";
   }
-  if (label.includes("CLIENTES VENCIDOS") || label.includes("VENCIDOS")) {
-    if (label.includes("30")) return "aging:v30";
-    if (label.includes("60")) return "aging:v60";
-    if (label.includes("90")) return "aging:v90";
-    if (label.includes("120")) return "aging:v120";
-    if (label.includes("150")) return "aging:v150";
-    if (label.includes("180") && label.includes("MAYOR")) return "aging:v180p";
-    if (label.includes("180")) return "aging:v180";
+  if (labNorm.includes("CLIENTES VENCIDOS") || labNorm.includes("VENCIDOS")) {
+    if (labNorm.includes("MAYOR") && labNorm.includes("180"))
+      return "aging:v180p";
+    if (labNorm.includes("30")) return "aging:v30";
+    if (labNorm.includes("60")) return "aging:v60";
+    if (labNorm.includes("90")) return "aging:v90";
+    if (labNorm.includes("120")) return "aging:v120";
+    if (labNorm.includes("150")) return "aging:v150";
+    if (labNorm.includes("180")) return "aging:v180";
   }
+  if (labNorm.includes("MAYORES A 180")) return "aging:v180p";
   if (
     (label.includes("MERCADERIAS A ENTREGAR") ||
       label.includes("PV Y PROG")) &&
@@ -92,27 +150,8 @@ export function molKeyForExcelRow(
 
   if (row.kind === "total_yellow" && mes) return `disponible:${mes}`;
   if (row.kind === "total_yellow") {
-    const m = label.match(
-      /(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s*(\d{4})/i
-    );
-    if (m) {
-      const map: Record<string, string> = {
-        ENERO: "01",
-        FEBRERO: "02",
-        MARZO: "03",
-        ABRIL: "04",
-        MAYO: "05",
-        JUNIO: "06",
-        JULIO: "07",
-        AGOSTO: "08",
-        SEPTIEMBRE: "09",
-        OCTUBRE: "10",
-        NOVIEMBRE: "11",
-        DICIEMBRE: "12",
-      };
-      const ym = `${m[2]}-${map[m[1].toUpperCase()] || "01"}`;
-      return `disponible:${ym}`;
-    }
+    const ym = mesDesdeLabel(row.label || "") || mes;
+    if (ym && !ym.includes("+")) return `disponible:${ym}`;
   }
 
   return null;

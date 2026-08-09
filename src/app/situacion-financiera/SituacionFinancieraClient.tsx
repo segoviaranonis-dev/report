@@ -12,6 +12,7 @@ import { GuidoHtmlExcelLookTab } from "./GuidoHtmlExcelLookTab";
 import { GuidoCuadroVencimientosTab } from "./GuidoCuadroVencimientosTab";
 import { GuidoAnalisisCobrosTab } from "./GuidoAnalisisCobrosTab";
 import { SitFinGraficosTab } from "./SitFinGraficosTab";
+import { SitFinAuditoriaTab } from "./SitFinAuditoriaTab";
 
 function fmtGs(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -129,6 +130,8 @@ export function SituacionFinancieraClient() {
         <GuidoHtmlRolesTab corte={corte} />
       ) : tab === "graficos" && corte ? (
         <SitFinGraficosTab corte={corte} />
+      ) : tab === "auditoria" ? (
+        <SitFinAuditoriaTab />
       ) : tab === "nexus" && corte ? (
         <VistaNexus corte={corte} />
       ) : null}

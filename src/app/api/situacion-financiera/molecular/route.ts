@@ -26,9 +26,21 @@ export async function GET(req: NextRequest) {
     const INDEX = await loadIndex();
     const key = req.nextUrl.searchParams.get("key");
     if (!key) {
+      const totals: Record<string, number> = {};
+      for (const [k, n] of Object.entries(INDEX)) {
+        if (typeof n.gs === "number" && n.gs !== 0) totals[k] = n.gs;
+        else if (n.children?.length) {
+          const s = n.children.reduce(
+            (a, c) => a + (typeof c.gs === "number" ? c.gs : 0),
+            0
+          );
+          if (s) totals[k] = s;
+        }
+      }
       return NextResponse.json({
         ok: true,
         keys: Object.keys(INDEX).sort(),
+        totals,
         n: Object.keys(INDEX).length,
       });
     }

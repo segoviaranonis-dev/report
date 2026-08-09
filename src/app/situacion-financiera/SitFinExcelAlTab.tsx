@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { EXCEL_AL_0308 } from "@/lib/situacion-financiera/excel-al-0308";
+import mapaCanon from "@/lib/situacion-financiera/mapa-canon-al-0308.json";
 import {
   inferMesContext,
   molKeyForExcelRow,
@@ -10,6 +11,19 @@ import {
 } from "@/lib/situacion-financiera/mol-key";
 import type { ExcelAlRow, MolNode } from "@/lib/situacion-financiera/types";
 import { MolAccordionPanel } from "./MolAccordion";
+
+type MapaFila = {
+  molKey: string | null;
+  origen: string;
+  estado: string;
+  excelGs: number | null;
+  txtGs: number | null;
+  canonGs: number | null;
+  delta: number | null;
+  archivo: string | null;
+};
+
+const MAPA = (mapaCanon as { porFila: Record<string, MapaFila> }).porFila;
 
 /** Verde Guido = TXT · naranja = manual · lila = pendiente · amarillo = calc */
 const RESPALDO_BG: Record<SfRespaldoOrigen, string> = {
@@ -131,6 +145,26 @@ type Annotated = {
 export function SitFinExcelAlTab() {
   const snap = EXCEL_AL_0308;
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  /** Totales TXT por clave molecular — solo ▸ si hay Gs reales en TXT */
+  const [molTotals, setMolTotals] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/situacion-financiera/molecular", {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (alive && json.ok && json.totals) setMolTotals(json.totals);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const annotated = useMemo(() => {
     let mesCtx: string | null = null;
@@ -149,14 +183,17 @@ export function SitFinExcelAlTab() {
     setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
+  const tasa = snap.tasaUsd || 5970.96;
+
   return (
     <div className="mt-4 space-y-3">
       <p className="text-xs text-slate-600">
         Réplica <strong>SIT FIN</strong> ·{" "}
         <code className="rounded bg-slate-100 px-1">{snap.titulo}.xlsx</code> ·
         AL {snap.fechaAl.split("-").reverse().join("/")}. Filas con{" "}
-        <span className="font-semibold text-sky-800">▸</span>: cada Gs
-        rastreable baja hasta la <strong>línea limpia del TXT</strong>.
+        <span className="font-semibold text-sky-800">▸</span>: solo si hay{" "}
+        <strong>TXT limpio</strong> con Gs; el 0 del Excel sin TXT no abre
+        detalle.
       </p>
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className="rounded border border-emerald-400 bg-[#C6EFCE] px-2 py-0.5">
@@ -207,31 +244,84 @@ export function SitFinExcelAlTab() {
                 );
               }
               const origen = origenRespaldo(molKey);
-              const cls = rowClass(row, origen);
+              const mapa = MAPA[String(row.r)];
+              const molGs =
+                mapa?.txtGs ??
+                (molKey && molTotals[molKey] != null
+                  ? molTotals[molKey]
+                  : null);
+              const keyEfectiva = mapa?.molKey || molKey;
+              /** TXT con plata → ▸; manual/calc/pendiente si hay clave */
+              const trackable = !!keyEfectiva && (
+                origen === "manual" ||
+                origen === "calc" ||
+                origen === "pendiente" ||
+                (keyEfectiva.startsWith("dificil:") &&
+                  (mapa?.canonGs != null || row.gs != null)) ||
+                (origen === "txt" && molGs != null && molGs !== 0) ||
+                (mapa?.estado === "excel_cero_txt_tiene" &&
+                  molGs != null &&
+                  molGs !== 0) ||
+                (mapa?.estado === "descuadre" &&
+                  molGs != null &&
+                  molGs !== 0)
+              );
+              const paintOrigen: SfRespaldoOrigen | null =
+                origen === "txt" || mapa?.estado === "excel_cero_txt_tiene"
+                  ? trackable
+                    ? "txt"
+                    : null
+                  : origen;
+              const cls = rowClass(row, paintOrigen);
               const isHeader =
                 row.kind === "section" || row.kind === "subheader";
-              const trackable = !!molKey;
-              const open = molKey ? !!openKeys[`${row.r}:${molKey}`] : false;
-              const rowOpenKey = molKey ? `${row.r}:${molKey}` : "";
-              const disponFallback = molKey?.startsWith("disponible:")
+              const open =
+                trackable && keyEfectiva
+                  ? !!openKeys[`${row.r}:${keyEfectiva}`]
+                  : false;
+              const rowOpenKey = keyEfectiva
+                ? `${row.r}:${keyEfectiva}`
+                : "";
+              /** Canon auditoría: TXT manda en cheques/aging; si no, Excel */
+              const showGs =
+                mapa?.canonGs != null
+                  ? mapa.canonGs
+                  : origen === "txt" &&
+                      molGs != null &&
+                      (row.gs == null || row.gs === 0)
+                    ? molGs
+                    : row.gs;
+              const showUsd =
+                showGs != null && showGs !== row.gs
+                  ? showGs / tasa
+                  : row.usd;
+              const badge =
+                mapa?.estado === "descuadre"
+                  ? "Δ"
+                  : mapa?.estado === "excel_cero_txt_tiene"
+                    ? "TXT"
+                    : null;
+              const disponFallback = keyEfectiva?.startsWith("disponible:")
                 ? buildDisponibleFallback(
                     snap.rows,
-                    molKey.slice("disponible:".length)
+                    keyEfectiva.slice("disponible:".length)
                   )
-                : molKey
+                : keyEfectiva
                   ? ({
                       id: `row-${row.r}`,
                       label: row.label || `fila ${row.r}`,
-                      gs: row.gs,
-                      usd: row.usd,
-                      meta: `mes ctx ${mesCtx || "—"} · fallback fila Excel`,
-                      fuente: "Excel AL",
+                      gs: showGs,
+                      usd: showUsd,
+                      meta: mapa
+                        ? `estado=${mapa.estado} · excel=${mapa.excelGs} · txt=${mapa.txtGs}`
+                        : `mes ctx ${mesCtx || "-"}`,
+                      fuente: mapa?.archivo || "Excel AL",
                       children: [
                         {
                           id: `row-${row.r}-leaf`,
-                          label: "Importe de la fila (sin desglose staging)",
-                          gs: row.gs,
-                          usd: row.usd,
+                          label: "Canon / fila",
+                          gs: showGs,
+                          usd: showUsd,
                         },
                       ],
                     } as MolNode)
@@ -245,10 +335,14 @@ export function SitFinExcelAlTab() {
                         ? "cursor-pointer hover:ring-1 hover:ring-sky-400/60"
                         : ""
                     }`}
-                    onClick={() => trackable && molKey && toggle(rowOpenKey)}
+                    onClick={() =>
+                      trackable && keyEfectiva && toggle(rowOpenKey)
+                    }
                     title={
                       trackable
-                        ? "Clic para ver composición molecular"
+                        ? mapa?.estado === "descuadre"
+                          ? `Descuadre Excel vs TXT · Δ ${mapa.delta ?? ""} · canon=TXT`
+                          : "Clic para ver composición molecular"
                         : undefined
                     }
                   >
@@ -268,32 +362,48 @@ export function SitFinExcelAlTab() {
                         <span className="mr-1 inline-block w-3" />
                       )}
                       {row.label || (isHeader ? "SALDOS" : "")}
+                      {badge ? (
+                        <span
+                          className={`ml-1 rounded px-1 text-[9px] font-bold ${
+                            badge === "Δ"
+                              ? "bg-red-200 text-red-900"
+                              : "bg-emerald-200 text-emerald-900"
+                          }`}
+                        >
+                          {badge}
+                        </span>
+                      ) : null}
                     </td>
                     <td
                       className={`border border-slate-400 px-2 py-0.5 text-right tabular-nums ${
-                        (row.gs ?? 0) < 0 ? "text-red-700" : ""
+                        (showGs ?? 0) < 0 ? "text-red-700" : ""
                       }`}
+                      title={
+                        showGs != null && showGs !== row.gs
+                          ? "Σ desde TXT limpio (Excel tenía 0/vacío)"
+                          : undefined
+                      }
                     >
                       {row.kind === "tasa"
                         ? fmtUsd(row.gs)
                         : row.kind === "prevision"
                           ? ""
-                          : fmtGs(row.gs)}
+                          : fmtGs(showGs)}
                     </td>
                     <td
                       className={`border border-slate-400 px-2 py-0.5 text-right tabular-nums ${
-                        (row.usd ?? 0) < 0 ? "text-red-700" : ""
+                        (showUsd ?? 0) < 0 ? "text-red-700" : ""
                       }`}
                     >
                       {row.kind === "tasa" || row.kind === "prevision"
                         ? ""
-                        : fmtUsd(row.usd)}
+                        : fmtUsd(showUsd)}
                     </td>
                   </tr>
-                  {open && molKey ? (
+                  {open && keyEfectiva ? (
                     <tr>
                       <MolAccordionPanel
-                        molKey={molKey}
+                        molKey={keyEfectiva}
                         fallback={disponFallback}
                       />
                     </tr>

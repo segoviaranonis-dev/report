@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -16,6 +17,7 @@ STAGING = (
     / "0d5c8324-e773-4848-b964-6fc3101446be"
 )
 OUT = ROOT / "src/lib/situacion-financiera/molecular-al-0308.json"
+EXCEL = ROOT / "src/lib/situacion-financiera/excel-al-0308.json"
 TASA = 5970.96
 
 sys.path.insert(0, str(PIPE))
@@ -50,6 +52,23 @@ def top_n(items, key, n=20):
 
 def mes_cheque_archivo(nombre: str) -> str:
     return mes_desde_nombre_cheques(nombre) or "s/m"
+
+
+def mes_from_fecha(fe: str) -> str:
+    """Acepta YYYYMMDD, YYYY-MM-DD o dd/mm/yyyy."""
+    fe = str(fe or "").strip()
+    if not fe:
+        return "s/m"
+    if "/" in fe:
+        parts = fe.split("/")
+        if len(parts) == 3:
+            return f"{parts[2]}-{parts[1].zfill(2)}"
+    digits = "".join(c for c in fe if c.isdigit())
+    if len(digits) >= 8:
+        return f"{digits[:4]}-{digits[4:6]}"
+    if len(fe) >= 7 and fe[4] == "-":
+        return fe[:7]
+    return "s/m"
 
 
 def build_cheques_from_txt() -> dict:
@@ -247,13 +266,7 @@ def build_pv() -> dict:
     pv = load_staging("sf_pv_prog.json")
     by_mes = defaultdict(list)
     for p in pv:
-        fe = str(p.get("Fecha_Entrega") or "")
-        if "/" in fe:
-            parts = fe.split("/")
-            mes = f"{parts[2]}-{parts[1].zfill(2)}" if len(parts) == 3 else "s/m"
-        else:
-            mes = fe[:7] if len(fe) >= 7 else "s/m"
-        by_mes[mes].append(p)
+        by_mes[mes_from_fecha(p.get("Fecha_Entrega"))].append(p)
     out = {}
     for mes, rows in sorted(by_mes.items()):
         by_cli = defaultdict(list)
@@ -348,10 +361,17 @@ def build_bancos_manual() -> dict:
     out["bazzar:manual"] = node(
         "bazzar",
         "Pagos Bazzar",
-        None,
-        meta="MANUAL / VTO.BAZZAR",
-        children=[node("bazzar-1", "Cupo previsión", None, doc="Sin TXT molecular en intake")],
-        fuente="MANUAL",
+        1_300_000_000.0,
+        meta="MANUAL · VTO.BAZZAR previsión ago-26",
+        children=[
+            node(
+                "bazzar-ago",
+                "Previsión agosto 2026",
+                1_300_000_000.0,
+                doc="VTO.BAZZAR AGOSTO26.xlsx · hoja PREVISION PAGOS BAZZAR26 · 2026-08 = 1.300.000.000",
+            )
+        ],
+        fuente="VTO.BAZZAR AGOSTO26.xlsx",
     )
     out["luisito:cuadro"] = node(
         "luisito",
@@ -366,12 +386,91 @@ def build_bancos_manual() -> dict:
     return out
 
 
+def _dificil_key_from_label(label: str) -> str | None:
+    u = " ".join((label or "").upper().split())
+    if "DIF" not in u or "COBRO" not in u:
+        return None
+    if "TOTAL" in u:
+        return "dificil:total"
+    if "MAYOR" in u and "180" in u:
+        return "dificil:v180p"
+    for n, k in [
+        (30, "dificil:v30"),
+        (60, "dificil:v60"),
+        (90, "dificil:v90"),
+        (120, "dificil:v120"),
+        (150, "dificil:v150"),
+        (180, "dificil:v180"),
+    ]:
+        if f"VENCIDOS A {n}" in u or f"{n} DIA" in u:
+            return k
+    # Mes embebido tipo AGOSTO 26 / SETIEMBRE 26
+    m = re.search(
+        r"\b(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s*(\d{2,4})\b",
+        u,
+    )
+    if not m:
+        return "dificil:total"
+    mes_es = {
+        "ENERO": "01",
+        "FEBRERO": "02",
+        "MARZO": "03",
+        "ABRIL": "04",
+        "MAYO": "05",
+        "JUNIO": "06",
+        "JULIO": "07",
+        "AGOSTO": "08",
+        "SEPTIEMBRE": "09",
+        "SETIEMBRE": "09",
+        "OCTUBRE": "10",
+        "NOVIEMBRE": "11",
+        "DICIEMBRE": "12",
+    }
+    yy = m.group(2)
+    if len(yy) == 2:
+        yy = "20" + yy
+    return f"dificil:{yy}-{mes_es[m.group(1)]}"
+
+
+def build_dificil_excel() -> dict:
+    """Buckets DIF.COBRO desde Excel AL (naranja) — no inventar filtro TXT."""
+    excel = json.loads(EXCEL.read_text(encoding="utf-8"))
+    out = {}
+    for r in excel.get("rows") or []:
+        if r.get("kind") not in ("row", "total_gray"):
+            continue
+        lab = r.get("label") or ""
+        key = _dificil_key_from_label(lab)
+        if not key:
+            continue
+        gs = r.get("gs")
+        if gs is None:
+            continue
+        out[key] = node(
+            key.replace(":", "-"),
+            lab,
+            float(gs),
+            meta="Excel Sit Fin · DIF.COBRO (Guido) — sin líneas TXT filtradas DIFICIL/SALEMMA",
+            children=[
+                node(
+                    f"{key}-excel",
+                    "Importe celda Excel",
+                    float(gs),
+                    doc=f"SF AL 03-08.xlsx · fila {r.get('r')} · {lab}",
+                )
+            ],
+            fuente="SF AL 03-08.xlsx",
+        )
+    return out
+
+
 def main():
     index = {}
     index.update(build_cheques_from_txt())
     index.update(build_clientes_facturas())
     index.update(build_pv())
     index.update(build_bancos_manual())
+    index.update(build_dificil_excel())
     for mes in ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]:
         index.setdefault(
             f"cheques:{mes}",
