@@ -30,9 +30,9 @@ export type ExcelAlRow = {
     | "reserva";
   r: number;
   mes?: string | null;
-  label: string;
-  gs: number | null;
-  usd: number | null;
+  label?: string;
+  gs?: number | null;
+  usd?: number | null;
   bold?: boolean;
 };
 
