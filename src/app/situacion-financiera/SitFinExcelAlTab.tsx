@@ -143,9 +143,86 @@ type Annotated = {
   molKey: string | null;
 };
 
+function fmtGsBadge(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
+    Math.round(n)
+  );
+}
+
+function BadgeAlerta({
+  badge,
+  mapa,
+  open,
+  onToggle,
+}: {
+  badge: "Δ" | "TXT";
+  mapa: MapaFila;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const esDescuadre = badge === "Δ";
+  const titulo = esDescuadre
+    ? "Descuadre Excel ↔ TXT"
+    : "Excel vacío · TXT tiene monto";
+  const cuerpo = esDescuadre
+    ? `El Excel admin tenía ${fmtGsBadge(mapa.excelGs)} Gs y el TXT limpio suma ${fmtGsBadge(mapa.txtGs)} Gs (Δ Excel−TXT = ${fmtGsBadge(mapa.delta)}). En Sit Fin isla el canon es el TXT; el Δ es señal de mapeo, no se parchea.`
+    : `La celda Excel estaba en 0/vacío; el TXT aporta ${fmtGsBadge(mapa.txtGs)} Gs. Se muestra el TXT (canon isla).`;
+
+  return (
+    <span className="relative ml-1 inline-block align-middle">
+      <button
+        type="button"
+        className={`rounded px-1 text-[9px] font-bold ${
+          esDescuadre
+            ? "bg-red-200 text-red-900 hover:bg-red-300"
+            : "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
+        }`}
+        aria-label={titulo}
+        title="Clic para explicación"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+      >
+        {esDescuadre ? "⚠ Δ" : badge}
+      </button>
+      {open ? (
+        <span
+          role="dialog"
+          className="absolute left-0 top-full z-30 mt-1 w-72 rounded-md border border-slate-400 bg-white p-2 text-left text-[10px] font-normal normal-case leading-snug text-slate-800 shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="block font-semibold text-[#1F4E79]">{titulo}</span>
+          <span className="mt-1 block">{cuerpo}</span>
+          {mapa.archivo ? (
+            <span className="mt-1 block font-mono text-[9px] text-sky-800">
+              Doc: {mapa.archivo}
+            </span>
+          ) : null}
+          <span className="mt-1 block text-[9px] text-slate-500">
+            Isla SF · canon = TXT cuando hay respaldo limpio
+          </span>
+          <button
+            type="button"
+            className="mt-1.5 text-[9px] font-semibold text-sky-800 underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+          >
+            Cerrar
+          </button>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function SitFinExcelAlTab() {
   const snap = EXCEL_AL_0308;
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const [openBadge, setOpenBadge] = useState<number | null>(null);
   /** Totales TXT por clave molecular — solo ▸ si hay Gs reales en TXT */
   const [molTotals, setMolTotals] = useState<Record<string, number>>({});
 
@@ -191,10 +268,11 @@ export function SitFinExcelAlTab() {
       <p className="text-xs text-slate-600">
         Réplica <strong>SIT FIN</strong> ·{" "}
         <code className="rounded bg-slate-100 px-1">{snap.titulo}.xlsx</code> ·
-        AL {snap.fechaAl.split("-").reverse().join("/")}. Filas con{" "}
-        <span className="font-semibold text-sky-800">▸</span>: solo si hay{" "}
-        <strong>TXT limpio</strong> con Gs; el 0 del Excel sin TXT no abre
-        detalle.
+        AL {snap.fechaAl.split("-").reverse().join("/")}.{" "}
+        <strong>Módulo isla</strong> (faro 2.3.1.50.12): solo intake propio +
+        tablas maestras; <em>no</em> resultados Nexus. Filas con{" "}
+        <span className="font-semibold text-sky-800">▸</span>: TXT limpio con
+        Gs.
       </p>
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className="rounded border border-emerald-400 bg-[#C6EFCE] px-2 py-0.5">
@@ -365,16 +443,17 @@ export function SitFinExcelAlTab() {
                         <span className="mr-1 inline-block w-3" />
                       )}
                       {row.label || (isHeader ? "SALDOS" : "")}
-                      {badge ? (
-                        <span
-                          className={`ml-1 rounded px-1 text-[9px] font-bold ${
-                            badge === "Δ"
-                              ? "bg-red-200 text-red-900"
-                              : "bg-emerald-200 text-emerald-900"
-                          }`}
-                        >
-                          {badge}
-                        </span>
+                      {badge && mapa ? (
+                        <BadgeAlerta
+                          badge={badge}
+                          mapa={mapa}
+                          open={openBadge === row.r}
+                          onToggle={() =>
+                            setOpenBadge((prev) =>
+                              prev === row.r ? null : row.r
+                            )
+                          }
+                        />
                       ) : null}
                     </td>
                     <td

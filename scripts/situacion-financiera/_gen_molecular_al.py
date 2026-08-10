@@ -538,7 +538,7 @@ def _tree_clientes_facturas(
                 cad_gs,
                 meta=f"{len(cli_nodes)} cliente(s) · id_cadena={cid}",
                 children=cli_nodes,
-                fuente="cliente_cadena_v2 + " + fuente,
+                fuente="cliente_cadena_v2 (tabla maestra) + " + fuente,
             )
         )
 
@@ -588,7 +588,7 @@ def build_tipo_cobro_saldo_txt() -> dict:
                 f"{len({x['Cod_Cliente'] for x in luisito_filas})} clientes · "
                 f"{len(luisito_filas)} facturas · Σ Gs respaldada al peso"
             ),
-            fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+            fuente=f"clientes.xlsx + maestra cliente_cadena_v2 + {fuente}",
             cadena_map=cadena_map,
         )
         out["luisito:cuadro"] = tree
@@ -601,13 +601,13 @@ def build_tipo_cobro_saldo_txt() -> dict:
         tree_d = _tree_clientes_facturas(
             dificil_filas,
             id_prefix="dificil-txt",
-            label="DIF.COBRO · DIFICIL+SALEMMA (TXT × cadena)",
+            label="DIF.COBRO · DIFICIL+SALEMMA (TXT × cadena maestra)",
             meta=(
-                f"TXT {fuente} · tipos DIFICIL+SALEMMA · cliente_cadena_v2 · "
+                f"TXT {fuente} · tipos DIFICIL+SALEMMA · cliente_cadena_v2 maestra · "
                 f"{len({x['Cod_Cliente'] for x in dificil_filas})} clientes · "
                 f"{len(dificil_filas)} facturas"
             ),
-            fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+            fuente=f"clientes.xlsx + maestra cliente_cadena_v2 + {fuente}",
             cadena_map=cadena_map,
         )
         out["dificil:total"] = tree_d
@@ -631,7 +631,7 @@ def build_tipo_cobro_saldo_txt() -> dict:
                 id_prefix=f"dificil-{b}",
                 label=f"DIF.COBRO {b} · TXT × cadena",
                 meta=f"Filtro tipo DIFICIL/SALEMMA · bucket {b}",
-                fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+                fuente=f"clientes.xlsx + maestra cliente_cadena_v2 + {fuente}",
                 cadena_map=cadena_map,
             )
 
@@ -641,9 +641,9 @@ def build_tipo_cobro_saldo_txt() -> dict:
         out["tipo_cobro:OK"] = _tree_clientes_facturas(
             ok_filas,
             id_prefix="ok-txt",
-            label="Clientes OK · saldo TXT × cadena",
+            label="Clientes OK · saldo TXT × cadena maestra",
             meta=f"Control · {len(ok_filas)} facturas · no sustituye proyección mes Excel",
-            fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+            fuente=f"clientes.xlsx + maestra cliente_cadena_v2 + {fuente}",
             cadena_map=cadena_map,
         )
 

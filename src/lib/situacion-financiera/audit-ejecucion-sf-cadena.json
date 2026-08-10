@@ -19,7 +19,7 @@
     {
       "name": "comp_actual_mes",
       "ok": true,
-      "detail": "{\"mes\":\"2026-08\",\"corte_nexus\":\"2026-08-03\",\"fuente\":\"mapa-canon-al-0308 + molecular-al-0308\",\"referencia_admin_ago\":\"08.SITUACION_FINANCIERA_01082026.xlsx\"}"
+      "detail": "{\"mes\":\"2026-08\",\"corte_sitfin\":\"2026-08-03\",\"corte_nexus\":\"2026-08-03\",\"fuente\":\"mapa-canon + molecular (isla Sit Fin)\",\"referencia_admin_ago\":\"08.SITUACION_FINANCIERA_01082026.xlsx\",\"tasaUsd\":5970.96}"
     },
     {
       "name": "luisito_mol",
@@ -170,7 +170,7 @@
       945,
       2894
     ],
-    "fuente": "clientes.xlsx + cliente_cadena_v2 + 07-2026-Saldo_20260701.txt",
+    "fuente": "clientes.xlsx + maestra cliente_cadena_v2 + 07-2026-Saldo_20260701.txt",
     "cadena_mol": [
       {
         "label": "Cadena · DIAZ E HIJOS S.A",
@@ -183,8 +183,8 @@
     "n": 20,
     "con_pct": 14,
     "fidelidad_pct": 50,
-    "luisito_pct": 70.32,
-    "cheques_pct": -13.33
+    "luisito_pct": 73.57,
+    "cheques_pct": -11.67
   },
   "errores": []
 }
