@@ -13,6 +13,11 @@ import type { ExcelAlRow, MolNode } from "@/lib/situacion-financiera/types";
 import { explicarAlerta } from "@/lib/situacion-financiera/alerta-inconsistencia";
 import { MolAccordionPanel } from "./MolAccordion";
 import { SitFinComparacionPanel } from "./SitFinComparacionPanel";
+import {
+  fmtCmpPct,
+  fmtCmpUsd,
+  lookupCmpUsd,
+} from "@/lib/situacion-financiera/cmp-usd-lookup";
 
 type MapaFila = {
   molKey: string | null;
@@ -250,6 +255,7 @@ export function SitFinExcelAlTab() {
   const snap = EXCEL_AL_0308;
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
   const [openBadge, setOpenBadge] = useState<number | null>(null);
+  const [compararActivo, setCompararActivo] = useState(false);
   /** Totales TXT por clave molecular — solo ▸ si hay Gs reales en TXT */
   const [molTotals, setMolTotals] = useState<Record<string, number>>({});
 
@@ -289,6 +295,7 @@ export function SitFinExcelAlTab() {
   }
 
   const tasa = snap.tasaUsd || 5970.96;
+  const colSpan = compararActivo ? 7 : 4;
 
   return (
     <div className="mt-4 space-y-3">
@@ -316,11 +323,16 @@ export function SitFinExcelAlTab() {
         </span>
       </div>
 
-      <SitFinComparacionPanel />
+      <SitFinComparacionPanel
+        activo={compararActivo}
+        onToggle={() => setCompararActivo((v) => !v)}
+      />
 
       <div className="overflow-x-auto rounded border border-slate-400 bg-white shadow-sm">
         <table
-          className="w-full min-w-[720px] border-collapse text-[12px] leading-tight"
+          className={`w-full border-collapse text-[12px] leading-tight ${
+            compararActivo ? "min-w-[980px]" : "min-w-[720px]"
+          }`}
           style={{ fontFamily: '"Times New Roman", Times, serif' }}
         >
           <thead>
@@ -331,6 +343,28 @@ export function SitFinExcelAlTab() {
               <th className="border border-slate-500 px-2 py-1.5 text-left">
                 Concepto
               </th>
+              {compararActivo ? (
+                <>
+                  <th
+                    className="border border-amber-600 bg-amber-800 px-2 py-1.5 text-right w-28"
+                    title="USD Julio · tasa 6085 · archivo admin Jul"
+                  >
+                    Julio USD
+                  </th>
+                  <th
+                    className="border border-emerald-700 bg-emerald-900 px-2 py-1.5 text-right w-28"
+                    title="USD Agosto · Sit Fin isla"
+                  >
+                    Agosto USD
+                  </th>
+                  <th
+                    className="border border-violet-700 bg-violet-900 px-2 py-1.5 text-right w-24"
+                    title="% variación (Ago − Jul) / |Jul|"
+                  >
+                    % var.
+                  </th>
+                </>
+              ) : null}
               <th className="border border-slate-500 px-2 py-1.5 text-right w-40">
                 Importe Gs
               </th>
@@ -345,7 +379,7 @@ export function SitFinExcelAlTab() {
                 return (
                   <tr key={`sp-${row.r}`} className="h-2">
                     <td
-                      colSpan={4}
+                      colSpan={colSpan}
                       className="border border-slate-200 bg-white"
                     />
                   </tr>
@@ -435,6 +469,24 @@ export function SitFinExcelAlTab() {
                     } as MolNode)
                   : null;
 
+              const cmp = compararActivo
+                ? lookupCmpUsd({
+                    molKey: keyEfectiva,
+                    label: row.label,
+                    mesCtx,
+                  })
+                : null;
+              const pct =
+                cmp?.pct_usd_sitfin_vs_jul ?? cmp?.pct_nexus_vs_jul ?? null;
+              const pctCls =
+                pct == null
+                  ? ""
+                  : pct > 0
+                    ? "text-emerald-800 font-semibold"
+                    : pct < 0
+                      ? "text-red-800 font-semibold"
+                      : "text-slate-800";
+
               return (
                 <Fragment key={row.r}>
                   <tr
@@ -486,6 +538,27 @@ export function SitFinExcelAlTab() {
                         />
                       ) : null}
                     </td>
+                    {compararActivo ? (
+                      <>
+                        <td className="border border-amber-300 bg-amber-50/90 px-2 py-0.5 text-right tabular-nums text-[11px]">
+                          {isHeader || row.kind === "tasa" || row.kind === "prevision"
+                            ? ""
+                            : fmtCmpUsd(cmp?.julio_base_usd)}
+                        </td>
+                        <td className="border border-emerald-300 bg-emerald-50/80 px-2 py-0.5 text-right tabular-nums text-[11px]">
+                          {isHeader || row.kind === "tasa" || row.kind === "prevision"
+                            ? ""
+                            : fmtCmpUsd(cmp?.agosto_sitfin_usd)}
+                        </td>
+                        <td
+                          className={`border border-violet-300 bg-violet-50/70 px-2 py-0.5 text-right tabular-nums text-[11px] ${pctCls}`}
+                        >
+                          {isHeader || row.kind === "tasa" || row.kind === "prevision"
+                            ? ""
+                            : fmtCmpPct(pct)}
+                        </td>
+                      </>
+                    ) : null}
                     <td
                       className={`border border-slate-400 px-2 py-0.5 text-right tabular-nums ${
                         (showGs ?? 0) < 0 ? "text-red-700" : ""
@@ -517,6 +590,7 @@ export function SitFinExcelAlTab() {
                       <MolAccordionPanel
                         molKey={keyEfectiva}
                         fallback={disponFallback}
+                        colSpan={colSpan}
                       />
                     </tr>
                   ) : null}

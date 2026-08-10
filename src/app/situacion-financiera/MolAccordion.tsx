@@ -83,9 +83,11 @@ export function MolTree({
 export function MolAccordionPanel({
   molKey,
   fallback,
+  colSpan = 4,
 }: {
   molKey: string;
   fallback?: MolNode | null;
+  colSpan?: number;
 }) {
   const [node, setNode] = useState<MolNode | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export function MolAccordionPanel({
   if (loading) {
     return (
       <td
-        colSpan={4}
+        colSpan={colSpan}
         className="border border-slate-300 bg-sky-50/60 px-3 py-2 text-[11px] text-slate-600"
       >
         Cargando detalle molecular…
@@ -138,7 +140,7 @@ export function MolAccordionPanel({
   if (err || !node) {
     return (
       <td
-        colSpan={4}
+        colSpan={colSpan}
         className="border border-slate-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900"
       >
         Sin composición rastreable: {err || molKey}
@@ -146,7 +148,7 @@ export function MolAccordionPanel({
     );
   }
   return (
-    <td colSpan={4} className="border border-slate-400 bg-[#F0F7FC] p-0">
+    <td colSpan={colSpan} className="border border-slate-400 bg-[#F0F7FC] p-0">
       <div className="flex items-center justify-between border-b border-sky-200 bg-sky-100/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-sky-900">
         <span>Detalle molecular · {molKey}</span>
         <span className="font-normal normal-case">
