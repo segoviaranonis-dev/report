@@ -252,11 +252,13 @@ def main():
             estado = "calc"
             canon = excel_gs
 
-        archivo_excel = "SF AL 03-08.xlsx"
+        # SF AL = contexto de grilla (errores conocidos) — NO es Excel de comparativa.
+        # Comparativa oficial = canones Z:\hector\SF\07… y 08… (UI alerta-inconsistencia).
+        archivo_excel = "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)"
         if concepto == "dificil" and origen == "excel_prevision":
-            archivo_excel = "SF AL 03-08.xlsx · bloque DIF.COBRO"
+            archivo_excel = "SF AL 03-08.xlsx (CONTEXTO · DIF.COBRO · excluido)"
         elif origen == "excel_prevision":
-            archivo_excel = "SF AL 03-08.xlsx · celda previsión mes"
+            archivo_excel = "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)"
 
         archivo_txt = archivo
         if concepto == "aging":
