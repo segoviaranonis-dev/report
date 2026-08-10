@@ -160,11 +160,12 @@ export function resolverArchivoTxt(mapa: {
   if (key.startsWith("luisito:") || key.startsWith("dificil:")) {
     return `${ARCHIVO_CLIENTES_XLSX} + ${ARCHIVO_SALDO_TXT}`;
   }
-  if (key.startsWith("pv:") || key.startsWith("mercaderia:")) {
-    return "PV Y PROG.txt";
-  }
-  // clientes:YYYY-MM = previsión mes en Excel · NO hay TXT de corte = mes
-  if (key.startsWith("clientes:")) {
+  // Previsión mes (PV / mercadería / clientes) · NO usar PV Y PROG como falso TXT de integridad
+  if (
+    key.startsWith("pv:") ||
+    key.startsWith("mercaderia:") ||
+    key.startsWith("clientes:")
+  ) {
     return "";
   }
   if (mapa.archivo?.includes("clientes.xlsx") && mapa.archivo?.includes(".txt")) {
@@ -177,6 +178,22 @@ export function resolverArchivoTxt(mapa: {
     return ARCHIVO_SALDO_TXT;
   }
   return "";
+}
+
+/**
+ * Burbuja solo si TXT y canon miden el MISMO objeto.
+ * Off: previsión mes · Luisito stock≠cuota mes · aging/dificil (universos distintos hasta alinear).
+ * On: cheques Jul/Ago (Σ líneas = pie TXT = celda canon) — lección reclamo Guido 2.3.1.50.25.
+ */
+export function molKeyPermiteBurbujaIntegridad(
+  molKey: string | null | undefined
+): boolean {
+  if (!molKey) return false;
+  if (molKey.startsWith("cheques:")) {
+    const ym = molKey.slice("cheques:".length);
+    return ym === "2026-07" || ym === "2026-08";
+  }
+  return false;
 }
 
 export type BadgeIntegridad = "Δ" | "TXT";
@@ -199,6 +216,8 @@ export function evaluarIntegridadCanonTxt(opts: {
   archivoTxt: string;
   label: string;
 } | null {
+  if (!molKeyPermiteBurbujaIntegridad(opts.molKey)) return null;
+
   const mes = mesCanonDeMol(opts.molKey, opts.mesCtx);
   if (!mes) return null;
 
