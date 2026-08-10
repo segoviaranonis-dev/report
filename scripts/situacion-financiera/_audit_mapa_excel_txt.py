@@ -182,34 +182,32 @@ def main():
             origen = "excel_prevision"
             txt_gs = mol.get(mol_key, {}).get("gs") or mol.get(f"pv:{ym}", {}).get("gs")
             archivo = "Excel/Guido A ENTREGAR · ref TXT PV Y PROG"
-        elif "DIF" in u and "COBRO" in u:
-            concepto = "dificil"
-            origen = "excel_prevision"
-            mol_key = dificil_key(lab)
-            archivo = "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)"
-        elif any(
-            x in u
-            for x in [
-                "BANCO",
-                "BANCOOP",
-                "GNB",
-                "BNF",
-                "ITAU",
-                "PROVEEDOR",
-                "DESPACHO",
-                "PREVISION GASTOS",
-                "PRESTAMO",
-                "BAZZAR",
-            ]
-        ):
-            concepto = "manual"
-            origen = "manual"
-            txt_gs = None
-            archivo = "SF AL.xlsx (manual)"
         elif "LUISITO" in u:
             concepto = "luisito"
-            origen = "pendiente"
-            mol_key = "luisito:cuadro"
+            origen = "txt"
+            ym = mes_desde_label(lab) or ctx
+            mol_key = f"luisito:{ym}" if ym else "luisito:cuadro"
+            info = mol.get(mol_key) or mol.get("luisito:cuadro")
+            if info and info.get("gs") is not None:
+                txt_gs = float(info["gs"])
+            archivo = "clientes.xlsx (TIPO=LUISITO) × saldo TXT"
+        elif "DIF" in u and "COBRO" in u:
+            concepto = "dificil"
+            # Canon: TXT filtrado DIFICIL+SALEMMA cuando hay cruce; mes Excel = previsión
+            ym = mes_desde_label(lab) or ctx
+            if "TOTAL" in u or any(
+                x in u for x in ("30 DIA", "60 DIA", "90 DIA", "120", "150", "180")
+            ):
+                origen = "txt"
+                mol_key = dificil_key(lab)
+                info = mol.get(mol_key)
+                if info and info.get("gs") is not None:
+                    txt_gs = float(info["gs"])
+                archivo = "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT"
+            else:
+                origen = "excel_prevision"
+                mol_key = dificil_key(lab)
+                archivo = "SF AL.xlsx · DIF.COBRO mes (proyección)"
         elif "SALDO DISPONIBLE" in u:
             concepto = "calc"
             origen = "calc"

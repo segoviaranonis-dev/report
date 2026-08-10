@@ -1,0 +1,1115 @@
+{
+  "rol": "base_admin",
+  "corte": "2026-07-01",
+  "mes_base": "2026-07",
+  "archivo": "07.SITUACION_FINANCIERA_01072026.xlsx",
+  "hoja": "SIT FIN",
+  "tasaUsd": 6085.0,
+  "ley": "REFERENCIA ADMIN · no copiar a molecular Nexus · no parchear deltas",
+  "n_filas": 109,
+  "base_mes": {
+    "banco:continental_usd": {
+      "label": "SALDO EN USD. BANCO CONTINENTAL",
+      "gs": 45353999.85,
+      "usd": 7453.41,
+      "r": 4
+    },
+    "banco:continental_gs": {
+      "label": "SALDO EN GS. BANCO CONTINENTAL",
+      "gs": 1999724450.0,
+      "usd": 328631.79129005753,
+      "r": 5
+    },
+    "banco:itau_gs": {
+      "label": "SALDO EN GS. BANCO ITAU",
+      "gs": 779956670.0,
+      "usd": 128176.93837304848,
+      "r": 6
+    },
+    "banco:bancoop_usd": {
+      "label": "SALDO EN USD. BANCOOP",
+      "gs": 648164220.6,
+      "usd": 106518.36,
+      "r": 7
+    },
+    "banco:bancoop_gs": {
+      "label": "SALDO EN GS .BANCOOP",
+      "gs": 259039900.0,
+      "usd": 42570.23829087921,
+      "r": 8
+    },
+    "banco:gnb_gs": {
+      "label": "SALDO EN GS GNB",
+      "gs": 62683716.0,
+      "usd": 10301.350205423172,
+      "r": 9
+    },
+    "banco:bnf_gs": {
+      "label": "SALDO EN GS BANCO BNF",
+      "gs": 12706624.0,
+      "usd": 2088.1880032867707,
+      "r": 10
+    },
+    "cheques": {
+      "label": "CHEQUES A VENCER",
+      "gs": 2210365617.0,
+      "usd": 363248.252588332,
+      "r": 11
+    },
+    "clientes": {
+      "label": "SALDO DE CLIENTES",
+      "gs": 1305715375.0,
+      "usd": 214579.35497124077,
+      "r": 12
+    },
+    "mercaderia": {
+      "label": "MERCADERIAS A ENTREGAR",
+      "gs": 66764192.0,
+      "usd": 10971.929663105999,
+      "r": 13
+    },
+    "aging:v30": {
+      "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS",
+      "gs": 838404599.0,
+      "usd": 137782.18553820872,
+      "r": 14
+    },
+    "aging:v60": {
+      "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS",
+      "gs": 218082990.0,
+      "usd": 35839.43960558751,
+      "r": 15
+    },
+    "bazzar": {
+      "label": "PAGOS BAZZAR",
+      "gs": 550000000.0,
+      "usd": 90386.19556285949,
+      "r": 16
+    },
+    "pv": {
+      "label": "PV Y PROG A COBRAR",
+      "gs": 75173298.0,
+      "usd": 12353.86984387839,
+      "r": 17
+    },
+    "luisito": {
+      "label": "PAGO LUISITO",
+      "gs": 1183445380.0,
+      "usd": 194485.68282662285,
+      "r": 18
+    },
+    "proveedores": {
+      "label": "PAGO A PROVEEDORES",
+      "gs": -285618947.0,
+      "usd": -46938.2,
+      "r": 19
+    },
+    "despacho": {
+      "label": "GASTOS DE DESPACHO",
+      "gs": -115000000.0,
+      "usd": -18898.931799506983,
+      "r": 20
+    },
+    "gastos_op": {
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "gs": -2338191000.0,
+      "usd": -384254.88907148724,
+      "r": 21
+    },
+    "prestamo": {
+      "label": "PRESTAMO BANCARIO",
+      "gs": -157000000.0,
+      "usd": -25801.150369761708,
+      "r": 22
+    },
+    "disponible": {
+      "label": "SALDO DISPONIBLE JULIO 2026",
+      "gs": 7359771084.450001,
+      "usd": 1209494.0155217748,
+      "r": 23
+    }
+  },
+  "todas": [
+    {
+      "r": 4,
+      "label": "SALDO EN USD. BANCO CONTINENTAL",
+      "concepto": "banco:continental_usd",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 45353999.85,
+      "usd": 7453.41
+    },
+    {
+      "r": 5,
+      "label": "SALDO EN GS. BANCO CONTINENTAL",
+      "concepto": "banco:continental_gs",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 1999724450.0,
+      "usd": 328631.79129005753
+    },
+    {
+      "r": 6,
+      "label": "SALDO EN GS. BANCO ITAU",
+      "concepto": "banco:itau_gs",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 779956670.0,
+      "usd": 128176.93837304848
+    },
+    {
+      "r": 7,
+      "label": "SALDO EN USD. BANCOOP",
+      "concepto": "banco:bancoop_usd",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 648164220.6,
+      "usd": 106518.36
+    },
+    {
+      "r": 8,
+      "label": "SALDO EN GS .BANCOOP",
+      "concepto": "banco:bancoop_gs",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 259039900.0,
+      "usd": 42570.23829087921
+    },
+    {
+      "r": 9,
+      "label": "SALDO EN GS GNB",
+      "concepto": "banco:gnb_gs",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 62683716.0,
+      "usd": 10301.350205423172
+    },
+    {
+      "r": 10,
+      "label": "SALDO EN GS BANCO BNF",
+      "concepto": "banco:bnf_gs",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 12706624.0,
+      "usd": 2088.1880032867707
+    },
+    {
+      "r": 11,
+      "label": "CHEQUES A VENCER",
+      "concepto": "cheques",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 2210365617.0,
+      "usd": 363248.252588332
+    },
+    {
+      "r": 12,
+      "label": "SALDO DE CLIENTES",
+      "concepto": "clientes",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 1305715375.0,
+      "usd": 214579.35497124077
+    },
+    {
+      "r": 13,
+      "label": "MERCADERIAS A ENTREGAR",
+      "concepto": "mercaderia",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 66764192.0,
+      "usd": 10971.929663105999
+    },
+    {
+      "r": 14,
+      "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS",
+      "concepto": "aging:v30",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 838404599.0,
+      "usd": 137782.18553820872
+    },
+    {
+      "r": 15,
+      "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS",
+      "concepto": "aging:v60",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 218082990.0,
+      "usd": 35839.43960558751
+    },
+    {
+      "r": 16,
+      "label": "PAGOS BAZZAR",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 550000000.0,
+      "usd": 90386.19556285949
+    },
+    {
+      "r": 17,
+      "label": "PV Y PROG A COBRAR",
+      "concepto": "pv",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 75173298.0,
+      "usd": 12353.86984387839
+    },
+    {
+      "r": 18,
+      "label": "PAGO LUISITO",
+      "concepto": "luisito",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 1183445380.0,
+      "usd": 194485.68282662285
+    },
+    {
+      "r": 19,
+      "label": "PAGO A PROVEEDORES",
+      "concepto": "proveedores",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": -285618947.0,
+      "usd": -46938.2
+    },
+    {
+      "r": 20,
+      "label": "GASTOS DE DESPACHO",
+      "concepto": "despacho",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": -115000000.0,
+      "usd": -18898.931799506983
+    },
+    {
+      "r": 21,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "concepto": "gastos_op",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": -2338191000.0,
+      "usd": -384254.88907148724
+    },
+    {
+      "r": 22,
+      "label": "PRESTAMO BANCARIO",
+      "concepto": "prestamo",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": -157000000.0,
+      "usd": -25801.150369761708
+    },
+    {
+      "r": 23,
+      "label": "SALDO DISPONIBLE JULIO 2026",
+      "concepto": "disponible",
+      "mes_ctx": "2026-07",
+      "bloque": 0,
+      "gs": 7359771084.450001,
+      "usd": 1209494.0155217748
+    },
+    {
+      "r": 24,
+      "label": "CHEQUES A VENCER",
+      "concepto": "cheques",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 1362318476.0,
+      "usd": 223881.42580115036
+    },
+    {
+      "r": 25,
+      "label": "SALDO DE CLIENTES",
+      "concepto": "clientes",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 956137930.0,
+      "usd": 157130.3089564503
+    },
+    {
+      "r": 26,
+      "label": "MERCADERIAS A ENTREGAR",
+      "concepto": "mercaderia",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 58938301.0,
+      "usd": 9685.834182415776
+    },
+    {
+      "r": 27,
+      "label": "PAGOS DE BAZZAR",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 1300000000.0,
+      "usd": 213640.09860312243
+    },
+    {
+      "r": 28,
+      "label": "PAGO LUISITO",
+      "concepto": "luisito",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 650638664.0,
+      "usd": 106925.00640920296
+    },
+    {
+      "r": 29,
+      "label": "PV Y PROG A COBRAR",
+      "concepto": "pv",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 724026450.6666665,
+      "usd": 118985.44793207338
+    },
+    {
+      "r": 30,
+      "label": "PAGO A PROVEEDORES",
+      "concepto": "proveedores",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": -3495090008.2999997,
+      "usd": -574377.98
+    },
+    {
+      "r": 31,
+      "label": "GASTOS DE DESPACHO",
+      "concepto": "despacho",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": -385000000.0,
+      "usd": -63270.336894001644
+    },
+    {
+      "r": 32,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "concepto": "gastos_op",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": -1819655000.0,
+      "usd": -299039.4412489729
+    },
+    {
+      "r": 33,
+      "label": "PRESTAMO BANCARIO",
+      "concepto": "prestamo",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": -157000000.0,
+      "usd": -25801.150369761708
+    },
+    {
+      "r": 34,
+      "label": "SALDO DISPONIBLE AGOSTO 2026",
+      "concepto": "disponible",
+      "mes_ctx": "2026-08",
+      "bloque": 1,
+      "gs": 6555085897.816668,
+      "usd": 1077253.2288934537
+    },
+    {
+      "r": 35,
+      "label": "CHEQUES A VENCER",
+      "concepto": "cheques",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 858126057.0,
+      "usd": 141023.1811010682
+    },
+    {
+      "r": 36,
+      "label": "SALDO DE CLIENTES",
+      "concepto": "clientes",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 456952862.0,
+      "usd": 75094.96499589154
+    },
+    {
+      "r": 37,
+      "label": "MERCADERIAS A ENTREGAR",
+      "concepto": "mercaderia",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 171826712.0,
+      "usd": 28237.750534100247
+    },
+    {
+      "r": 38,
+      "label": "PAGOS DE BAZZAR",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 245000000.0,
+      "usd": 40262.941659819226
+    },
+    {
+      "r": 39,
+      "label": "PAGO LUISITO",
+      "concepto": "luisito",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 113173716.0,
+      "usd": 18598.802958093675
+    },
+    {
+      "r": 40,
+      "label": "PV Y PROG A COBRAR",
+      "concepto": "pv",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 3433930549.0,
+      "usd": 564327.1239112571
+    },
+    {
+      "r": 41,
+      "label": "PAGO A PROVEEDORES",
+      "concepto": "proveedores",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": -4201980259.65,
+      "usd": -690547.29
+    },
+    {
+      "r": 42,
+      "label": "GASTOS DE DESPACHO",
+      "concepto": "despacho",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": -478000000.0,
+      "usd": -78553.82087099424
+    },
+    {
+      "r": 43,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "concepto": "gastos_op",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": -1962355000.0,
+      "usd": -322490.5505341003
+    },
+    {
+      "r": 44,
+      "label": "PRESTAMO BANCARIO",
+      "concepto": "prestamo",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": -157000000.0,
+      "usd": -25801.150369761708
+    },
+    {
+      "r": 45,
+      "label": "SALDO DISPONIBLE SETIEMBRE 2026",
+      "concepto": "disponible",
+      "mes_ctx": "2026-09",
+      "bloque": 2,
+      "gs": 5034760534.166668,
+      "usd": 827405.1822788275
+    },
+    {
+      "r": 46,
+      "label": "CHEQUES A VENCER",
+      "concepto": "cheques",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 359309225.0,
+      "usd": 59048.35250616269
+    },
+    {
+      "r": 47,
+      "label": "SALDO DE CLIENTES",
+      "concepto": "clientes",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 179368377.0,
+      "usd": 29477.136729663107
+    },
+    {
+      "r": 48,
+      "label": "MERCADERIAS A ENTREGAR",
+      "concepto": "mercaderia",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 93343634.0,
+      "usd": 15339.956285949054
+    },
+    {
+      "r": 49,
+      "label": "PAGOS DE BAZZAR",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 900000000.0,
+      "usd": 147904.68364831552
+    },
+    {
+      "r": 50,
+      "label": "PAGO LUISITO",
+      "concepto": "luisito",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 51,
+      "label": "PV Y PROG A COBRAR",
+      "concepto": "pv",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 4759727295.666665,
+      "usd": 782206.6221309227
+    },
+    {
+      "r": 52,
+      "label": "PAGO A PROVEEDORES",
+      "concepto": "proveedores",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": -4596305175.95,
+      "usd": -755350.07
+    },
+    {
+      "r": 53,
+      "label": "GASTOS DE DESPACHO",
+      "concepto": "despacho",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": -91000000.0,
+      "usd": -14954.80690221857
+    },
+    {
+      "r": 54,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "concepto": "gastos_op",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": -2257715000.0,
+      "usd": -371029.5809367297
+    },
+    {
+      "r": 55,
+      "label": "PRESTAMO BANCARIO",
+      "concepto": "prestamo",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": -157000000.0,
+      "usd": -25801.150369761708
+    },
+    {
+      "r": 56,
+      "label": "SALDO DISPONIBLE OCTUBRE 2026",
+      "concepto": "disponible",
+      "mes_ctx": "2026-10",
+      "bloque": 3,
+      "gs": 4224488889.8833323,
+      "usd": 694246.3253711308
+    },
+    {
+      "r": 57,
+      "label": "CHEQUES A VENCER",
+      "concepto": "cheques",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 27144860.0,
+      "usd": 4460.9465899753495
+    },
+    {
+      "r": 58,
+      "label": "SALDO DE CLIENTES",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 35573400.0,
+      "usd": 5846.08052588332
+    },
+    {
+      "r": 59,
+      "label": "MERCADERIAS A ENTREGAR",
+      "concepto": "mercaderia",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 45714813.0,
+      "usd": 7512.705505341002
+    },
+    {
+      "r": 60,
+      "label": "PAGOS DE BAZZAR",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 750000000.0,
+      "usd": 123253.90304026294
+    },
+    {
+      "r": 61,
+      "label": "PAGO LUISITO",
+      "concepto": "luisito",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 62,
+      "label": "PV Y PROG A COBRAR",
+      "concepto": "pv",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 4192942507.0,
+      "usd": 689062.0389482334
+    },
+    {
+      "r": 63,
+      "label": "PAGO A PROVEEDORES",
+      "concepto": "proveedores",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": -1513409294.95,
+      "usd": -248711.47
+    },
+    {
+      "r": 64,
+      "label": "GASTOS DE DESPACHO",
+      "concepto": "despacho",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 65,
+      "label": "PREVISION GASTOS OPERATIVOS",
+      "concepto": "gastos_op",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": -2707646000.0,
+      "usd": -444970.5834018077
+    },
+    {
+      "r": 66,
+      "label": "PRESTAMO BANCARIO",
+      "concepto": "prestamo",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": -157000000.0,
+      "usd": -25801.150369761708
+    },
+    {
+      "r": 67,
+      "label": "SALDO DISPONIBLE NOVIEMBRE 2026",
+      "concepto": "disponible",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 4897809174.9333315,
+      "usd": 804898.7962092574
+    },
+    {
+      "r": 69,
+      "label": "FONDOS EN USD DISPONIBLES (BAZZAR + SR. SERGIO)",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 608500000.0,
+      "usd": 100000.0
+    },
+    {
+      "r": 70,
+      "label": "TOTAL",
+      "concepto": "otro:TOTAL",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 608500000.0,
+      "usd": 100000.0
+    },
+    {
+      "r": 72,
+      "label": "SALDO DE CLIENTES A COBRAR",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 73,
+      "label": "CHEQUES A VENCER-DICIEMBRE 26",
+      "concepto": "cheques",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 74,
+      "label": "CHEQUES A VENCER-ENERO 27 - HASTA ULTIMO VTO",
+      "concepto": "cheques",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 75,
+      "label": "SALDO DE CLIENTES - DICIEMBRE 26",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 76,
+      "label": "MERCADERIAS A ENTREGAR DICIEMBRE 26",
+      "concepto": "mercaderia",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 2919676.0,
+      "usd": 479.815283483977
+    },
+    {
+      "r": 77,
+      "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 69541202.0,
+      "usd": 11428.299424815119
+    },
+    {
+      "r": 78,
+      "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 41422915.0,
+      "usd": 6807.381265406738
+    },
+    {
+      "r": 79,
+      "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 20744795.0,
+      "usd": 3409.1692686935085
+    },
+    {
+      "r": 80,
+      "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 39391708.0,
+      "usd": 6473.575677896467
+    },
+    {
+      "r": 81,
+      "label": "SALDO DE CLIENTES VENCIDOS MAYOR A  180 DIAS",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 43710442.0,
+      "usd": 7183.310106820049
+    },
+    {
+      "r": 82,
+      "label": "CONSIGNACIONES",
+      "concepto": "otro:CONSIGNACIONES",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 83,
+      "label": "Bazzar Vto. SETIEMBRE-26",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 990749743.0,
+      "usd": 162818.36368118323
+    },
+    {
+      "r": 84,
+      "label": "Bazzar Vto. OCTUBRE-26",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 749348892.0,
+      "usd": 123146.90090386196
+    },
+    {
+      "r": 85,
+      "label": "Bazzar Vto. NOVIEMBRE-26",
+      "concepto": "bazzar",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 651791399.0,
+      "usd": 107114.44519309778
+    },
+    {
+      "r": 86,
+      "label": "TOTAL VENCIDOS",
+      "concepto": "otro:TOTAL VENCIDOS",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 2609620772.0,
+      "usd": 428861.2608052589
+    },
+    {
+      "r": 88,
+      "label": "CLIENTES DE DIFICIL COBRO",
+      "concepto": "otro:CLIENTES DE DIFICIL COBRO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 89,
+      "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS (DIF.COBRO)",
+      "concepto": "aging:v30",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 176623101.0,
+      "usd": 29025.982087099426
+    },
+    {
+      "r": 90,
+      "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS (DIF.COBRO)",
+      "concepto": "aging:v60",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 199774973.0,
+      "usd": 32830.72686935086
+    },
+    {
+      "r": 91,
+      "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS (DIF.COBRO)",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 65741220.0,
+      "usd": 10803.815940838127
+    },
+    {
+      "r": 92,
+      "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS (DIF.COBRO)",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 134601749.0,
+      "usd": 22120.254560394413
+    },
+    {
+      "r": 93,
+      "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS (DIF.COBRO)",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 12460141.0,
+      "usd": 2047.6813475760066
+    },
+    {
+      "r": 94,
+      "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS (DIF.COBRO)",
+      "concepto": "clientes",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 14124387.0,
+      "usd": 2321.1811010682004
+    },
+    {
+      "r": 95,
+      "label": "MAYORES A 180 DIAS(DIF COBRO)",
+      "concepto": "otro:MAYORES A 180 DIAS(DIF COBRO)",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 66793008.0,
+      "usd": 10976.665242399342
+    },
+    {
+      "r": 96,
+      "label": "JULIO 26 (DIF COBRO)",
+      "concepto": "otro:JULIO 26 (DIF COBRO)",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 636166543.0,
+      "usd": 104546.67921117503
+    },
+    {
+      "r": 97,
+      "label": "AGOSTO 26 (DIF COBRO)",
+      "concepto": "otro:AGOSTO 26 (DIF COBRO)",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 346413764.0,
+      "usd": 56929.13130649137
+    },
+    {
+      "r": 98,
+      "label": "SETIEMBRE 26 (DIF COBRO)",
+      "concepto": "otro:SETIEMBRE 26 (DIF COBRO)",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 130290050.0,
+      "usd": 21411.676253081347
+    },
+    {
+      "r": 99,
+      "label": "OCTUBRE 26 (DIF COBRO)",
+      "concepto": "otro:OCTUBRE 26 (DIF COBRO)",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 38910630.0,
+      "usd": 6394.516023007395
+    },
+    {
+      "r": 100,
+      "label": "NOVIEMBRE 26 (DIF COBRO)",
+      "concepto": "otro:NOVIEMBRE 26 (DIF COBRO)",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 6568488.0,
+      "usd": 1079.4557107641742
+    },
+    {
+      "r": 101,
+      "label": "CONSIGNACIONES",
+      "concepto": "otro:CONSIGNACIONES",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 0.0,
+      "usd": 0.0
+    },
+    {
+      "r": 102,
+      "label": "TOTAL DIFICIL COBRO",
+      "concepto": "otro:TOTAL DIFICIL COBRO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 1828468054.0,
+      "usd": 300487.7656532457
+    },
+    {
+      "r": 104,
+      "label": "STOCK",
+      "concepto": "otro:STOCK",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 105,
+      "label": "ACCESORIOS/CARTERAS",
+      "concepto": "otro:ACCESORIOS/CARTERAS",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 83024896.14999999,
+      "usd": 13644.189999999999
+    },
+    {
+      "r": 106,
+      "label": "CALZADOS ABIERTO",
+      "concepto": "otro:CALZADOS ABIERTO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 3543767878.550003,
+      "usd": 582377.6300000005
+    },
+    {
+      "r": 107,
+      "label": "CALZADOS CERRADO",
+      "concepto": "otro:CALZADOS CERRADO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 4786926624.200001,
+      "usd": 786676.5200000001
+    },
+    {
+      "r": 108,
+      "label": "CONFECCIONES INVIERNO",
+      "concepto": "otro:CONFECCIONES INVIERNO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 226682618.64999992,
+      "usd": 37252.68999999999
+    },
+    {
+      "r": 109,
+      "label": "CONFECCIONES VERANO",
+      "concepto": "otro:CONFECCIONES VERANO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": 294962799.17499954,
+      "usd": 48473.754999999925
+    },
+    {
+      "r": 115,
+      "label": "ABIERTO",
+      "concepto": "otro:ABIERTO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 116,
+      "label": "ACCESORIOS",
+      "concepto": "otro:ACCESORIOS",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 117,
+      "label": "CARTERA",
+      "concepto": "otro:CARTERA",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 118,
+      "label": "CERRADO",
+      "concepto": "otro:CERRADO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 119,
+      "label": "LENTES",
+      "concepto": "otro:LENTES",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 121,
+      "label": "INVIERNO",
+      "concepto": "otro:INVIERNO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    },
+    {
+      "r": 122,
+      "label": "VERANO",
+      "concepto": "otro:VERANO",
+      "mes_ctx": "2026-11",
+      "bloque": 4,
+      "gs": null,
+      "usd": null
+    }
+  ]
+}

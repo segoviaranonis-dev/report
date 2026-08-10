@@ -165,6 +165,8 @@ def parse_saldos_detallado(path: Path) -> dict[str, Any]:
                 "Saldo": saldo,
                 "Dias_Vencido": dias,
                 "Fuente": path.name,
+                "Nro_Linea": None,
+                "Linea_Limpia": " ".join(l.split()),
             }
         )
 

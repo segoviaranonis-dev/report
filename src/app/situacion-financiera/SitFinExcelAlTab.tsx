@@ -11,6 +11,7 @@ import {
 } from "@/lib/situacion-financiera/mol-key";
 import type { ExcelAlRow, MolNode } from "@/lib/situacion-financiera/types";
 import { MolAccordionPanel } from "./MolAccordion";
+import { SitFinComparacionPanel } from "./SitFinComparacionPanel";
 
 type MapaFila = {
   molKey: string | null;
@@ -209,6 +210,8 @@ export function SitFinExcelAlTab() {
           Amarillo · calculado (saldo disponible)
         </span>
       </div>
+
+      <SitFinComparacionPanel />
 
       <div className="overflow-x-auto rounded border border-slate-400 bg-white shadow-sm">
         <table

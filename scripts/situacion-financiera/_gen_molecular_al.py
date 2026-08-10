@@ -11,6 +11,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PIPE = ROOT / "scripts/situacion-financiera/pipeline"
 INTAKE = ROOT / "scripts/situacion-financiera/intake/corte-AL-03-08-26"
+TABLAS_CLIENTES = ROOT / "scripts/situacion-financiera/intake/tablas/clientes.xlsx"
+SALDO_TIPO_COBRO = (
+    ROOT
+    / "scripts/situacion-financiera/intake/saldo-tipo-cobro/07-2026-Saldo_20260701.txt"
+)
+CADENA_SNAP = (
+    ROOT / "scripts/situacion-financiera/intake/tablas/cliente_cadena_snapshot.json"
+)
 STAGING = (
     ROOT
     / "scripts/situacion-financiera/data/catalogo_local/staging"
@@ -21,7 +29,11 @@ EXCEL = ROOT / "src/lib/situacion-financiera/excel-al-0308.json"
 TASA = 5970.96
 
 sys.path.insert(0, str(PIPE))
-from parsers import mes_desde_nombre_cheques, parse_cheques_vencer  # noqa: E402
+from parsers import (  # noqa: E402
+    mes_desde_nombre_cheques,
+    parse_cheques_vencer,
+    parse_saldos_detallado,
+)
 
 
 def usd(gs):
@@ -373,16 +385,315 @@ def build_bancos_manual() -> dict:
         ],
         fuente="VTO.BAZZAR AGOSTO26.xlsx",
     )
-    out["luisito:cuadro"] = node(
-        "luisito",
-        "Pago Luisito",
-        None,
-        meta="Verde cuadro Guido — detalle auditable cuotas",
-        children=[
-            node("luisito-1", "Pendiente cablear cuadro→TXT", None, doc="Fuente: detalle_auditable CSV Guido")
-        ],
-        fuente="cuadro_vencimientos",
+    return out
+
+
+def load_tipos_cobro(path: Path | None = None) -> dict[str, str]:
+    """CODIGO → TIPO COBRO (col C): OK, LUISITO, DIFICIL, SALEMMA, …"""
+    import openpyxl
+
+    p = path or TABLAS_CLIENTES
+    wb = openpyxl.load_workbook(p, data_only=True, read_only=True)
+    ws = wb[wb.sheetnames[0]]
+    out: dict[str, str] = {}
+    for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        if i == 1 or not row:
+            continue
+        cod, tipo = row[0], row[2] if len(row) > 2 else None
+        if cod is None or tipo is None:
+            continue
+        if isinstance(cod, (int, float)):
+            cod_k = str(int(cod))
+        else:
+            cod_k = str(cod).strip()
+            if cod_k.isdigit():
+                cod_k = str(int(cod_k))
+        out[cod_k] = str(tipo).strip().upper()
+    wb.close()
+    return out
+
+
+def _aging_bucket(dias: int) -> str:
+    if dias < 0:
+        return "no_vencido"
+    if dias <= 30:
+        return "v30"
+    if dias <= 60:
+        return "v60"
+    if dias <= 90:
+        return "v90"
+    if dias <= 120:
+        return "v120"
+    if dias <= 150:
+        return "v150"
+    if dias <= 180:
+        return "v180"
+    return "v180p"
+
+
+def load_cadena_map(path: Path | None = None) -> dict[str, dict]:
+    """id_cliente → primaria cadena (snapshot Nexus cliente_cadena_v2)."""
+    p = path or CADENA_SNAP
+    if not p.exists():
+        alt = ROOT / "src/lib/situacion-financiera/cliente-cadena-snapshot.json"
+        p = alt if alt.exists() else p
+    if not p.exists():
+        return {}
+    data = json.loads(p.read_text(encoding="utf-8"))
+    out = {}
+    for k, v in (data.get("por_id") or {}).items():
+        out[str(k).strip()] = v
+    return out
+
+
+def _cadena_de(cod: str, cadena_map: dict[str, dict]) -> tuple[str, str]:
+    """(id_cadena_key, label)."""
+    info = cadena_map.get(str(cod).strip()) or {}
+    prim = info.get("primaria") or {}
+    if prim.get("id_cadena") is not None:
+        cid = str(prim["id_cadena"])
+        nom = (prim.get("descp_cadena") or f"Cadena {cid}").strip()
+        return cid, nom
+    return "sin", "SIN CADENA (cliente_cadena_v2)"
+
+
+def _tree_clientes_facturas(
+    filas: list,
+    *,
+    id_prefix: str,
+    label: str,
+    meta: str,
+    fuente: str,
+    cadena_map: dict[str, dict] | None = None,
+) -> dict:
+    """Árbol: [Cadena →] Cliente → Factura (Linea_Limpia)."""
+    cmap = cadena_map if cadena_map is not None else load_cadena_map()
+    by_cli: dict[str, list] = defaultdict(list)
+    for f in filas:
+        by_cli[str(f.get("Cod_Cliente") or "?")].append(f)
+
+    # Agrupar clientes por cadena
+    by_cad: dict[str, dict] = {}
+    for cod, facts in by_cli.items():
+        cid, cnom = _cadena_de(cod, cmap)
+        if cid not in by_cad:
+            by_cad[cid] = {"nombre": cnom, "clientes": {}}
+        by_cad[cid]["clientes"][cod] = facts
+
+    cadena_nodes = []
+    total = 0.0
+    for cid, pack in sorted(
+        by_cad.items(),
+        key=lambda x: -sum(
+            int(i.get("Saldo") or 0)
+            for facts in x[1]["clientes"].values()
+            for i in facts
+        ),
+    ):
+        cli_nodes = []
+        cad_gs = 0.0
+        for cod, facts in sorted(
+            pack["clientes"].items(),
+            key=lambda x: -sum(int(i.get("Saldo") or 0) for i in x[1]),
+        ):
+            gs = float(sum(int(i.get("Saldo") or 0) for i in facts))
+            cad_gs += gs
+            nom = (facts[0].get("Nombre") or "").strip() or f"Cliente {cod}"
+            info = cmap.get(str(cod).strip()) or {}
+            tipo_cli = info.get("tipo_cliente") or ""
+            fac_nodes = []
+            for i, fac in enumerate(
+                sorted(facts, key=lambda x: -int(x.get("Saldo") or 0))
+            ):
+                s = float(fac.get("Saldo") or 0)
+                fac_nodes.append(
+                    node(
+                        f"{id_prefix}-f-{cod}-{i}",
+                        f"{fac.get('Nro_Factura')} · {fac.get('Dias_Vencido')}d",
+                        s,
+                        doc=fac.get("Linea_Limpia")
+                        or f"Factura {fac.get('Nro_Factura')} saldo {s}",
+                        fuente=fuente,
+                    )
+                )
+            cli_nodes.append(
+                node(
+                    f"{id_prefix}-c-{cod}",
+                    f"{nom} ({cod})",
+                    gs,
+                    meta=(
+                        f"{len(facts)} factura(s)"
+                        + (f" · {tipo_cli}" if tipo_cli else "")
+                        + f" · cadena={pack['nombre']}"
+                    ),
+                    children=fac_nodes,
+                    fuente=fuente,
+                )
+            )
+        total += cad_gs
+        cadena_nodes.append(
+            node(
+                f"{id_prefix}-cad-{cid}",
+                f"Cadena · {pack['nombre']}",
+                cad_gs,
+                meta=f"{len(cli_nodes)} cliente(s) · id_cadena={cid}",
+                children=cli_nodes,
+                fuente="cliente_cadena_v2 + " + fuente,
+            )
+        )
+
+    # Si solo hay una cadena, aplanar un nivel menos molesta? No: siempre mostrar
+    # cadena para auditar potencial holding.
+    return node(
+        id_prefix,
+        label,
+        total,
+        meta=meta + f" · {len(cadena_nodes)} cadena(s)",
+        children=cadena_nodes,
+        fuente=fuente,
     )
+
+
+def build_tipo_cobro_saldo_txt() -> dict:
+    """Cruce clientes.xlsx (TIPO COBRO) × saldo TXT × cliente_cadena_v2."""
+    if not TABLAS_CLIENTES.exists() or not SALDO_TIPO_COBRO.exists():
+        return {}
+    tipos = load_tipos_cobro()
+    cadena_map = load_cadena_map()
+    parsed = parse_saldos_detallado(SALDO_TIPO_COBRO)
+    fuente = SALDO_TIPO_COBRO.name
+    by_tipo: dict[str, list] = defaultdict(list)
+    sin_tipo = 0
+    for f in parsed["filas"]:
+        cod = str(f.get("Cod_Cliente") or "").strip()
+        t = tipos.get(cod)
+        if not t:
+            sin_tipo += 1
+            continue
+        f = dict(f)
+        f["Tipo_Cobro"] = t
+        by_tipo[t].append(f)
+
+    out: dict = {}
+    # LUISITO → acordeón PAGO LUISITO
+    luisito_filas = by_tipo.get("LUISITO") or []
+    if luisito_filas:
+        tree = _tree_clientes_facturas(
+            luisito_filas,
+            id_prefix="luisito-txt",
+            label="PAGO LUISITO · saldo TXT × tipo cobro × cadena",
+            meta=(
+                f"TXT {fuente} · clientes.xlsx TIPO=LUISITO · "
+                f"cliente_cadena_v2 · "
+                f"{len({x['Cod_Cliente'] for x in luisito_filas})} clientes · "
+                f"{len(luisito_filas)} facturas · Σ Gs respaldada al peso"
+            ),
+            fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+            cadena_map=cadena_map,
+        )
+        out["luisito:cuadro"] = tree
+        for mes in ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2026-07"]:
+            out[f"luisito:{mes}"] = tree
+
+    # DIFICIL + SALEMMA → DIF.COBRO (misma regla Guido)
+    dificil_filas = (by_tipo.get("DIFICIL") or []) + (by_tipo.get("SALEMMA") or [])
+    if dificil_filas:
+        tree_d = _tree_clientes_facturas(
+            dificil_filas,
+            id_prefix="dificil-txt",
+            label="DIF.COBRO · DIFICIL+SALEMMA (TXT × cadena)",
+            meta=(
+                f"TXT {fuente} · tipos DIFICIL+SALEMMA · cliente_cadena_v2 · "
+                f"{len({x['Cod_Cliente'] for x in dificil_filas})} clientes · "
+                f"{len(dificil_filas)} facturas"
+            ),
+            fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+            cadena_map=cadena_map,
+        )
+        out["dificil:total"] = tree_d
+        # aging buckets solo universo difícil
+        buckets: dict[str, list] = defaultdict(list)
+        for f in dificil_filas:
+            buckets[_aging_bucket(int(f.get("Dias_Vencido") or 0))].append(f)
+        for b, key in [
+            ("v30", "dificil:v30"),
+            ("v60", "dificil:v60"),
+            ("v90", "dificil:v90"),
+            ("v120", "dificil:v120"),
+            ("v150", "dificil:v150"),
+            ("v180", "dificil:v180"),
+            ("v180p", "dificil:v180p"),
+        ]:
+            if not buckets.get(b):
+                continue
+            out[key] = _tree_clientes_facturas(
+                buckets[b],
+                id_prefix=f"dificil-{b}",
+                label=f"DIF.COBRO {b} · TXT × cadena",
+                meta=f"Filtro tipo DIFICIL/SALEMMA · bucket {b}",
+                fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+                cadena_map=cadena_map,
+            )
+
+    # Control OK (no pisa Sit Fin mes; clave de auditoría)
+    ok_filas = by_tipo.get("OK") or []
+    if ok_filas:
+        out["tipo_cobro:OK"] = _tree_clientes_facturas(
+            ok_filas,
+            id_prefix="ok-txt",
+            label="Clientes OK · saldo TXT × cadena",
+            meta=f"Control · {len(ok_filas)} facturas · no sustituye proyección mes Excel",
+            fuente=f"clientes.xlsx + cliente_cadena_v2 + {fuente}",
+            cadena_map=cadena_map,
+        )
+
+    print(
+        "tipo_cobro",
+        {k: len(v) for k, v in sorted(by_tipo.items())},
+        "sin_tipo",
+        sin_tipo,
+        "cadena_map",
+        len(cadena_map),
+        "luisito_gs",
+        out.get("luisito:cuadro", {}).get("gs"),
+        "dificil_gs",
+        out.get("dificil:total", {}).get("gs"),
+    )
+    return out
+
+
+def build_luisito_excel() -> dict:
+    """Fallback Excel AL si aún no hay cruce TXT (no debería usarse si hay intake)."""
+    if TABLAS_CLIENTES.exists() and SALDO_TIPO_COBRO.exists():
+        return {}
+    excel = json.loads(EXCEL.read_text(encoding="utf-8"))
+    out = {}
+    mes_ctx = "2026-08"
+    for r in excel.get("rows") or []:
+        if r.get("mes"):
+            mes_ctx = r["mes"]
+        lab = (r.get("label") or "").upper()
+        if "LUISITO" not in lab:
+            continue
+        if r.get("kind") not in ("row",):
+            continue
+        gs = r.get("gs")
+        key = f"luisito:{mes_ctx}"
+        out[key] = node(
+            key.replace(":", "-"),
+            r.get("label") or "PAGO LUISITO",
+            float(gs) if gs is not None else 0.0,
+            meta="Excel Sit Fin · sin clientes.xlsx/TXT",
+            children=[
+                node(
+                    f"{key}-excel",
+                    "Importe celda Excel",
+                    float(gs) if gs is not None else 0.0,
+                    doc=f"SF AL · fila {r.get('r')} · mes {mes_ctx}",
+                )
+            ],
+            fuente="SF AL 03-08.xlsx",
+        )
     return out
 
 
@@ -433,7 +744,7 @@ def _dificil_key_from_label(label: str) -> str | None:
 
 
 def build_dificil_excel() -> dict:
-    """Buckets DIF.COBRO desde Excel AL (naranja) — no inventar filtro TXT."""
+    """Buckets DIF.COBRO mes/Excel; aging/total se pisan con TXT en build_tipo_cobro."""
     excel = json.loads(EXCEL.read_text(encoding="utf-8"))
     out = {}
     for r in excel.get("rows") or []:
@@ -443,6 +754,9 @@ def build_dificil_excel() -> dict:
         key = _dificil_key_from_label(lab)
         if not key:
             continue
+        # aging/total vienen del cruce TXT — no pisar con Excel aquí
+        if key.startswith("dificil:v") or key == "dificil:total":
+            continue
         gs = r.get("gs")
         if gs is None:
             continue
@@ -450,7 +764,7 @@ def build_dificil_excel() -> dict:
             key.replace(":", "-"),
             lab,
             float(gs),
-            meta="Excel Sit Fin · DIF.COBRO (Guido) — sin líneas TXT filtradas DIFICIL/SALEMMA",
+            meta="Excel Sit Fin · DIF.COBRO mes (proyección Guido)",
             children=[
                 node(
                     f"{key}-excel",
@@ -471,6 +785,8 @@ def main():
     index.update(build_pv())
     index.update(build_bancos_manual())
     index.update(build_dificil_excel())
+    index.update(build_tipo_cobro_saldo_txt())
+    index.update(build_luisito_excel())
     for mes in ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]:
         index.setdefault(
             f"cheques:{mes}",

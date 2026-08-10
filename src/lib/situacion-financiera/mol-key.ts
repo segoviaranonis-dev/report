@@ -44,17 +44,21 @@ export function origenRespaldo(molKey: string | null): SfRespaldoOrigen | null {
     molKey.startsWith("clientes:") ||
     molKey.startsWith("aging:") ||
     molKey.startsWith("pv:") ||
-    molKey.startsWith("mercaderia:")
+    molKey.startsWith("mercaderia:") ||
+    molKey.startsWith("luisito:") ||
+    molKey.startsWith("tipo_cobro:") ||
+    molKey === "dificil:total" ||
+    /^dificil:v\d/.test(molKey)
   ) {
     return "txt";
   }
-  if (molKey.startsWith("luisito:") || molKey.startsWith("pendiente:"))
-    return "pendiente";
+  // dificil:YYYY-MM = proyección mes Excel (no saldo corte TXT)
+  if (molKey.startsWith("dificil:")) return "manual";
+  if (molKey.startsWith("pendiente:")) return "pendiente";
   if (
     molKey.startsWith("banco:") ||
     molKey.startsWith("manual:") ||
-    molKey.startsWith("bazzar:") ||
-    molKey.startsWith("dificil:")
+    molKey.startsWith("bazzar:")
   ) {
     return "manual";
   }
@@ -141,7 +145,10 @@ export function molKeyForExcelRow(
     return label.includes("MERCADER") ? `mercaderia:${mes}` : `pv:${mes}`;
   }
   if (label.includes("PAGOS") && label.includes("BAZZAR")) return "bazzar:manual";
-  if (label.includes("LUISITO")) return "luisito:cuadro";
+  if (label.includes("LUISITO")) {
+    if (mes) return `luisito:${mes}`;
+    return "luisito:cuadro";
+  }
   if (label.includes("PAGO A PROVEEDORES")) return "manual:PAGO A PROVEEDORES";
   if (label.includes("GASTOS DE DESPACHO")) return "manual:GASTOS DE DESPACHO";
   if (label.includes("PREVISION GASTOS"))

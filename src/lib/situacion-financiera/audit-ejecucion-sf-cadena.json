@@ -1,0 +1,190 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "jul_base",
+      "ok": true,
+      "detail": "mes=2026-07 tasa=6085"
+    },
+    {
+      "name": "ago_ref",
+      "ok": true,
+      "detail": "tasa=5970.96"
+    },
+    {
+      "name": "comp_base_mes",
+      "ok": true,
+      "detail": "{\"mes\":\"2026-07\",\"corte\":\"2026-07-01\",\"archivo\":\"07.SITUACION_FINANCIERA_01072026.xlsx\",\"tasaUsd\":6085}"
+    },
+    {
+      "name": "comp_actual_mes",
+      "ok": true,
+      "detail": "{\"mes\":\"2026-08\",\"corte_nexus\":\"2026-08-03\",\"fuente\":\"mapa-canon-al-0308 + molecular-al-0308\",\"referencia_admin_ago\":\"08.SITUACION_FINANCIERA_01082026.xlsx\"}"
+    },
+    {
+      "name": "luisito_mol",
+      "ok": true,
+      "detail": "gs=2015617848"
+    },
+    {
+      "name": "luisito_suma_cadenas",
+      "ok": true,
+      "detail": "Σ cadenas = total"
+    },
+    {
+      "name": "luisito_suma_clientes",
+      "ok": true,
+      "detail": "Σ clientes = total"
+    },
+    {
+      "name": "comp_n_filas",
+      "ok": true,
+      "detail": "n=20"
+    },
+    {
+      "name": "mapa_porFila",
+      "ok": true,
+      "detail": "n=53"
+    },
+    {
+      "name": "schema_cc",
+      "ok": true,
+      "detail": "cols=10"
+    },
+    {
+      "name": "luisito_en_bd",
+      "ok": true,
+      "detail": "rows=12 cods=12"
+    },
+    {
+      "name": "cobertura_cadena_luisito",
+      "ok": true,
+      "detail": "con=12 sin=0"
+    },
+    {
+      "name": "mol_nivel_cadena",
+      "ok": true,
+      "detail": "hijos=1 label0=Cadena · DIAZ E HIJOS S.A"
+    }
+  ],
+  "cadena": {
+    "n_cliente_cadena_v2": 98,
+    "n_cadena_v2": 19,
+    "luisito_codigos_consulta": 12,
+    "luisito_con_cadena": 12,
+    "luisito_sin_cadena": 0,
+    "por_cadena": {
+      "DIAZ E HIJOS S.A": 12
+    },
+    "detalle": [
+      {
+        "id_cliente": "286",
+        "descp_cliente": "DIAZ E HIJOS S.A.(KM.5)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "945",
+        "descp_cliente": "DIAZ E HIJOS S.A. - LIMPIO",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "1578",
+        "descp_cliente": "DIAZ E HIJOS S.A.(LUISITO)-CUATRO MOJONES",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2116",
+        "descp_cliente": "DIAZ E HIJOS S.A. (LUISITO LUQUE)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2197",
+        "descp_cliente": "DIAZ E HIJOS S.A. (LUISITO ROQUE ALONSO)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2198",
+        "descp_cliente": "DIAZ E HIJOS S.A. - SUC.FELIX BOGADO",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2200",
+        "descp_cliente": "DIAZ E HIJOS S.A. (NEMBY)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2590",
+        "descp_cliente": "DIAZ E HIJOS S.A.(CAPIATA)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2674",
+        "descp_cliente": "DIAZ E HIJOS S.A. (VILLA ELISA)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2849",
+        "descp_cliente": "DIAZ E HIJOS S.A. (YPANE)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "2894",
+        "descp_cliente": "DIAZ E HIJOS S.A. (ITAUGUA)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      },
+      {
+        "id_cliente": "3016",
+        "descp_cliente": "DIAZ E HIJOS S.A. (SAN LORENZO)",
+        "id_cadena": "5",
+        "descp_cadena": "DIAZ E HIJOS S.A"
+      }
+    ]
+  },
+  "luisito": {
+    "gs": 2015617848,
+    "n_cadenas": 1,
+    "n_clientes": 12,
+    "n_facturas": 284,
+    "codigos": [
+      2116,
+      2197,
+      2674,
+      2200,
+      286,
+      1578,
+      2198,
+      2590,
+      3016,
+      2849,
+      945,
+      2894
+    ],
+    "fuente": "clientes.xlsx + cliente_cadena_v2 + 07-2026-Saldo_20260701.txt",
+    "cadena_mol": [
+      {
+        "label": "Cadena · DIAZ E HIJOS S.A",
+        "gs": 2015617848,
+        "n_clientes": 12
+      }
+    ]
+  },
+  "comparacion": {
+    "n": 20,
+    "con_pct": 14,
+    "fidelidad_pct": 50,
+    "luisito_pct": 70.32,
+    "cheques_pct": -13.33
+  },
+  "errores": []
+}

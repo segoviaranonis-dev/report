@@ -2,83 +2,6 @@
   "corte": "AL-03-08-26",
   "tasaUsd": 5970.96,
   "porFila": {
-    "4": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 925101193.7736,
-      "txtGs": null,
-      "canonGs": 925101193.7736,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN USD. BANCO CONTINENTAL"
-    },
-    "5": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 1718236201.0,
-      "txtGs": null,
-      "canonGs": 1718236201.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN GS. BANCO CONTINENTAL"
-    },
-    "6": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 359782579.0,
-      "txtGs": null,
-      "canonGs": 359782579.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN GS. BANCO ITAU"
-    },
-    "7": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 2352986596.6704,
-      "txtGs": null,
-      "canonGs": 2352986596.6704,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN USD. BANCOOP"
-    },
-    "8": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 990211535.0,
-      "txtGs": null,
-      "canonGs": 990211535.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN GS .BANCOOP"
-    },
-    "9": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 10000000.0,
-      "txtGs": null,
-      "canonGs": 10000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN GS GNB"
-    },
-    "10": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 15006624.0,
-      "txtGs": null,
-      "canonGs": 15006624.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "SALDO EN GS BANCO BNF"
-    },
     "11": {
       "molKey": "cheques:2026-08",
       "origen": "txt",
@@ -134,17 +57,6 @@
       "archivo": "SALDO CLIENTES DETALLADO*.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS"
     },
-    "16": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 0.0,
-      "txtGs": null,
-      "canonGs": 0.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGOS BAZZAR"
-    },
     "17": {
       "molKey": "pv:2026-08",
       "origen": "excel_prevision",
@@ -157,59 +69,15 @@
       "label": "PV Y PROG A COBRAR"
     },
     "18": {
-      "molKey": "luisito:cuadro",
-      "origen": "pendiente",
-      "estado": "pendiente",
+      "molKey": "luisito:2026-08",
+      "origen": "txt",
+      "estado": "excel_cero_txt_tiene",
       "excelGs": 0.0,
-      "txtGs": null,
-      "canonGs": 0.0,
-      "delta": null,
-      "archivo": null,
+      "txtGs": 2015617848.0,
+      "canonGs": 2015617848.0,
+      "delta": -2015617848.0,
+      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
       "label": "PAGO LUISITO"
-    },
-    "19": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -280266114.672,
-      "txtGs": null,
-      "canonGs": -280266114.672,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGO A PROVEEDORES"
-    },
-    "20": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -115000000.0,
-      "txtGs": null,
-      "canonGs": -115000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "GASTOS DE DESPACHO"
-    },
-    "21": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -2338191000.0,
-      "txtGs": null,
-      "canonGs": -2338191000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PREVISION GASTOS OPERATIVOS"
-    },
-    "22": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -157000000.0,
-      "txtGs": null,
-      "canonGs": -157000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PRESTAMO BANCARIO"
     },
     "23": {
       "molKey": null,
@@ -255,26 +123,15 @@
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "MERCADERIAS A ENTREGAR"
     },
-    "27": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 1300000000.0,
-      "txtGs": null,
-      "canonGs": 1300000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGOS DE BAZZAR"
-    },
     "28": {
-      "molKey": "luisito:cuadro",
-      "origen": "pendiente",
-      "estado": "pendiente",
+      "molKey": "luisito:2026-09",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 650638664.0,
-      "txtGs": null,
-      "canonGs": 650638664.0,
-      "delta": null,
-      "archivo": null,
+      "txtGs": 2015617848.0,
+      "canonGs": 2015617848.0,
+      "delta": -1364979184.0,
+      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
       "label": "PAGO LUISITO"
     },
     "29": {
@@ -287,50 +144,6 @@
       "delta": -9092820174.0,
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "PV Y PROG A COBRAR"
-    },
-    "30": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -3429587943.4607997,
-      "txtGs": null,
-      "canonGs": -3429587943.4607997,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGO A PROVEEDORES"
-    },
-    "31": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -385000000.0,
-      "txtGs": null,
-      "canonGs": -385000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "GASTOS DE DESPACHO"
-    },
-    "32": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -1819655000.0,
-      "txtGs": null,
-      "canonGs": -1819655000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PREVISION GASTOS OPERATIVOS"
-    },
-    "33": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -157000000.0,
-      "txtGs": null,
-      "canonGs": -157000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PRESTAMO BANCARIO"
     },
     "34": {
       "molKey": null,
@@ -376,26 +189,15 @@
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "MERCADERIAS A ENTREGAR"
     },
-    "38": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 245000000.0,
-      "txtGs": null,
-      "canonGs": 245000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGOS DE BAZZAR"
-    },
     "39": {
-      "molKey": "luisito:cuadro",
-      "origen": "pendiente",
-      "estado": "pendiente",
+      "molKey": "luisito:2026-10",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 113173716.0,
-      "txtGs": null,
-      "canonGs": 113173716.0,
-      "delta": null,
-      "archivo": null,
+      "txtGs": 2015617848.0,
+      "canonGs": 2015617848.0,
+      "delta": -1902444132.0,
+      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
       "label": "PAGO LUISITO"
     },
     "40": {
@@ -408,50 +210,6 @@
       "delta": -90353587.0,
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "PV Y PROG A COBRAR"
-    },
-    "41": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -4123230246.6984,
-      "txtGs": null,
-      "canonGs": -4123230246.6984,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGO A PROVEEDORES"
-    },
-    "42": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -478000000.0,
-      "txtGs": null,
-      "canonGs": -478000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "GASTOS DE DESPACHO"
-    },
-    "43": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -1962355000.0,
-      "txtGs": null,
-      "canonGs": -1962355000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PREVISION GASTOS OPERATIVOS"
-    },
-    "44": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -157000000.0,
-      "txtGs": null,
-      "canonGs": -157000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PRESTAMO BANCARIO"
     },
     "45": {
       "molKey": null,
@@ -497,26 +255,15 @@
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "MERCADERIAS A ENTREGAR"
     },
-    "49": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 900000000.0,
-      "txtGs": null,
-      "canonGs": 900000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGOS DE BAZZAR"
-    },
     "50": {
-      "molKey": "luisito:cuadro",
-      "origen": "pendiente",
-      "estado": "pendiente",
+      "molKey": "luisito:2026-11",
+      "origen": "txt",
+      "estado": "excel_cero_txt_tiene",
       "excelGs": null,
-      "txtGs": null,
-      "canonGs": null,
+      "txtGs": 2015617848.0,
+      "canonGs": 2015617848.0,
       "delta": null,
-      "archivo": null,
+      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
       "label": "PAGO LUISITO"
     },
     "51": {
@@ -529,50 +276,6 @@
       "delta": 0.0,
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "PV Y PROG A COBRAR"
-    },
-    "52": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -4510165053.967199,
-      "txtGs": null,
-      "canonGs": -4510165053.967199,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGO A PROVEEDORES"
-    },
-    "53": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -91000000.0,
-      "txtGs": null,
-      "canonGs": -91000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "GASTOS DE DESPACHO"
-    },
-    "54": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -2257715000.0,
-      "txtGs": null,
-      "canonGs": -2257715000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PREVISION GASTOS OPERATIVOS"
-    },
-    "55": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -157000000.0,
-      "txtGs": null,
-      "canonGs": -157000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PRESTAMO BANCARIO"
     },
     "56": {
       "molKey": null,
@@ -618,26 +321,15 @@
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "MERCADERIAS A ENTREGAR"
     },
-    "60": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 750000000.0,
-      "txtGs": null,
-      "canonGs": 750000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGOS DE BAZZAR"
-    },
     "61": {
-      "molKey": "luisito:cuadro",
-      "origen": "pendiente",
-      "estado": "pendiente",
+      "molKey": "luisito:2026-12",
+      "origen": "txt",
+      "estado": "excel_cero_txt_tiene",
       "excelGs": null,
-      "txtGs": null,
-      "canonGs": null,
+      "txtGs": 2015617848.0,
+      "canonGs": 2015617848.0,
       "delta": null,
-      "archivo": null,
+      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
       "label": "PAGO LUISITO"
     },
     "62": {
@@ -651,50 +343,6 @@
       "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
       "label": "PV Y PROG A COBRAR"
     },
-    "63": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -1485046238.9112,
-      "txtGs": null,
-      "canonGs": -1485046238.9112,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PAGO A PROVEEDORES"
-    },
-    "64": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 0.0,
-      "txtGs": null,
-      "canonGs": 0.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "GASTOS DE DESPACHO"
-    },
-    "65": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -2707646000.0,
-      "txtGs": null,
-      "canonGs": -2707646000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PREVISION GASTOS OPERATIVOS"
-    },
-    "66": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": -157000000.0,
-      "txtGs": null,
-      "canonGs": -157000000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "PRESTAMO BANCARIO"
-    },
     "67": {
       "molKey": null,
       "origen": "calc",
@@ -705,17 +353,6 @@
       "delta": null,
       "archivo": null,
       "label": "SALDO DISPONIBLE DICIEMBRE 2026"
-    },
-    "69": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 597096000.0,
-      "txtGs": null,
-      "canonGs": 597096000.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "FONDOS EN USD DISPONIBLES (BAZZAR + SR. SERGIO)"
     },
     "73": {
       "molKey": "cheques:2027-01",
@@ -816,114 +453,81 @@
       "archivo": "SALDO CLIENTES DETALLADO*.txt",
       "label": "SALDO DE CLIENTES VENCIDOS MAYOR A  180 DIAS"
     },
-    "83": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 990749743.0,
-      "txtGs": null,
-      "canonGs": 990749743.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "Bazzar Vto. OCTUBRE-26"
-    },
-    "84": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 749348892.0,
-      "txtGs": null,
-      "canonGs": 749348892.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "Bazzar Vto. NOVIEMBRE-26"
-    },
-    "85": {
-      "molKey": null,
-      "origen": "manual",
-      "estado": "manual",
-      "excelGs": 651791399.0,
-      "txtGs": null,
-      "canonGs": 651791399.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx (manual)",
-      "label": "Bazzar Vto. DICIEMBRE-26"
-    },
     "89": {
       "molKey": "dificil:v30",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 176623101.0,
-      "txtGs": null,
-      "canonGs": 176623101.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 165407125.0,
+      "canonGs": 165407125.0,
+      "delta": 11215976.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS (DIF.COBRO)"
     },
     "90": {
       "molKey": "dificil:v60",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 199774973.0,
-      "txtGs": null,
-      "canonGs": 199774973.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 204538472.0,
+      "canonGs": 204538472.0,
+      "delta": -4763499.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS (DIF.COBRO)"
     },
     "91": {
       "molKey": "dificil:v90",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 65741220.0,
-      "txtGs": null,
-      "canonGs": 65741220.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 59261142.0,
+      "canonGs": 59261142.0,
+      "delta": 6480078.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS (DIF.COBRO)"
     },
     "92": {
       "molKey": "dificil:v120",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 134601749.0,
-      "txtGs": null,
-      "canonGs": 134601749.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 137079802.0,
+      "canonGs": 137079802.0,
+      "delta": -2478053.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS (DIF.COBRO)"
     },
     "93": {
       "molKey": "dificil:v150",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 12460141.0,
-      "txtGs": null,
-      "canonGs": 12460141.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 16276860.0,
+      "canonGs": 16276860.0,
+      "delta": -3816719.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS (DIF.COBRO)"
     },
     "94": {
       "molKey": "dificil:v180",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 14124387.0,
-      "txtGs": null,
-      "canonGs": 14124387.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 3647160.0,
+      "canonGs": 3647160.0,
+      "delta": 10477227.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS (DIF.COBRO)"
     },
     "95": {
       "molKey": "dificil:v180p",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "descuadre",
       "excelGs": 66793008.0,
-      "txtGs": null,
-      "canonGs": 66793008.0,
-      "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "txtGs": 63051188.0,
+      "canonGs": 63051188.0,
+      "delta": 3741820.0,
+      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
       "label": "MAYORES A 180 DIAS(DIF COBRO)"
     },
     "96": {
@@ -934,7 +538,7 @@
       "txtGs": null,
       "canonGs": 636166543.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
       "label": "AGOSTO 26 (DIF COBRO)"
     },
     "97": {
@@ -945,7 +549,7 @@
       "txtGs": null,
       "canonGs": 346413764.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
       "label": "SETIEMBRE 26 (DIF COBRO)"
     },
     "98": {
@@ -956,7 +560,7 @@
       "txtGs": null,
       "canonGs": 130290050.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
       "label": "OCTUBRE 26 (DIF COBRO)"
     },
     "99": {
@@ -967,7 +571,7 @@
       "txtGs": null,
       "canonGs": 38910630.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
       "label": "NOVIEMBRE 26 (DIF COBRO)"
     },
     "100": {
@@ -978,7 +582,7 @@
       "txtGs": null,
       "canonGs": 6568488.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO (sin filtro DIFICIL/SALEMMA TXT)",
+      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
       "label": "DICIEMBRE 26 (DIF COBRO)"
     }
   }
