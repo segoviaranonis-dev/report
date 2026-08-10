@@ -11,8 +11,11 @@ import {
 import {
   cascadaDimensionesOperativa,
   cascadaEstiloOperativa,
+  cascadaLineaOperativa,
+  cascadaReferenciaOperativa,
   toggleEstiloCascadaOp,
   toggleLineaCascadaOp,
+  toggleReferenciaCascadaOp,
   toggleMaterialCascadaOp,
 } from "@/lib/depositos/operativa-cascada";
 import {
@@ -456,6 +459,7 @@ export function ReposicionFiltrosSidebar({
       grupoEstiloIds: [],
       tipo1Ids: [],
       lineaIds: [],
+      referenciaIds: [],
       materialFamilias: [],
       colorFamilias: [],
     }));
@@ -477,6 +481,7 @@ export function ReposicionFiltrosSidebar({
   const badgeMol =
     filtros.grupoEstiloIds.length +
     filtros.lineaIds.length +
+    filtros.referenciaIds.length +
     filtros.materialFamilias.length +
     filtros.colorFamilias.length;
 
@@ -710,13 +715,13 @@ export function ReposicionFiltrosSidebar({
 
       <BloqueColapsable
         title="Molécula"
-        railLabel="Estilo · Línea · Mat · Color"
+        railLabel="L · R · M · C"
         badge={badgeMol}
         open={bloqueMolOpen}
         onToggle={() => setBloqueMolOpen((v) => !v)}
       >
         <p className="text-[10px] text-slate-500">
-          Cascada: Estilo → Línea → Material → Color · familias texto · NN
+          Cascada: Estilo → Línea → Referencia → Material → Color · L-R-M-C 100%
         </p>
 
         <MultiSelectGroup
@@ -751,9 +756,26 @@ export function ReposicionFiltrosSidebar({
           onClear={() =>
             onChange((prev) => ({
               ...prev,
-              lineaIds: [],
-              materialFamilias: [],
-              colorFamilias: [],
+              ...cascadaLineaOperativa([]),
+            }))
+          }
+          maxH="max-h-48"
+        />
+
+        <MultiSelectGroup
+          title="Referencia"
+          items={opciones.referencias}
+          selected={filtros.referenciaIds}
+          onToggle={(id) =>
+            onChange((prev) => ({
+              ...prev,
+              ...toggleReferenciaCascadaOp(prev.referenciaIds, id),
+            }))
+          }
+          onClear={() =>
+            onChange((prev) => ({
+              ...prev,
+              ...cascadaReferenciaOperativa([]),
             }))
           }
           maxH="max-h-48"

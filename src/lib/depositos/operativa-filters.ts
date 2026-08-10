@@ -63,6 +63,8 @@ export type OperativaFilterState = {
   tipo1Ids: number[];
   tipoV2Ids: number[];
   lineaIds: number[];
+  /** Cascada molécula L→R→M→C · multi Referencia (siamese Web/AM) */
+  referenciaIds: number[];
   tonos: string[];
   sinTono: boolean;
   q: string;
@@ -94,6 +96,7 @@ export const EMPTY_OPERATIVA_FILTERS: OperativaFilterState = {
   tipo1Ids: [],
   tipoV2Ids: [],
   lineaIds: [],
+  referenciaIds: [],
   tonos: [],
   sinTono: false,
   q: "",
@@ -162,6 +165,7 @@ export function hayFiltrosActivos(f: OperativaFilterState): boolean {
     f.tipo1Ids.length > 0 ||
     f.tipoV2Ids.length > 0 ||
     f.lineaIds.length > 0 ||
+    f.referenciaIds.length > 0 ||
     f.tonos.length > 0 ||
     f.sinTono ||
     !!f.q.trim() ||
@@ -171,6 +175,26 @@ export function hayFiltrosActivos(f: OperativaFilterState): boolean {
     f.tipoGrupos.length > 0 ||
     f.materialFamilias.length > 0 ||
     f.colorFamilias.length > 0 ||
+    !!f.ramoTipo
+  );
+}
+
+/** Dimensión/molécula activa → no pintar universo maestras (paridad Web 2.2.1.42). */
+export function hayCascadaAcotarFacetas(f: OperativaFilterState): boolean {
+  return (
+    f.marcaIds.length > 0 ||
+    f.tipo1Ids.length > 0 ||
+    f.tipoV2Ids.length > 0 ||
+    f.tipoGrupos.length > 0 ||
+    f.generoIds.length > 0 ||
+    f.grupoEstiloIds.length > 0 ||
+    f.lineaIds.length > 0 ||
+    f.referenciaIds.length > 0 ||
+    f.materialFamilias.length > 0 ||
+    f.colorFamilias.length > 0 ||
+    f.tonos.length > 0 ||
+    f.sinTono ||
+    !!f.q.trim() ||
     !!f.ramoTipo
   );
 }
@@ -308,6 +332,7 @@ export function rowMatchesOperativaFilters(
   }
 
   if (eff.lineaIds.length && !matchFk(r.linea_id, eff.lineaIds)) return false
+  if (eff.referenciaIds.length && !matchFk(r.referencia_id, eff.referenciaIds)) return false
   if (eff.tipoGrupos.length && !rowMatchesTipoGruposSiamese(r, eff.tipoGrupos)) return false
 
   if (eff.materialFamilias.length) {
@@ -337,14 +362,29 @@ export function rowMatchesOperativaFilters(
       .map((v) => String(v ?? "").trim())
       .filter(Boolean)
       .join(".")
+    const molLrmc = [
+      r.linea_codigo_proveedor,
+      r.referencia_codigo_proveedor,
+      r.material_code,
+      r.color_code,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .join("-")
     const qMol = q.replace(/[\s.\-_]+/g, "")
     const lineaRefMol = lineaRef.replace(/[\s.\-_]+/g, "").toLowerCase()
-    const hitMol = qMol.length >= 2 && lineaRefMol.includes(qMol)
+    const molLrmcCompact = molLrmc.replace(/[\s.\-_]+/g, "").toLowerCase()
+    const hitMol =
+      qMol.length >= 2 &&
+      (lineaRefMol.includes(qMol) || molLrmcCompact.includes(qMol))
     const hit = hitMol || [
       r.marca,
       r.linea_codigo_proveedor,
       r.referencia_codigo_proveedor,
+      r.material_code,
+      r.color_code,
       lineaRef,
+      molLrmc,
       r.estilo,
       r.descp_material,
       r.descp_color,
@@ -405,6 +445,7 @@ export type OperativaOpciones = {
   tipo1: DepositoFilterItem[];
   tipoV2: DepositoFilterItem[];
   lineas: DepositoFilterItem[];
+  referencias: DepositoFilterItem[];
   /** Familias agrupadas · etiqueta canónica (sin códigos) */
   materiales: FamiliaPilarItem[];
   colores: FamiliaPilarItem[];
@@ -471,6 +512,7 @@ export function buildOperativaOpciones(
   const tipo1 = new Map<number, DepositoFilterItem>()
   const tipoV2 = new Map<number, DepositoFilterItem>()
   const lineas = new Map<number, DepositoFilterItem>()
+  const referencias = new Map<number, DepositoFilterItem>()
   const tonos = new Set<string>()
   const gradas = new Set<string>()
   const matTokens: string[] = []
@@ -511,6 +553,11 @@ export function buildOperativaOpciones(
       const label = String(r.linea_codigo_proveedor ?? '').trim()
       if (n != null && label) lineas.set(n, { id: n, label })
     }
+    if (rowMatchesOperativaFilters(r, filtros, 'referenciaIds')) {
+      const n = normFk(r.referencia_id)
+      const label = String(r.referencia_codigo_proveedor ?? '').trim()
+      if (n != null && label) referencias.set(n, { id: n, label })
+    }
     if (rowMatchesOperativaFilters(r, filtros, 'tonos')) {
       const te = tonoEfectivo(r)
       if (te) tonos.add(te)
@@ -540,16 +587,33 @@ export function buildOperativaOpciones(
   let generosOut = sortItems(generos)
   let tipo1Out = sortItems(tipo1)
 
-  // Ley siamese · Documenta 2026-07-29 — Estilo/Género = FK Administrador Pilares
+  // Ley siamese · maestras solo universo sin cascada; con filtros → intersección stock ∩ FK
+  const acotar = hayCascadaAcotarFacetas(filtros)
   if (trianguloMaestras?.estilos?.length) {
-    estilosOut = [...trianguloMaestras.estilos].sort((a, b) =>
-      a.label.localeCompare(b.label, "es"),
-    )
+    if (acotar) {
+      const stockIds = new Set(estilosOut.map((e) => e.id))
+      const inter = trianguloMaestras.estilos.filter((e) => stockIds.has(e.id))
+      if (inter.length) {
+        estilosOut = inter.sort((a, b) => a.label.localeCompare(b.label, "es"))
+      }
+    } else {
+      estilosOut = [...trianguloMaestras.estilos].sort((a, b) =>
+        a.label.localeCompare(b.label, "es"),
+      )
+    }
   }
   if (trianguloMaestras?.generos?.length) {
-    generosOut = [...trianguloMaestras.generos].sort((a, b) =>
-      a.label.localeCompare(b.label, "es"),
-    )
+    if (acotar) {
+      const stockIds = new Set(generosOut.map((g) => g.id))
+      const inter = trianguloMaestras.generos.filter((g) => stockIds.has(g.id))
+      if (inter.length) {
+        generosOut = inter.sort((a, b) => a.label.localeCompare(b.label, "es"))
+      }
+    } else {
+      generosOut = [...trianguloMaestras.generos].sort((a, b) =>
+        a.label.localeCompare(b.label, "es"),
+      )
+    }
   }
 
   if (esRamoAccesorios(filtros.ramoTipo)) {
@@ -571,6 +635,7 @@ export function buildOperativaOpciones(
     tipo1: tipo1Out,
     tipoV2: sortItems(tipoV2),
     lineas: sortItems(lineas),
+    referencias: sortItems(referencias),
     materiales: buildFamiliaItems(matTokens),
     colores: buildFamiliaItems(colTokens),
     tonos: Array.from(tonos).sort((a, b) => a.localeCompare(b, 'es')),

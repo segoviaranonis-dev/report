@@ -105,6 +105,7 @@ function etiquetaCambioFiltro(prev: OperativaFilterState, next: OperativaFilterS
   if (cambio("generoIds")) return `Género${cantidad(next.generoIds)}`;
   if (cambio("grupoEstiloIds")) return `Estilo${cantidad(next.grupoEstiloIds)}`;
   if (cambio("lineaIds")) return `Línea${cantidad(next.lineaIds)}`;
+  if (cambio("referenciaIds")) return `Referencia${cantidad(next.referenciaIds)}`;
   if (cambio("materialFamilias")) return `Material${cantidad(next.materialFamilias)}`;
   if (cambio("colorFamilias")) return `Color${cantidad(next.colorFamilias)}`;
   if (cambio("tonos") || cambio("sinTono")) return "Tono";

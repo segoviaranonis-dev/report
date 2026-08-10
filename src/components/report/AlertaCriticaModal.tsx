@@ -16,6 +16,18 @@ import {
 
 const POLL_MS = 8_000;
 
+async function marcarLeidaEnFondo(id: number): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/notificaciones/${id}`, {
+      method: "PATCH",
+      credentials: "same-origin",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function AlertaCriticaModal() {
   const pathname = usePathname();
   const router = useRouter();
@@ -23,18 +35,22 @@ export function AlertaCriticaModal() {
   const [sesionOk, setSesionOk] = useState(false);
   const [esAprobador, setEsAprobador] = useState(false);
   const alertaRef = useRef<NotificacionRow | null>(null);
+  /** Evita que el poll reabra la misma alerta mientras el PATCH aún no marcó leída. */
+  const descartadasRef = useRef<Set<number>>(new Set());
+  const accionEnCursoRef = useRef(false);
   const ingresarRef = useRef<(n: NotificacionRow) => Promise<void>>(async () => {});
 
   const ingresar = useCallback(
     async (n: NotificacionRow) => {
+      if (accionEnCursoRef.current) return;
+      accionEnCursoRef.current = true;
       const dest = deepLinkNotificacion(n);
-      await fetch(`/api/notificaciones/${n.id}`, {
-        method: "PATCH",
-        credentials: "same-origin",
-      });
+      descartadasRef.current.add(n.id);
       setAlerta(null);
       alertaRef.current = null;
+      void marcarLeidaEnFondo(n.id);
       router.push(dest);
+      accionEnCursoRef.current = false;
     },
     [router],
   );
@@ -87,7 +103,8 @@ export function AlertaCriticaModal() {
         });
         if (!res.ok) return;
         const data = (await res.json()) as { notificaciones?: NotificacionRow[] };
-        const top = data.notificaciones?.[0] ?? null;
+        const top =
+          data.notificaciones?.find((n) => !descartadasRef.current.has(n.id)) ?? null;
 
         if (!top) {
           setAlerta(null);
@@ -141,14 +158,17 @@ export function AlertaCriticaModal() {
     };
   }, [cargar, intentarBarra]);
 
-  async function cerrar(id: number) {
-    await fetch(`/api/notificaciones/${id}`, {
-      method: "PATCH",
-      credentials: "same-origin",
-    });
+  function cerrar(id: number) {
+    if (accionEnCursoRef.current) return;
+    accionEnCursoRef.current = true;
+    // Cierre al instante: no esperar PATCH (antes el clic “no respondía”).
+    descartadasRef.current.add(id);
     setAlerta(null);
     alertaRef.current = null;
-    void cargar();
+    void marcarLeidaEnFondo(id).then((ok) => {
+      if (!ok) descartadasRef.current.delete(id);
+      accionEnCursoRef.current = false;
+    });
   }
 
   if (!sesionOk || !esAprobador || !alerta || pathname === "/login") return null;
