@@ -17,15 +17,15 @@
     },
     "12": {
       "molKey": "clientes:2026-08",
-      "origen": "excel_prevision",
-      "estado": "excel_prevision",
+      "origen": "txt",
+      "estado": "excel_cero_txt_tiene",
       "excelGs": 0.0,
-      "txtGs": null,
+      "txtGs": 6817427272.0,
       "canonGs": 0.0,
-      "delta": null,
-      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "delta": -6817427272.0,
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "archivoExcel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
-      "archivoTxt": null,
+      "archivoTxt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES"
     },
     "13": {

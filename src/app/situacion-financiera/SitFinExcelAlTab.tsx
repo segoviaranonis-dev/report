@@ -330,15 +330,24 @@ export function SitFinExcelAlTab() {
               const rowOpenKey = keyEfectiva
                 ? `${row.r}:${keyEfectiva}`
                 : "";
-              /** Canon auditoría: TXT manda en cheques/aging; si no, Excel */
+              /**
+               * Ley UI (TXT manda): si hay Σ TXT real y la cifra Sit Fin/AL es 0/vacía,
+               * mostrar el TXT — nunca «0» con ▸ detalle molecular (error Director).
+               * Si canon/Excel ya tiene cifra ≠0, esa cifra se respeta (previsión mes).
+               */
+              const cifraMapaVacia =
+                (mapa?.canonGs == null || mapa.canonGs === 0) &&
+                (mapa?.excelGs == null || mapa.excelGs === 0);
               const showGs =
-                mapa?.canonGs != null
-                  ? mapa.canonGs
-                  : origen === "txt" &&
-                      molGs != null &&
-                      (row.gs == null || row.gs === 0)
-                    ? molGs
-                    : row.gs;
+                molGs != null && molGs !== 0 && cifraMapaVacia
+                  ? molGs
+                  : mapa?.canonGs != null && mapa.canonGs !== 0
+                    ? mapa.canonGs
+                    : origen === "txt" &&
+                        molGs != null &&
+                        (row.gs == null || row.gs === 0)
+                      ? molGs
+                      : row.gs;
               const showUsd =
                 showGs != null && showGs !== row.gs
                   ? showGs / tasa
