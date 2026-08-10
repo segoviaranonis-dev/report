@@ -132,8 +132,33 @@ REGLAS: list[tuple[str, float, re.Pattern[str], str]] = [
 
 
 def _programa_erp(texto: str) -> str | None:
-    m = re.search(r"\b(if[a-z0-9_\$]+)\b", texto[:800], re.I)
-    return m.group(1) if m else None
+    """Código módulo Carlos en cabecera (ej. ifcqvg$). Conserva $."""
+    m = re.search(r"(?i)\b(if[a-z0-9_]+)(\$)?", texto[:800])
+    if not m:
+        return None
+    base = m.group(1).lower()
+    return base + ("$" if m.group(2) else "")
+
+
+def clasificar_por_programa(programa: str | None) -> tuple[str, float, str] | None:
+    """Padrón Hiedra: el programa manda sobre el nombre de archivo."""
+    if not programa:
+        return None
+    p = programa.lower()
+    # ifcqvg$ = cheques a vencer (consumo íntegro Faro)
+    if p in ("ifcqvg$", "ifcqvg"):
+        return "cheques_vencer", 0.99, "padrón programa ifcqvg$"
+    if p in ("ifslclfd", "ifslclfd$"):
+        return "saldos_detallado", 0.99, "padrón programa ifslclfd"
+    if p in ("ifslclfc", "ifslclfc$"):
+        return "saldos_resumen", 0.99, "padrón programa ifslclfc"
+    if p in ("ifatsl3", "ifatsl3$"):
+        return "ventas_bzz", 0.99, "padrón programa ifatsl3"
+    if p in ("iflbvtm", "iflbvtm$"):
+        return "ventas_mensuales", 0.99, "padrón programa iflbvtm"
+    if p in ("ifft_ds", "ifft_ds$"):
+        return "ventas_dto", 0.99, "padrón programa ifft_ds"
+    return None
 
 
 def clasificar_archivo(path: Path) -> Clasificacion:
@@ -142,21 +167,27 @@ def clasificar_archivo(path: Path) -> Clasificacion:
     prog = _programa_erp(head)
     nombre = path.name.upper()
 
-    # Nombre de archivo como refuerzo (variaciones de naming del funcionario).
-    if "CHEQUES" in nombre and "VENCER" in nombre:
-        tip, conf, nota = "cheques_vencer", 0.9, "por nombre de archivo"
-    elif "SALDO" in nombre and "DETALL" in nombre:
-        tip, conf, nota = "saldos_detallado", 0.92, "por nombre de archivo"
-    elif "SALDO" in nombre and "CLIENT" in nombre:
-        tip, conf, nota = "saldos_resumen", 0.9, "por nombre de archivo"
-    elif nombre.startswith("PV") or "PROG" in nombre:
-        tip, conf, nota = "pv_prog", 0.85, "por nombre de archivo"
-    else:
-        tip, conf, nota = "desconocido", 0.0, ""
+    tip, conf, nota = "desconocido", 0.0, ""
 
+    # 1) Padrón por programa_erp (Hiedra) — gana al nombre de archivo
+    por_prog = clasificar_por_programa(prog)
+    if por_prog:
+        tip, conf, nota = por_prog
+
+    # 2) Nombre de archivo solo como refuerzo si aún desconocido
+    if tip == "desconocido":
+        if "CHEQUES" in nombre and "VENCER" in nombre:
+            tip, conf, nota = "cheques_vencer", 0.9, "por nombre de archivo"
+        elif "SALDO" in nombre and "DETALL" in nombre:
+            tip, conf, nota = "saldos_detallado", 0.92, "por nombre de archivo"
+        elif "SALDO" in nombre and "CLIENT" in nombre:
+            tip, conf, nota = "saldos_resumen", 0.9, "por nombre de archivo"
+        elif nombre.startswith("PV") or "PROG" in nombre:
+            tip, conf, nota = "pv_prog", 0.85, "por nombre de archivo"
+
+    # 3) Reglas de contenido / título
     for tipo, c, pat, desc in REGLAS:
         if pat.search(head) or pat.search(texto[:2500]):
-            # encabezado gana si es más específico / mayor confianza
             if c >= conf:
                 tip, conf, nota = tipo, c, desc
             break
