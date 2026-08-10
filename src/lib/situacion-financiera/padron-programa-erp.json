@@ -152,37 +152,6 @@
       ],
       "n_archivos_lab": 1,
       "notas": "Detectado por cabecera · listo para mapear"
-    },
-    "ifcqvg": {
-      "programa_erp": "ifcqvg",
-      "tipo_codigo": "cheques_vencer",
-      "titulo_informe": "RIMEC S.A.                                                         LISTADO DE CHEQUES A VENCER                                                          Fecha:   03/08/2026",
-      "parser_key": "cheques_vencer",
-      "estado_consumo": "detectado",
-      "columnas_cabecera": [
-        "COD.BANCO",
-        "NOMBRE DEL BANCO",
-        "NRO.CHEQUE",
-        "UBICACION",
-        "EMITENTE",
-        "COD.CLIENTE",
-        "FECH.VTO",
-        "F.PROC.",
-        "F.DEPOS.",
-        "F.RECHAZO",
-        "IMPORTE",
-        "OBSERVACIONES"
-      ],
-      "archivos_lab_ejemplo": [
-        "1.CHEQUES A VENCER_AGO26.txt",
-        "2.CHEQUES A VENCER_SEPT26.txt",
-        "3.CHEQUES A VENCER_OCT26.txt",
-        "4.CHEQUES A VENCER_NOV26.txt",
-        "5.CHEQUES A VENCER_DIC26.txt",
-        "6.CHEQUES A VENCER_ENE26 AL 2029.txt"
-      ],
-      "n_archivos_lab": 6,
-      "notas": "Detectado por cabecera · listo para mapear"
     }
   }
 }
