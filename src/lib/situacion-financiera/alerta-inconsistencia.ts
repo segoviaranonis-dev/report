@@ -1,11 +1,12 @@
 /**
- * Burbuja de inconsistencia para Guido.
+ * Burbujas ⚠ Δ / TXT — SOLO integridad canon Guido ↔ TXT limpio.
  *
- * COMPARATIVA oficial = solo canones:
+ * Canones:
  *   Z:\hector\SF\07.SITUACION FINANCIERA 01072026.xlsx
  *   Z:\hector\SF\08.SITUACION FINANCIERA 01082026.xlsx
  *
- * SF AL 03-08.xlsx = SOLO CONTEXTO · errores conocidos · EXCLUIDO de la comparativa.
+ * Prohibido: mencionar SF AL / grilla AL / legajo con errores.
+ * Sin canon para el mes (sep…) → no hay burbuja.
  */
 
 import julCanon from "./referencia-admin-jul-0107.json";
@@ -19,23 +20,17 @@ import {
 
 export type MapaAlerta = {
   molKey: string | null;
-  origen: string;
-  estado: string;
-  excelGs: number | null;
+  origen?: string;
+  estado?: string;
+  excelGs?: number | null;
   txtGs: number | null;
-  canonGs: number | null;
-  delta: number | null;
-  archivo: string | null;
+  canonGs?: number | null;
+  delta?: number | null;
+  archivo?: string | null;
   label?: string | null;
-  archivoExcel?: string | null;
   archivoTxt?: string | null;
   mesCtx?: string | null;
 };
-
-/** Réplica grilla — contexto; NUNCA comparativa. */
-export const ARCHIVO_EXCEL_AL = "SF AL 03-08.xlsx";
-export const ARCHIVO_EXCEL_AL_NOTA =
-  "EXCLUIDO de la comparativa · errores conocidos · solo contexto de grilla";
 
 export const ARCHIVO_SALDO_TXT = "SALDO CLIENTES DETALLADO AL 03-08.txt";
 export const ARCHIVO_CLIENTES_XLSX = "clientes.xlsx";
@@ -68,19 +63,23 @@ function stemConcepto(molKey: string | null | undefined): string | null {
   if (!molKey) return null;
   if (molKey.startsWith("aging:") || molKey.startsWith("dificil:")) return molKey;
   if (molKey.startsWith("banco:")) {
-    // banco:CONTINENTAL:USD → buscar claves canon banco:continental_usd
     const parts = molKey.split(":");
     if (parts.length >= 3) {
       return `banco:${parts[1].toLowerCase()}_${parts[2].toLowerCase()}`;
     }
   }
-  const stem = molKey.split(":")[0];
-  return stem || null;
+  return molKey.split(":")[0] || null;
 }
 
-function mesDeMol(molKey: string | null | undefined, mesCtx?: string | null): string | null {
+/** Solo Jul/Ago tienen Excel canon. */
+export function mesCanonDeMol(
+  molKey: string | null | undefined,
+  mesCtx?: string | null
+): "2026-07" | "2026-08" | null {
   if (molKey && /:(\d{4}-\d{2})/.test(molKey)) {
-    return molKey.match(/:(\d{4}-\d{2})/)?.[1] || null;
+    const ym = molKey.match(/:(\d{4}-\d{2})/)?.[1];
+    if (ym === "2026-07" || ym === "2026-08") return ym;
+    return null;
   }
   if (
     molKey &&
@@ -88,22 +87,29 @@ function mesDeMol(molKey: string | null | undefined, mesCtx?: string | null): st
       molKey.startsWith("dificil:") ||
       molKey.startsWith("banco:"))
   ) {
-    return "2026-08"; // aging/banco del corte → canon Agosto
+    return "2026-08";
   }
-  return mesCtx || null;
+  if (mesCtx === "2026-07" || mesCtx === "2026-08") return mesCtx;
+  return null;
 }
 
-/** Monto Gs del Excel canon (07 o 08) para el concepto. */
 export function montoCanonGs(
   molKey: string | null | undefined,
   mesCtx?: string | null
-): { path: string; archivo: string; gs: number | null; mes: "julio" | "agosto" | null } {
-  const mes = mesDeMol(molKey, mesCtx);
+): {
+  path: string;
+  archivo: string;
+  gs: number | null;
+  mes: "julio" | "agosto" | null;
+} {
+  const mes = mesCanonDeMol(molKey, mesCtx);
   const stem = stemConcepto(molKey);
-
+  if (!mes || !stem) {
+    return { path: "", archivo: "", gs: null, mes: null };
+  }
   if (mes === "2026-07") {
     const base = (julCanon as { base_mes?: BaseMes }).base_mes || {};
-    const gs = stem && base[stem] ? Number(base[stem].gs) : null;
+    const gs = base[stem] != null ? Number(base[stem].gs) : null;
     return {
       path: CMP_PATH_JUL,
       archivo: CMP_ARCHIVO_JUL,
@@ -111,136 +117,147 @@ export function montoCanonGs(
       mes: "julio",
     };
   }
-
-  if (mes === "2026-08") {
-    const base = (agoCanon as { base_mes?: BaseMes }).base_mes || {};
-    // alias banco
-    let gs: number | null = null;
-    if (stem && base[stem]) gs = Number(base[stem].gs);
-    else if (stem?.startsWith("banco:")) {
-      // intentar continental_usd etc.
-      const alt = stem;
-      if (base[alt]) gs = Number(base[alt].gs);
-    }
-    return {
-      path: CMP_PATH_AGO,
-      archivo: CMP_ARCHIVO_AGO,
-      gs: gs != null && Number.isFinite(gs) ? gs : null,
-      mes: "agosto",
-    };
-  }
-
-  // Otros meses (sep…): no hay Excel canon mensual — NO usar SF AL
+  const base = (agoCanon as { base_mes?: BaseMes }).base_mes || {};
+  const gs = base[stem] != null ? Number(base[stem].gs) : null;
   return {
-    path: "",
-    archivo: "",
-    gs: null,
-    mes: null,
+    path: CMP_PATH_AGO,
+    archivo: CMP_ARCHIVO_AGO,
+    gs: gs != null && Number.isFinite(gs) ? gs : null,
+    mes: "agosto",
   };
 }
 
-export function resolverArchivoTxt(mapa: MapaAlerta): string {
-  if (mapa.archivoTxt && mapa.archivoTxt.trim()) return mapa.archivoTxt.trim();
+export function resolverArchivoTxt(mapa: {
+  molKey?: string | null;
+  archivo?: string | null;
+  archivoTxt?: string | null;
+}): string {
+  if (mapa.archivoTxt?.trim()) return mapa.archivoTxt.trim();
   if (esNombreTxtReal(mapa.archivo)) return mapa.archivo!.trim();
-
   const key = mapa.molKey || "";
   if (key.startsWith("cheques:")) {
     const ym = key.slice("cheques:".length);
-    return CHEQUES_POR_MES[ym] || mapa.archivo || "CHEQUES A VENCER_*.txt";
+    return CHEQUES_POR_MES[ym] || "CHEQUES A VENCER_*.txt";
   }
   if (key.startsWith("aging:")) return ARCHIVO_SALDO_TXT;
   if (key.startsWith("luisito:") || key.startsWith("dificil:")) {
     return `${ARCHIVO_CLIENTES_XLSX} + ${ARCHIVO_SALDO_TXT}`;
   }
   if (key.startsWith("pv:") || key.startsWith("mercaderia:")) {
-    return "PV Y PROG.txt (contexto; comparativa = canones Jul/Ago)";
+    return "PV Y PROG.txt";
   }
   if (mapa.archivo?.includes("clientes.xlsx")) {
     return `${ARCHIVO_CLIENTES_XLSX} + ${ARCHIVO_SALDO_TXT}`;
   }
   if (mapa.archivo?.includes("SALDO CLIENTES")) return ARCHIVO_SALDO_TXT;
-  return mapa.archivo?.trim() || "TXT limpio del intake (ver pestaña Auditoría)";
+  return mapa.archivo?.trim() || "TXT limpio del intake";
+}
+
+export type BadgeIntegridad = "Δ" | "TXT";
+
+/** ¿Hay burbuja? Solo si existe canon Jul/Ago y hay señal vs TXT. */
+export function evaluarIntegridadCanonTxt(opts: {
+  molKey: string | null | undefined;
+  mesCtx: string | null | undefined;
+  txtGs: number | null | undefined;
+  label?: string | null;
+  archivo?: string | null;
+  archivoTxt?: string | null;
+}): {
+  badge: BadgeIntegridad;
+  canonGs: number;
+  txtGs: number;
+  delta: number;
+  path: string;
+  archivo: string;
+  archivoTxt: string;
+  label: string;
+} | null {
+  const mes = mesCanonDeMol(opts.molKey, opts.mesCtx);
+  if (!mes) return null;
+
+  const c = montoCanonGs(opts.molKey, opts.mesCtx);
+  if (!c.mes || c.gs == null) return null;
+
+  const txt = opts.txtGs;
+  if (txt == null || Number.isNaN(txt)) return null;
+
+  const delta = c.gs - txt;
+  const abs = Math.abs(delta);
+  if (abs <= 1 && !(c.gs === 0 && txt !== 0)) return null;
+
+  let badge: BadgeIntegridad = "Δ";
+  if ((c.gs === 0 || c.gs == null) && txt !== 0) badge = "TXT";
+  else if (abs <= 1) return null;
+
+  return {
+    badge,
+    canonGs: c.gs,
+    txtGs: txt,
+    delta,
+    path: c.path,
+    archivo: c.archivo,
+    archivoTxt: resolverArchivoTxt({
+      molKey: opts.molKey,
+      archivo: opts.archivo,
+      archivoTxt: opts.archivoTxt,
+    }),
+    label: (opts.label || opts.molKey || "concepto").trim(),
+  };
 }
 
 export type ExplicacionAlerta = {
-  badge: "Δ" | "TXT";
+  badge: BadgeIntegridad;
   titulo: string;
   quePaso: string;
-  /** Comparativa = canon Guido (nunca SF AL) */
   archivoExcel: string;
-  pathExcel: string;
   montoExcel: string;
-  tieneCanon: boolean;
   archivoTxt: string;
   montoTxt: string;
-  /** Contexto grilla SF AL — excluido */
-  contextoSfAl: string;
-  montoContextoSfAl: string;
   delta: string;
-  deltaNota: string;
   muestraSitFin: string;
   queHacer: string;
   concepto: string;
 };
 
 export function explicarAlerta(
-  badge: "Δ" | "TXT",
+  badge: BadgeIntegridad,
   mapa: MapaAlerta
 ): ExplicacionAlerta {
+  const ev = evaluarIntegridadCanonTxt({
+    molKey: mapa.molKey,
+    mesCtx: mapa.mesCtx,
+    txtGs: mapa.txtGs,
+    label: mapa.label,
+    archivo: mapa.archivo,
+    archivoTxt: mapa.archivoTxt,
+  });
+
   const concepto = (mapa.label || mapa.molKey || "fila").trim();
+  const path = ev?.path || "";
+  const archivoTxt = ev?.archivoTxt || resolverArchivoTxt(mapa);
+  const canonGs = ev?.canonGs ?? null;
+  const txtGs = ev?.txtGs ?? mapa.txtGs;
+  const delta = ev?.delta ?? null;
   const esDescuadre = badge === "Δ";
-  const archivoTxt = resolverArchivoTxt(mapa);
-  const canon = montoCanonGs(mapa.molKey, mapa.mesCtx);
-  const tieneCanon = !!canon.mes && canon.path !== "";
-
-  const montoCanon = canon.gs;
-  const montoTxt = mapa.txtGs;
-  const deltaCanonTxt =
-    montoCanon != null && montoTxt != null
-      ? montoCanon - montoTxt
-      : null;
-
-  const archivoExcel = tieneCanon
-    ? canon.path
-    : "Sin Excel canon para este mes (solo Jul y Ago tienen canones Guido)";
-  const pathExcel = tieneCanon ? canon.path : "";
-  const montoExcelStr = tieneCanon
-    ? `${fmtGs(montoCanon)} Gs`
-    : "— (no hay canon mensual)";
 
   return {
     badge,
     titulo: esDescuadre
-      ? tieneCanon
-        ? "Revisar vs canon Guido (no vs SF AL)"
-        : "TXT vs grilla · SF AL excluido de la comparativa"
-      : "Celda vacía en grilla · monto desde TXT",
+      ? "Integridad: canon Guido ≠ TXT limpio"
+      : "Canon sin monto · TXT tiene respaldo",
     quePaso: esDescuadre
-      ? tieneCanon
-        ? `Fila «${concepto}». La comparativa oficial es el Excel canon Guido vs el TXT limpio. «${ARCHIVO_EXCEL_AL}» tiene errores conocidos y NO entra en la comparativa (solo contexto de grilla).`
-        : `Fila «${concepto}» (mes fuera de Jul/Ago). No hay Excel canon Guido para este mes. «${ARCHIVO_EXCEL_AL}» está excluido (errores conocidos). El TXT limpio es el respaldo operativo que muestra Sit Fin.`
-      : `Fila «${concepto}»: la grilla no traía monto; el TXT sí. Sit Fin muestra el TXT. «${ARCHIVO_EXCEL_AL}» no se usa para comparar.`,
-    archivoExcel,
-    pathExcel,
-    montoExcel: montoExcelStr,
-    tieneCanon,
+      ? `En «${concepto}» el monto del Excel canon no coincide con la suma del TXT limpio. Revisá esos dos archivos. Sit Fin muestra el TXT como respaldo operativo.`
+      : `En «${concepto}» el Excel canon no trae cifra (0/vacío) y el TXT sí. Sit Fin muestra el TXT.`,
+    archivoExcel: path || "—",
+    montoExcel: `${fmtGs(canonGs)} Gs`,
     archivoTxt,
-    montoTxt: `${fmtGs(montoTxt)} Gs`,
-    contextoSfAl: `${ARCHIVO_EXCEL_AL} · ${ARCHIVO_EXCEL_AL_NOTA}`,
-    montoContextoSfAl: `${fmtGs(mapa.excelGs)} Gs (solo contexto)`,
-    delta:
-      tieneCanon && deltaCanonTxt != null
-        ? `${fmtGs(deltaCanonTxt)} Gs  (canon − TXT)`
-        : esDescuadre
-          ? `${fmtGs(mapa.delta)} Gs  (grilla SF AL − TXT · no oficial)`
-          : "—",
-    deltaNota: tieneCanon
-      ? `Canon: ${canon.archivo}`
-      : "Δ grilla≠canon · no usar SF AL para decidir",
-    muestraSitFin: `${fmtGs(mapa.canonGs ?? mapa.txtGs)} Gs  ← TXT operativo`,
-    queHacer: tieneCanon
-      ? `Abrí ${canon.path} y el TXT indicado. Si difieren, el Δ es señal. No parchees JSON. No uses ${ARCHIVO_EXCEL_AL} para cerrar la cifra.`
-      : `Para métricas Jul↔Ago usá Activar comparación (canones ${CMP_ARCHIVO_JUL} ↔ ${CMP_ARCHIVO_AGO}). Este mes no tiene Excel canon: mirá el TXT; ignorá ${ARCHIVO_EXCEL_AL} en la comparativa.`,
+    montoTxt: `${fmtGs(txtGs)} Gs`,
+    delta: esDescuadre
+      ? `${fmtGs(delta)} Gs  (canon − TXT)`
+      : "—",
+    muestraSitFin: `${fmtGs(txtGs)} Gs  ← TXT operativo`,
+    queHacer: `Abrí el canon (${CMP_ARCHIVO_JUL} o ${CMP_ARCHIVO_AGO}) y el TXT. El Δ es señal de integridad — no se parchea en JSON. La comparación USD Jul↔Ago es el botón Activar comparación.`,
     concepto,
   };
 }
