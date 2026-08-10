@@ -10,6 +10,7 @@ import {
   type SfRespaldoOrigen,
 } from "@/lib/situacion-financiera/mol-key";
 import type { ExcelAlRow, MolNode } from "@/lib/situacion-financiera/types";
+import { explicarAlerta } from "@/lib/situacion-financiera/alerta-inconsistencia";
 import { MolAccordionPanel } from "./MolAccordion";
 import { SitFinComparacionPanel } from "./SitFinComparacionPanel";
 
@@ -22,6 +23,9 @@ type MapaFila = {
   canonGs: number | null;
   delta: number | null;
   archivo: string | null;
+  label?: string | null;
+  archivoExcel?: string | null;
+  archivoTxt?: string | null;
 };
 
 const MAPA = (mapaCanon as { porFila: Record<string, MapaFila> }).porFila;
@@ -143,13 +147,6 @@ type Annotated = {
   molKey: string | null;
 };
 
-function fmtGsBadge(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return "—";
-  return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
-    Math.round(n)
-  );
-}
-
 function BadgeAlerta({
   badge,
   mapa,
@@ -161,51 +158,81 @@ function BadgeAlerta({
   open: boolean;
   onToggle: () => void;
 }) {
+  const ex = explicarAlerta(badge, mapa);
   const esDescuadre = badge === "Δ";
-  const titulo = esDescuadre
-    ? "Descuadre Excel ↔ TXT"
-    : "Excel vacío · TXT tiene monto";
-  const cuerpo = esDescuadre
-    ? `El Excel admin tenía ${fmtGsBadge(mapa.excelGs)} Gs y el TXT limpio suma ${fmtGsBadge(mapa.txtGs)} Gs (Δ Excel−TXT = ${fmtGsBadge(mapa.delta)}). En Sit Fin isla el canon es el TXT; el Δ es señal de mapeo, no se parchea.`
-    : `La celda Excel estaba en 0/vacío; el TXT aporta ${fmtGsBadge(mapa.txtGs)} Gs. Se muestra el TXT (canon isla).`;
 
   return (
     <span className="relative ml-1 inline-block align-middle">
       <button
         type="button"
-        className={`rounded px-1 text-[9px] font-bold ${
+        className={`rounded px-1.5 py-0.5 text-[11px] font-bold leading-none ${
           esDescuadre
             ? "bg-red-200 text-red-900 hover:bg-red-300"
             : "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
         }`}
-        aria-label={titulo}
-        title="Clic para explicación"
+        aria-label={ex.titulo}
+        title="Clic → ver archivos y montos"
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
       >
-        {esDescuadre ? "⚠ Δ" : badge}
+        {esDescuadre ? "⚠ Δ" : "TXT"}
       </button>
       {open ? (
         <span
           role="dialog"
-          className="absolute left-0 top-full z-30 mt-1 w-72 rounded-md border border-slate-400 bg-white p-2 text-left text-[10px] font-normal normal-case leading-snug text-slate-800 shadow-lg"
+          className="absolute left-0 top-full z-40 mt-1.5 w-[22rem] max-w-[min(22rem,92vw)] rounded-lg border-2 border-slate-500 bg-white p-3 text-left text-[12px] font-normal normal-case leading-snug text-slate-900 shadow-xl sm:w-[26rem] sm:max-w-[26rem]"
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="block font-semibold text-[#1F4E79]">{titulo}</span>
-          <span className="mt-1 block">{cuerpo}</span>
-          {mapa.archivo ? (
-            <span className="mt-1 block font-mono text-[9px] text-sky-800">
-              Doc: {mapa.archivo}
-            </span>
-          ) : null}
-          <span className="mt-1 block text-[9px] text-slate-500">
-            Isla SF · canon = TXT cuando hay respaldo limpio
+          <span className="block text-[14px] font-bold text-[#1F4E79]">
+            {ex.titulo}
           </span>
+          <span className="mt-2 block text-[12px]">{ex.quePaso}</span>
+
+          <span className="mt-3 block rounded border border-amber-300 bg-amber-50 px-2 py-1.5">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+              Archivo Excel (número de la celda)
+            </span>
+            <span className="mt-0.5 block break-all font-mono text-[13px] font-semibold text-amber-950">
+              {ex.archivoExcel}
+            </span>
+            <span className="mt-1 block tabular-nums text-[12px]">
+              Monto Excel: <strong>{ex.montoExcel}</strong>
+            </span>
+          </span>
+
+          <span className="mt-2 block rounded border border-emerald-400 bg-emerald-50 px-2 py-1.5">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-emerald-900">
+              Archivo TXT limpio (respaldo)
+            </span>
+            <span className="mt-0.5 block break-all font-mono text-[13px] font-semibold text-emerald-950">
+              {ex.archivoTxt}
+            </span>
+            <span className="mt-1 block tabular-nums text-[12px]">
+              Monto TXT: <strong>{ex.montoTxt}</strong>
+            </span>
+          </span>
+
+          <span className="mt-2 block space-y-0.5 text-[12px]">
+            {esDescuadre ? (
+              <span className="block">
+                Diferencia (Δ): <strong className="text-red-800">{ex.delta}</strong>
+              </span>
+            ) : null}
+            <span className="block">
+              Lo que muestra Sit Fin:{" "}
+              <strong className="text-emerald-900">{ex.canon}</strong>
+            </span>
+          </span>
+
+          <span className="mt-2 block rounded border border-sky-300 bg-sky-50 px-2 py-1.5 text-[12px] text-sky-950">
+            <strong>Qué hacer:</strong> {ex.queHacer}
+          </span>
+
           <button
             type="button"
-            className="mt-1.5 text-[9px] font-semibold text-sky-800 underline"
+            className="mt-2.5 text-[12px] font-semibold text-sky-800 underline"
             onClick={(e) => {
               e.stopPropagation();
               onToggle();
@@ -446,7 +473,10 @@ export function SitFinExcelAlTab() {
                       {badge && mapa ? (
                         <BadgeAlerta
                           badge={badge}
-                          mapa={mapa}
+                          mapa={{
+                            ...mapa,
+                            label: mapa.label || row.label || null,
+                          }}
                           open={openBadge === row.r}
                           onToggle={() =>
                             setOpenBadge((prev) =>

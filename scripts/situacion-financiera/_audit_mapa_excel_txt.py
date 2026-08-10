@@ -163,7 +163,7 @@ def main():
             concepto = "aging"
             origen = "txt"
             txt_gs = txt_aging[mol_key]["gs"]
-            archivo = "SALDO CLIENTES DETALLADO*.txt"
+            archivo = "SALDO CLIENTES DETALLADO AL 03-08.txt"
         elif "SALDO DE CLIENTES" in u and "VENCIDOS" not in u:
             ym = mes_desde_label(lab) or ctx
             mol_key = f"clientes:{ym}" if ym else "clientes:corte"
@@ -171,7 +171,7 @@ def main():
             # Previsión mes a mes = Excel/cuadro Guido; TXT corte = stock total (no mes)
             origen = "excel_prevision"
             txt_gs = None
-            archivo = "Excel/cuadro (TXT corte ≠ mes proyectado)"
+            archivo = "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)"
         elif "MERCADER" in u or "PV Y PROG" in u:
             ym = mes_desde_label(lab) or ctx
             mol_key = f"pv:{ym}" if ("PV" in u or "PROG" in u) else f"mercaderia:{ym}"
@@ -181,7 +181,7 @@ def main():
             # Sit Fin usa verde Guido (A ENTREGAR); TXT PV es universo mayor → referencia
             origen = "excel_prevision"
             txt_gs = mol.get(mol_key, {}).get("gs") or mol.get(f"pv:{ym}", {}).get("gs")
-            archivo = "Excel/Guido A ENTREGAR · ref TXT PV Y PROG"
+            archivo = "SF AL 03-08.xlsx · ref PV Y PROG.txt"
         elif "LUISITO" in u:
             concepto = "luisito"
             origen = "txt"
@@ -190,7 +190,7 @@ def main():
             info = mol.get(mol_key) or mol.get("luisito:cuadro")
             if info and info.get("gs") is not None:
                 txt_gs = float(info["gs"])
-            archivo = "clientes.xlsx (TIPO=LUISITO) × saldo TXT"
+            archivo = "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)"
         elif "DIF" in u and "COBRO" in u:
             concepto = "dificil"
             # Canon: TXT filtrado DIFICIL+SALEMMA cuando hay cruce; mes Excel = previsión
@@ -203,11 +203,11 @@ def main():
                 info = mol.get(mol_key)
                 if info and info.get("gs") is not None:
                     txt_gs = float(info["gs"])
-                archivo = "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT"
+                archivo = "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)"
             else:
                 origen = "excel_prevision"
                 mol_key = dificil_key(lab)
-                archivo = "SF AL.xlsx · DIF.COBRO mes (proyección)"
+                archivo = "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)"
         elif "SALDO DISPONIBLE" in u:
             concepto = "calc"
             origen = "calc"
@@ -252,6 +252,24 @@ def main():
             estado = "calc"
             canon = excel_gs
 
+        archivo_excel = "SF AL 03-08.xlsx"
+        if concepto == "dificil" and origen == "excel_prevision":
+            archivo_excel = "SF AL 03-08.xlsx · bloque DIF.COBRO"
+        elif origen == "excel_prevision":
+            archivo_excel = "SF AL 03-08.xlsx · celda previsión mes"
+
+        archivo_txt = archivo
+        if concepto == "aging":
+            archivo_txt = "SALDO CLIENTES DETALLADO AL 03-08.txt"
+        elif concepto == "luisito":
+            archivo_txt = "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt"
+        elif concepto == "dificil" and origen == "txt":
+            archivo_txt = "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt"
+        elif concepto == "cheques" and archivo and str(archivo).endswith(".txt"):
+            archivo_txt = archivo
+        elif concepto in ("clientes", "pv_merc"):
+            archivo_txt = archivo  # puede ser nota de previsión
+
         filas.append(
             {
                 "r": r["r"],
@@ -267,6 +285,8 @@ def main():
                 "canon_gs": canon,
                 "delta_excel_minus_txt": delta,
                 "archivo": archivo,
+                "archivo_excel": archivo_excel,
+                "archivo_txt": archivo_txt,
                 "estado": estado,
             }
         )
@@ -292,6 +312,8 @@ def main():
             "canonGs": f["canon_gs"],
             "delta": f["delta_excel_minus_txt"],
             "archivo": f["archivo"],
+            "archivoExcel": f["archivo_excel"],
+            "archivoTxt": f["archivo_txt"],
             "label": f["label"],
         }
         for f in filas

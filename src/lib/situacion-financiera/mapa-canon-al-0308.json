@@ -21,7 +21,7 @@
       "txtGs": null,
       "canonGs": 0.0,
       "delta": null,
-      "archivo": "Excel/cuadro (TXT corte ≠ mes proyectado)",
+      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "label": "SALDO DE CLIENTES"
     },
     "13": {
@@ -32,7 +32,7 @@
       "txtGs": 5825010035.0,
       "canonGs": 0.0,
       "delta": -5825010035.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "MERCADERIAS A ENTREGAR"
     },
     "14": {
@@ -43,7 +43,7 @@
       "txtGs": 1644155423.0,
       "canonGs": 1644155423.0,
       "delta": -1644155423.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS"
     },
     "15": {
@@ -54,7 +54,7 @@
       "txtGs": 197468699.0,
       "canonGs": 197468699.0,
       "delta": -197468699.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS"
     },
     "17": {
@@ -65,7 +65,7 @@
       "txtGs": 5825010035.0,
       "canonGs": 0.0,
       "delta": -5825010035.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "PV Y PROG A COBRAR"
     },
     "18": {
@@ -76,7 +76,7 @@
       "txtGs": 2015617848.0,
       "canonGs": 2015617848.0,
       "delta": -2015617848.0,
-      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
       "label": "PAGO LUISITO"
     },
     "23": {
@@ -109,7 +109,7 @@
       "txtGs": null,
       "canonGs": 956137930.0,
       "delta": null,
-      "archivo": "Excel/cuadro (TXT corte ≠ mes proyectado)",
+      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "label": "SALDO DE CLIENTES"
     },
     "26": {
@@ -120,7 +120,7 @@
       "txtGs": 9092820174.0,
       "canonGs": 58938301.0,
       "delta": -9033881873.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "MERCADERIAS A ENTREGAR"
     },
     "28": {
@@ -131,7 +131,7 @@
       "txtGs": 2015617848.0,
       "canonGs": 2015617848.0,
       "delta": -1364979184.0,
-      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
       "label": "PAGO LUISITO"
     },
     "29": {
@@ -142,7 +142,7 @@
       "txtGs": 9092820174.0,
       "canonGs": 0.0,
       "delta": -9092820174.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "PV Y PROG A COBRAR"
     },
     "34": {
@@ -175,7 +175,7 @@
       "txtGs": null,
       "canonGs": 456952862.0,
       "delta": null,
-      "archivo": "Excel/cuadro (TXT corte ≠ mes proyectado)",
+      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "label": "SALDO DE CLIENTES"
     },
     "37": {
@@ -186,7 +186,7 @@
       "txtGs": 90353587.0,
       "canonGs": 171826712.0,
       "delta": 81473125.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "MERCADERIAS A ENTREGAR"
     },
     "39": {
@@ -197,7 +197,7 @@
       "txtGs": 2015617848.0,
       "canonGs": 2015617848.0,
       "delta": -1902444132.0,
-      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
       "label": "PAGO LUISITO"
     },
     "40": {
@@ -208,7 +208,7 @@
       "txtGs": 90353587.0,
       "canonGs": 0.0,
       "delta": -90353587.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "PV Y PROG A COBRAR"
     },
     "45": {
@@ -241,7 +241,7 @@
       "txtGs": null,
       "canonGs": 179368377.0,
       "delta": null,
-      "archivo": "Excel/cuadro (TXT corte ≠ mes proyectado)",
+      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "label": "SALDO DE CLIENTES"
     },
     "48": {
@@ -252,7 +252,7 @@
       "txtGs": 0.0,
       "canonGs": 93343634.0,
       "delta": 93343634.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "MERCADERIAS A ENTREGAR"
     },
     "50": {
@@ -263,7 +263,7 @@
       "txtGs": 2015617848.0,
       "canonGs": 2015617848.0,
       "delta": null,
-      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
       "label": "PAGO LUISITO"
     },
     "51": {
@@ -274,7 +274,7 @@
       "txtGs": 0.0,
       "canonGs": 0.0,
       "delta": 0.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "PV Y PROG A COBRAR"
     },
     "56": {
@@ -307,7 +307,7 @@
       "txtGs": null,
       "canonGs": 35573400.0,
       "delta": null,
-      "archivo": "Excel/cuadro (TXT corte ≠ mes proyectado)",
+      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "label": "SALDO DE CLIENTES"
     },
     "59": {
@@ -318,7 +318,7 @@
       "txtGs": 0.0,
       "canonGs": 45714813.0,
       "delta": 45714813.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "MERCADERIAS A ENTREGAR"
     },
     "61": {
@@ -329,7 +329,7 @@
       "txtGs": 2015617848.0,
       "canonGs": 2015617848.0,
       "delta": null,
-      "archivo": "clientes.xlsx (TIPO=LUISITO) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
       "label": "PAGO LUISITO"
     },
     "62": {
@@ -340,7 +340,7 @@
       "txtGs": 0.0,
       "canonGs": 0.0,
       "delta": 0.0,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "PV Y PROG A COBRAR"
     },
     "67": {
@@ -384,7 +384,7 @@
       "txtGs": null,
       "canonGs": null,
       "delta": null,
-      "archivo": "Excel/cuadro (TXT corte ≠ mes proyectado)",
+      "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "label": "SALDO DE CLIENTES - ENERO 26"
     },
     "76": {
@@ -395,7 +395,7 @@
       "txtGs": null,
       "canonGs": 2919676.0,
       "delta": null,
-      "archivo": "Excel/Guido A ENTREGAR · ref TXT PV Y PROG",
+      "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "label": "MERCADERIAS A ENTREGAR ENERO 26"
     },
     "77": {
@@ -406,7 +406,7 @@
       "txtGs": 266975386.0,
       "canonGs": 266975386.0,
       "delta": -197434184.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS"
     },
     "78": {
@@ -417,7 +417,7 @@
       "txtGs": 33923817.0,
       "canonGs": 33923817.0,
       "delta": 7499098.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS"
     },
     "79": {
@@ -428,7 +428,7 @@
       "txtGs": 140359557.0,
       "canonGs": 140359557.0,
       "delta": -119614762.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS"
     },
     "80": {
@@ -439,7 +439,7 @@
       "txtGs": 16604422.0,
       "canonGs": 16604422.0,
       "delta": 22787286.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS"
     },
     "81": {
@@ -450,7 +450,7 @@
       "txtGs": 134152519.0,
       "canonGs": 134152519.0,
       "delta": -90442077.0,
-      "archivo": "SALDO CLIENTES DETALLADO*.txt",
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "SALDO DE CLIENTES VENCIDOS MAYOR A  180 DIAS"
     },
     "89": {
@@ -461,7 +461,7 @@
       "txtGs": 165407125.0,
       "canonGs": 165407125.0,
       "delta": 11215976.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "SALDO DE CLIENTES VENCIDOS A 30 DIAS (DIF.COBRO)"
     },
     "90": {
@@ -472,7 +472,7 @@
       "txtGs": 204538472.0,
       "canonGs": 204538472.0,
       "delta": -4763499.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "SALDO DE CLIENTES VENCIDOS A 60 DIAS (DIF.COBRO)"
     },
     "91": {
@@ -483,7 +483,7 @@
       "txtGs": 59261142.0,
       "canonGs": 59261142.0,
       "delta": 6480078.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "SALDO DE CLIENTES VENCIDOS A 90 DIAS (DIF.COBRO)"
     },
     "92": {
@@ -494,7 +494,7 @@
       "txtGs": 137079802.0,
       "canonGs": 137079802.0,
       "delta": -2478053.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "SALDO DE CLIENTES VENCIDOS A 120 DIAS (DIF.COBRO)"
     },
     "93": {
@@ -505,7 +505,7 @@
       "txtGs": 16276860.0,
       "canonGs": 16276860.0,
       "delta": -3816719.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "SALDO DE CLIENTES VENCIDOS A 150 DIAS (DIF.COBRO)"
     },
     "94": {
@@ -516,7 +516,7 @@
       "txtGs": 3647160.0,
       "canonGs": 3647160.0,
       "delta": 10477227.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "SALDO DE CLIENTES VENCIDOS A 180 DIAS (DIF.COBRO)"
     },
     "95": {
@@ -527,7 +527,7 @@
       "txtGs": 63051188.0,
       "canonGs": 63051188.0,
       "delta": 3741820.0,
-      "archivo": "clientes.xlsx (DIFICIL/SALEMMA) × saldo TXT",
+      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
       "label": "MAYORES A 180 DIAS(DIF COBRO)"
     },
     "96": {
@@ -538,7 +538,7 @@
       "txtGs": null,
       "canonGs": 636166543.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
+      "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "label": "AGOSTO 26 (DIF COBRO)"
     },
     "97": {
@@ -549,7 +549,7 @@
       "txtGs": null,
       "canonGs": 346413764.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
+      "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "label": "SETIEMBRE 26 (DIF COBRO)"
     },
     "98": {
@@ -560,7 +560,7 @@
       "txtGs": null,
       "canonGs": 130290050.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
+      "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "label": "OCTUBRE 26 (DIF COBRO)"
     },
     "99": {
@@ -571,7 +571,7 @@
       "txtGs": null,
       "canonGs": 38910630.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
+      "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "label": "NOVIEMBRE 26 (DIF COBRO)"
     },
     "100": {
@@ -582,7 +582,7 @@
       "txtGs": null,
       "canonGs": 6568488.0,
       "delta": null,
-      "archivo": "SF AL.xlsx · DIF.COBRO mes (proyección)",
+      "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "label": "DICIEMBRE 26 (DIF COBRO)"
     }
   }
