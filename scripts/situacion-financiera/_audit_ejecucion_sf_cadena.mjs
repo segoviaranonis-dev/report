@@ -91,12 +91,29 @@ check(
 const filasComp = comp.filas || [];
 report.comparacion = {
   n: filasComp.length,
-  con_pct: filasComp.filter((f) => f.pct_nexus_vs_jul != null).length,
+  modo: comp.comparacion?.modo,
+  canon_jul: comp.canon?.julio?.path || comp.base?.path,
+  canon_ago: comp.canon?.agosto?.path || comp.actual?.path,
+  con_pct: filasComp.filter((f) => f.pct_usd_canon != null || f.pct_usd_admin_ago_vs_jul != null).length,
   fidelidad_pct: comp.resumen?.fidelidad_pct,
-  luisito_pct: filasComp.find((f) => f.concepto === "luisito")?.pct_nexus_vs_jul,
-  cheques_pct: filasComp.find((f) => f.concepto === "cheques")?.pct_nexus_vs_jul,
+  luisito_pct:
+    filasComp.find((f) => f.concepto === "luisito")?.pct_usd_canon ??
+    filasComp.find((f) => f.concepto === "luisito")?.pct_nexus_vs_jul,
+  cheques_pct:
+    filasComp.find((f) => f.concepto === "cheques")?.pct_usd_canon ??
+    filasComp.find((f) => f.concepto === "cheques")?.pct_nexus_vs_jul,
 };
 check("comp_n_filas", filasComp.length >= 15, `n=${filasComp.length}`);
+check(
+  "comp_modo_canon",
+  String(comp.comparacion?.modo || "").includes("canon"),
+  `modo=${comp.comparacion?.modo}`
+);
+check(
+  "comp_canon_ago_path",
+  String(comp.canon?.agosto?.path || "").includes("08.SITUACION"),
+  `ago=${comp.canon?.agosto?.path}`
+);
 check("mapa_porFila", Object.keys(mapa.porFila || {}).length > 10, `n=${Object.keys(mapa.porFila || {}).length}`);
 
 // --- Supabase: cliente_cadena_v2 ---

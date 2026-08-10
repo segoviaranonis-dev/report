@@ -14,12 +14,12 @@
     {
       "name": "comp_base_mes",
       "ok": true,
-      "detail": "{\"mes\":\"2026-07\",\"corte\":\"2026-07-01\",\"archivo\":\"07.SITUACION_FINANCIERA_01072026.xlsx\",\"tasaUsd\":6085}"
+      "detail": "{\"mes\":\"2026-07\",\"corte\":\"2026-07-01\",\"archivo\":\"07.SITUACION FINANCIERA 01072026.xlsx\",\"path\":\"Z:\\\\hector\\\\SF\\\\07.SITUACION FINANCIERA 01072026.xlsx\",\"tasaUsd\":6085,\"rol\":\"canon_julio\"}"
     },
     {
       "name": "comp_actual_mes",
       "ok": true,
-      "detail": "{\"mes\":\"2026-08\",\"corte_sitfin\":\"2026-08-03\",\"corte_nexus\":\"2026-08-03\",\"fuente\":\"mapa-canon + molecular (isla Sit Fin)\",\"referencia_admin_ago\":\"08.SITUACION_FINANCIERA_01082026.xlsx\",\"tasaUsd\":5970.96}"
+      "detail": "{\"mes\":\"2026-08\",\"corte_admin\":\"2026-08-01\",\"archivo\":\"08.SITUACION FINANCIERA 01082026.xlsx\",\"path\":\"Z:\\\\hector\\\\SF\\\\08.SITUACION FINANCIERA 01082026.xlsx\",\"tasaUsd\":5970.96,\"rol\":\"canon_agosto\",\"fuente\":\"referencia_admin_ago (Excel Guido)\",\"referencia_admin_ago\":\"08.SITUACION FINANCIERA 01082026.xlsx\",\"nota_sitfin\":\"Sit Fin isla / SF AL 03-08 = auditoría vs canon; no columna % primaria\"}"
     },
     {
       "name": "luisito_mol",
@@ -40,6 +40,16 @@
       "name": "comp_n_filas",
       "ok": true,
       "detail": "n=20"
+    },
+    {
+      "name": "comp_modo_canon",
+      "ok": true,
+      "detail": "modo=usd_vs_usd_canon_admin"
+    },
+    {
+      "name": "comp_canon_ago_path",
+      "ok": true,
+      "detail": "ago=Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx"
     },
     {
       "name": "mapa_porFila",
@@ -181,10 +191,13 @@
   },
   "comparacion": {
     "n": 20,
-    "con_pct": 14,
+    "modo": "usd_vs_usd_canon_admin",
+    "canon_jul": "Z:\\hector\\SF\\07.SITUACION FINANCIERA 01072026.xlsx",
+    "canon_ago": "Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx",
+    "con_pct": 20,
     "fidelidad_pct": 50,
-    "luisito_pct": 73.57,
-    "cheques_pct": -11.67
+    "luisito_pct": -55.06,
+    "cheques_pct": -10.41
   },
   "errores": []
 }

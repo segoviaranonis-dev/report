@@ -1,6 +1,12 @@
 /**
- * Lookup Jul↔Ago USD para columnas en la grilla Excel AL.
- * Fuente: comparacion-ago-vs-jul.json (isla · USD vs USD + %).
+ * Lookup Jul↔Ago USD — SOLO canones admin Guido.
+ *
+ * Canon:
+ *   Z:\hector\SF\07.SITUACION FINANCIERA 01072026.xlsx
+ *   Z:\hector\SF\08.SITUACION FINANCIERA 01082026.xlsx
+ *
+ * Columnas UI = julio_base_usd · agosto_canon_usd · pct_usd_canon
+ * Sit Fin / SF AL / TXT = auditoría; no definen el %.
  */
 
 import comparacion from "./comparacion-ago-vs-jul.json";
@@ -9,29 +15,65 @@ export type CmpUsdFila = {
   concepto: string;
   label: string | null;
   julio_base_usd?: number | null;
+  /** Canon Agosto = Excel admin 08… */
+  agosto_canon_usd?: number | null;
+  agosto_admin_usd?: number | null;
+  /** @deprecated UI ya no usa Sit Fin para columnas */
   agosto_sitfin_usd?: number | null;
+  pct_usd_canon?: number | null;
+  pct_usd_admin_ago_vs_jul?: number | null;
   pct_usd_sitfin_vs_jul?: number | null;
   pct_nexus_vs_jul?: number | null;
   molKey: string | null;
+  fuente_julio?: string | null;
+  fuente_agosto?: string | null;
 };
 
 type CmpJson = {
-  comparacion?: { tasa_julio?: number; tasa_agosto?: number };
-  base?: { tasaUsd?: number; archivo?: string };
-  actual?: { tasaUsd?: number };
+  canon?: {
+    julio?: { path?: string; archivo?: string; tasaUsd?: number };
+    agosto?: { path?: string; archivo?: string; tasaUsd?: number };
+  };
+  comparacion?: {
+    tasa_julio?: number;
+    tasa_agosto?: number;
+    modo?: string;
+  };
+  base?: { tasaUsd?: number; archivo?: string; path?: string };
+  actual?: { tasaUsd?: number; archivo?: string; path?: string };
   filas: CmpUsdFila[];
 };
 
 const DATA = comparacion as CmpJson;
 
 export const CMP_TASA_JULIO =
-  DATA.comparacion?.tasa_julio ?? DATA.base?.tasaUsd ?? 6085;
+  DATA.canon?.julio?.tasaUsd ??
+  DATA.comparacion?.tasa_julio ??
+  DATA.base?.tasaUsd ??
+  6085;
 export const CMP_TASA_AGOSTO =
-  DATA.comparacion?.tasa_agosto ?? DATA.actual?.tasaUsd ?? 5970.96;
-export const CMP_ARCHIVO_JUL =
-  DATA.base?.archivo ?? "07.SITUACION_FINANCIERA_01072026.xlsx";
+  DATA.canon?.agosto?.tasaUsd ??
+  DATA.comparacion?.tasa_agosto ??
+  DATA.actual?.tasaUsd ??
+  5970.96;
 
-/** Índice por molKey exacta + por stem (cheques ← cheques:2026-08). */
+export const CMP_PATH_JUL =
+  DATA.canon?.julio?.path ??
+  DATA.base?.path ??
+  String.raw`Z:\hector\SF\07.SITUACION FINANCIERA 01072026.xlsx`;
+export const CMP_PATH_AGO =
+  DATA.canon?.agosto?.path ??
+  DATA.actual?.path ??
+  String.raw`Z:\hector\SF\08.SITUACION FINANCIERA 01082026.xlsx`;
+export const CMP_ARCHIVO_JUL =
+  DATA.canon?.julio?.archivo ??
+  DATA.base?.archivo ??
+  "07.SITUACION FINANCIERA 01072026.xlsx";
+export const CMP_ARCHIVO_AGO =
+  DATA.canon?.agosto?.archivo ??
+  DATA.actual?.archivo ??
+  "08.SITUACION FINANCIERA 01082026.xlsx";
+
 function buildIndex(): {
   byMol: Map<string, CmpUsdFila>;
   byStem: Map<string, CmpUsdFila>;
@@ -54,10 +96,6 @@ function buildIndex(): {
 
 const IDX = buildIndex();
 
-/**
- * Solo llena Jul↔Ago en el bloque Agosto (mes base de la comparación).
- * Otras filas (sep, oct…) → null (celdas vacías).
- */
 export function lookupCmpUsd(opts: {
   molKey: string | null | undefined;
   label: string | null | undefined;
@@ -66,7 +104,6 @@ export function lookupCmpUsd(opts: {
   const mes = opts.mesCtx || null;
   const mk = opts.molKey || null;
 
-  // Aging / claves sin mes: siempre son el par Jul↔Ago del corte
   const sinMes =
     !!mk &&
     (mk.startsWith("aging:") ||
@@ -84,12 +121,7 @@ export function lookupCmpUsd(opts: {
 
   if (mk?.includes(":")) {
     const stem = mk.split(":")[0];
-    // Solo stem de agosto (o sin mes)
-    if (
-      mk.endsWith(":2026-08") ||
-      sinMes ||
-      !/:\d{4}-\d{2}/.test(mk)
-    ) {
+    if (mk.endsWith(":2026-08") || sinMes || !/:\d{4}-\d{2}/.test(mk)) {
       if (stem && IDX.byStem.has(stem)) return IDX.byStem.get(stem)!;
     }
   }
@@ -98,6 +130,20 @@ export function lookupCmpUsd(opts: {
   if (lab && IDX.byLabel.has(lab)) return IDX.byLabel.get(lab)!;
 
   return null;
+}
+
+/** USD Agosto canon (Excel 08…). */
+export function usdAgostoCanon(f: CmpUsdFila | null | undefined): number | null {
+  if (!f) return null;
+  const v = f.agosto_canon_usd ?? f.agosto_admin_usd;
+  return v == null || Number.isNaN(v) ? null : v;
+}
+
+/** % variación canon (Ago admin − Jul admin) / |Jul|. */
+export function pctCanon(f: CmpUsdFila | null | undefined): number | null {
+  if (!f) return null;
+  const v = f.pct_usd_canon ?? f.pct_usd_admin_ago_vs_jul;
+  return v == null || Number.isNaN(v) ? null : v;
 }
 
 export function fmtCmpUsd(n: number | null | undefined): string {

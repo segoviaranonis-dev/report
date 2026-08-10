@@ -1,11 +1,12 @@
 {
-  "rol": "referencia_admin_ago",
+  "rol": "canon_agosto",
   "corte": "2026-08-01",
   "mes_base": "2026-08",
-  "archivo": "08.SITUACION_FINANCIERA_01082026.xlsx",
+  "archivo": "08.SITUACION FINANCIERA 01082026.xlsx",
+  "path": "Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx",
   "hoja": "Situacion",
   "tasaUsd": 5970.96,
-  "ley": "REFERENCIA ADMIN · no copiar a molecular Nexus · no parchear deltas",
+  "ley": "CANON AGOSTO GUIDO · Z:\\hector\\SF\\08… · métricas de comparación UI solo contra este Excel",
   "n_filas": 103,
   "base_mes": {
     "banco:continental_usd": {

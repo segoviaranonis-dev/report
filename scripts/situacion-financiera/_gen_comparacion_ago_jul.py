@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Comparación porcentual Agosto Sit Fin (isla TXT/mapa) vs Julio (base admin).
+"""Comparación USD Julio ↔ Agosto — SOLO canones admin Guido.
 
-ISLA 2.3.1.50.12: no son «resultados Nexus». Son mapeo del módulo Sit Fin
-(intake propio). Prohibido parchear ni integrar módulos Nexus operativos.
+CANON (rutas Guido):
+  Z:\\hector\\SF\\07.SITUACION FINANCIERA 01072026.xlsx
+  Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx
+
+Sit Fin isla / SF AL 03-08 / TXT del legajo pueden tener errores.
+La métrica de columnas Jul/Ago/% se calcula SOLO entre esos dos Excels.
+Sit Fin vs canon queda como auditoría (delta), no como columna primaria.
 """
 from __future__ import annotations
 
@@ -17,6 +22,12 @@ AGO_ADMIN = SF / "referencia-admin-ago-0108.json"
 MAPA = SF / "mapa-canon-al-0308.json"
 MOL = SF / "molecular-al-0308.json"
 OUT = SF / "comparacion-ago-vs-jul.json"
+
+# Nombres tal cual Guido (carpeta Z:\\hector\\SF\\)
+CANON_JUL_PATH = r"Z:\hector\SF\07.SITUACION FINANCIERA 01072026.xlsx"
+CANON_AGO_PATH = r"Z:\hector\SF\08.SITUACION FINANCIERA 01082026.xlsx"
+CANON_JUL_FILE = "07.SITUACION FINANCIERA 01072026.xlsx"
+CANON_AGO_FILE = "08.SITUACION FINANCIERA 01082026.xlsx"
 
 PUENTE = {
     "cheques": "cheques:2026-08",
@@ -57,9 +68,9 @@ def main():
     mol = json.loads(MOL.read_text(encoding="utf-8"))
     por_fila = mapa.get("porFila") or {}
     tasa_jul = float(jul.get("tasaUsd") or 6085.0)
-    # Tasa Agosto predeterminada del corte Sit Fin / admin Ago
     tasa_ago = float(ago_adm.get("tasaUsd") or 5970.96)
 
+    # Sit Fin solo para auditoría vs canon (no es columna UI)
     sitfin_por_concepto: dict[str, dict] = {}
     molkey_to_canon = {}
     for _r, info in por_fila.items():
@@ -108,58 +119,78 @@ def main():
         jul_usd = jul_info.get("usd")
         if jul_usd is None and jul_gs is not None and tasa_jul:
             jul_usd = round(float(jul_gs) / tasa_jul, 2)
+
+        adm = ref_ago.get(concepto) or {}
+        adm_ago_gs = adm.get("gs")
+        adm_ago_usd = adm.get("usd")
+        if adm_ago_usd is None and adm_ago_gs is not None and tasa_ago:
+            adm_ago_usd = round(float(adm_ago_gs) / tasa_ago, 2)
+
+        # UI primaria: % entre canones admin USD
+        p_usd_canon = pct(adm_ago_usd, jul_usd)
+        p_gs_canon = pct(adm_ago_gs, jul_gs)
+
         sit = sitfin_por_concepto.get(concepto) or {}
-        ago_gs = sit.get("gs")
-        # Agosto Sit Fin: USD con tasa predeterminada del corte Agosto (isla)
-        ago_usd = None
-        if ago_gs is not None and tasa_ago:
-            ago_usd = round(float(ago_gs) / tasa_ago, 2)
-        # Admin Ago solo auditoría interna (no UI primaria)
-        adm_ago = (ref_ago.get(concepto) or {}).get("gs")
-        adm_ago_usd = (ref_ago.get(concepto) or {}).get("usd")
-        p_usd = pct(ago_usd, jul_usd)
-        p_gs = pct(ago_gs, jul_gs)
+        sit_gs = sit.get("gs")
+        sit_usd = None
+        if sit_gs is not None and tasa_ago:
+            sit_usd = round(float(sit_gs) / tasa_ago, 2)
+
         filas.append(
             {
                 "concepto": concepto,
-                "label": jul_info.get("label"),
+                "label": jul_info.get("label") or adm.get("label"),
+                # --- CANON UI ---
                 "julio_base_gs": jul_gs,
                 "julio_base_usd": jul_usd,
-                "agosto_sitfin_gs": ago_gs,
-                "agosto_sitfin_usd": ago_usd,
-                "agosto_nexus_gs": ago_gs,
-                "agosto_admin_gs": adm_ago,
+                "agosto_canon_gs": adm_ago_gs,
+                "agosto_canon_usd": adm_ago_usd,
+                # alias estables para UI (canon = admin Ago)
+                "agosto_admin_gs": adm_ago_gs,
                 "agosto_admin_usd": adm_ago_usd,
+                "delta_usd_canon": (
+                    None
+                    if adm_ago_usd is None or jul_usd is None
+                    else round(float(adm_ago_usd) - float(jul_usd), 2)
+                ),
+                "pct_usd_canon": p_usd_canon,
+                "pct_admin_ago_vs_jul": p_gs_canon,
+                "pct_usd_admin_ago_vs_jul": p_usd_canon,
+                # --- auditoría Sit Fin vs canones (no columna primaria) ---
+                "agosto_sitfin_gs": sit_gs,
+                "agosto_sitfin_usd": sit_usd,
+                "agosto_nexus_gs": sit_gs,
                 "delta_usd_sitfin_vs_jul": (
                     None
-                    if ago_usd is None or jul_usd is None
-                    else round(ago_usd - jul_usd, 2)
+                    if sit_usd is None or jul_usd is None
+                    else round(sit_usd - jul_usd, 2)
                 ),
-                "pct_usd_sitfin_vs_jul": p_usd,
-                "pct_sitfin_vs_jul": p_usd if p_usd is not None else p_gs,
-                "pct_nexus_vs_jul": p_usd if p_usd is not None else p_gs,
-                "pct_admin_ago_vs_jul": pct(adm_ago, jul_gs),
+                "pct_usd_sitfin_vs_jul": pct(sit_usd, jul_usd),
+                "pct_sitfin_vs_jul": pct(sit_usd, jul_usd) or pct(sit_gs, jul_gs),
+                "pct_nexus_vs_jul": pct(sit_usd, jul_usd) or pct(sit_gs, jul_gs),
                 "delta_gs_sitfin_vs_jul": (
                     None
-                    if ago_gs is None or jul_gs is None
-                    else round(ago_gs - jul_gs, 2)
+                    if sit_gs is None or jul_gs is None
+                    else round(float(sit_gs) - float(jul_gs), 2)
                 ),
                 "delta_gs_nexus_vs_jul": (
                     None
-                    if ago_gs is None or jul_gs is None
-                    else round(ago_gs - jul_gs, 2)
+                    if sit_gs is None or jul_gs is None
+                    else round(float(sit_gs) - float(jul_gs), 2)
                 ),
                 "delta_sitfin_vs_admin_ago": (
                     None
-                    if ago_gs is None or adm_ago is None
-                    else round(ago_gs - adm_ago, 2)
+                    if sit_gs is None or adm_ago_gs is None
+                    else round(float(sit_gs) - float(adm_ago_gs), 2)
                 ),
                 "delta_nexus_vs_admin_ago": (
                     None
-                    if ago_gs is None or adm_ago is None
-                    else round(ago_gs - adm_ago, 2)
+                    if sit_gs is None or adm_ago_gs is None
+                    else round(float(sit_gs) - float(adm_ago_gs), 2)
                 ),
                 "molKey": sit.get("molKey"),
+                "fuente_julio": CANON_JUL_PATH,
+                "fuente_agosto": CANON_AGO_PATH,
                 "fuente_sitfin": sit.get("fuente"),
                 "fuente_nexus": sit.get("fuente"),
                 "acordeon": bool(sit.get("molKey") and sit["molKey"] in mol),
@@ -169,46 +200,67 @@ def main():
     con_usd = [
         f
         for f in filas
-        if f["julio_base_usd"] is not None and f["agosto_sitfin_usd"] is not None
+        if f["julio_base_usd"] is not None and f["agosto_canon_usd"] is not None
     ]
     out = {
-        "titulo": "Comparación USD · Julio base ↔ Agosto Sit Fin (isla)",
+        "titulo": "Comparación USD · Julio canon ↔ Agosto canon (admin Guido)",
         "ley": (
-            "ISLA 2.3.1.50.12 · Solo campos Julio vs Agosto. "
-            "Comparación en USD (tasa Julio + tasa Agosto predeterminadas del corte). "
-            "USD vs USD + %. NO resultados Nexus operativos."
+            "CANON GUIDO · Solo Z:\\hector\\SF\\07.SITUACION FINANCIERA 01072026.xlsx "
+            "vs Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx. "
+            "USD vs USD + %. Otros archivos del legajo (SF AL / TXT) pueden tener errores — "
+            "toda discrepancia se verifica contra estos dos canones. "
+            "NO resultados Nexus operativos."
         ),
         "isla": True,
+        "canon": {
+            "julio": {
+                "path": CANON_JUL_PATH,
+                "archivo": CANON_JUL_FILE,
+                "tasaUsd": tasa_jul,
+            },
+            "agosto": {
+                "path": CANON_AGO_PATH,
+                "archivo": CANON_AGO_FILE,
+                "tasaUsd": tasa_ago,
+            },
+            "regla": "metricas_columnas_solo_entre_canones_admin",
+        },
         "comparacion": {
-            "modo": "usd_vs_usd",
+            "modo": "usd_vs_usd_canon_admin",
             "meses": ["2026-07", "2026-08"],
             "tasa_julio": tasa_jul,
             "tasa_agosto": tasa_ago,
+            "ui_agosto": "agosto_canon_usd",
+            "ui_pct": "pct_usd_canon",
         },
         "base": {
             "mes": "2026-07",
             "corte": jul.get("corte"),
-            "archivo": jul.get("archivo"),
+            "archivo": CANON_JUL_FILE,
+            "path": CANON_JUL_PATH,
             "tasaUsd": tasa_jul,
+            "rol": "canon_julio",
         },
         "actual": {
             "mes": "2026-08",
-            "corte_sitfin": "2026-08-03",
-            "corte_nexus": "2026-08-03",
-            "fuente": "mapa-canon + molecular (isla Sit Fin)",
-            "referencia_admin_ago": ago_adm.get("archivo"),
+            "corte_admin": ago_adm.get("corte"),
+            "archivo": CANON_AGO_FILE,
+            "path": CANON_AGO_PATH,
             "tasaUsd": tasa_ago,
+            "rol": "canon_agosto",
+            "fuente": "referencia_admin_ago (Excel Guido)",
+            "referencia_admin_ago": CANON_AGO_FILE,
+            "nota_sitfin": "Sit Fin isla / SF AL 03-08 = auditoría vs canon; no columna % primaria",
         },
         "resumen": {
             "n_conceptos": len(filas),
-            "con_pct_usd": sum(
+            "con_pct_usd": sum(1 for f in filas if f["pct_usd_canon"] is not None),
+            "con_pct_canon": sum(1 for f in filas if f["pct_usd_canon"] is not None),
+            "con_pct_sitfin_vs_jul": sum(
                 1 for f in filas if f["pct_usd_sitfin_vs_jul"] is not None
             ),
-            "con_pct_sitfin_vs_jul": sum(
-                1 for f in filas if f["pct_sitfin_vs_jul"] is not None
-            ),
             "con_pct_nexus_vs_jul": sum(
-                1 for f in filas if f["pct_sitfin_vs_jul"] is not None
+                1 for f in filas if f["pct_usd_sitfin_vs_jul"] is not None
             ),
             "fidelidad_sitfin_vs_admin_ago_ok": sum(
                 1
@@ -229,7 +281,6 @@ def main():
         },
         "filas": filas,
     }
-    # fidelidad admin (auditoría) — no es la comparación UI
     ok_fid = out["resumen"]["fidelidad_sitfin_vs_admin_ago_ok"]
     tot_fid = out["resumen"]["fidelidad_sitfin_vs_admin_ago_total"]
     out["resumen"]["fidelidad_nexus_vs_admin_ago_ok"] = ok_fid
@@ -241,7 +292,7 @@ def main():
     print(
         "ok",
         OUT,
-        "usd_vs_usd",
+        "canon_admin_usd",
         "tasa_jul",
         tasa_jul,
         "tasa_ago",

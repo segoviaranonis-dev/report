@@ -17,6 +17,10 @@ import {
   fmtCmpPct,
   fmtCmpUsd,
   lookupCmpUsd,
+  pctCanon,
+  usdAgostoCanon,
+  CMP_ARCHIVO_AGO,
+  CMP_ARCHIVO_JUL,
 } from "@/lib/situacion-financiera/cmp-usd-lookup";
 
 type MapaFila = {
@@ -347,19 +351,19 @@ export function SitFinExcelAlTab() {
                 <>
                   <th
                     className="border border-amber-600 bg-amber-800 px-2 py-1.5 text-right w-28"
-                    title="USD Julio · tasa 6085 · archivo admin Jul"
+                    title={`Canon Julio · ${CMP_ARCHIVO_JUL}`}
                   >
                     Julio USD
                   </th>
                   <th
                     className="border border-emerald-700 bg-emerald-900 px-2 py-1.5 text-right w-28"
-                    title="USD Agosto · Sit Fin isla"
+                    title={`Canon Agosto · ${CMP_ARCHIVO_AGO}`}
                   >
                     Agosto USD
                   </th>
                   <th
                     className="border border-violet-700 bg-violet-900 px-2 py-1.5 text-right w-24"
-                    title="% variación (Ago − Jul) / |Jul|"
+                    title="% (Ago canon − Jul canon) / |Jul| · solo Excels admin Guido"
                   >
                     % var.
                   </th>
@@ -476,8 +480,8 @@ export function SitFinExcelAlTab() {
                     mesCtx,
                   })
                 : null;
-              const pct =
-                cmp?.pct_usd_sitfin_vs_jul ?? cmp?.pct_nexus_vs_jul ?? null;
+              const agoUsd = usdAgostoCanon(cmp);
+              const pct = pctCanon(cmp);
               const pctCls =
                 pct == null
                   ? ""
@@ -540,18 +544,29 @@ export function SitFinExcelAlTab() {
                     </td>
                     {compararActivo ? (
                       <>
-                        <td className="border border-amber-300 bg-amber-50/90 px-2 py-0.5 text-right tabular-nums text-[11px]">
+                        <td
+                          className="border border-amber-300 bg-amber-50/90 px-2 py-0.5 text-right tabular-nums text-[11px]"
+                          title={cmp ? CMP_ARCHIVO_JUL : undefined}
+                        >
                           {isHeader || row.kind === "tasa" || row.kind === "prevision"
                             ? ""
                             : fmtCmpUsd(cmp?.julio_base_usd)}
                         </td>
-                        <td className="border border-emerald-300 bg-emerald-50/80 px-2 py-0.5 text-right tabular-nums text-[11px]">
+                        <td
+                          className="border border-emerald-300 bg-emerald-50/80 px-2 py-0.5 text-right tabular-nums text-[11px]"
+                          title={cmp ? CMP_ARCHIVO_AGO : undefined}
+                        >
                           {isHeader || row.kind === "tasa" || row.kind === "prevision"
                             ? ""
-                            : fmtCmpUsd(cmp?.agosto_sitfin_usd)}
+                            : fmtCmpUsd(agoUsd)}
                         </td>
                         <td
                           className={`border border-violet-300 bg-violet-50/70 px-2 py-0.5 text-right tabular-nums text-[11px] ${pctCls}`}
+                          title={
+                            cmp
+                              ? `Canon ${CMP_ARCHIVO_JUL} ↔ ${CMP_ARCHIVO_AGO}`
+                              : undefined
+                          }
                         >
                           {isHeader || row.kind === "tasa" || row.kind === "prevision"
                             ? ""

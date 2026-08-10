@@ -1,11 +1,12 @@
 {
-  "rol": "base_admin",
+  "rol": "canon_julio",
   "corte": "2026-07-01",
   "mes_base": "2026-07",
-  "archivo": "07.SITUACION_FINANCIERA_01072026.xlsx",
+  "archivo": "07.SITUACION FINANCIERA 01072026.xlsx",
+  "path": "Z:\\hector\\SF\\07.SITUACION FINANCIERA 01072026.xlsx",
   "hoja": "SIT FIN",
   "tasaUsd": 6085.0,
-  "ley": "REFERENCIA ADMIN · no copiar a molecular Nexus · no parchear deltas",
+  "ley": "CANON JULIO GUIDO · Z:\\hector\\SF\\07… · toda discrepancia del legajo se verifica contra este Excel",
   "n_filas": 109,
   "base_mes": {
     "banco:continental_usd": {
