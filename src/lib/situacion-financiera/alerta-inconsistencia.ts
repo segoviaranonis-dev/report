@@ -59,6 +59,20 @@ function esNombreTxtReal(s: string | null | undefined): boolean {
   return t.toLowerCase().endsWith(".txt") && !t.includes("*") && !t.includes("·");
 }
 
+/** ¿La etiqueta es un TXT (o TXT+padron) usable en burbuja? Nunca SF AL / solo Excel. */
+export function esFuenteTxtComparacion(s: string | null | undefined): boolean {
+  if (!s?.trim()) return false;
+  const u = s.trim().toUpperCase();
+  if (u.includes("SF AL")) return false;
+  if (u.includes("PREVISIÓN MES") || u.includes("PREVISION MES")) return false;
+  if (u.includes("CELDA PREVISIÓN") || u.includes("CELDA PREVISION")) return false;
+  if (u.includes("BLOQUE DIF.COBRO")) return false;
+  // Debe citar al menos un .TXT (permite "clientes.xlsx + SALDO….txt")
+  if (!u.includes(".TXT")) return false;
+  // Si solo hay .XLSX sin .TXT ya falló arriba
+  return true;
+}
+
 function stemConcepto(molKey: string | null | undefined): string | null {
   if (!molKey) return null;
   if (molKey.startsWith("aging:") || molKey.startsWith("dificil:")) return molKey;
@@ -132,8 +146,11 @@ export function resolverArchivoTxt(mapa: {
   archivo?: string | null;
   archivoTxt?: string | null;
 }): string {
-  if (mapa.archivoTxt?.trim()) return mapa.archivoTxt.trim();
-  if (esNombreTxtReal(mapa.archivo)) return mapa.archivo!.trim();
+  const cand = mapa.archivoTxt?.trim() || "";
+  if (cand && esFuenteTxtComparacion(cand)) return cand;
+  if (esNombreTxtReal(mapa.archivo) && esFuenteTxtComparacion(mapa.archivo)) {
+    return mapa.archivo!.trim();
+  }
   const key = mapa.molKey || "";
   if (key.startsWith("cheques:")) {
     const ym = key.slice("cheques:".length);
@@ -146,11 +163,20 @@ export function resolverArchivoTxt(mapa: {
   if (key.startsWith("pv:") || key.startsWith("mercaderia:")) {
     return "PV Y PROG.txt";
   }
-  if (mapa.archivo?.includes("clientes.xlsx")) {
+  // clientes:YYYY-MM = previsión mes en Excel · NO hay TXT de corte = mes
+  if (key.startsWith("clientes:")) {
+    return "";
+  }
+  if (mapa.archivo?.includes("clientes.xlsx") && mapa.archivo?.includes(".txt")) {
     return `${ARCHIVO_CLIENTES_XLSX} + ${ARCHIVO_SALDO_TXT}`;
   }
-  if (mapa.archivo?.includes("SALDO CLIENTES")) return ARCHIVO_SALDO_TXT;
-  return mapa.archivo?.trim() || "TXT limpio del intake";
+  if (
+    mapa.archivo?.includes("SALDO CLIENTES") &&
+    !mapa.archivo?.toUpperCase().includes("SF AL")
+  ) {
+    return ARCHIVO_SALDO_TXT;
+  }
+  return "";
 }
 
 export type BadgeIntegridad = "Δ" | "TXT";
@@ -179,6 +205,14 @@ export function evaluarIntegridadCanonTxt(opts: {
   const c = montoCanonGs(opts.molKey, opts.mesCtx);
   if (!c.mes || c.gs == null) return null;
 
+  const archivoTxt = resolverArchivoTxt({
+    molKey: opts.molKey,
+    archivo: opts.archivo,
+    archivoTxt: opts.archivoTxt,
+  });
+  // Ley Faro: burbuja solo canon ↔ TXT real. Sin TXT → sin burbuja (no SF AL).
+  if (!esFuenteTxtComparacion(archivoTxt)) return null;
+
   const txt = opts.txtGs;
   if (txt == null || Number.isNaN(txt)) return null;
 
@@ -197,11 +231,7 @@ export function evaluarIntegridadCanonTxt(opts: {
     delta,
     path: c.path,
     archivo: c.archivo,
-    archivoTxt: resolverArchivoTxt({
-      molKey: opts.molKey,
-      archivo: opts.archivo,
-      archivoTxt: opts.archivoTxt,
-    }),
+    archivoTxt,
     label: (opts.label || opts.molKey || "concepto").trim(),
   };
 }
@@ -235,7 +265,7 @@ export function explicarAlerta(
 
   const concepto = (mapa.label || mapa.molKey || "fila").trim();
   const path = ev?.path || "";
-  const archivoTxt = ev?.archivoTxt || resolverArchivoTxt(mapa);
+  const archivoTxt = ev?.archivoTxt || resolverArchivoTxt(mapa) || "(sin TXT — no comparar)";
   const canonGs = ev?.canonGs ?? null;
   const txtGs = ev?.txtGs ?? mapa.txtGs;
   const delta = ev?.delta ?? null;

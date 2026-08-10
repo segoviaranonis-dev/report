@@ -87,7 +87,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -105,7 +105,7 @@
       "delta_excel_minus_txt": -5825010035.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -159,7 +159,7 @@
       "delta_excel_minus_txt": -5825010035.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -231,7 +231,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -249,7 +249,7 @@
       "delta_excel_minus_txt": -9033881873.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -285,7 +285,7 @@
       "delta_excel_minus_txt": -9092820174.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -339,7 +339,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -357,7 +357,7 @@
       "delta_excel_minus_txt": 81473125.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -393,7 +393,7 @@
       "delta_excel_minus_txt": -90353587.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -447,7 +447,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -465,7 +465,7 @@
       "delta_excel_minus_txt": 93343634.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -501,7 +501,7 @@
       "delta_excel_minus_txt": 0.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -555,7 +555,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -573,7 +573,7 @@
       "delta_excel_minus_txt": 45714813.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -609,7 +609,7 @@
       "delta_excel_minus_txt": 0.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -681,7 +681,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -699,7 +699,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivo_txt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -933,7 +933,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivo_txt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -951,7 +951,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivo_txt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -969,7 +969,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivo_txt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -987,7 +987,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivo_txt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     },
     {
@@ -1005,7 +1005,7 @@
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivo_txt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivo_txt": null,
       "estado": "excel_prevision"
     }
   ],

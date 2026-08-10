@@ -25,7 +25,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivoTxt": null,
       "label": "SALDO DE CLIENTES"
     },
     "13": {
@@ -38,7 +38,7 @@
       "delta": -5825010035.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "MERCADERIAS A ENTREGAR"
     },
     "14": {
@@ -77,7 +77,7 @@
       "delta": -5825010035.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "PV Y PROG A COBRAR"
     },
     "18": {
@@ -129,7 +129,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivoTxt": null,
       "label": "SALDO DE CLIENTES"
     },
     "26": {
@@ -142,7 +142,7 @@
       "delta": -9033881873.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "MERCADERIAS A ENTREGAR"
     },
     "28": {
@@ -168,7 +168,7 @@
       "delta": -9092820174.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "PV Y PROG A COBRAR"
     },
     "34": {
@@ -207,7 +207,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivoTxt": null,
       "label": "SALDO DE CLIENTES"
     },
     "37": {
@@ -220,7 +220,7 @@
       "delta": 81473125.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "MERCADERIAS A ENTREGAR"
     },
     "39": {
@@ -246,7 +246,7 @@
       "delta": -90353587.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "PV Y PROG A COBRAR"
     },
     "45": {
@@ -285,7 +285,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivoTxt": null,
       "label": "SALDO DE CLIENTES"
     },
     "48": {
@@ -298,7 +298,7 @@
       "delta": 93343634.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "MERCADERIAS A ENTREGAR"
     },
     "50": {
@@ -324,7 +324,7 @@
       "delta": 0.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "PV Y PROG A COBRAR"
     },
     "56": {
@@ -363,7 +363,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivoTxt": null,
       "label": "SALDO DE CLIENTES"
     },
     "59": {
@@ -376,7 +376,7 @@
       "delta": 45714813.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "MERCADERIAS A ENTREGAR"
     },
     "61": {
@@ -402,7 +402,7 @@
       "delta": 0.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "PV Y PROG A COBRAR"
     },
     "67": {
@@ -454,7 +454,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
+      "archivoTxt": null,
       "label": "SALDO DE CLIENTES - ENERO 26"
     },
     "76": {
@@ -467,7 +467,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
       "archivoExcel": "SF AL 03-08.xlsx · celda previsión mes",
-      "archivoTxt": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
+      "archivoTxt": null,
       "label": "MERCADERIAS A ENTREGAR ENERO 26"
     },
     "77": {
@@ -636,7 +636,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivoExcel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivoTxt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivoTxt": null,
       "label": "AGOSTO 26 (DIF COBRO)"
     },
     "97": {
@@ -649,7 +649,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivoExcel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivoTxt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivoTxt": null,
       "label": "SETIEMBRE 26 (DIF COBRO)"
     },
     "98": {
@@ -662,7 +662,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivoExcel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivoTxt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivoTxt": null,
       "label": "OCTUBRE 26 (DIF COBRO)"
     },
     "99": {
@@ -675,7 +675,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivoExcel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivoTxt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivoTxt": null,
       "label": "NOVIEMBRE 26 (DIF COBRO)"
     },
     "100": {
@@ -688,7 +688,7 @@
       "delta": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
       "archivoExcel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
-      "archivoTxt": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
+      "archivoTxt": null,
       "label": "DICIEMBRE 26 (DIF COBRO)"
     }
   }
