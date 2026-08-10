@@ -159,15 +159,17 @@ type Annotated = {
 function BadgeAlerta({
   badge,
   mapa,
+  mesCtx,
   open,
   onToggle,
 }: {
   badge: "Δ" | "TXT";
   mapa: MapaFila;
+  mesCtx: string | null;
   open: boolean;
   onToggle: () => void;
 }) {
-  const ex = explicarAlerta(badge, mapa);
+  const ex = explicarAlerta(badge, { ...mapa, mesCtx });
   const esDescuadre = badge === "Δ";
 
   return (
@@ -180,7 +182,7 @@ function BadgeAlerta({
             : "bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
         }`}
         aria-label={ex.titulo}
-        title="Clic → ver archivos y montos"
+        title="Clic → canones Guido (SF AL excluido)"
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
@@ -191,7 +193,7 @@ function BadgeAlerta({
       {open ? (
         <span
           role="dialog"
-          className="absolute left-0 top-full z-40 mt-1.5 w-[22rem] max-w-[min(22rem,92vw)] rounded-lg border-2 border-slate-500 bg-white p-3 text-left text-[12px] font-normal normal-case leading-snug text-slate-900 shadow-xl sm:w-[26rem] sm:max-w-[26rem]"
+          className="absolute left-0 top-full z-40 mt-1.5 w-[24rem] max-w-[min(24rem,94vw)] rounded-lg border-2 border-slate-500 bg-white p-3 text-left text-[12px] font-normal normal-case leading-snug text-slate-900 shadow-xl sm:w-[28rem] sm:max-w-[28rem]"
           onClick={(e) => e.stopPropagation()}
         >
           <span className="block text-[14px] font-bold text-[#1F4E79]">
@@ -199,23 +201,28 @@ function BadgeAlerta({
           </span>
           <span className="mt-2 block text-[12px]">{ex.quePaso}</span>
 
-          <span className="mt-3 block rounded border border-amber-300 bg-amber-50 px-2 py-1.5">
+          <span className="mt-3 block rounded border-2 border-amber-500 bg-amber-50 px-2 py-1.5">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-amber-900">
-              Archivo Excel (número de la celda)
+              Excel canon · COMPARATIVA
             </span>
-            <span className="mt-0.5 block break-all font-mono text-[13px] font-semibold text-amber-950">
+            <span className="mt-0.5 block break-all font-mono text-[12px] font-semibold text-amber-950">
               {ex.archivoExcel}
             </span>
             <span className="mt-1 block tabular-nums text-[12px]">
-              Monto Excel: <strong>{ex.montoExcel}</strong>
+              Monto canon: <strong>{ex.montoExcel}</strong>
             </span>
+            {!ex.tieneCanon ? (
+              <span className="mt-1 block text-[11px] text-amber-900">
+                Comparativa oficial = solo Jul/Ago en Activar comparación.
+              </span>
+            ) : null}
           </span>
 
-          <span className="mt-2 block rounded border border-emerald-400 bg-emerald-50 px-2 py-1.5">
+          <span className="mt-2 block rounded border-2 border-emerald-500 bg-emerald-50 px-2 py-1.5">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-emerald-900">
-              Archivo TXT limpio (respaldo)
+              TXT limpio · respaldo operativo
             </span>
-            <span className="mt-0.5 block break-all font-mono text-[13px] font-semibold text-emerald-950">
+            <span className="mt-0.5 block break-all font-mono text-[12px] font-semibold text-emerald-950">
               {ex.archivoTxt}
             </span>
             <span className="mt-1 block tabular-nums text-[12px]">
@@ -223,15 +230,31 @@ function BadgeAlerta({
             </span>
           </span>
 
+          <span className="mt-2 block rounded border border-slate-400 bg-slate-100 px-2 py-1.5 opacity-90">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-600 line-through decoration-red-600">
+              SF AL · NO entra en comparativa
+            </span>
+            <span className="mt-0.5 block break-all font-mono text-[11px] text-slate-700">
+              {ex.contextoSfAl}
+            </span>
+            <span className="mt-1 block tabular-nums text-[11px] text-slate-600">
+              {ex.montoContextoSfAl}
+            </span>
+          </span>
+
           <span className="mt-2 block space-y-0.5 text-[12px]">
             {esDescuadre ? (
               <span className="block">
-                Diferencia (Δ): <strong className="text-red-800">{ex.delta}</strong>
+                Diferencia (Δ):{" "}
+                <strong className="text-red-800">{ex.delta}</strong>
+                <span className="mt-0.5 block text-[11px] text-slate-600">
+                  {ex.deltaNota}
+                </span>
               </span>
             ) : null}
             <span className="block">
               Lo que muestra Sit Fin:{" "}
-              <strong className="text-emerald-900">{ex.canon}</strong>
+              <strong className="text-emerald-900">{ex.muestraSitFin}</strong>
             </span>
           </span>
 
@@ -533,6 +556,7 @@ export function SitFinExcelAlTab() {
                             ...mapa,
                             label: mapa.label || row.label || null,
                           }}
+                          mesCtx={mesCtx}
                           open={openBadge === row.r}
                           onToggle={() =>
                             setOpenBadge((prev) =>

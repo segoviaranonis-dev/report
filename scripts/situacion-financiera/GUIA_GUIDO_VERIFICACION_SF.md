@@ -5,14 +5,16 @@
 
 ---
 
-## Canones (única verdad de comparación mensual)
+## Canones (única verdad de comparación)
 
 | Mes | Archivo |
 |-----|---------|
 | Julio | `Z:\hector\SF\07.SITUACION FINANCIERA 01072026.xlsx` |
 | Agosto | `Z:\hector\SF\08.SITUACION FINANCIERA 01082026.xlsx` |
 
-Si otro archivo del legajo (SF AL, TXT) no calza → **se verifica contra estos dos**. Guido: el legajo puede tener errores.
+**Excluido de la comparativa:** `SF AL 03-08.xlsx` (errores conocidos · solo contexto de grilla).
+
+Si otro archivo del legajo no calza → verificar contra los dos canones.
 
 ---
 
