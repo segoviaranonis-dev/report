@@ -270,7 +270,12 @@ def main():
         elif concepto == "cheques" and archivo and str(archivo).endswith(".txt"):
             archivo_txt = archivo
         elif concepto in ("clientes", "pv_merc"):
-            archivo_txt = archivo  # puede ser nota de previsión
+            # Previsión mes · sin TXT de corte = mes → null (nunca SF AL como TXT)
+            archivo_txt = None
+        elif isinstance(archivo_txt, str) and "SF AL" in archivo_txt.upper():
+            archivo_txt = None
+        if isinstance(archivo_txt, str) and "SF AL" in archivo_txt.upper():
+            archivo_txt = None
 
         filas.append(
             {

@@ -41,9 +41,11 @@ def parse_cheques_vencer(path: Path) -> dict[str, Any]:
             continue
         if not re.search(r"\d{2}/\d{2}/\d{2}", l):
             continue
-        m = re.search(r"([\d,]{3,})\s+(Gs|Dls|R\$)\s*$", l.rstrip())
+        # Importe + moneda; OBSERVACIONES opcionales después de Gs/Dls/R$
+        m = re.search(r"([\d,]{3,})\s+(Gs|Dls|R\$)(?:\s|$)", l.rstrip())
         if not m:
             continue
+        # Si hay texto tras la moneda, debe ser observación (no otro importe suelto crítico)
         importe = _entero(m.group(1))
         moneda = m.group(2)
         fechas = re.findall(r"\d{2}/\d{2}/\d{2}", l)

@@ -4,8 +4,8 @@
   "txt_cheques": {
     "2026-08": {
       "archivo": "1.CHEQUES A VENCER_AGO26.txt",
-      "n": 241,
-      "gs": 1915766316
+      "n": 242,
+      "gs": 1943223316
     },
     "2026-09": {
       "archivo": "2.CHEQUES A VENCER_SEPT26.txt",
@@ -63,12 +63,12 @@
       "origen": "txt",
       "mol_key": "cheques:2026-08",
       "excel_gs": 0.0,
-      "txt_gs": 1915766316,
-      "mol_gs": 1915766316.0,
-      "canon_gs": 1915766316.0,
-      "delta_excel_minus_txt": -1915766316.0,
+      "txt_gs": 1943223316,
+      "mol_gs": 1943223316.0,
+      "canon_gs": 1943223316.0,
+      "delta_excel_minus_txt": -1943223316.0,
       "archivo": "1.CHEQUES A VENCER_AGO26.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "1.CHEQUES A VENCER_AGO26.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -86,7 +86,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -104,7 +104,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": -5825010035.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -122,7 +122,7 @@
       "canon_gs": 1644155423.0,
       "delta_excel_minus_txt": -1644155423.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -140,7 +140,7 @@
       "canon_gs": 197468699.0,
       "delta_excel_minus_txt": -197468699.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -158,7 +158,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": -5825010035.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -176,7 +176,7 @@
       "canon_gs": 2015617848.0,
       "delta_excel_minus_txt": -2015617848.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -194,7 +194,7 @@
       "canon_gs": 3480867614.7720003,
       "delta_excel_minus_txt": null,
       "archivo": null,
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
       "estado": "calc"
     },
@@ -212,7 +212,7 @@
       "canon_gs": 1182581582.0,
       "delta_excel_minus_txt": 179736894.0,
       "archivo": "2.CHEQUES A VENCER_SEPT26.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "2.CHEQUES A VENCER_SEPT26.txt",
       "estado": "descuadre"
     },
@@ -230,7 +230,7 @@
       "canon_gs": 956137930.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -248,7 +248,7 @@
       "canon_gs": 58938301.0,
       "delta_excel_minus_txt": -9033881873.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -266,7 +266,7 @@
       "canon_gs": 2015617848.0,
       "delta_excel_minus_txt": -1364979184.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -284,7 +284,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": -9092820174.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -302,7 +302,7 @@
       "canon_gs": 2017658042.311201,
       "delta_excel_minus_txt": null,
       "archivo": null,
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
       "estado": "calc"
     },
@@ -320,7 +320,7 @@
       "canon_gs": 640107523.0,
       "delta_excel_minus_txt": 218018534.0,
       "archivo": "3.CHEQUES A VENCER_OCT26.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "3.CHEQUES A VENCER_OCT26.txt",
       "estado": "descuadre"
     },
@@ -338,7 +338,7 @@
       "canon_gs": 456952862.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -356,7 +356,7 @@
       "canon_gs": 171826712.0,
       "delta_excel_minus_txt": 81473125.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -374,7 +374,7 @@
       "canon_gs": 2015617848.0,
       "delta_excel_minus_txt": -1902444132.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -392,7 +392,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": -90353587.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -410,7 +410,7 @@
       "canon_gs": -2857847857.387199,
       "delta_excel_minus_txt": null,
       "archivo": null,
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
       "estado": "calc"
     },
@@ -428,7 +428,7 @@
       "canon_gs": 158165615.0,
       "delta_excel_minus_txt": 201143610.0,
       "archivo": "4.CHEQUES A VENCER_NOV26.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "4.CHEQUES A VENCER_NOV26.txt",
       "estado": "descuadre"
     },
@@ -446,7 +446,7 @@
       "canon_gs": 179368377.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -464,7 +464,7 @@
       "canon_gs": 93343634.0,
       "delta_excel_minus_txt": 93343634.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -482,7 +482,7 @@
       "canon_gs": 2015617848.0,
       "delta_excel_minus_txt": null,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -500,7 +500,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": 0.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -518,7 +518,7 @@
       "canon_gs": null,
       "delta_excel_minus_txt": null,
       "archivo": null,
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
       "estado": "calc"
     },
@@ -536,7 +536,7 @@
       "canon_gs": 103460486.0,
       "delta_excel_minus_txt": -76315626.0,
       "archivo": "5.CHEQUES A VENCER_DIC26.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "5.CHEQUES A VENCER_DIC26.txt",
       "estado": "descuadre"
     },
@@ -554,7 +554,7 @@
       "canon_gs": 35573400.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -572,7 +572,7 @@
       "canon_gs": 45714813.0,
       "delta_excel_minus_txt": 45714813.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -590,7 +590,7 @@
       "canon_gs": 2015617848.0,
       "delta_excel_minus_txt": null,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -608,7 +608,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": 0.0,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -626,7 +626,7 @@
       "canon_gs": null,
       "delta_excel_minus_txt": null,
       "archivo": null,
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
       "estado": "calc"
     },
@@ -644,7 +644,7 @@
       "canon_gs": 0.0,
       "delta_excel_minus_txt": null,
       "archivo": null,
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
       "estado": "sin_txt"
     },
@@ -662,7 +662,7 @@
       "canon_gs": 2970000.0,
       "delta_excel_minus_txt": -2970000.0,
       "archivo": "6.CHEQUES A VENCER_ENE26 AL 2029.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "6.CHEQUES A VENCER_ENE26 AL 2029.txt",
       "estado": "excel_cero_txt_tiene"
     },
@@ -680,7 +680,7 @@
       "canon_gs": null,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -698,7 +698,7 @@
       "canon_gs": 2919676.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · ref PV Y PROG.txt",
-      "archivo_excel": "SF AL 03-08.xlsx · celda previsión mes",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · previsión · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -716,7 +716,7 @@
       "canon_gs": 266975386.0,
       "delta_excel_minus_txt": -197434184.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -734,7 +734,7 @@
       "canon_gs": 33923817.0,
       "delta_excel_minus_txt": 7499098.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -752,7 +752,7 @@
       "canon_gs": 140359557.0,
       "delta_excel_minus_txt": -119614762.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -770,7 +770,7 @@
       "canon_gs": 16604422.0,
       "delta_excel_minus_txt": 22787286.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -788,7 +788,7 @@
       "canon_gs": 134152519.0,
       "delta_excel_minus_txt": -90442077.0,
       "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -806,7 +806,7 @@
       "canon_gs": 165407125.0,
       "delta_excel_minus_txt": 11215976.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -824,7 +824,7 @@
       "canon_gs": 204538472.0,
       "delta_excel_minus_txt": -4763499.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -842,7 +842,7 @@
       "canon_gs": 59261142.0,
       "delta_excel_minus_txt": 6480078.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -860,7 +860,7 @@
       "canon_gs": 137079802.0,
       "delta_excel_minus_txt": -2478053.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -878,7 +878,7 @@
       "canon_gs": 16276860.0,
       "delta_excel_minus_txt": -3816719.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -896,7 +896,7 @@
       "canon_gs": 3647160.0,
       "delta_excel_minus_txt": 10477227.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -914,7 +914,7 @@
       "canon_gs": 63051188.0,
       "delta_excel_minus_txt": 3741820.0,
       "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (DIFICIL/SALEMMA)",
-      "archivo_excel": "SF AL 03-08.xlsx",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "estado": "descuadre"
     },
@@ -932,7 +932,7 @@
       "canon_gs": 636166543.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
-      "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · DIF.COBRO · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -950,7 +950,7 @@
       "canon_gs": 346413764.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
-      "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · DIF.COBRO · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -968,7 +968,7 @@
       "canon_gs": 130290050.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
-      "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · DIF.COBRO · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -986,7 +986,7 @@
       "canon_gs": 38910630.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
-      "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · DIF.COBRO · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     },
@@ -1004,7 +1004,7 @@
       "canon_gs": 6568488.0,
       "delta_excel_minus_txt": null,
       "archivo": "SF AL 03-08.xlsx · bloque DIF.COBRO (proyección mes)",
-      "archivo_excel": "SF AL 03-08.xlsx · bloque DIF.COBRO",
+      "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · DIF.COBRO · excluido)",
       "archivo_txt": null,
       "estado": "excel_prevision"
     }
