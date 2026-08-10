@@ -15,7 +15,10 @@ rem requiere DATABASE_URL o SUPABASE_DB_URL + MIG-203 aplicada en LAB
 | `clasificador.py` | Huellas ERP (`if*`) + nombre → tipo canónico |
 | `parsers.py` | Cheques / saldos / PV·PROG → filas + totales |
 | `generar_sit_fin.py` | Excel `SIT FIN` + hoja LINAJE |
-| `persistencia.py` | T01–T12 local + check variaciones (+ Postgres opcional) |
+| `persistencia.py` | T01–T12 local + check variaciones (+ Postgres opcional) · T13/T14 si MIG-204 |
+| `../NORTE_ABSORCION_SF.md` | Norte caja primero · híbrido ERP/Nexus |
+| `../CHECKLIST_MIGRACION_SF_8_PUNTOS.md` | Checklist migraciones plata |
+| `../../migrations/204_sf_pago_proyeccion_evento_cobro.sql` | T13 sf_pago · T14 proyección · LAB |
 | `seed_huellas.py` | Aprueba huellas corte AL 03-08 (T03/T04 local) |
 | `run_corte.py` | Orquestador + HTML + `--persist-local` |
 

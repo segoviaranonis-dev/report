@@ -6,7 +6,7 @@
     "ifcqvg$": {
       "programa_erp": "ifcqvg$",
       "tipo_codigo": "cheques_vencer",
-      "titulo_informe": "RIMEC S.A.                                                         LISTADO DE CHEQUES A VENCER                                                          Fecha:   03/08/2026",
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
       "parser_key": "cheques_vencer",
       "estado_consumo": "integro",
       "columnas_cabecera": [
@@ -46,12 +46,24 @@
         "6.CHEQUES A VENCER_ENE26 AL 2029.txt"
       ],
       "n_archivos_lab": 6,
-      "notas": "Consumo íntegro Faro: Σ líneas limpia = molecular cheques. Nombre archivo irrelevante; manda ifcqvg$."
+      "notas": "Consumo íntegro Faro: Σ líneas limpia = molecular cheques. Nombre archivo irrelevante; manda ifcqvg$.",
+      "ultima_cabecera": {
+        "fecha_emision": "03/08/2026",
+        "hora_emision": "15:24",
+        "pagina": 1,
+        "filtros": {
+          "UBIC": "//",
+          "F.VTO": "[01/01/2027, 31/12/2029]",
+          "F.PROC": "[01/01/1995, 03/08/2026]",
+          "MARCA": "CHEQUES"
+        },
+        "archivo_ejemplo": "6.CHEQUES A VENCER_ENE26 AL 2029.txt"
+      }
     },
     "ifslclfd": {
       "programa_erp": "ifslclfd",
       "tipo_codigo": "saldos_detallado",
-      "titulo_informe": "RIMEC S.A.                                      LISTADO DE SALDOS AL: 03/08/2026                                      Fecha:   03/08/2026",
+      "titulo_informe": "LISTADO DE SALDOS AL: 03/08/2026",
       "parser_key": "saldos_detallado",
       "estado_consumo": "integro",
       "columnas_cabecera": [],
@@ -68,12 +80,34 @@
       "notas": "Saldo clientes detallado · aging / Luisito / DIFICIL",
       "archivos_lab_ejemplo": [
         "SALDO CLIENTES DETALLADO AL 03-08.txt"
-      ]
+      ],
+      "ultima_cabecera": {
+        "fecha_emision": "03/08/2026",
+        "hora_emision": "15:52",
+        "pagina": 1,
+        "filtros": {
+          "AL": "03/08/2026",
+          "F.FACTURACION": "[01/01/1995, 03/08/2026]",
+          "FACTURAS": "[1 - 99,999,999,999,999]",
+          "CLIENTES": "[0 - 1,000,000,000]",
+          "STAT.CLIENTE": "[ , z]",
+          "ZONA": "[ , z]",
+          "LOCALIDAD": "[ , z]",
+          "F.PAGO": "(NO)",
+          "ANTICIPOS": "(SI)",
+          "F.ENTR": "(NO)",
+          "CONTADO": "(SI)",
+          "MIN": "-999,999",
+          "PROV": "[0 - 1,000,000,000]",
+          "MARCA": "NO"
+        },
+        "archivo_ejemplo": "SALDO CLIENTES DETALLADO AL 03-08.txt"
+      }
     },
     "ifslclfc": {
       "programa_erp": "ifslclfc",
       "tipo_codigo": "saldos_resumen",
-      "titulo_informe": "RIMEC S.A.                                     LISTADO DE SALDOS AL: 03/08/2026                                      Fecha:   03/08/2026",
+      "titulo_informe": "LISTADO DE SALDOS AL: 03/08/2026",
       "parser_key": "saldos_resumen",
       "estado_consumo": "mapeado",
       "columnas_cabecera": [],
@@ -84,12 +118,34 @@
       "notas": "Resumen saldos",
       "archivos_lab_ejemplo": [
         "SALDO CLIENTES AL 03-08.txt"
-      ]
+      ],
+      "ultima_cabecera": {
+        "fecha_emision": "03/08/2026",
+        "hora_emision": "16:09",
+        "pagina": 1,
+        "filtros": {
+          "AL": "03/08/2026",
+          "F.FACTURACION": "[01/01/1995, 03/08/2026]",
+          "FACTURAS": "[1 - 99,999,999,999,999]",
+          "CLIENTES": "[0 - 1,000,000,000]",
+          "STAT.CLIENTE": "[ , z]",
+          "ZONA": "[ , z]",
+          "LOCALIDAD": "[ , z]",
+          "F.PAGO": "(NO)",
+          "ANTICIPOS": "(SI)",
+          "F.ENTR": "(NO)",
+          "CONTADO": "(SI)",
+          "MIN": "-999,999",
+          "PROV": "[0 - 1,000,000,000]",
+          "MARCA": "NO"
+        },
+        "archivo_ejemplo": "SALDO CLIENTES AL 03-08.txt"
+      }
     },
     "ifatsl3": {
       "programa_erp": "ifatsl3",
       "tipo_codigo": "ventas_bzz",
-      "titulo_informe": "INFORME GENERICO VENTAS Y UTILIDAD",
+      "titulo_informe": "padrón programa ifatsl3",
       "parser_key": "ventas_bzz",
       "estado_consumo": "detectado",
       "columnas_cabecera": [],
@@ -99,12 +155,47 @@
       "archivos_lab_ejemplo": [
         "INFORME DE VENTAS BZZ CLI + FACT.txt",
         "INFORME DE VENTAS BZZ FACT + ART.txt"
-      ]
+      ],
+      "ultima_cabecera": {
+        "fecha_emision": "03/08/2026",
+        "hora_emision": "14:21",
+        "pagina": 1,
+        "filtros": {
+          "CLASIFIC": "FACTURA",
+          "COSTO": "COSTO",
+          "PERIODO": "[01/07/2026 00:00 , 31/07/2026 23:59]",
+          "FINAL": "AL",
+          "F.PROC": "[01/01/2026, 03/08/2026]",
+          "ART": "[ , z]",
+          "LINEA": "[ , z]",
+          "GRUPO": "[ , z]",
+          "COD.OP": "ZONA",
+          "CLI": "2100",
+          "RUBRO": "[ , z]",
+          "RUTA": "[ , z]",
+          "VEND": "90",
+          "COB": "[0 - 1,000,000,000]",
+          "DEP": "[ , z]",
+          "TIP.ART": "VS",
+          "PROVE.": "[0 - 1,000,000,000]",
+          "ECONOMICO": "[27, 27]",
+          "CLIENTE": "[ , z]",
+          "FACTURAS": "[1 - 99,999,999,999,999]",
+          "SUCURSAL": "[0 - 0]",
+          "SAL": "[T]",
+          "FACTURA": "9080341",
+          "LIST.PRECIO": "LPN",
+          "PED.CLI": "0/0",
+          "FACT": "9080341",
+          "MARCA": "SIN IVA"
+        },
+        "archivo_ejemplo": "INFORME DE VENTAS BZZ FACT + ART.txt"
+      }
     },
     "iflbvtm": {
       "programa_erp": "iflbvtm",
       "tipo_codigo": "ventas_mensuales",
-      "titulo_informe": "LIBRO DE VENTAS MENSUAL",
+      "titulo_informe": "padrón programa iflbvtm",
       "parser_key": "ventas_mensuales",
       "estado_consumo": "detectado",
       "columnas_cabecera": [],
@@ -112,12 +203,22 @@
       "notas": "Detectado en intake AL",
       "archivos_lab_ejemplo": [
         "VENTAS MENSUALES AGOSTO 26.txt"
-      ]
+      ],
+      "ultima_cabecera": {
+        "fecha_emision": "03/08/2026",
+        "hora_emision": "14:19",
+        "pagina": 1,
+        "filtros": {
+          "PERIODO": "[01/07/2026, 31/07/2026]",
+          "MARCA": "PINEDO"
+        },
+        "archivo_ejemplo": "VENTAS MENSUALES AGOSTO 26.txt"
+      }
     },
     "ifft_ds": {
       "programa_erp": "ifft_ds",
       "tipo_codigo": "ventas_dto",
-      "titulo_informe": "RIMEC S.A.                                    LISTADO DE FACTURAS CON DESCUENTOS EN UN PERIODO                                     Fecha:   03/08/2026",
+      "titulo_informe": "LISTADO DE FACTURAS CON DESCUENTOS EN UN PERIODO",
       "parser_key": "ventas_dto",
       "estado_consumo": "detectado",
       "columnas_cabecera": [],
@@ -125,7 +226,16 @@
       "notas": "Detectado en intake AL",
       "archivos_lab_ejemplo": [
         "VENTAS CON DTO AGOSTO 26.txt"
-      ]
+      ],
+      "ultima_cabecera": {
+        "fecha_emision": "03/08/2026",
+        "hora_emision": "14:18",
+        "pagina": 1,
+        "filtros": {
+          "PERIODO": "[01/07/2026, 31/07/2026]"
+        },
+        "archivo_ejemplo": "VENTAS CON DTO AGOSTO 26.txt"
+      }
     },
     "_sin_programa:pv_prog": {
       "programa_erp": "_sin_programa:pv_prog",

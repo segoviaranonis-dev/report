@@ -21,20 +21,13 @@ from clasificador import clasificar_archivo, cabecera, leer_texto, _programa_erp
 
 
 def normalizar_programa(p: str | None) -> str | None:
-    """Conserva el código tal cual Carlos lo escribe (con o sin $)."""
+    """Canonicaliza ifcqvg → ifcqvg$ cuando es el módulo de cheques."""
     if not p:
         return None
-    return p.strip().lower()
-
-
-def claves_lookup(prog: str) -> list[str]:
-    p = prog.lower()
-    out = [p]
-    if p.endswith("$"):
-        out.append(p[:-1])
-    else:
-        out.append(p + "$")
-    return out
+    p = p.strip().lower()
+    if p == "ifcqvg":
+        return "ifcqvg$"
+    return p
 
 
 def columnas_desde_cabecera(texto: str) -> list[str]:

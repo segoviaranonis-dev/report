@@ -7,12 +7,15 @@ import {
   type SfTabId,
 } from "@/lib/situacion-financiera/versiones-guido";
 import { SitFinExcelAlTab } from "./SitFinExcelAlTab";
+import { SitFinRegistrosTxtTab } from "./SitFinRegistrosTxtTab";
 import { GuidoHtmlRolesTab } from "./GuidoHtmlRolesTab";
 import { GuidoHtmlExcelLookTab } from "./GuidoHtmlExcelLookTab";
 import { GuidoCuadroVencimientosTab } from "./GuidoCuadroVencimientosTab";
 import { GuidoAnalisisCobrosTab } from "./GuidoAnalisisCobrosTab";
 import { SitFinGraficosTab } from "./SitFinGraficosTab";
 import { SitFinAuditoriaTab } from "./SitFinAuditoriaTab";
+import { SitFinAbsorcionTab } from "./SitFinAbsorcionTab";
+import { SitFinRatiosTab } from "./SitFinRatiosTab";
 
 function fmtGs(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -55,6 +58,9 @@ const ORIGEN_STYLE: Record<
 
 export function SituacionFinancieraClient() {
   const [corte, setCorte] = useState<SfCorteResumen | null>(null);
+  const [corteMeta, setCorteMeta] = useState<{
+    fuenteCerrada?: string | null;
+  } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<SfTabId>("excel-al");
@@ -70,6 +76,7 @@ export function SituacionFinancieraClient() {
         if (!alive) return;
         if (!json.ok) throw new Error(json.error || "Error corte");
         setCorte(json.corte);
+        setCorteMeta(json.meta || null);
       } catch (e) {
         if (alive) setErr(e instanceof Error ? e.message : "Error");
       } finally {
@@ -85,7 +92,8 @@ export function SituacionFinancieraClient() {
   const needsCorte =
     tab === "nexus" ||
     tab === "guido-html-roles" ||
-    tab === "graficos";
+    tab === "graficos" ||
+    tab === "ratios";
 
   return (
     <div className="mt-6">
@@ -114,6 +122,8 @@ export function SituacionFinancieraClient() {
 
       {tab === "excel-al" ? (
         <SitFinExcelAlTab />
+      ) : tab === "registros-txt" ? (
+        <SitFinRegistrosTxtTab />
       ) : tab === "guido-html-excel" ? (
         <GuidoHtmlExcelLookTab />
       ) : tab === "guido-cuadro" ? (
@@ -132,6 +142,18 @@ export function SituacionFinancieraClient() {
         <SitFinGraficosTab corte={corte} />
       ) : tab === "auditoria" ? (
         <SitFinAuditoriaTab />
+      ) : tab === "absorcion" ? (
+        <SitFinAbsorcionTab metaFuente={corteMeta?.fuenteCerrada} />
+      ) : tab === "ratios" && corte ? (
+        <SitFinRatiosTab
+          proxyCajaGs={corte.bloques
+            ?.flatMap((b) => b.lineas)
+            .filter((l) =>
+              (l.concepto || "").toUpperCase().includes("BANCO"),
+            )
+            .reduce((s, l) => s + (l.importeGs || 0), 0)}
+          proxyCxcGs={corte.aging?.reduce((s, a) => s + (a.importeGs || 0), 0)}
+        />
       ) : tab === "nexus" && corte ? (
         <VistaNexus corte={corte} />
       ) : null}

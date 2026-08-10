@@ -1,0 +1,438 @@
+{
+  "corte": "AL-03-08-26",
+  "actualizado": "2026-08-10",
+  "ley": "Registros TXT Faro · clave = programa_erp (Carlos/Hiedra) + cabecera (fecha emisión, hora, filtros). Nombre de archivo = etiqueta humana.",
+  "resumen": {
+    "n_txt": 14,
+    "n_requeridos_sf": 9,
+    "n_control_o_candidato": 5,
+    "n_programas": 6,
+    "programas": [
+      "ifatsl3",
+      "ifcqvg$",
+      "ifft_ds",
+      "iflbvtm",
+      "ifslclfc",
+      "ifslclfd"
+    ]
+  },
+  "por_programa": {
+    "ifatsl3": {
+      "n": 2,
+      "archivos": [
+        "INFORME DE VENTAS BZZ CLI + FACT.txt",
+        "INFORME DE VENTAS BZZ FACT + ART.txt"
+      ]
+    },
+    "ifcqvg$": {
+      "n": 6,
+      "archivos": [
+        "1.CHEQUES A VENCER_AGO26.txt",
+        "2.CHEQUES A VENCER_SEPT26.txt",
+        "3.CHEQUES A VENCER_OCT26.txt",
+        "4.CHEQUES A VENCER_NOV26.txt",
+        "5.CHEQUES A VENCER_DIC26.txt",
+        "6.CHEQUES A VENCER_ENE26 AL 2029.txt"
+      ]
+    },
+    "ifft_ds": {
+      "n": 1,
+      "archivos": [
+        "VENTAS CON DTO AGOSTO 26.txt"
+      ]
+    },
+    "iflbvtm": {
+      "n": 1,
+      "archivos": [
+        "VENTAS MENSUALES AGOSTO 26.txt"
+      ]
+    },
+    "ifslclfc": {
+      "n": 1,
+      "archivos": [
+        "SALDO CLIENTES AL 03-08.txt"
+      ]
+    },
+    "ifslclfd": {
+      "n": 1,
+      "archivos": [
+        "SALDO CLIENTES DETALLADO AL 03-08.txt"
+      ]
+    }
+  },
+  "registros": [
+    {
+      "archivo": "1.CHEQUES A VENCER_AGO26.txt",
+      "bytes": 69809,
+      "programa_erp": "ifcqvg$",
+      "tipo_codigo": "cheques_vencer",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:24",
+      "pagina": 1,
+      "filtros": {
+        "UBIC": "//",
+        "F.VTO": "[01/08/2026, 31/08/2026]",
+        "F.PROC": "[01/01/1995, 03/08/2026]",
+        "MARCA": "CHEQUES"
+      },
+      "cabecera_cruda": "___________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE CHEQUES A VENCER Fecha: 03/08/2026 ifcqvg$ UBIC: // F.VTO: [01/08/2026, 31/08/2026] F.PROC: [01/01/1995, 03/08/2026] (CHEQUES)",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Filas CHEQUES A VENCER · molecular por mes",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "2.CHEQUES A VENCER_SEPT26.txt",
+      "bytes": 49226,
+      "programa_erp": "ifcqvg$",
+      "tipo_codigo": "cheques_vencer",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:25",
+      "pagina": 1,
+      "filtros": {
+        "UBIC": "//",
+        "F.VTO": "[01/09/2026, 30/09/2026]",
+        "F.PROC": "[01/01/1995, 03/08/2026]",
+        "MARCA": "CHEQUES"
+      },
+      "cabecera_cruda": "___________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE CHEQUES A VENCER Fecha: 03/08/2026 ifcqvg$ UBIC: // F.VTO: [01/09/2026, 30/09/2026] F.PROC: [01/01/1995, 03/08/2026] (CHEQUES)",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Filas CHEQUES A VENCER · molecular por mes",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "3.CHEQUES A VENCER_OCT26.txt",
+      "bytes": 36504,
+      "programa_erp": "ifcqvg$",
+      "tipo_codigo": "cheques_vencer",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:25",
+      "pagina": 1,
+      "filtros": {
+        "UBIC": "//",
+        "F.VTO": "[01/10/2026, 31/10/2026]",
+        "F.PROC": "[01/01/1995, 03/08/2026]",
+        "MARCA": "CHEQUES"
+      },
+      "cabecera_cruda": "___________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE CHEQUES A VENCER Fecha: 03/08/2026 ifcqvg$ UBIC: // F.VTO: [01/10/2026, 31/10/2026] F.PROC: [01/01/1995, 03/08/2026] (CHEQUES)",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Filas CHEQUES A VENCER · molecular por mes",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "4.CHEQUES A VENCER_NOV26.txt",
+      "bytes": 16127,
+      "programa_erp": "ifcqvg$",
+      "tipo_codigo": "cheques_vencer",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:25",
+      "pagina": 1,
+      "filtros": {
+        "UBIC": "//",
+        "F.VTO": "[01/11/2026, 30/11/2026]",
+        "F.PROC": "[01/01/1995, 03/08/2026]",
+        "MARCA": "CHEQUES"
+      },
+      "cabecera_cruda": "___________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE CHEQUES A VENCER Fecha: 03/08/2026 ifcqvg$ UBIC: // F.VTO: [01/11/2026, 30/11/2026] F.PROC: [01/01/1995, 03/08/2026] (CHEQUES)",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Filas CHEQUES A VENCER · molecular por mes",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "5.CHEQUES A VENCER_DIC26.txt",
+      "bytes": 11106,
+      "programa_erp": "ifcqvg$",
+      "tipo_codigo": "cheques_vencer",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:25",
+      "pagina": 1,
+      "filtros": {
+        "UBIC": "//",
+        "F.VTO": "[01/12/2026, 31/12/2026]",
+        "F.PROC": "[01/01/1995, 03/08/2026]",
+        "MARCA": "CHEQUES"
+      },
+      "cabecera_cruda": "___________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE CHEQUES A VENCER Fecha: 03/08/2026 ifcqvg$ UBIC: // F.VTO: [01/12/2026, 31/12/2026] F.PROC: [01/01/1995, 03/08/2026] (CHEQUES)",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Filas CHEQUES A VENCER · molecular por mes",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "6.CHEQUES A VENCER_ENE26 AL 2029.txt",
+      "bytes": 4330,
+      "programa_erp": "ifcqvg$",
+      "tipo_codigo": "cheques_vencer",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE CHEQUES A VENCER",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "15:24",
+      "pagina": 1,
+      "filtros": {
+        "UBIC": "//",
+        "F.VTO": "[01/01/2027, 31/12/2029]",
+        "F.PROC": "[01/01/1995, 03/08/2026]",
+        "MARCA": "CHEQUES"
+      },
+      "cabecera_cruda": "___________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE CHEQUES A VENCER Fecha: 03/08/2026 ifcqvg$ UBIC: // F.VTO: [01/01/2027, 31/12/2029] F.PROC: [01/01/1995, 03/08/2026] (CHEQUES)",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Filas CHEQUES A VENCER · molecular por mes",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "INFORME DE VENTAS BZZ CLI + FACT.txt",
+      "bytes": 27868,
+      "programa_erp": "ifatsl3",
+      "tipo_codigo": "ventas_bzz",
+      "confianza": 0.99,
+      "titulo_informe": "padrón programa ifatsl3",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:20",
+      "pagina": 1,
+      "filtros": {
+        "CLASIFIC": "CLIENTE",
+        "COSTO": "COSTO",
+        "PERIODO": "[01/07/2026 00:00 , 31/07/2026 23:59]",
+        "FINAL": "AL",
+        "F.PROC": "[01/01/2026, 03/08/2026]",
+        "ART": "[ , z]",
+        "LINEA": "[ , z]",
+        "GRUPO": "[ , z]",
+        "COD.OP": "ZONA",
+        "CLI": "2100",
+        "RUBRO": "[ , z]",
+        "RUTA": "[ , z]",
+        "VEND": "90",
+        "COB": "[0 - 1,000,000,000]",
+        "DEP": "[ , z]",
+        "TIP.ART": "VS",
+        "PROVE.": "[0 - 1,000,000,000]",
+        "ECONOMICO": "[27, 27]",
+        "CLIENTE": "BAZZAR",
+        "FACTURAS": "[1 - 99,999,999,999,999]",
+        "SUCURSAL": "[0 - 0]",
+        "SAL": "[T]",
+        "LIST.PRECIO": "LPN",
+        "PED.CLI": "0/0",
+        "MARCA": "SIN IVA"
+      },
+      "cabecera_cruda": "__________________________________________________________________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. I N F O R M E G E N E R I C O V E N T A S Y U T I L I D A D Fecha: 03/08/2026 ifat",
+      "rol_sf": "candidato_manual",
+      "objetivo_sf": "Candidato a reemplazar PAGOS BAZZAR (naranja)",
+      "color_ui": "naranja_futuro",
+      "requerido_para_sf": false,
+      "estado_consumo": "mapeado"
+    },
+    {
+      "archivo": "INFORME DE VENTAS BZZ FACT + ART.txt",
+      "bytes": 417848,
+      "programa_erp": "ifatsl3",
+      "tipo_codigo": "ventas_bzz",
+      "confianza": 0.99,
+      "titulo_informe": "padrón programa ifatsl3",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:21",
+      "pagina": 1,
+      "filtros": {
+        "CLASIFIC": "FACTURA",
+        "COSTO": "COSTO",
+        "PERIODO": "[01/07/2026 00:00 , 31/07/2026 23:59]",
+        "FINAL": "AL",
+        "F.PROC": "[01/01/2026, 03/08/2026]",
+        "ART": "[ , z]",
+        "LINEA": "[ , z]",
+        "GRUPO": "[ , z]",
+        "COD.OP": "ZONA",
+        "CLI": "2100",
+        "RUBRO": "[ , z]",
+        "RUTA": "[ , z]",
+        "VEND": "90",
+        "COB": "[0 - 1,000,000,000]",
+        "DEP": "[ , z]",
+        "TIP.ART": "VS",
+        "PROVE.": "[0 - 1,000,000,000]",
+        "ECONOMICO": "[27, 27]",
+        "CLIENTE": "[ , z]",
+        "FACTURAS": "[1 - 99,999,999,999,999]",
+        "SUCURSAL": "[0 - 0]",
+        "SAL": "[T]",
+        "FACTURA": "9080341",
+        "LIST.PRECIO": "LPN",
+        "PED.CLI": "0/0",
+        "FACT": "9080341",
+        "MARCA": "SIN IVA"
+      },
+      "cabecera_cruda": "__________________________________________________________________________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. I N F O R M E G E N E R I C O V E N T A S Y U T I L I D A D Fecha: 03/08/2026 ifat",
+      "rol_sf": "candidato_manual",
+      "objetivo_sf": "Candidato a reemplazar PAGOS BAZZAR (naranja)",
+      "color_ui": "naranja_futuro",
+      "requerido_para_sf": false,
+      "estado_consumo": "mapeado"
+    },
+    {
+      "archivo": "PV Y PROG.txt",
+      "bytes": 107838,
+      "programa_erp": null,
+      "tipo_codigo": "pv_prog",
+      "confianza": 0.98,
+      "titulo_informe": "PV y programaciones (TSV/tabular)",
+      "fecha_emision": null,
+      "hora_emision": null,
+      "pagina": null,
+      "filtros": {},
+      "cabecera_cruda": "Nro Ped. Prov Nro.Proforma Cod.Cliente Nro.Ped.Cliente Cod.Operacion Fecha Pedido Fecha Entrega Importe Pedido Cant.Cuotas Importe Cuota Vencimientos 3693 PROVI PRI1 2566 149169 CR-EFECTIV 20260427 20260815 31618275 1 31618275 20260815 3693 PROVI PRI1 2566 149170 CR-EFECTIV 20260427 20260815 8852740 1 8852740 20260815 3693 PROVI PRI1 3108 149171 CR-EFECTIV 20260427 20260815 10957510 1 10957510 20260815 3693 PROVI PRI1 3108 149172 CR-EFECTIV 20260427 20260815 14482350 1 14482350 20260815 3693 PRO",
+      "rol_sf": "apoyo_sf",
+      "objetivo_sf": "Ref PV Y PROG / mercadería (subconjunto Guido)",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "mapeado"
+    },
+    {
+      "archivo": "SALDO CLIENTES AL 03-08.txt",
+      "bytes": 32940,
+      "programa_erp": "ifslclfc",
+      "tipo_codigo": "saldos_resumen",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE SALDOS AL: 03/08/2026",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "16:09",
+      "pagina": 1,
+      "filtros": {
+        "AL": "03/08/2026",
+        "F.FACTURACION": "[01/01/1995, 03/08/2026]",
+        "FACTURAS": "[1 - 99,999,999,999,999]",
+        "CLIENTES": "[0 - 1,000,000,000]",
+        "STAT.CLIENTE": "[ , z]",
+        "ZONA": "[ , z]",
+        "LOCALIDAD": "[ , z]",
+        "F.PAGO": "(NO)",
+        "ANTICIPOS": "(SI)",
+        "F.ENTR": "(NO)",
+        "CONTADO": "(SI)",
+        "MIN": "-999,999",
+        "PROV": "[0 - 1,000,000,000]",
+        "MARCA": "NO"
+      },
+      "cabecera_cruda": "________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE SALDOS AL: 03/08/2026 Fecha: 03/08/2026 ifslclfc SALDO AL: 03/08/2026 F.FACTURACION: [01/01/1995, 03/08/2026] FACTURAS: [1 - 99,999,999,999,999] Hora:16:09 Pag: 1 ______________________________________________________________________________",
+      "rol_sf": "apoyo_sf",
+      "objetivo_sf": "Control Σ clientes (mes = cuadro Guido)",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "mapeado"
+    },
+    {
+      "archivo": "SALDO CLIENTES DETALLADO AL 03-08.txt",
+      "bytes": 269902,
+      "programa_erp": "ifslclfd",
+      "tipo_codigo": "saldos_detallado",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE SALDOS AL: 03/08/2026",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "15:52",
+      "pagina": 1,
+      "filtros": {
+        "AL": "03/08/2026",
+        "F.FACTURACION": "[01/01/1995, 03/08/2026]",
+        "FACTURAS": "[1 - 99,999,999,999,999]",
+        "CLIENTES": "[0 - 1,000,000,000]",
+        "STAT.CLIENTE": "[ , z]",
+        "ZONA": "[ , z]",
+        "LOCALIDAD": "[ , z]",
+        "F.PAGO": "(NO)",
+        "ANTICIPOS": "(SI)",
+        "F.ENTR": "(NO)",
+        "CONTADO": "(SI)",
+        "MIN": "-999,999",
+        "PROV": "[0 - 1,000,000,000]",
+        "MARCA": "NO"
+      },
+      "cabecera_cruda": "_________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE SALDOS AL: 03/08/2026 Fecha: 03/08/2026 ifslclfd SALDO AL: 03/08/2026 F.FACTURACION: [01/01/1995, 03/08/2026] FACTURAS: [1 - 99,999,999,999,999] (SOLAME Hora:15:52 Pag: 1 ___________________________________________________________________________",
+      "rol_sf": "requerido_sf",
+      "objetivo_sf": "Aging / CxC detallado · Luisito · DIFICIL",
+      "color_ui": "verde",
+      "requerido_para_sf": true,
+      "estado_consumo": "integro"
+    },
+    {
+      "archivo": "VENTAS CON DTO AGOSTO 26.txt",
+      "bytes": 55218,
+      "programa_erp": "ifft_ds",
+      "tipo_codigo": "ventas_dto",
+      "confianza": 0.99,
+      "titulo_informe": "LISTADO DE FACTURAS CON DESCUENTOS EN UN PERIODO",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:18",
+      "pagina": 1,
+      "filtros": {
+        "PERIODO": "[01/07/2026, 31/07/2026]"
+      },
+      "cabecera_cruda": "______________________________________________________________________________________________________________________________________________________ RIMEC S.A. LISTADO DE FACTURAS CON DESCUENTOS EN UN PERIODO Fecha: 03/08/2026 ifft_ds PERIODO: [01/07/2026, 31/07/2026] Hora:14:18 Pag: 1 ______________________________________",
+      "rol_sf": "control",
+      "objetivo_sf": "Control facturas con descuento",
+      "color_ui": "control",
+      "requerido_para_sf": false,
+      "estado_consumo": "detectado"
+    },
+    {
+      "archivo": "VENTAS MENSUALES AGOSTO 26.txt",
+      "bytes": 68500,
+      "programa_erp": "iflbvtm",
+      "tipo_codigo": "ventas_mensuales",
+      "confianza": 0.99,
+      "titulo_informe": "padrón programa iflbvtm",
+      "fecha_emision": "03/08/2026",
+      "hora_emision": "14:19",
+      "pagina": 1,
+      "filtros": {
+        "PERIODO": "[01/07/2026, 31/07/2026]",
+        "MARCA": "PINEDO"
+      },
+      "cabecera_cruda": "________________________________________________________________________________________________________________________________________________________________ RIMEC S.A. L I B R O D E V E N T A S M E N S U A L Fecha: 03/08/2026 iflbvtm CORRESPONDIENTE AL PERIODO: [01/07/2026, 31/07/2026] Hora:14:19 Pag: 1 _____",
+      "rol_sf": "control",
+      "objetivo_sf": "Control libro ventas · no mueve celda SF aún",
+      "color_ui": "control",
+      "requerido_para_sf": false,
+      "estado_consumo": "detectado"
+    },
+    {
+      "archivo": "VENTAS POR DIA CONTROL AGOSTO26.txt",
+      "bytes": 294472,
+      "programa_erp": null,
+      "tipo_codigo": "ventas_dia",
+      "confianza": 0.9,
+      "titulo_informe": "Ventas por día / control",
+      "fecha_emision": null,
+      "hora_emision": null,
+      "pagina": null,
+      "filtros": {
+        "MARCA": "MUESTRAS"
+      },
+      "cabecera_cruda": "Nro. 0107/3107 _________________________________________________________________________________________________________________________________________ NRO. COND. CODIGO N O M B R E D E L C L I E N T E COD COD IMPORTE SALDO FECHA OBSERVAC VENTA CLIENTE VEND COB ENTREGA __________________________",
+      "rol_sf": "control",
+      "objetivo_sf": "Control ventas por día",
+      "color_ui": "control",
+      "requerido_para_sf": false,
+      "estado_consumo": "detectado"
+    }
+  ]
+}

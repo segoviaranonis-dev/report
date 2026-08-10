@@ -2,6 +2,7 @@
 
 export type SfTabId =
   | "excel-al"
+  | "registros-txt"
   | "guido-html-roles"
   | "guido-html-excel"
   | "guido-cuadro"
@@ -28,6 +29,13 @@ export const SF_TABS: SfTabMeta[] = [
     short: "Excel",
     desc: "Réplica hoja SIT FIN del Excel objetivo SF AL 03-08.xlsx",
     fuenteGuido: "Plantilla Excel · informe_situacion_excel / SF AL",
+  },
+  {
+    id: "registros-txt",
+    label: "Registros de TXT",
+    short: "TXT",
+    desc: "Cuántos TXT de Carlos (if*) requiere el SF · cabecera fecha/filtros · padrón Hiedra",
+    fuenteGuido: "padron-programa-erp · registros-txt-erp · ifcqvg$",
   },
   {
     id: "guido-html-roles",
