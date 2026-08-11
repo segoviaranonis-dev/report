@@ -86,13 +86,13 @@ export type LogisticaGrupoDia = {
   cajas: number;
 };
 
-/** Nombre: logística.id_vendedor → catálogo; FI Web PE: usuario antes que vendedor_v2 (4.02.04.004). */
+/** Nombre: vendedor_v2 primero; usuario_v2 solo fallback (PE Web · 4.02.04.004). */
 const LOGISTICA_VENDEDOR_SELECT = `
   COALESCE(
     NULLIF(BTRIM(vd.descp_vendedor), ''),
+    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
     NULLIF(BTRIM(vu.descp_usuario), ''),
     NULLIF(BTRIM(vu_fi.descp_usuario), ''),
-    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
     '—'
   ) AS vendedor`;
 

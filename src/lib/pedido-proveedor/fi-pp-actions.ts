@@ -10,6 +10,7 @@ import {
 } from "@/lib/logistica-ok/factura-real";
 import { syncLogisticaPpIfBandera } from "@/lib/logistica-ok/sync-pp";
 import { syncLogisticaMontosDesdeFi } from "@/lib/logistica-ok/sync-fi-montos";
+import { syncVendedorFiPp } from "@/lib/pedido-proveedor/vendedor-pp-integridad";
 import {
   resolveIcIdPorFiNotas,
   syncIcDesdeFiPatch,
@@ -207,31 +208,7 @@ export async function actualizarVendedorFiDesdePp(
       return { ok: false, error: "FI no editable en este estado." };
     }
 
-    await client.query(`UPDATE factura_interna SET vendedor_id = $2 WHERE id = $1`, [fiId, vendedorId]);
-
-    const icLink = await client.query<{ id: number }>(
-      `SELECT ic.id
-       FROM factura_interna fi
-       JOIN intencion_compra ic ON TRIM(ic.numero_registro) = TRIM(COALESCE(fi.notas, ''))
-       JOIN intencion_compra_pedido icp
-         ON icp.intencion_compra_id = ic.id AND icp.pedido_proveedor_id = fi.pp_id
-       WHERE fi.id = $1 AND fi.pp_id = $2
-         AND TRIM(COALESCE(fi.notas, '')) <> ''
-       LIMIT 1`,
-      [fiId, ppId],
-    );
-    if (icLink.rows[0]) {
-      await client.query(`UPDATE intencion_compra SET id_vendedor = $2 WHERE id = $1`, [
-        icLink.rows[0].id,
-        vendedorId,
-      ]);
-    }
-
-    await client.query(
-      `UPDATE logistica_pendiente_confirmacion SET id_vendedor = $2, updated_at = now()
-       WHERE factura_interna_id = $1 AND estado = 'PENDIENTE'`,
-      [fiId, vendedorId],
-    );
+    await syncVendedorFiPp(client, fiId, vendedorId);
 
     await client.query("COMMIT");
     return { ok: true, vendedor: vendRes.rows[0].descp_vendedor };

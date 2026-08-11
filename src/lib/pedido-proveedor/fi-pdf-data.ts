@@ -6,6 +6,7 @@ import {
 } from "@/app/aprobaciones/lib/linea-snapshot-display";
 import { getRimecPool } from "@/lib/rimec/pool";
 import type { PVData, PVItem } from "@/lib/pedido-proveedor/fi-pdf-generator";
+import { SQL_VENDEDOR_PP_FI_NOMBRE } from "@/lib/pedido-proveedor/vendedor-pp-integridad";
 
 function num(v: unknown): number {
   const n = Number(v);
@@ -36,13 +37,7 @@ const FI_HEADER_SQL = `
     fi.cliente_id,
     c.descp_cliente AS cliente_nombre,
     c.id_cliente AS cliente_codigo,
-    COALESCE(
-      NULLIF(TRIM(pvr_vend.payload_json->>'vendedor_nombre'), ''),
-      NULLIF(TRIM(vu_fi.descp_usuario), ''),
-      NULLIF(TRIM(vd_fi.descp_vendedor), ''),
-      NULLIF(TRIM(vd_ic.descp_vendedor), ''),
-      '—'
-    ) AS vendedor_nombre,
+    ${SQL_VENDEDOR_PP_FI_NOMBRE} AS vendedor_nombre,
     COALESCE(NULLIF(TRIM(pl.descp_plazo), ''), NULLIF(TRIM(pl_ic.descp_plazo), ''), '—') AS plazo_nombre,
     COALESCE(fi.lista_precio_id, ic.listado_precio_id) AS lista_precio_id,
     COALESCE(fi.descuento_1, ic.descuento_1, 0) AS descuento_1,
@@ -65,8 +60,6 @@ const FI_HEADER_SQL = `
     ORDER BY ABS(ic.cantidad_total_pares - COALESCE(fi.total_pares, 0)) ASC, ic.id ASC
     LIMIT 1
   ) ic ON true
-  LEFT JOIN public.pedido_venta_rimec pvr_vend ON pvr_vend.id = fi.pedido_id
-  LEFT JOIN public.usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
   LEFT JOIN public.vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
   LEFT JOIN public.vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
   LEFT JOIN public.plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)

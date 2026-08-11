@@ -13,19 +13,13 @@ import {
 } from "@/lib/pedido-proveedor/resolve-caso-comercial";
 import { resolveVendedorCarlosParaCsv } from "@/lib/carlos/vendedor-carlos-resolver";
 import { loadPpCasoContext } from "@/lib/pedido-proveedor/pp-caso-context";
+import { SQL_VENDEDOR_PP_FI_NOMBRE } from "@/lib/pedido-proveedor/vendedor-pp-integridad";
 
-/** Nombre comercial FI — Web PE: usuario primero (4.02.04.004); fallback vendedor_v2 / IC. */
-const VENDEDOR_NOMBRE_SQL = `
-  COALESCE(
-    NULLIF(BTRIM(vu_fi.descp_usuario), ''),
-    NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
-    NULLIF(BTRIM(vd_ic.descp_vendedor), ''),
-    '—'
-  ) AS vendedor_nombre`;
+/** Nombre comercial FI — PP: vendedor_v2 / IC pareada (nunca usuario_v2). */
+const VENDEDOR_NOMBRE_SQL = `${SQL_VENDEDOR_PP_FI_NOMBRE} AS vendedor_nombre`;
 
 const VENDEDOR_JOINS_SQL = `
   LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
-  LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
   LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor`;
 
 /** Header único — sin fila instructiva (formato final Director). */
