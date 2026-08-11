@@ -8,6 +8,7 @@ import {
   productImageCandidates,
   productImagePrimaryFileName,
 } from "@/lib/retail/product-image";
+import { gradasFmtCarlosFromJson } from "@/lib/pedido-proveedor/grada-carlos-format";
 import { gradesJsonSoloTallas } from "@/lib/pedido-proveedor/grades-json-canonical";
 import { legacyImageCandidates } from "@/lib/ventas-fotos/image";
 import { parseImagenMolecula } from "@/lib/ventas-fotos/parse-imagen";
@@ -40,22 +41,12 @@ function parseLooseRecord(raw: unknown): Record<string, number> | null {
   return Object.keys(solo).length ? solo : null;
 }
 
-function sortTallaKeys(keys: string[]): string[] {
-  return [...keys].sort(
-    (a, b) => parseFloat(a.split("/")[0]) - parseFloat(b.split("/")[0]),
-  );
-}
-
 /**
- * grades_json → 34(1 2 3 3 2 1)39
- * Formato importadora (espacios, no guiones).
+ * grades_json → 34(1 2 3 3 2 1)39 · gradas no consecutivas → 35(1 0 5 4 2)39
+ * Ley Carlos: expandir ceros min→max (2.3.1.7.5.3.16).
  */
 export function gradasFmtFromJson(grades: Record<string, number> | null | undefined): string {
-  if (!grades || typeof grades !== "object") return "";
-  const keys = sortTallaKeys(Object.keys(grades));
-  if (keys.length === 0) return "";
-  const cantidades = keys.map((k) => String(Math.round(Number(grades[k]) || 0)));
-  return `${keys[0]}(${cantidades.join(" ")})${keys[keys.length - 1]}`;
+  return gradasFmtCarlosFromJson(grades);
 }
 
 /** "30:2 · 31:2 · 32:2" → 30(2 2 2)32 */

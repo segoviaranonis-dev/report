@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "version": 1,
+    "modulo": "2.3.1.7.5.31",
+    "actualizado": "2026-08-11",
+    "notaDistincion": "Reclamo operativo usuario (Alfredo) ≠ bug técnico (protocolo_errores). Paridad sistema Carlos."
+  },
+  "reclamos": [
+    {
+      "code": "PP-REC-001",
+      "numero": 1,
+      "fecha": "2026-08-11",
+      "loteId": "pp-2026-0034-grada-ceros",
+      "conceptoSitFin": "Grada molécula · ceros tallas faltantes",
+      "origen": "guido_verbal",
+      "textoReclamo": "Gradas no consecutivas: Carlos representa 35(1 0 5 4 2)39; Nexus 35(1 5 4 2)39 sin cero en talla 36.",
+      "evidencia": "PP-2026-0034 · IC-2026-0906 · VIZZANO 7286 · proforma 9888/2026",
+      "reglaCanon": "Carlos: min→max enteros, qty faltante = 0",
+      "nexusAntes": "gradasFmtFromJson solo tallas con qty>0",
+      "respuestaNexus": "Alfredo y Carlos tienen razón; ajustamos serialización veneno CSV/UI.",
+      "accionNexus": "gradasFmtFromJson expand ceros · csv-ventas-export · smoke PP-34",
+      "estado": "cerrado",
+      "docChusar": "2.3.1.7.5.3.16",
+      "naturaleza": "reclamo",
+      "ppNumero": "PP-2026-0034",
+      "ppId": null
+    }
+  ]
+}
