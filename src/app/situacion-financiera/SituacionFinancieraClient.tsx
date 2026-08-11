@@ -12,6 +12,7 @@ import { GuidoHtmlRolesTab } from "./GuidoHtmlRolesTab";
 import { GuidoHtmlExcelLookTab } from "./GuidoHtmlExcelLookTab";
 import { GuidoCuadroVencimientosTab } from "./GuidoCuadroVencimientosTab";
 import { GuidoAnalisisCobrosTab } from "./GuidoAnalisisCobrosTab";
+import { GuidoReclamosTab } from "./GuidoReclamosTab";
 import { SitFinGraficosTab } from "./SitFinGraficosTab";
 import { SitFinAuditoriaTab } from "./SitFinAuditoriaTab";
 import { SitFinAbsorcionTab } from "./SitFinAbsorcionTab";
@@ -124,6 +125,8 @@ export function SituacionFinancieraClient() {
         <SitFinExcelAlTab />
       ) : tab === "registros-txt" ? (
         <SitFinRegistrosTxtTab />
+      ) : tab === "guido-reclamos" ? (
+        <GuidoReclamosTab />
       ) : tab === "guido-html-excel" ? (
         <GuidoHtmlExcelLookTab />
       ) : tab === "guido-cuadro" ? (
@@ -256,11 +259,11 @@ function VistaNexus({ corte }: { corte: SfCorteResumen }) {
                 </tr>
               </thead>
               <tbody>
-                {b.lineas.map((ln) => {
+                {b.lineas.map((ln, i) => {
                   const st = ORIGEN_STYLE[ln.origen];
                   return (
                     <tr
-                      key={ln.concepto}
+                      key={`${b.mesYm}-${i}-${ln.origen}-${ln.concepto}`}
                       className={`border-t border-slate-100 ${st.bg}`}
                       title={ln.nota || ""}
                     >

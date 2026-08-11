@@ -3,6 +3,7 @@
 export type SfTabId =
   | "excel-al"
   | "registros-txt"
+  | "guido-reclamos"
   | "guido-html-roles"
   | "guido-html-excel"
   | "guido-cuadro"
@@ -36,6 +37,13 @@ export const SF_TABS: SfTabMeta[] = [
     short: "TXT",
     desc: "Cuántos TXT de Carlos (if*) requiere el SF · cabecera fecha/filtros · padrón Hiedra",
     fuenteGuido: "padron-programa-erp · registros-txt-erp · ifcqvg$",
+  },
+  {
+    id: "guido-reclamos",
+    label: "Reclamos Guido",
+    short: "Reclamos",
+    desc: "Respuesta fila por fila · hoja Situacion Comentarios · Excel 08 SF AL",
+    fuenteGuido: "08.SITUACION FINANCIERA 01082026.xlsx · 2.3.1.50.30",
   },
   {
     id: "guido-html-roles",
