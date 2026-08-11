@@ -10,6 +10,7 @@ import {
   triggerBlobDownload,
 } from "@/lib/pedido-proveedor/fi-download-cache";
 import { csvCarlosFilename, csvCarlosInicialFilename } from "@/lib/pedido-proveedor/csv-ventas-export";
+import { csvPreciosFilename } from "@/lib/pedido-proveedor/csv-precios-export";
 import {
   ejecutarRatificarFiProgramado,
   resumenRatificarFi,
@@ -38,6 +39,7 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, event
   const ppEnviado = pp.estado === "ENVIADO";
   const esProgramado = pp.categoria_id === CATEGORIA_PROGRAMADO_ID;
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
+  const [csvPreciosLoading, setCsvPreciosLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
   const [csvCierreLoading, setCsvCierreLoading] = useState(false);
   const [importCierreLoading, setImportCierreLoading] = useState(false);
@@ -147,6 +149,28 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, event
     }
   }
 
+  async function descargarCsvPrecios() {
+    setCsvPreciosLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proceso-importacion/pedido-proveedor/${pp.id}/csv-precios?_=${Date.now()}`,
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Error CSV precios");
+      }
+      const blob = await res.blob();
+      const disp = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disp);
+      triggerBlobDownload(blob, match?.[1] ?? csvPreciosFilename(pp.numero_registro));
+    } catch (e) {
+      onMsg(e instanceof Error ? e.message : "Error CSV precios");
+    } finally {
+      setCsvPreciosLoading(false);
+    }
+  }
+
   async function descargarCsvCierreImportacion() {
     setCsvCierreLoading(true);
     try {
@@ -241,15 +265,26 @@ export function PpTabFacturasInternas({ pp, ppId, facturas, detallesPorFi, event
           </h2>
           <div className="flex flex-wrap gap-2">
             {editable && puedeCsv && (
-              <button
-                type="button"
-                disabled={csvVentasLoading}
-                onClick={descargarCsvVentas}
-                title="CSV ventas Carlos · FI programado"
-                className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
-              >
-                {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={csvPreciosLoading}
+                  onClick={() => void descargarCsvPrecios()}
+                  title="CSV precios Tito · L+R+montos+D1–D4"
+                  className="rounded-lg border border-amber-400 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
+                >
+                  {csvPreciosLoading ? "Generando…" : "💰 CSV precios"}
+                </button>
+                <button
+                  type="button"
+                  disabled={csvVentasLoading}
+                  onClick={descargarCsvVentas}
+                  title="CSV ventas Carlos · FI programado"
+                  className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
+                >
+                  {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
+                </button>
+              </>
             )}
             {editable && pp.total_articulos > 0 && (
               <button

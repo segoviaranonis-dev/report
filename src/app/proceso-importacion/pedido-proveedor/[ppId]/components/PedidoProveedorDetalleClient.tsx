@@ -180,6 +180,7 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [adminIcBump, setAdminIcBump] = useState(0);
   const [csvVentasLoading, setCsvVentasLoading] = useState(false);
+  const [csvPreciosLoading, setCsvPreciosLoading] = useState(false);
   const [csvInicialLoading, setCsvInicialLoading] = useState(false);
   const [csvIcLoading, setCsvIcLoading] = useState(false);
   const loadedOnceRef = useRef(Boolean(cached));
@@ -505,9 +506,17 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
     }
   }
 
-  async function descargarCsv(endpoint: "csv-ventas" | "csv-inicial", fallback: string) {
+  async function descargarCsv(
+    endpoint: "csv-ventas" | "csv-inicial" | "csv-precios",
+    fallback: string,
+  ) {
     if (!pp) return;
-    const setLoading = endpoint === "csv-ventas" ? setCsvVentasLoading : setCsvInicialLoading;
+    const setLoading =
+      endpoint === "csv-ventas"
+        ? setCsvVentasLoading
+        : endpoint === "csv-precios"
+          ? setCsvPreciosLoading
+          : setCsvInicialLoading;
     setLoading(true);
     try {
       const res = await fetch(`/api/proceso-importacion/pedido-proveedor/${pp.id}/${endpoint}`, {
@@ -902,14 +911,27 @@ export function PedidoProveedorDetalleClient({ ppId }: Props) {
                   {(pp.categoria_id === CATEGORIA_PROGRAMADO_ID
                     ? pp.n_facturas_internas > 0
                     : pp.n_fi_confirmadas > 0) && (
-                    <button
-                      type="button"
-                      disabled={csvVentasLoading}
-                      onClick={() => descargarCsv("csv-ventas", `${pp.numero_registro}_ventas.csv`)}
-                      className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
-                    >
-                      {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        disabled={csvPreciosLoading}
+                        onClick={() =>
+                          descargarCsv("csv-precios", `${pp.numero_registro}_csv_precios.csv`)
+                        }
+                        title="CSV precios Tito · L+R+montos+D1–D4"
+                        className="rounded-lg border border-amber-400 bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950 hover:bg-amber-200 disabled:opacity-50"
+                      >
+                        {csvPreciosLoading ? "Generando…" : "💰 CSV precios"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={csvVentasLoading}
+                        onClick={() => descargarCsv("csv-ventas", `${pp.numero_registro}_ventas.csv`)}
+                        className="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-950 hover:bg-emerald-200 disabled:opacity-50"
+                      >
+                        {csvVentasLoading ? "Generando…" : "📄 CSV ventas"}
+                      </button>
+                    </>
                   )}
                   {pp.total_articulos > 0 && (
                     <button
