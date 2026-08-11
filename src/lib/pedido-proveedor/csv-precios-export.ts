@@ -6,7 +6,7 @@ import type { Pool } from "pg";
 import { SQL_VENDEDOR_PP_FI_NOMBRE } from "@/lib/pedido-proveedor/vendedor-pp-integridad";
 
 const HEADER =
-  "LINEA;REFERENCIA;MARCA;C. Mat;C. Cor;CANT;FacturaInterna;CLIENTE;NOMBRE DEL CLIENTE;NOMBRE VENDEDOR;D1;D2;D3;D4;Monto Sin Desc;Monto Con Desc";
+  "LINEA;REFERENCIA;MARCA;C. Mat;C. Cor;CANT;FacturaInterna;CLIENTE;NOMBRE DEL CLIENTE;NOMBRE VENDEDOR;D1;D2;D3;D4;Precio Unitario;Monto Sin Desc;Monto Con Desc";
 
 const VENDEDOR_JOINS_SQL = `
   LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
@@ -27,6 +27,7 @@ type CsvPreciosRow = {
   descuento_2: string | null;
   descuento_3: string | null;
   descuento_4: string | null;
+  precio_unitario: string;
   monto_sin_desc: string;
   monto_con_desc: string;
 };
@@ -84,6 +85,7 @@ async function fetchCsvPreciosRows(
       COALESCE(fi.descuento_2, ic.descuento_2, 0)::text AS descuento_2,
       COALESCE(fi.descuento_3, ic.descuento_3, 0)::text AS descuento_3,
       COALESCE(fi.descuento_4, ic.descuento_4, 0)::text AS descuento_4,
+      ROUND(COALESCE(fid.precio_unit, 0))::text AS precio_unitario,
       ROUND(COALESCE(fid.precio_unit, 0) * COALESCE(fid.pares, 0))::text AS monto_sin_desc,
       ROUND(COALESCE(fid.subtotal, COALESCE(fid.precio_neto, 0) * COALESCE(fid.pares, 0)))::text AS monto_con_desc
     FROM factura_interna fi
@@ -144,6 +146,7 @@ export async function exportCsvPreciosPp(
         fmtDesc(r.descuento_2),
         fmtDesc(r.descuento_3),
         fmtDesc(r.descuento_4),
+        fmtMonto(r.precio_unitario),
         fmtMonto(r.monto_sin_desc),
         fmtMonto(r.monto_con_desc),
       ].join(";"),
