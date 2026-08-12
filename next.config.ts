@@ -3,10 +3,12 @@ import type { NextConfig } from "next";
 /**
  * Imágenes públicas de Supabase Storage (cualquier proyecto *.supabase.co).
  * Solo rutas bajo /storage/v1/object/public/ — no abre otros hosts.
+ *
+ * Body 32mb: Next 15.5 proxy truncaba CSV sdrm >1MB en UI import PE (2.3.1.10.1.7).
+ * Keys experimentales aún no tipadas en ExperimentalConfig — cast al final.
  */
-const nextConfig: NextConfig = {
+const nextConfig = {
   serverExternalPackages: ["pg", "xlsx"],
-  // CSV sdrm ~1–5+ MB vía UI. Next 15.5+ proxy default 1MB trunca el body → import roto en local.
   experimental: {
     proxyClientMaxBodySize: "32mb",
     middlewareClientMaxBodySize: "32mb",
@@ -35,6 +37,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-};
+} as NextConfig;
 
 export default nextConfig;
