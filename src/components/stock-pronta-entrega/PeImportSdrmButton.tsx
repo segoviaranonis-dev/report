@@ -17,6 +17,9 @@ type ImportResult = {
   };
   stdout?: string;
   error?: string;
+  filas_expandidas?: number;
+  fk_miss?: number;
+  ppd_inserted?: number;
 };
 
 type Props = {
@@ -28,6 +31,7 @@ export function PeImportSdrmButton({ onDone }: Props) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -35,12 +39,17 @@ export function PeImportSdrmButton({ onDone }: Props) {
     setFile(null);
     setResult(null);
     setErr(null);
+    setElapsedSec(0);
     if (inputRef.current) inputRef.current.value = "";
   };
 
   const runImport = useCallback(async () => {
     if (!file) {
       setErr("Elegí un CSV sdrm####");
+      return;
+    }
+    if (!SDRM_FILENAME_REGEX.test(file.name)) {
+      setErr("Nombre inválido — usar sdrm####.csv");
       return;
     }
     const ok = window.confirm(
@@ -51,18 +60,52 @@ export function PeImportSdrmButton({ onDone }: Props) {
     setLoading(true);
     setErr(null);
     setResult(null);
+    setElapsedSec(0);
+    const t0 = Date.now();
+    const tick = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - t0) / 1000));
+    }, 250);
+
     try {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("mode", "replace");
-      const r = await fetch("/api/stock-pronta-entrega/import-csv", { method: "POST", body: fd });
-      const j = (await r.json()) as ImportResult;
-      if (!r.ok || !j.ok) throw new Error(j.error ?? "Error al importar");
+
+      const r = await fetch("/api/stock-pronta-entrega/import-csv", {
+        method: "POST",
+        body: fd,
+        signal: AbortSignal.timeout(280_000),
+      });
+
+      let j: ImportResult;
+      try {
+        j = (await r.json()) as ImportResult;
+      } catch {
+        throw new Error(
+          r.status === 413
+            ? "Archivo demasiado grande para el servidor (límite body). Avisá a sistemas."
+            : `Respuesta inválida del servidor (HTTP ${r.status}). Probá de nuevo.`,
+        );
+      }
+
+      if (!r.ok || !j.ok) {
+        throw new Error(j.error ?? `Error al importar (HTTP ${r.status})`);
+      }
+
       setResult(j);
+      // Refresco liviano: el panel pesa; el usuario ya ve el resumen aquí.
       onDone?.();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Error");
+      const msg =
+        e instanceof Error
+          ? e.name === "TimeoutError" || e.name === "AbortError"
+            ? "Timeout (>4 min). El CSV es muy grande o la BD está lenta — reintentá."
+            : e.message
+          : "Error";
+      setErr(msg);
     } finally {
+      window.clearInterval(tick);
+      setElapsedSec(Math.floor((Date.now() - t0) / 1000));
       setLoading(false);
     }
   }, [file, onDone]);
@@ -87,6 +130,9 @@ export function PeImportSdrmButton({ onDone }: Props) {
             <p className="mt-1 text-xs text-slate-600">
               Pipeline Node: staging → pilares FK → PPD + DPE (COD.GRUPO) · Panel AM + RIMEC Web
             </p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Mismo motor que el servidor (~15–30 s típico). No hace falta agente.
+            </p>
             <input
               ref={inputRef}
               type="file"
@@ -98,24 +144,50 @@ export function PeImportSdrmButton({ onDone }: Props) {
                 setErr(f && !SDRM_FILENAME_REGEX.test(f.name) ? "Usar sdrm####.csv" : null);
               }}
             />
+            {file ? (
+              <p className="mt-1 text-[11px] text-slate-500">
+                {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            ) : null}
             {err ? <p className="mt-2 text-sm text-red-600">{err}</p> : null}
-            {result?.resumen ? (
+            {loading ? (
+              <p className="mt-3 text-sm font-medium text-emerald-800">
+                Importando… {elapsedSec}s (esperá; no cierres)
+              </p>
+            ) : null}
+            {result?.ok ? (
               <dl className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-xs">
                 <div>
                   <dt className="text-slate-500">Batch</dt>
-                  <dd className="font-mono font-bold">{result.resumen.batch_label}</dd>
+                  <dd className="font-mono font-bold">
+                    {result.resumen?.batch_label ?? result.batch ?? "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Tiempo</dt>
+                  <dd className="font-bold tabular-nums">{elapsedSec}s</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Saldo total</dt>
-                  <dd className="font-bold tabular-nums">{result.resumen.uds_total.toLocaleString("es-PY")} p</dd>
+                  <dd className="font-bold tabular-nums">
+                    {(result.resumen?.uds_total ?? 0).toLocaleString("es-PY")} p
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">FK miss</dt>
+                  <dd className="tabular-nums">{result.fk_miss ?? 0}</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Calzado</dt>
-                  <dd className="tabular-nums">{result.resumen.calzado.pares_saldo.toLocaleString("es-PY")} p</dd>
+                  <dd className="tabular-nums">
+                    {(result.resumen?.calzado.pares_saldo ?? 0).toLocaleString("es-PY")} p
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Confecciones</dt>
-                  <dd className="tabular-nums">{result.resumen.confecciones.pares_saldo.toLocaleString("es-PY")} p</dd>
+                  <dd className="tabular-nums">
+                    {(result.resumen?.confecciones.pares_saldo ?? 0).toLocaleString("es-PY")} p
+                  </dd>
                 </div>
               </dl>
             ) : null}
@@ -129,11 +201,11 @@ export function PeImportSdrmButton({ onDone }: Props) {
               </button>
               <button
                 type="button"
-                disabled={loading || !file}
+                disabled={loading || !file || !!result?.ok}
                 onClick={() => void runImport()}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {loading ? "Importando…" : "Importar"}
+                {loading ? `Importando… ${elapsedSec}s` : result?.ok ? "Listo" : "Importar"}
               </button>
             </div>
           </div>

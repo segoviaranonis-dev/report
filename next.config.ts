@@ -6,6 +6,14 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg", "xlsx"],
+  // CSV sdrm ~1–5+ MB vía UI. Next 15.5+ proxy default 1MB trunca el body → import roto en local.
+  experimental: {
+    proxyClientMaxBodySize: "32mb",
+    middlewareClientMaxBodySize: "32mb",
+  },
+  serverActions: {
+    bodySizeLimit: "32mb",
+  },
   async headers() {
     return [
       {

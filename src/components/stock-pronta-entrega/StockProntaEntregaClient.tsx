@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VitalesStockDeposito } from "@/app/depositos-bazzar/components/operativa/VitalesStockDeposito";
 import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
@@ -407,12 +406,14 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
 }
 
 function StockPeShell({ resumenInicial }: Props) {
-  const router = useRouter();
   const [tab, setTab] = useState<"operativa" | "articulos" | "resumen-asignacion">("operativa");
   const { loading, err } = useStockPe();
   const onImportDone = useCallback(() => {
-    router.refresh();
-  }, [router]);
+    // Refresco completo liviano: router.refresh() del PE es pesado y parece “colgado”.
+    window.setTimeout(() => {
+      window.location.assign("/stock-pronta-entrega");
+    }, 800);
+  }, []);
 
   return (
     <div className="pb-8">
