@@ -8,6 +8,7 @@ import {
   parseLpnGuaranies,
   PROVEEDOR_CALZADO,
   PROVEEDOR_CONFECCIONES,
+  proveedorFromSdrmRow,
   RIMEC_SDRM_DEPOSIT_MAP,
 } from "@/lib/deposito-rimec/rimec-csv-sdrm";
 
@@ -109,22 +110,15 @@ function resolveRow(row: Record<string, string>): Omit<
   "deposito_codigo" | "columna_stock_legal" | "cantidad" | "batch_label"
 > | null {
   const cb = canon(row["CODIGO ARTICULO"] ?? "");
-  const pref = cb.split(".")[0];
-  let proveedor_id: number;
-  let tipo_v2_id: number;
-  if (pref === "654") {
-    proveedor_id = PROVEEDOR_CALZADO;
-    tipo_v2_id = TIPO_V2_CALZADO;
-  } else if (pref === "638") {
-    proveedor_id = PROVEEDOR_CONFECCIONES;
-    tipo_v2_id = TIPO_V2_CONFECCIONES;
-  } else {
-    return null;
-  }
+  const cod_grupo = canon(row["COD.GRUPO"] ?? "");
+  const cod_mat_raw = canon(row["COD.MATERIAL"] ?? "");
+  const prov = proveedorFromSdrmRow(cb, cod_grupo, cod_mat_raw);
+  if (!prov) return null;
+  const proveedor_id = prov.proveedor_id;
+  const tipo_v2_id = prov.tipo_v2_id;
 
   const cod_art = canon(row["COD.ART.PROVEEDOR"] ?? "");
-  const cod_grupo = canon(row["COD.GRUPO"] ?? "");
-  const cod_mat = canon(row["COD.MATERIAL"] ?? "");
+  const cod_mat = cod_mat_raw;
   const cod_col = canon(row["COD.COLOR"] ?? "");
   const grada = canon(row["DESCRIPCION GRADA"] ?? "");
   const lpn = parseLpnGuaranies(row["LPN"] ?? "");

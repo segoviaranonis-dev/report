@@ -76,6 +76,33 @@ export function proveedorFromCodigoBarras(codigoBarras: string): 654 | 638 | nul
   return null;
 }
 
+/** Fallback cuando CODIGO ARTICULO es EAN (79…) — paridad import_sdrm_comercial._proveedor_id. */
+export function proveedorFromSdrmRow(
+  codigoBarras: string,
+  codGrupo: string,
+  codMaterial: string,
+): { proveedor_id: 654 | 638; tipo_v2_id: 1 | 2 } | null {
+  const fromBar = proveedorFromCodigoBarras(codigoBarras);
+  if (fromBar === PROVEEDOR_CALZADO) {
+    return { proveedor_id: PROVEEDOR_CALZADO, tipo_v2_id: 1 };
+  }
+  if (fromBar === PROVEEDOR_CONFECCIONES) {
+    return { proveedor_id: PROVEEDOR_CONFECCIONES, tipo_v2_id: 2 };
+  }
+
+  const g = String(codGrupo ?? "").replace(/\D/g, "");
+  const marca = g.length >= 2 ? g.slice(0, 2) : "";
+  const mat = String(codMaterial ?? "").trim().toUpperCase();
+
+  if (["10", "11", "12", "13", "14", "15"].includes(marca) || mat.startsWith("K")) {
+    return { proveedor_id: PROVEEDOR_CONFECCIONES, tipo_v2_id: 2 };
+  }
+  if (marca >= "01" && marca <= "09") {
+    return { proveedor_id: PROVEEDOR_CALZADO, tipo_v2_id: 1 };
+  }
+  return null;
+}
+
 export function resolveDepositoCodigo(input?: string | null): RimecDepositoCodigo | undefined {
   if (!input) return undefined;
   const found = RIMEC_SDRM_DEPOSIT_MAP.find((x) => x.csvColumn === input);
