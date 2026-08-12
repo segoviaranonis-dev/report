@@ -119,6 +119,107 @@ export async function confirmarFi(fiId: number): Promise<MutationResult> {
   }
 }
 
+export type AprobacionGeneralResult = {
+  ok: boolean;
+  msg: string;
+  pedidosOk: number;
+  pedidosFail: number;
+  fisOk: number;
+  fisFail: number;
+  /** Pares para after() logística — misma ruta que confirmar individual. */
+  logisticaQueue: Array<{ fiId: number; ppId: number }>;
+  errores: string[];
+};
+
+/**
+ * Aprobación Gral — misma ruta que ✓ Aprobar por FI (`confirmarFi`),
+ * acotada a la(s) molécula(s)/pedido(s) indicados (familia FI interna).
+ * UI: un botón por tarjeta pendiente — no aprueba toda la lista.
+ */
+export async function aprobacionGeneral(
+  pedidoIds: number[],
+): Promise<AprobacionGeneralResult> {
+  const empty: AprobacionGeneralResult = {
+    ok: false,
+    msg: "Sin pedidos.",
+    pedidosOk: 0,
+    pedidosFail: 0,
+    fisOk: 0,
+    fisFail: 0,
+    logisticaQueue: [],
+    errores: [],
+  };
+
+  const ids = [...new Set(pedidoIds.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0))];
+  if (ids.length === 0) return empty;
+
+  if (!isRimecDatabaseConfigured()) {
+    return { ...empty, msg: "DATABASE_URL no configurada." };
+  }
+
+  const pool = getRimecPool();
+  const fiRes = await pool.query<{ id: number; pedido_id: number }>(
+    `SELECT fi.id, fi.pedido_id
+     FROM public.factura_interna fi
+     INNER JOIN public.pedido_venta_rimec pvr ON pvr.id = fi.pedido_id
+     WHERE fi.pedido_id = ANY($1::int[])
+       AND UPPER(TRIM(fi.estado)) = 'RESERVADA'
+       AND UPPER(TRIM(pvr.estado)) = 'PENDIENTE'
+     ORDER BY fi.pedido_id, fi.id`,
+    [ids],
+  );
+
+  if (fiRes.rows.length === 0) {
+    return {
+      ...empty,
+      msg: "No hay FI RESERVADA en los pedidos seleccionados (¿ya aprobados?).",
+    };
+  }
+
+  const errores: string[] = [];
+  const logisticaQueue: Array<{ fiId: number; ppId: number }> = [];
+  let fisOk = 0;
+  let fisFail = 0;
+  const pedidosConOk = new Set<number>();
+  const pedidosConFail = new Set<number>();
+
+  for (const row of fiRes.rows) {
+    const fiId = Number(row.id);
+    const pedidoId = Number(row.pedido_id);
+    const result = await confirmarFi(fiId);
+    if (result.ok) {
+      fisOk++;
+      pedidosConOk.add(pedidoId);
+      if (result.ppIdLogistica != null) {
+        logisticaQueue.push({ fiId, ppId: result.ppIdLogistica });
+      }
+    } else {
+      fisFail++;
+      pedidosConFail.add(pedidoId);
+      errores.push(`FI ${fiId}: ${result.msg}`);
+    }
+  }
+
+  const pedidosOk = [...pedidosConOk].filter((p) => !pedidosConFail.has(p)).length;
+  const pedidosFail = pedidosConFail.size;
+  const ok = fisFail === 0 && fisOk > 0;
+  const msg = ok
+    ? `Aprobación Gral OK · molécula ${ids.join(",")} · ${fisOk} FI · pedido(s) ${pedidosOk} · logística en segundo plano…`
+    : `Aprobación Gral parcial · molécula · OK ${fisOk} FI · fallas ${fisFail}` +
+      (errores[0] ? ` · ${errores[0]}` : "");
+
+  return {
+    ok,
+    msg,
+    pedidosOk,
+    pedidosFail,
+    fisOk,
+    fisFail,
+    logisticaQueue,
+    errores,
+  };
+}
+
 /** Sync logística post-confirm (llamar desde `after()` del route). */
 export async function syncLogisticaTrasConfirmarFiBackground(
   fiId: number,

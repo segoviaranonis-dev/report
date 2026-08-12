@@ -59,6 +59,7 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const [descargandoCsv, setDescargandoCsv] = useState(false);
+  const [aprobandoGralPedidoId, setAprobandoGralPedidoId] = useState<number | null>(null);
   const [filtrosDraft, setFiltrosDraft] = useState<AprobacionesFiltros>(FILTROS_VACIOS);
   const [filtrosAplicados, setFiltrosAplicados] = useState<AprobacionesFiltros>(FILTROS_VACIOS);
   const [countFiltrado, setCountFiltrado] = useState<number | null>(null);
@@ -305,14 +306,58 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
 
   const pendientesVista = pendientesFiltrados ?? data.pendientes;
 
+  /** Aprobación Gral = solo la molécula (pedido) indicada — familia FI interna. */
+  async function handleAprobacionGralPedido(pedidoId: number) {
+    if (!pedidoId || aprobandoGralPedidoId != null) return;
+    setAprobandoGralPedidoId(pedidoId);
+    try {
+      const res = await fetch("/api/aprobaciones/aprobacion-general", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedidoIds: [pedidoId] }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      const result = (await res.json()) as {
+        ok?: boolean;
+        msg?: string;
+        fisOk?: number;
+        fisFail?: number;
+      };
+      if (res.ok && result.ok) {
+        flash("success", result.msg || "Aprobación Gral OK");
+        setFisPorPedido((prev) => {
+          const next = { ...prev };
+          delete next[pedidoId];
+          return next;
+        });
+        if (pedidoExpandido === pedidoId) setPedidoExpandido(null);
+        window.setTimeout(() => {
+          startTransition(() => router.refresh());
+        }, 400);
+      } else if (result.fisOk && result.fisOk > 0) {
+        flash("error", result.msg || "Aprobación Gral parcial — refrescá");
+        startTransition(() => router.refresh());
+      } else {
+        flash("error", result.msg || "No se pudo aprobar esta molécula");
+        startTransition(() => router.refresh());
+      }
+    } catch {
+      flash("error", "Aprobación Gral falló — refrescá la página");
+      startTransition(() => router.refresh());
+    } finally {
+      setAprobandoGralPedidoId(null);
+    }
+  }
+
   return (
     <>
       {/* Flujo + refresh — gemelo Streamlit header */}
       <section className="border-b border-neutral-300 bg-white py-4">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-neutral-700">
-            Flujo: <strong>Pendiente</strong> → <strong>Aprobar</strong> célula →{" "}
-            <strong>Aprobado</strong> · o <strong>Anulado</strong>
+            Flujo: <strong>Pendiente</strong> → <strong>Aprobar</strong> célula o{" "}
+            <strong>Aprobación Gral</strong> (molécula / pedido) → <strong>Aprobado</strong> · o{" "}
+            <strong>Anulado</strong>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -383,6 +428,9 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
                 <p className="mb-4 text-sm text-neutral-600">
                   {pendientesVista.length} pedido(s) esperando autorización
                   {filtrosActivos(filtrosAplicados) ? " · filtros activos" : ""}
+                  <span className="mt-1 block text-xs text-neutral-500">
+                    Aprobación Gral = solo las FI de esa tarjeta (ej. Bazzar.py), no las demás.
+                  </span>
                 </p>
                 <div className="space-y-4">
                   {pendientesVista.map((p) => (
@@ -397,6 +445,7 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
                         cargandoFisPedido === p.id && fisPorPedido[p.id] == null
                       }
                       procesandoFi={procesandoFi}
+                      aprobandoGral={aprobandoGralPedidoId === p.id}
                       rechazando={rechazandoPedido === p.id}
                       onExpandir={() => {
                         const next = pedidoExpandido === p.id ? null : p.id;
@@ -405,6 +454,7 @@ export function AprobacionesClient({ dataInicial, catalogos }: Props) {
                       }}
                       onConfirmarFi={handleConfirmarFi}
                       onAnularFi={(fiId) => setModalAnular({ fiId, motivo: "" })}
+                      onAprobacionGral={handleAprobacionGralPedido}
                       onRechazarPedido={handleRechazarPedido}
                       onLoadDetalle={loadDetalle}
                       onFeedback={flash}

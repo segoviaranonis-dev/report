@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { actualizarPlazoPedidoAction } from "../actions";
 import type { AprobacionesCatalogos, FiRecord, PedidoPendiente } from "../lib/aprobaciones-types";
-import { descuentosLabel, fmtGs, listaPrecioLabel, badgeProntaEntrega, badgeCompraPrevia } from "../lib/aprobaciones-utils";
+import {
+  descuentosLabel,
+  fmtGs,
+  listaPrecioLabel,
+  badgeProntaEntrega,
+  badgeCompraPrevia,
+} from "../lib/aprobaciones-utils";
 import { FiCard } from "./FiCard";
 import type { FiDetalle } from "../lib/aprobaciones-types";
 
@@ -15,10 +21,12 @@ type Props = {
   detallesPorFi: Record<number, FiDetalle[]>;
   cargandoFis: boolean;
   procesandoFi: number | null;
+  aprobandoGral: boolean;
   onExpandir: () => void;
   expandido: boolean;
   onConfirmarFi: (fiId: number) => void;
   onAnularFi: (fiId: number) => void;
+  onAprobacionGral: (pedidoId: number) => void;
   onRechazarPedido: (pedidoId: number, motivo: string) => void;
   onLoadDetalle: (fiId: number) => Promise<FiDetalle[]>;
   rechazando: boolean;
@@ -34,10 +42,12 @@ export function PedidoPendienteCard({
   detallesPorFi,
   cargandoFis,
   procesandoFi,
+  aprobandoGral,
   onExpandir,
   expandido,
   onConfirmarFi,
   onAnularFi,
+  onAprobacionGral,
   onRechazarPedido,
   onLoadDetalle,
   rechazando,
@@ -48,30 +58,38 @@ export function PedidoPendienteCard({
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [plazoLocal, setPlazoLocal] = useState(pedido.plazo_id ?? 0);
   const [guardandoPlazo, setGuardandoPlazo] = useState(false);
+  const [confirmGral, setConfirmGral] = useState(false);
 
   useEffect(() => {
     setPlazoLocal(pedido.plazo_id ?? 0);
   }, [pedido.plazo_id]);
 
+  useEffect(() => {
+    if (!aprobandoGral) setConfirmGral(false);
+  }, [aprobandoGral]);
+
   const peBadge = pedido.origen_pe ? badgeProntaEntrega() : null;
   const cpBadge = pedido.tiene_compra_previa ? badgeCompraPrevia() : null;
 
-  const borderClass = pedido.origen_pe && pedido.tiene_compra_previa
-    ? "border-violet-500/50"
-    : pedido.origen_pe
-      ? "border-orange-500/60"
-      : pedido.tiene_compra_previa
-        ? "border-sky-500/60"
-        : "border-semantic-warning/40";
+  const borderClass =
+    pedido.origen_pe && pedido.tiene_compra_previa
+      ? "border-violet-500/50"
+      : pedido.origen_pe
+        ? "border-orange-500/60"
+        : pedido.tiene_compra_previa
+          ? "border-sky-500/60"
+          : "border-semantic-warning/40";
+
+  const ocupado = aprobandoGral || procesandoFi != null || rechazando;
 
   return (
     <article className={`rounded-lg border-2 bg-white shadow-sm ${borderClass}`}>
-      <button
-        type="button"
-        onClick={onExpandir}
-        className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left hover:bg-neutral-50"
-      >
-        <div className="min-w-0 flex-1">
+      <div className="flex w-full items-stretch gap-2 px-4 py-4">
+        <button
+          type="button"
+          onClick={onExpandir}
+          className="min-w-0 flex-1 text-left hover:opacity-90"
+        >
           <p className="text-xs font-bold uppercase tracking-wider text-rimec-azul">
             Cliente · Cod. {pedido.cliente_id}
           </p>
@@ -81,7 +99,7 @@ export function PedidoPendienteCard({
           <p className="mt-1 text-sm tabular-nums text-neutral-600">
             {pedido.total_pares.toLocaleString("es-PY")} pares · {fmtGs(pedido.total_monto)}
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {cpBadge && (
               <span
                 className="inline-block rounded-md px-2.5 py-1 text-[11px] font-black tracking-wide shadow-sm ring-2 ring-sky-300/80"
@@ -99,14 +117,73 @@ export function PedidoPendienteCard({
               </span>
             )}
           </div>
-        </div>
-        <div className="shrink-0 text-right">
+        </button>
+
+        {/* Aprobación Gral · solo esta molécula (familia FI del pedido) */}
+        <div className="flex shrink-0 flex-col items-end justify-between gap-2 self-stretch">
           <span className="rounded-md bg-neutral-800 px-2.5 py-1 text-xs font-bold text-white">
             {pedido.nro_pedido}
           </span>
-          <p className="mt-1 text-neutral-500">{expandido ? "▾" : "▸"}</p>
+
+          {!confirmGral ? (
+            <Button
+              type="button"
+              size="lg"
+              variant="primary"
+              disabled={ocupado}
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfirmGral(true);
+              }}
+              className="min-h-11 min-w-[10.5rem] border-2 border-emerald-800 bg-emerald-600 px-4 text-sm font-black uppercase tracking-wide text-white shadow-md hover:bg-emerald-500 disabled:opacity-70"
+              title="Aprueba todas las FI RESERVADA de ESTE pedido — no toca otros pendientes"
+            >
+              {aprobandoGral ? "Aprobando…" : "✓ Aprobación Gral"}
+            </Button>
+          ) : (
+            <div
+              className="max-w-[14rem] rounded-lg border-2 border-emerald-800 bg-emerald-50 p-2 shadow"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="mb-2 text-[10px] font-semibold leading-snug text-emerald-950">
+                ¿Aprobar solo {pedido.nro_pedido}?{" "}
+                {pedido.total_pares.toLocaleString("es-PY")} pares · {fmtGs(pedido.total_monto)}.
+                No afecta otros pedidos.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  disabled={ocupado}
+                  onClick={() => onAprobacionGral(pedido.id)}
+                  className="bg-emerald-700 font-black uppercase text-white hover:bg-emerald-600"
+                >
+                  Confirmar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={aprobandoGral}
+                  onClick={() => setConfirmGral(false)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={onExpandir}
+            className="text-neutral-500 hover:text-rimec-azul"
+            aria-label={expandido ? "Plegar" : "Expandir"}
+          >
+            {expandido ? "▾" : "▸"}
+          </button>
         </div>
-      </button>
+      </div>
 
       {expandido && (
         <div className="border-t border-neutral-200 px-4 py-4">
@@ -170,8 +247,8 @@ export function PedidoPendienteCard({
 
           <h3 className="mb-1 text-sm font-bold text-rimec-azul">Células de Aprobación</h3>
           <p className="mb-4 text-xs text-neutral-600">
-            Cada célula = una factura (marca × caso). Pulsá <strong>Aprobar</strong> — pasa a
-            Aprobado. Sin paso “Reservada”.
+            Cada célula = una factura (marca × caso). Pulsá <strong>Aprobar</strong> una a una, o{" "}
+            <strong>Aprobación Gral</strong> arriba = todas las FI de <em>este</em> pedido.
           </p>
 
           {cargandoFis && (
@@ -194,8 +271,8 @@ export function PedidoPendienteCard({
           )}
           {!cargandoFis && fis && fis.length === 0 && (
             <p className="text-sm text-semantic-warning">
-              Sin facturas pendientes en este pedido (puede haber FIs ya en Aprobados). Refrescá
-              o revisá la pestaña Aprobados.
+              Sin facturas pendientes en este pedido (puede haber FIs ya en Aprobados). Refrescá o
+              revisá la pestaña Aprobados.
             </p>
           )}
           {!cargandoFis && fis && fis.length > 0 && (
@@ -248,7 +325,9 @@ export function PedidoPendienteCard({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-neutral-200 bg-neutral-50 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+        {label}
+      </div>
       <div className="mt-0.5 truncate text-sm font-medium text-neutral-ink">{value}</div>
     </div>
   );
