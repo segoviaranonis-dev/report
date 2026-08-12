@@ -1,0 +1,47 @@
+{
+  "corte": "AL-03-08-26",
+  "ola": 2,
+  "actualizado": "2026-08-12",
+  "excel_canon": "Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx",
+  "pipeline": "TXT → Detalle → TIPO COBRO → Cuadro → Sit Fin verdes",
+  "metricas": {
+    "clientes:2026-08": {
+      "gs": 850641935.0,
+      "regla": "G4 · OK × ago-26",
+      "fila_cuadro": "OK",
+      "columna": "ago-26"
+    },
+    "mercaderia:2026-08": {
+      "gs": 43753616.0,
+      "regla": "G7 · A ENTREGAR × ago-26",
+      "fila_cuadro": "A ENTREGAR",
+      "columna": "ago-26"
+    },
+    "aging:v30": {
+      "gs": 747227807.0,
+      "regla": "venc30 · {OK,LUISITO} × jul-26",
+      "fila_cuadro": "OK+LUISITO",
+      "columna": "jul-26"
+    },
+    "aging:v60": {
+      "gs": 264450447.0,
+      "regla": "venc60 · {OK,LUISITO} × jun-26",
+      "fila_cuadro": "OK+LUISITO",
+      "columna": "jun-26"
+    },
+    "luisito:2026-08": {
+      "gs": 521838248.0,
+      "regla": "G8 · LUISITO × ago-26",
+      "fila_cuadro": "LUISITO",
+      "columna": "ago-26"
+    }
+  },
+  "aplicados_molecular": {
+    "clientes:2026-08": 850641935.0,
+    "mercaderia:2026-08": 43753616.0,
+    "aging:v30": 747227807.0,
+    "aging:v60": 264450447.0,
+    "luisito:2026-08": 521838248.0
+  },
+  "nota": "PV Y PROG fuera de Ola 2 (Guido: LO VEREMOS LUEGO)"
+}

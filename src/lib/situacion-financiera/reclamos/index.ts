@@ -35,6 +35,7 @@ export function countByEstado(): Record<ReclamoSitFinEstado, number> {
   const base: Record<ReclamoSitFinEstado, number> = {
     abierto: 0,
     en_curso: 0,
+    diferido: 0,
     verificado_canon: 0,
     verificado_txt: 0,
     esperando_guido: 0,

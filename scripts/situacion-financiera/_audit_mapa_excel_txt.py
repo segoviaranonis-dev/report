@@ -18,6 +18,7 @@ STAGING = (
 EXCEL = ROOT / "src/lib/situacion-financiera/excel-al-0308.json"
 MOL = ROOT / "src/lib/situacion-financiera/molecular-al-0308.json"
 OUT = ROOT / "src/lib/situacion-financiera/audit-mapa-al-0308.json"
+OLA2 = ROOT / "src/lib/situacion-financiera/ola2-cuadro-0308.json"
 
 sys.path.insert(0, str(PIPE))
 from parsers import mes_desde_nombre_cheques, parse_cheques_vencer  # noqa: E402
@@ -97,9 +98,25 @@ def aging_key(label: str) -> str | None:
     return None
 
 
+def load_ola2_gs() -> dict[str, float]:
+    """Ola 2 Guido — Cuadro → mol_key → Gs."""
+    if not OLA2.exists():
+        return {}
+    try:
+        data = json.loads(OLA2.read_text(encoding="utf-8"))
+        return {
+            k: float(v["gs"])
+            for k, v in (data.get("metricas") or {}).items()
+            if v.get("gs") is not None
+        }
+    except Exception:
+        return {}
+
+
 def main():
     excel = json.loads(EXCEL.read_text(encoding="utf-8"))
     mol = json.loads(MOL.read_text(encoding="utf-8"))
+    ola2_gs = load_ola2_gs()
     fac = json.loads((STAGING / "sf_saldo_factura.json").read_text(encoding="utf-8"))
     pv = json.loads((STAGING / "sf_pv_prog.json").read_text(encoding="utf-8"))
 
@@ -164,33 +181,50 @@ def main():
             origen = "txt"
             txt_gs = txt_aging[mol_key]["gs"]
             archivo = "SALDO CLIENTES DETALLADO AL 03-08.txt"
+            if mol_key in ola2_gs:
+                txt_gs = ola2_gs[mol_key]
+                origen = "ola2_cuadro"
+                archivo = "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK+LUISITO"
         elif "SALDO DE CLIENTES" in u and "VENCIDOS" not in u:
             ym = mes_desde_label(lab) or ctx
             mol_key = f"clientes:{ym}" if ym else "clientes:corte"
             concepto = "clientes"
-            # Previsión mes a mes = Excel/cuadro Guido; TXT corte = stock total (no mes)
             origen = "excel_prevision"
             txt_gs = None
             archivo = "SF AL 03-08.xlsx (previsión mes; TXT corte ≠ mes proyectado)"
+            o2k = f"clientes:{ym}" if ym else None
+            if o2k and o2k in ola2_gs:
+                txt_gs = ola2_gs[o2k]
+                origen = "ola2_cuadro"
+                archivo = "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK × mes"
         elif "MERCADER" in u or "PV Y PROG" in u:
             ym = mes_desde_label(lab) or ctx
             mol_key = f"pv:{ym}" if ("PV" in u or "PROG" in u) else f"mercaderia:{ym}"
             if "MERCADER" in u:
                 mol_key = f"mercaderia:{ym}"
             concepto = "pv_merc"
-            # Sit Fin usa verde Guido (A ENTREGAR); TXT PV es universo mayor → referencia
             origen = "excel_prevision"
             txt_gs = mol.get(mol_key, {}).get("gs") or mol.get(f"pv:{ym}", {}).get("gs")
             archivo = "SF AL 03-08.xlsx · ref PV Y PROG.txt"
+            if "MERCADER" in u and f"mercaderia:{ym}" in ola2_gs:
+                txt_gs = ola2_gs[f"mercaderia:{ym}"]
+                origen = "ola2_cuadro"
+                archivo = "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR"
         elif "LUISITO" in u:
             concepto = "luisito"
-            origen = "txt"
             ym = mes_desde_label(lab) or ctx
             mol_key = f"luisito:{ym}" if ym else "luisito:cuadro"
-            info = mol.get(mol_key) or mol.get("luisito:cuadro")
-            if info and info.get("gs") is not None:
-                txt_gs = float(info["gs"])
-            archivo = "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)"
+            o2k = f"luisito:{ym}" if ym else None
+            if o2k and o2k in ola2_gs:
+                origen = "ola2_cuadro"
+                txt_gs = ola2_gs[o2k]
+                archivo = "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO"
+            else:
+                origen = "txt"
+                info = mol.get(mol_key) or mol.get("luisito:cuadro")
+                if info and info.get("gs") is not None:
+                    txt_gs = float(info["gs"])
+                archivo = "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)"
         elif "DIF" in u and "COBRO" in u:
             concepto = "dificil"
             # Canon: TXT filtrado DIFICIL+SALEMMA cuando hay cruce; mes Excel = previsión
@@ -251,6 +285,15 @@ def main():
         elif origen == "calc":
             estado = "calc"
             canon = excel_gs
+        elif origen == "ola2_cuadro":
+            if txt_gs is not None and excel_gs is not None and abs(float(excel_gs) - float(txt_gs)) <= 1:
+                estado = "ola2_ok"
+            elif txt_gs is not None:
+                estado = "ola2_descuadre"
+            else:
+                estado = "ola2_pendiente"
+            if txt_gs is not None:
+                canon = float(txt_gs)
 
         # SF AL = contexto de grilla (errores conocidos) — NO es Excel de comparativa.
         # Comparativa oficial = canones Z:\hector\SF\07… y 08… (UI alerta-inconsistencia).
@@ -306,6 +349,8 @@ def main():
         "manual": sum(1 for f in filas if f["estado"] == "manual"),
         "pendiente": sum(1 for f in filas if f["estado"] == "pendiente"),
         "excel_prevision": sum(1 for f in filas if f["estado"] == "excel_prevision"),
+        "ola2_ok": sum(1 for f in filas if f["estado"] == "ola2_ok"),
+        "ola2_descuadre": sum(1 for f in filas if f["estado"] == "ola2_descuadre"),
         "calc": sum(1 for f in filas if f["estado"] == "calc"),
     }
 

@@ -10,6 +10,7 @@
 export type ReclamoSitFinEstado =
   | "abierto"
   | "en_curso"
+  | "diferido"
   | "verificado_canon"
   | "verificado_txt"
   | "esperando_guido"
@@ -32,6 +33,7 @@ export type ReclamoSitFin = {
   evidencia?: string;
   reglaCanon?: string;
   nexusAntes?: string;
+  nexusDespues?: string;
   respuestaNexus?: string;
   accionNexus?: string;
   decisionGuido?: string;

@@ -13,6 +13,10 @@ const ESTADO_STYLE: Record<
 > = {
   abierto: { bg: "bg-amber-50 border-amber-200 text-amber-900", label: "Abierto" },
   en_curso: { bg: "bg-sky-50 border-sky-200 text-sky-900", label: "En curso" },
+  diferido: {
+    bg: "bg-orange-50 border-orange-200 text-orange-900",
+    label: "Diferido (Guido)",
+  },
   verificado_canon: {
     bg: "bg-indigo-50 border-indigo-200 text-indigo-900",
     label: "Verificado canon",
@@ -141,6 +145,11 @@ export function GuidoReclamosTab() {
                 {r.nexusAntes ? (
                   <Block title="Qué hacía Nexus" tone="warn">
                     {r.nexusAntes}
+                  </Block>
+                ) : null}
+                {r.nexusDespues ? (
+                  <Block title="Después (Ola 2)" tone="ok">
+                    {r.nexusDespues}
                   </Block>
                 ) : null}
                 {r.respuestaNexus ? (
