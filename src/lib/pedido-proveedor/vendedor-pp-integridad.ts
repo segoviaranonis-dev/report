@@ -1,25 +1,88 @@
 /**
- * PP / PROGRAMADO / CP importación — emparejamiento vendedor comercial.
- * fi.vendedor_id = vendedor_v2.id_vendedor (NUNCA usuario_v2 / BZZP en UI ni CSV).
- * PE Web mantiene regla aparte: vendedor-fi-display.ts (usuario_v2).
+ * PP / PROGRAMADO / CP — emparejamiento vendedor comercial.
+ *
+ * Ley (2026-08-12 · corrige error arquitectura 4.02.03.026):
+ * - Cliente **BAZZAR** (tienda): UI/CSV = código **BZZ[SPF]N?** (usuario_v2 tienda).
+ *   Matriz Carlos Hoja2 → código **90** (cobrador/slot tienda). NUNCA GIANINA/FRANCIS/…
+ * - Cliente RIMEC comercial: `vendedor_v2` vía IC pareada (no login Nexus).
+ * - PE Web: ver `vendedor-fi-display.ts` · **4.02.04.004**.
  */
 import type { Pool, PoolClient } from "pg";
 
-/** Subtítulo FI PP: vendedor · LP · plazo · marca */
+/** Código Carlos (Hoja2) para todas las cuentas BZZ* tienda. */
+export const VENDEDOR_CARLOS_BAZZAR_TIENDA = 90;
+
+const BZZ_TIENDA_RE = /^BZZ[SPF]N?$/i;
+
+export function esUsuarioBzzTienda(descp: string | null | undefined): boolean {
+  return BZZ_TIENDA_RE.test(String(descp ?? "").trim());
+}
+
+/** Cliente shop Bazzar (razón social en FI). */
+export function esClienteBazzarTienda(descpCliente: string | null | undefined): boolean {
+  const u = String(descpCliente ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase();
+  return u.includes("BAZZAR") || u.includes("BAZAR");
+}
+
+/**
+ * Mapa razón social → login tienda BZZ*.
+ * Adultos: BZZS / BZZP / BZZF · Niños: BZZSN / BZZPN / BZZFN.
+ */
+export function resolverCodigoBzzDesdeCliente(
+  descpCliente: string | null | undefined,
+): "BZZS" | "BZZSN" | "BZZP" | "BZZPN" | "BZZF" | "BZZFN" | null {
+  if (!esClienteBazzarTienda(descpCliente)) return null;
+  const u = String(descpCliente ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase();
+  const ninos = /\bNIN[OA]S?\b|\bNINOS\b|\bNINAS\b/.test(u) || u.includes("NINOS") || u.includes("NINAS");
+  if (u.includes("PALMA")) return ninos ? "BZZPN" : "BZZP";
+  if (u.includes("SAN MARTIN")) return ninos ? "BZZSN" : "BZZS";
+  if (u.includes("FERNANDO")) return ninos ? "BZZFN" : "BZZF";
+  // Razón social corta sin sede (ej. «BAZZAR NINOS DE SERGIO…») = San Martín
+  if (ninos) return "BZZSN";
+  return null;
+}
+
+/**
+ * Subtítulo FI PP: vendedor · LP · plazo · marca
+ * BZZ* (usuario tienda) gana a vendedor_v2 colisionado (GIANINA≠BZZP).
+ */
 export const SQL_VENDEDOR_PP_FI_DISPLAY = `
 COALESCE(
+  CASE
+    WHEN UPPER(TRIM(COALESCE(vu_fi.descp_usuario, ''))) ~ '^BZZ[SPF]N?$'
+    THEN NULLIF(TRIM(vu_fi.descp_usuario), '')
+  END,
   NULLIF(TRIM(vd_ic.descp_vendedor), ''),
   NULLIF(TRIM(vd_fi.descp_vendedor), ''),
+  NULLIF(TRIM(vu_fi.descp_usuario), ''),
   '—'
 )`.trim();
 
-/** Nombre comercial para CSV Carlos / Logística — IC pareada manda. */
+/** Nombre para CSV Carlos / PDF — misma ley BZZ* → matriz 90. */
 export const SQL_VENDEDOR_PP_FI_NOMBRE = `
 COALESCE(
+  CASE
+    WHEN UPPER(TRIM(COALESCE(vu_fi.descp_usuario, ''))) ~ '^BZZ[SPF]N?$'
+    THEN NULLIF(BTRIM(vu_fi.descp_usuario), '')
+  END,
   NULLIF(BTRIM(vd_ic.descp_vendedor), ''),
   NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
+  NULLIF(BTRIM(vu_fi.descp_usuario), ''),
   '—'
 )`.trim();
+
+/** JOINs canónicos para las macros SQL_VENDEDOR_PP_*. */
+export const SQL_VENDEDOR_PP_FI_JOINS = `
+LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
+LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
+LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
+`.trim();
 
 export type VendedorPpIntegridadIssue = {
   fi_id: number;
@@ -30,9 +93,13 @@ export type VendedorPpIntegridadIssue = {
   vendedor_ic_nombre: string | null;
   vendedor_fi_v2_nombre: string | null;
   usuario_colision_nombre: string | null;
-  /** Lo que mostraba la query legacy (usuario antes que vendedor). */
   label_legacy_usuario: string | null;
-  codigo: "COLISION_USUARIO" | "DESALINEADO_IC" | "SIN_VENDEDOR_V2";
+  codigo:
+    | "COLISION_USUARIO"
+    | "DESALINEADO_IC"
+    | "SIN_VENDEDOR_V2"
+    | "BAZZAR_SIN_BZZ"
+    | "BAZZAR_CODIGO_ERRADO";
   mensaje: string;
 };
 
@@ -59,6 +126,7 @@ const VENDEDOR_JOINS_PP = `
   LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
   LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
   LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
+  LEFT JOIN cliente_v2 cv_fi ON cv_fi.id_cliente = fi.cliente_id
 `;
 
 export async function auditarIntegridadVendedorPp(
@@ -79,6 +147,7 @@ export async function auditarIntegridadVendedorPp(
     vendedor_fi_v2_nombre: string | null;
     usuario_colision_nombre: string | null;
     label_legacy_usuario: string | null;
+    cliente_nombre: string | null;
   }>(
     `
     SELECT fi.id AS fi_id,
@@ -93,7 +162,8 @@ export async function auditarIntegridadVendedorPp(
              NULLIF(TRIM(vu_fi.descp_usuario), ''),
              NULLIF(TRIM(vd_fi.descp_vendedor), ''),
              NULLIF(TRIM(vd_ic.descp_vendedor), '')
-           ) AS label_legacy_usuario
+           ) AS label_legacy_usuario,
+           cv_fi.descp_cliente AS cliente_nombre
     FROM factura_interna fi
     ${IC_LATERAL}
     ${VENDEDOR_JOINS_PP}
@@ -112,13 +182,73 @@ export async function auditarIntegridadVendedorPp(
     const usuario = r.usuario_colision_nombre?.trim() || null;
     const v2Fi = r.vendedor_fi_v2_nombre?.trim() || null;
     const v2Ic = r.vendedor_ic_nombre?.trim() || null;
+    const cliente = r.cliente_nombre?.trim() || null;
+    const bzzEsperado = resolverCodigoBzzDesdeCliente(cliente);
 
-    if (usuario && v2Fi && icVid === fiVid) {
-      // ID correcto en vendedor_v2; usuario_v2 colisiona solo en query legacy (ej. id 10 = GIANINA vs BZZP).
+    // ── Tienda Bazzar: debe ser BZZ* (mapa Carlos 90) ──
+    if (bzzEsperado) {
+      if (!esUsuarioBzzTienda(usuario)) {
+        issues.push({
+          fi_id: Number(r.fi_id),
+          nro_factura: r.nro_factura,
+          fi_vendedor_id: fiVid,
+          ic_nro: r.ic_nro,
+          ic_vendedor_id: icVid,
+          vendedor_ic_nombre: v2Ic,
+          vendedor_fi_v2_nombre: v2Fi,
+          usuario_colision_nombre: usuario,
+          label_legacy_usuario: r.label_legacy_usuario,
+          codigo: "BAZZAR_SIN_BZZ",
+          mensaje: `Cliente Bazzar «${cliente}» · FI muestra «${usuario ?? v2Fi ?? "—"}» · debe ser ${bzzEsperado} (Carlos ${VENDEDOR_CARLOS_BAZZAR_TIENDA})`,
+        });
+        continue;
+      }
+      if (usuario!.toUpperCase() !== bzzEsperado) {
+        issues.push({
+          fi_id: Number(r.fi_id),
+          nro_factura: r.nro_factura,
+          fi_vendedor_id: fiVid,
+          ic_nro: r.ic_nro,
+          ic_vendedor_id: icVid,
+          vendedor_ic_nombre: v2Ic,
+          vendedor_fi_v2_nombre: v2Fi,
+          usuario_colision_nombre: usuario,
+          label_legacy_usuario: r.label_legacy_usuario,
+          codigo: "BAZZAR_CODIGO_ERRADO",
+          mensaje: `Cliente Bazzar · FI=${usuario} · esperado ${bzzEsperado} (niños/adultos · sede)`,
+        });
+      }
+      continue; // BZZ* OK — no aplicar reglas comerciales IC
+    }
+
+    // ── Comercial RIMEC: BZZ* en usuario es colisión solo si NO es cliente Bazzar ──
+    if (usuario && esUsuarioBzzTienda(usuario) && v2Fi && !esUsuarioBzzTienda(v2Fi)) {
+      // ID es login tienda pero cliente no es Bazzar — raro; marcar
+      issues.push({
+        fi_id: Number(r.fi_id),
+        nro_factura: r.nro_factura,
+        fi_vendedor_id: fiVid,
+        ic_nro: r.ic_nro,
+        ic_vendedor_id: icVid,
+        vendedor_ic_nombre: v2Ic,
+        vendedor_fi_v2_nombre: v2Fi,
+        usuario_colision_nombre: usuario,
+        label_legacy_usuario: r.label_legacy_usuario,
+        codigo: "COLISION_USUARIO",
+        mensaje: `fi.vendedor_id=${fiVid} es login «${usuario}» en cliente no-Bazzar — debe ser vendedor_v2 comercial`,
+      });
       continue;
     }
 
-    if (usuario && (!v2Fi || usuario.toUpperCase() !== (v2Fi ?? "").toUpperCase())) {
+    if (usuario && !esUsuarioBzzTienda(usuario) && v2Fi && icVid === fiVid) {
+      continue;
+    }
+
+    if (
+      usuario &&
+      !esUsuarioBzzTienda(usuario) &&
+      (!v2Fi || usuario.toUpperCase() !== (v2Fi ?? "").toUpperCase())
+    ) {
       issues.push({
         fi_id: Number(r.fi_id),
         nro_factura: r.nro_factura,
@@ -200,6 +330,46 @@ export async function repararVendedorFiDesdeIcPp(
     if (!dryRun) await client.query("BEGIN");
 
     for (const issue of audit.issues) {
+      // Bazzar: reparar a usuario_v2 BZZ* (no a IC comercial)
+      if (issue.codigo === "BAZZAR_SIN_BZZ" || issue.codigo === "BAZZAR_CODIGO_ERRADO") {
+        const { rows: cliRows } = await client.query<{ descp_cliente: string | null }>(
+          `SELECT cv.descp_cliente FROM factura_interna fi
+           LEFT JOIN cliente_v2 cv ON cv.id_cliente = fi.cliente_id
+           WHERE fi.id = $1`,
+          [issue.fi_id],
+        );
+        const codigo = resolverCodigoBzzDesdeCliente(cliRows[0]?.descp_cliente ?? null);
+        if (!codigo) {
+          skipped.push({ fi_id: issue.fi_id, nro_factura: issue.nro_factura, reason: "sin mapa BZZ" });
+          continue;
+        }
+        const { rows: uRows } = await client.query<{ id_usuario: string; descp_usuario: string }>(
+          `SELECT id_usuario::text, descp_usuario FROM usuario_v2
+           WHERE UPPER(TRIM(descp_usuario)) = $1 LIMIT 1`,
+          [codigo],
+        );
+        if (!uRows[0]) {
+          skipped.push({
+            fi_id: issue.fi_id,
+            nro_factura: issue.nro_factura,
+            reason: `usuario ${codigo} no existe`,
+          });
+          continue;
+        }
+        const toId = Number(uRows[0].id_usuario);
+        if (!dryRun) {
+          await syncVendedorFiPp(client, issue.fi_id, toId);
+        }
+        fixed.push({
+          fi_id: issue.fi_id,
+          nro_factura: issue.nro_factura,
+          from_id: issue.fi_vendedor_id,
+          to_id: toId,
+          vendedor: uRows[0].descp_usuario,
+        });
+        continue;
+      }
+
       if (issue.ic_vendedor_id == null || issue.ic_vendedor_id <= 0) {
         skipped.push({
           fi_id: issue.fi_id,

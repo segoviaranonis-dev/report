@@ -86,9 +86,17 @@ export type LogisticaGrupoDia = {
   cajas: number;
 };
 
-/** Nombre: vendedor_v2 primero; usuario_v2 solo fallback (PE Web · 4.02.04.004). */
+/** Nombre: BZZ* tienda primero (Carlos 90) · luego vendedor_v2 · usuario fallback. */
 const LOGISTICA_VENDEDOR_SELECT = `
   COALESCE(
+    CASE
+      WHEN UPPER(TRIM(COALESCE(vu_fi.descp_usuario, ''))) ~ '^BZZ[SPF]N?$'
+      THEN NULLIF(BTRIM(vu_fi.descp_usuario), '')
+    END,
+    CASE
+      WHEN UPPER(TRIM(COALESCE(vu.descp_usuario, ''))) ~ '^BZZ[SPF]N?$'
+      THEN NULLIF(BTRIM(vu.descp_usuario), '')
+    END,
     NULLIF(BTRIM(vd.descp_vendedor), ''),
     NULLIF(BTRIM(vd_fi.descp_vendedor), ''),
     NULLIF(BTRIM(vu.descp_usuario), ''),

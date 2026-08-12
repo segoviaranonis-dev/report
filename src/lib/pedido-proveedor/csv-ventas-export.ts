@@ -20,7 +20,8 @@ const VENDEDOR_NOMBRE_SQL = `${SQL_VENDEDOR_PP_FI_NOMBRE} AS vendedor_nombre`;
 
 const VENDEDOR_JOINS_SQL = `
   LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
-  LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor`;
+  LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
+  LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id`;
 
 /** Header único — sin fila instructiva (formato final Director). */
 const HEADER_FILA =

@@ -62,6 +62,7 @@ const FI_HEADER_SQL = `
   ) ic ON true
   LEFT JOIN public.vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
   LEFT JOIN public.vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
+  LEFT JOIN public.usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
   LEFT JOIN public.plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)
   LEFT JOIN public.marca_v2 mv ON mv.id_marca = ic.id_marca
   WHERE fi.id = $1

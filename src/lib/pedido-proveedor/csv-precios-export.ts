@@ -10,7 +10,8 @@ const HEADER =
 
 const VENDEDOR_JOINS_SQL = `
   LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
-  LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor`;
+  LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
+  LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id`;
 
 type CsvPreciosRow = {
   linea: string | null;

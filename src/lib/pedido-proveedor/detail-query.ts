@@ -533,6 +533,7 @@ export async function listFacturasInternasPp(pool: Pool, ppId: number): Promise<
     LEFT JOIN precio_evento pe ON pe.id = ic.precio_evento_id
     LEFT JOIN vendedor_v2 vd_fi ON vd_fi.id_vendedor = fi.vendedor_id
     LEFT JOIN vendedor_v2 vd_ic ON vd_ic.id_vendedor = ic.id_vendedor
+    LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id
     LEFT JOIN plazo_v2 pl_ic ON pl_ic.id_plazo = COALESCE(fi.plazo_id, ic.id_plazo)
     LEFT JOIN marca_v2 mv ON mv.id_marca = ic.id_marca
     WHERE fi.pp_id = $1

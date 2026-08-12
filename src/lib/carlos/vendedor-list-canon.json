@@ -38,6 +38,45 @@
         "BR-VZ-MD-ML-MKA-O": 90
       }
     },
+    "BZZPN": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      },
+      "nota": "Palma Niños · mismo slot Carlos 90"
+    },
+    "BZZSN": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      },
+      "nota": "San Martín Niños · mismo slot Carlos 90"
+    },
+    "BZZFN": {
+      "cod_nexus_excel": 1,
+      "casos": {
+        "ACT-BRSPORT": 90,
+        "CARTERAS": 90,
+        "PROMOCIONAL": 90,
+        "CLASICOS": 90,
+        "TENIS": 90,
+        "CHINELO": 90,
+        "BR-VZ-MD-ML-MKA-O": 90
+      },
+      "nota": "Fernando Niños · mismo slot Carlos 90"
+    },
     "ATI": {
       "cod_nexus_excel": 2,
       "casos": {
