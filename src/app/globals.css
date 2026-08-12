@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+  --font-report-serif: "Merriweather", Georgia, ui-serif, serif;
+  --font-report-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
