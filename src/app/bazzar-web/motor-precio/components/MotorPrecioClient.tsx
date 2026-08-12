@@ -5,7 +5,13 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import { NexusGlobalHeader } from "@/components/report/NexusGlobalHeader";
 import { ReportFooter } from "@/components/report/ReportFooter";
 import { ReposicionFiltrosSidebar } from "@/components/herramienta-reposicion/ReposicionFiltrosSidebar";
-import type { CatalogoPrecioRow, ReglaMarkup, SimularPrecioResult } from "@/lib/bazzar-web/motor-precio/types";
+import type {
+  CatalogoPrecioRow,
+  ModoPublicacionMotor,
+  ReglaMarkup,
+  SimularPrecioResult,
+} from "@/lib/bazzar-web/motor-precio/types";
+import { estadoPublicacionMotor } from "@/lib/bazzar-web/motor-precio/types";
 import {
   catalogoSkuKey,
   catalogoToDepositoRows,
@@ -24,7 +30,7 @@ import { DepositoProductThumb } from "@/app/depositos-bazzar/components/Deposito
 const WEB_NAVY = "#1E3A5F";
 const WEB_ORANGE = "#F97316";
 
-type Tab = "reglas" | "catalogo" | "simular";
+type Tab = "pendiente" | "publicado" | "reglas" | "simular";
 
 const fmt = (n: number | null | undefined) =>
   n == null || !Number.isFinite(n)
@@ -32,7 +38,7 @@ const fmt = (n: number | null | undefined) =>
     : new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(n);
 
 export function MotorPrecioClient() {
-  const [tab, setTab] = useState<Tab>("catalogo");
+  const [tab, setTab] = useState<Tab>("pendiente");
   const [configured, setConfigured] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -43,6 +49,8 @@ export function MotorPrecioClient() {
   const [metricas, setMetricas] = useState({ skus: 0, con_precio: 0, sin_precio: 0, pares: 0 });
   /** Cascada siamese 2.2.1.44 · mismo motor que Depósito Web / Stock PE */
   const [filtros, setFiltros] = useState<OperativaFilterState>(EMPTY_OPERATIVA_FILTERS);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [modalConflicto, setModalConflicto] = useState(false);
 
   const [nuevoCaso, setNuevoCaso] = useState("");
   const [nuevoMarkup, setNuevoMarkup] = useState("50");
@@ -52,7 +60,7 @@ export function MotorPrecioClient() {
   const [editDesc, setEditDesc] = useState("");
 
   const [simLpn, setSimLpn] = useState("100000");
-  const [simCaso, setSimCaso] = useState("DEFAULT");
+  const [simCaso, setSimCaso] = useState("NORMAL");
   const [simResult, setSimResult] = useState<SimularPrecioResult | null>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [publicando, setPublicando] = useState(false);
@@ -126,22 +134,59 @@ export function MotorPrecioClient() {
   }, [catalogo, filtrosDeferred, keysFiltradas]);
 
   const sinPrecioRows = useMemo(
-    () => catalogoFiltrado.filter((r) => r.sin_precio),
+    () => catalogoFiltrado.filter((r) => estadoPublicacionMotor(r) === "sin_precio"),
     [catalogoFiltrado],
   );
-  const conPrecioRows = useMemo(
-    () => catalogoFiltrado.filter((r) => !r.sin_precio),
+  const pendienteRows = useMemo(
+    () =>
+      catalogoFiltrado.filter((r) => {
+        const e = estadoPublicacionMotor(r);
+        return e === "pendiente_nuevo" || e === "pendiente_conflicto";
+      }),
     [catalogoFiltrado],
   );
+  const publicadoRows = useMemo(
+    () => catalogoFiltrado.filter((r) => estadoPublicacionMotor(r) === "publicado"),
+    [catalogoFiltrado],
+  );
+  const filasTab = tab === "publicado" ? publicadoRows : pendienteRows;
   const metricasVista = useMemo(
     () => ({
       skus: catalogoFiltrado.length,
-      con_precio: conPrecioRows.length,
+      pendiente: pendienteRows.length,
+      publicado: publicadoRows.length,
       sin_precio: sinPrecioRows.length,
       pares: catalogoFiltrado.reduce((s, r) => s + (r.stock_pares || 0), 0),
+      conflictos: pendienteRows.filter((r) => estadoPublicacionMotor(r) === "pendiente_conflicto")
+        .length,
     }),
-    [catalogoFiltrado, conPrecioRows.length, sinPrecioRows.length],
+    [catalogoFiltrado, pendienteRows, publicadoRows, sinPrecioRows.length],
   );
+
+  const selectedInTab = useMemo(() => {
+    const keys = new Set(filasTab.map(catalogoSkuKey));
+    return [...selected].filter((k) => keys.has(k));
+  }, [selected, filasTab]);
+
+  function toggleSelect(key: string) {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  }
+
+  function toggleSelectAllTab() {
+    const keys = filasTab.map(catalogoSkuKey);
+    setSelected((prev) => {
+      const allOn = keys.length > 0 && keys.every((k) => prev.has(k));
+      const n = new Set(prev);
+      if (allOn) keys.forEach((k) => n.delete(k));
+      else keys.forEach((k) => n.add(k));
+      return n;
+    });
+  }
 
   async function crearRegla(e: React.FormEvent) {
     e.preventDefault();
@@ -224,18 +269,28 @@ export function MotorPrecioClient() {
     }
   }
 
-  async function publicar() {
-    if (!confirm("¿Publicar precios WEB calculados a lista activa? Cierra vigencias anteriores por combinación.")) {
+  async function publicarConModo(modo: ModoPublicacionMotor) {
+    const keys = selectedInTab;
+    if (!keys.length) {
+      setError("Seleccioná al menos un SKU (multi-select).");
       return;
     }
     setPublicando(true);
     setError(null);
     setSuccess(null);
+    setModalConflicto(false);
     try {
-      const res = await fetch("/api/bazzar-web/motor-precio/publicar", { method: "POST" });
+      const res = await fetch("/api/bazzar-web/motor-precio/publicar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keys, modo }),
+      });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "No se pudo publicar");
-      setSuccess(`Publicados: ${data.publicados} · Omitidos: ${data.omitidos}`);
+      setSuccess(
+        `Publicados (${modo}): ${data.publicados} combos · Omitidos: ${data.omitidos}`,
+      );
+      setSelected(new Set());
       await loadCatalogo();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al publicar");
@@ -244,8 +299,26 @@ export function MotorPrecioClient() {
     }
   }
 
+  function iniciarPublicar() {
+    const keys = selectedInTab;
+    if (!keys.length) {
+      setError("Seleccioná al menos un SKU (multi-select).");
+      return;
+    }
+    const selRows = filasTab.filter((r) => keys.includes(catalogoSkuKey(r)));
+    const hayConflicto = selRows.some(
+      (r) => estadoPublicacionMotor(r) === "pendiente_conflicto",
+    );
+    if (hayConflicto) {
+      setModalConflicto(true);
+      return;
+    }
+    void publicarConModo("nuevo");
+  }
+
   const tabs: { id: Tab; label: string }[] = [
-    { id: "catalogo", label: "Guardián catálogo" },
+    { id: "pendiente", label: `Pendiente (${metricasVista.pendiente})` },
+    { id: "publicado", label: `Publicado (${metricasVista.publicado})` },
     { id: "reglas", label: "Reglas markup" },
     { id: "simular", label: "Simulador" },
   ];
@@ -263,9 +336,9 @@ export function MotorPrecioClient() {
             Motor de precio
           </h1>
           <p className="text-sm text-slate-600">
-            Guardián del precio de venta WEB — LPN RIMEC × markup del caso (DPE:{" "}
-            <strong>NORMAL</strong> / PROMO / LIQ). Filtros cascada siameses{" "}
-            <strong>2.2.1.44</strong> · hermano Depósito Web / Stock PE.
+            Guardián publicación WEB · <strong>2.5.1.22</strong> — Pendiente / Publicado ·
+            multi-select · aviso conflicto (precio NUEVO vs PUBLICADO). DPE{" "}
+            <strong>NORMAL</strong> / PROMO / LIQ · filtros <strong>2.2.1.44</strong>.
           </p>
         </header>
 
@@ -291,7 +364,10 @@ export function MotorPrecioClient() {
             <button
               key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setTab(t.id);
+                if (t.id === "pendiente" || t.id === "publicado") setSelected(new Set());
+              }}
               className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                 tab === t.id ? "text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
@@ -310,16 +386,17 @@ export function MotorPrecioClient() {
           </button>
         </div>
 
-        {tab === "catalogo" && (
+        {(tab === "pendiente" || tab === "publicado") && (
           <section>
-            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
               {[
                 {
-                  label: hayFiltrosActivos(filtros) ? "SKUs filtrados" : "SKUs (L+R+Mat)",
+                  label: hayFiltrosActivos(filtros) ? "SKUs filtrados" : "SKUs ALM_WEB",
                   value: metricasVista.skus,
                 },
-                { label: "Con precio", value: metricasVista.con_precio },
-                { label: "Sin LPN/caso", value: metricasVista.sin_precio },
+                { label: "Pendiente", value: metricasVista.pendiente },
+                { label: "Publicado", value: metricasVista.publicado },
+                { label: "Conflictos ≠", value: metricasVista.conflictos },
                 { label: "Pares stock", value: metricasVista.pares },
               ].map((m) => (
                 <div key={m.label} className="rounded-lg border border-slate-200 bg-white p-4">
@@ -332,27 +409,37 @@ export function MotorPrecioClient() {
             </div>
             {hayFiltrosActivos(filtros) && (
               <p className="mb-3 text-xs text-slate-500">
-                Universo ALM_WEB: {metricas.skus} SKUs · cascada acota facetas (replace, no universo)
+                Universo ALM_WEB: {metricas.skus} SKUs · cascada acota facetas
               </p>
             )}
 
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={publicar}
-                disabled={publicando || !configured}
-                className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: WEB_ORANGE }}
-              >
-                {publicando ? "Publicando…" : "Publicar precios WEB"}
-              </button>
-              <span className="text-xs text-slate-500">
-                Escribe en lista_precio WEB · fn_precio_venta_web(LPN, caso)
-              </span>
+              {tab === "pendiente" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={iniciarPublicar}
+                    disabled={publicando || !configured || selectedInTab.length === 0}
+                    className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    style={{ backgroundColor: WEB_ORANGE }}
+                  >
+                    {publicando
+                      ? "Publicando…"
+                      : `Publicar selección (${selectedInTab.length})`}
+                  </button>
+                  <span className="text-xs text-slate-500">
+                    1ª pub Motor = Pendiente (no conflicto). Conflicto solo tras sello previo · 2.5.1.22
+                  </span>
+                </>
+              )}
+              {tab === "publicado" && (
+                <span className="text-xs text-slate-500">
+                  SKUs alineados calculado = publicado. Conflictos vuelven a Pendiente.
+                </span>
+              )}
             </div>
 
             <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:gap-3">
-              {/* Ancho = contenido (rails o bloques abiertos) · no reserva 28rem fijos */}
               <aside className="w-auto max-w-full shrink-0 self-start lg:sticky lg:top-4">
                 <ReposicionFiltrosSidebar
                   variant="pe"
@@ -363,7 +450,7 @@ export function MotorPrecioClient() {
                 />
               </aside>
               <div className="min-w-0 flex-1 overflow-hidden">
-                {sinPrecioRows.length > 0 && (
+                {tab === "pendiente" && sinPrecioRows.length > 0 && (
                   <div className="mb-6 w-full">
                     <h2 className="mb-2 text-sm font-semibold text-amber-800">
                       Sin precio calculable ({sinPrecioRows.length})
@@ -373,15 +460,74 @@ export function MotorPrecioClient() {
                 )}
 
                 <h2 className="mb-2 text-sm font-semibold text-slate-700">
-                  Catálogo con precio ({conPrecioRows.length})
+                  {tab === "pendiente" ? "Pendiente de publicar" : "Publicados"} ({filasTab.length})
+                  {selectedInTab.length > 0 && (
+                    <span className="ml-2 font-normal text-slate-500">
+                      · {selectedInTab.length} seleccionados
+                    </span>
+                  )}
                 </h2>
                 <CatalogoTable
-                  rows={conPrecioRows.length ? conPrecioRows : catalogoFiltrado}
-                  highlight="ok"
+                  rows={filasTab}
+                  highlight={tab === "pendiente" ? "warn" : "ok"}
+                  selectable={tab === "pendiente"}
+                  selected={selected}
+                  onToggle={toggleSelect}
+                  onToggleAll={toggleSelectAllTab}
                 />
               </div>
             </div>
           </section>
+        )}
+
+        {modalConflicto && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+              <h3 className="font-serif text-lg" style={{ color: WEB_NAVY }}>
+                Conflicto de precio / CASO
+              </h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Hay SKUs con calculado ≠ publicado. No se bloquea: elegí cómo publicar la
+                selección ({selectedInTab.length}).
+              </p>
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-600">
+                <li>
+                  <strong>Precio NUEVO</strong> — actualiza la vitrina al calculado (DPE actual).
+                </li>
+                <li>
+                  <strong>Precio PUBLICADO</strong> — mantiene el vigente; lo nuevo vende al
+                  publicado.
+                </li>
+              </ul>
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={publicando}
+                  onClick={() => void publicarConModo("nuevo")}
+                  className="flex-1 rounded-md px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  style={{ backgroundColor: WEB_ORANGE }}
+                >
+                  Aprobar precio NUEVO
+                </button>
+                <button
+                  type="button"
+                  disabled={publicando}
+                  onClick={() => void publicarConModo("publicado")}
+                  className="flex-1 rounded-md px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  style={{ backgroundColor: WEB_NAVY }}
+                >
+                  Aprobar precio PUBLICADO
+                </button>
+              </div>
+              <button
+                type="button"
+                className="mt-3 w-full text-center text-xs text-slate-500 hover:underline"
+                onClick={() => setModalConflicto(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         )}
 
         {tab === "reglas" && (
@@ -592,19 +738,40 @@ export function MotorPrecioClient() {
 function CatalogoTable({
   rows,
   highlight,
+  selectable = false,
+  selected,
+  onToggle,
+  onToggleAll,
 }: {
   rows: CatalogoPrecioRow[];
   highlight: "ok" | "warn";
+  selectable?: boolean;
+  selected?: Set<string>;
+  onToggle?: (key: string) => void;
+  onToggleAll?: () => void;
 }) {
   if (!rows.length) {
-    return <p className="text-sm text-slate-500">Sin filas.</p>;
+    return <p className="text-sm text-slate-500">Sin filas en esta pestaña.</p>;
   }
+
+  const allSelected =
+    selectable && rows.length > 0 && rows.every((r) => selected?.has(catalogoSkuKey(r)));
 
   return (
     <div className="w-full max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="w-full min-w-[720px] table-auto text-left text-sm">
+      <table className="w-full min-w-[780px] table-auto text-left text-sm">
         <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
+            {selectable && (
+              <th className="px-2 py-2 w-10">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={() => onToggleAll?.()}
+                  aria-label="Seleccionar todos"
+                />
+              </th>
+            )}
             <th className="px-2 py-2 w-12" aria-label="Foto" />
             <th className="px-3 py-2">Línea</th>
             <th className="px-3 py-2">Ref</th>
@@ -615,24 +782,37 @@ function CatalogoTable({
             <th className="px-3 py-2">Markup</th>
             <th className="px-3 py-2">Calculado</th>
             <th className="px-3 py-2">Publicado</th>
+            <th className="px-3 py-2">Estado</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r, idx) => {
-            // Identidad = L+R+código material (GROUP BY catálogo · 2.5.1.5).
-            // No usar descripción: dos códigos pueden compartir texto (ej. PELICA) → same key React.
-            const key = `${r.linea}-${r.referencia}-${r.material_codigo ?? r.material}-${idx}`;
-            const diff =
-              r.precio_web_calculado != null &&
+            const sku = catalogoSkuKey(r);
+            const key = `${sku}-${idx}`;
+            const est = estadoPublicacionMotor(r);
+            const diff = est === "pendiente_conflicto";
+            const listaVieja =
+              (!r.motor_sellado || r.sello_respaldado_web === false) &&
               r.precio_web_publicado != null &&
+              r.precio_web_calculado != null &&
               r.precio_web_calculado !== r.precio_web_publicado;
+            const checked = Boolean(selected?.has(sku));
             return (
               <tr
                 key={key}
-                className={`border-b border-slate-100 ${highlight === "warn" ? "bg-amber-50/50" : ""}`}
+                className={`border-b border-slate-100 ${highlight === "warn" && diff ? "bg-amber-50/70" : ""}`}
               >
+                {selectable && (
+                  <td className="px-2 py-2 align-middle">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggle?.(sku)}
+                      aria-label={`Seleccionar ${sku}`}
+                    />
+                  </td>
+                )}
                 <td className="px-2 py-2 align-middle">
-                  {/* NIIF + Ley Universal 2.01.04.021 · marco contain · códigos proveedor */}
                   <div
                     className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-rimec-azul/30 bg-white shadow-sm"
                     title={
@@ -665,9 +845,46 @@ function CatalogoTable({
                 <td className="px-3 py-2 font-mono text-xs">{r.caso_precio ?? "—"}</td>
                 <td className="px-3 py-2">{r.markup_pct != null ? `${r.markup_pct}%` : "—"}</td>
                 <td className="px-3 py-2 font-medium">{fmt(r.precio_web_calculado)}</td>
-                <td className={`px-3 py-2 ${diff ? "text-amber-700 font-medium" : ""}`}>
+                <td
+                  className={`px-3 py-2 ${diff ? "font-medium text-amber-700" : listaVieja ? "text-slate-500" : ""}`}
+                  title={
+                    diff
+                      ? `Ley 2.5.1.22 · calculado ${fmt(r.precio_web_calculado)} ≠ publicado WEB ${fmt(r.precio_web_publicado)}`
+                      : undefined
+                  }
+                >
                   {fmt(r.precio_web_publicado)}
                   {diff && " ≠"}
+                  {listaVieja && (
+                    <span
+                      className="ml-1 text-[10px] text-slate-400"
+                      title="Precio en lista WEB sin sello Motor"
+                    >
+                      (sin sello)
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  {est === "pendiente_conflicto" && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                      CONFLICTO
+                    </span>
+                  )}
+                  {est === "pendiente_nuevo" && (
+                    <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800">
+                      1ª PUB
+                    </span>
+                  )}
+                  {est === "publicado" && (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                      OK
+                    </span>
+                  )}
+                  {est === "sin_precio" && (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                      SIN LPN
+                    </span>
+                  )}
                 </td>
               </tr>
             );

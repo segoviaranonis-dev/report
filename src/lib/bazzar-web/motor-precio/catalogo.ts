@@ -6,6 +6,7 @@ import { getRimecPool } from "@/lib/rimec/pool";
 import { ALM_WEB_BAZAR } from "@/lib/bazzar-web/compra-web/constants";
 import { LPN_CASO_GROUP_BY, LPN_CASO_LATERAL_SQL, LPN_CASO_SELECT } from "./lpn-caso-sql";
 import type { CatalogoPrecioRow } from "./types";
+import { selloMotorDesfasado } from "./types";
 
 /** Paridad depósito-web: tipo_v2 desde proveedor_id (no hay columna linea.tipo_v2_id). */
 const TIPO_V2_ID_SQL = `
@@ -150,44 +151,69 @@ WITH det AS (
            dpe.cod_grupo,
            ${LPN_CASO_GROUP_BY}
   HAVING SUM(md.cantidad * md.signo) > 0
+),
+agg AS (
+  SELECT
+    linea,
+    referencia,
+    material_codigo,
+    MAX(material) AS material,
+    MAX(color_codigo) AS color_codigo,
+    MAX(descp_color) AS descp_color,
+    MAX(imagen_color_excel) AS imagen_color_excel,
+    MAX(imagen_nombre) AS imagen_nombre,
+    MAX(tipo_v2_id)::int AS tipo_v2_id,
+    MAX(tipo_v2) AS tipo_v2,
+    MAX(linea_id)::int AS linea_id,
+    MAX(referencia_id)::int AS referencia_id,
+    MAX(material_id)::int AS material_id,
+    MAX(color_id)::int AS color_id,
+    MAX(marca_id)::int AS marca_id,
+    MAX(genero_id)::int AS genero_id,
+    MAX(grupo_estilo_id)::int AS grupo_estilo_id,
+    MAX(marca) AS marca,
+    MAX(genero) AS genero,
+    MAX(estilo) AS estilo,
+    MAX(pe_cod_grupo) AS pe_cod_grupo,
+    SUM(stock)::int AS stock_pares,
+    MAX(lpn)::float AS lpn,
+    MAX(caso_precio) AS caso_precio,
+    (
+      SELECT markup_pct FROM caso_precio_web_regla cpr
+      WHERE UPPER(TRIM(cpr.caso_codigo)) = UPPER(TRIM(COALESCE(MAX(caso_precio), 'DEFAULT')))
+        AND cpr.activo = true
+      LIMIT 1
+    )::float AS markup_pct,
+    fn_precio_venta_web(MAX(lpn), MAX(caso_precio))::float AS precio_web_calculado,
+    MAX(precio_publicado)::float AS precio_web_publicado,
+    COUNT(DISTINCT combinacion_id)::int AS combinaciones
+  FROM det
+  GROUP BY linea, referencia, material_codigo
 )
 SELECT
-  linea,
-  referencia,
-  material_codigo,
-  MAX(material) AS material,
-  MAX(color_codigo) AS color_codigo,
-  MAX(descp_color) AS descp_color,
-  MAX(imagen_color_excel) AS imagen_color_excel,
-  MAX(imagen_nombre) AS imagen_nombre,
-  MAX(tipo_v2_id)::int AS tipo_v2_id,
-  MAX(tipo_v2) AS tipo_v2,
-  MAX(linea_id)::int AS linea_id,
-  MAX(referencia_id)::int AS referencia_id,
-  MAX(material_id)::int AS material_id,
-  MAX(color_id)::int AS color_id,
-  MAX(marca_id)::int AS marca_id,
-  MAX(genero_id)::int AS genero_id,
-  MAX(grupo_estilo_id)::int AS grupo_estilo_id,
-  MAX(marca) AS marca,
-  MAX(genero) AS genero,
-  MAX(estilo) AS estilo,
-  MAX(pe_cod_grupo) AS pe_cod_grupo,
-  SUM(stock)::int AS stock_pares,
-  MAX(lpn)::float AS lpn,
-  MAX(caso_precio) AS caso_precio,
-  (
-    SELECT markup_pct FROM caso_precio_web_regla cpr
-    WHERE UPPER(TRIM(cpr.caso_codigo)) = UPPER(TRIM(COALESCE(MAX(caso_precio), 'DEFAULT')))
-      AND cpr.activo = true
-    LIMIT 1
-  )::float AS markup_pct,
-  fn_precio_venta_web(MAX(lpn), MAX(caso_precio))::float AS precio_web_calculado,
-  MAX(precio_publicado)::float AS precio_web_publicado,
-  COUNT(DISTINCT combinacion_id)::int AS combinaciones
-FROM det
-GROUP BY linea, referencia, material_codigo
-ORDER BY linea, referencia, material_codigo
+  a.*,
+  (s.linea_id IS NOT NULL) AS motor_sellado,
+  s.precio_sellado::float AS precio_motor_sellado,
+  CASE
+    WHEN s.linea_id IS NULL THEN false
+    ELSE EXISTS (
+      SELECT 1
+      FROM combinacion c
+      JOIN precio p ON p.combinacion_id = c.id
+      JOIN lista_precio lp ON lp.id = p.lista_id AND lp.tipo = 'WEB'
+      WHERE c.linea_id = a.linea_id
+        AND c.referencia_id = a.referencia_id
+        AND COALESCE(c.material_id, 0) = COALESCE(NULLIF(a.material_id, 0), 0)
+        AND ROUND(p.valor) = ROUND(s.precio_sellado)
+    )
+  END AS sello_respaldado_web
+FROM agg a
+LEFT JOIN motor_precio_sello s
+  ON s.almacen_id = $1
+ AND s.linea_id = a.linea_id
+ AND s.referencia_id = a.referencia_id
+ AND s.material_id = COALESCE(NULLIF(a.material_id, 0), 0)
+ORDER BY a.linea, a.referencia, a.material_codigo
 `;
 
 export async function getCatalogoPrecios(): Promise<CatalogoPrecioRow[]> {
@@ -220,6 +246,9 @@ export async function getCatalogoPrecios(): Promise<CatalogoPrecioRow[]> {
     markup_pct: number | null;
     precio_web_calculado: number | null;
     precio_web_publicado: number | null;
+    motor_sellado: boolean;
+    precio_motor_sellado: number | null;
+    sello_respaldado_web: boolean;
     combinaciones: number;
   }>(CATALOGO_SQL, [ALM_WEB_BAZAR]);
 
@@ -254,18 +283,171 @@ export async function getCatalogoPrecios(): Promise<CatalogoPrecioRow[]> {
       r.precio_web_calculado != null ? Number(r.precio_web_calculado) : null,
     precio_web_publicado:
       r.precio_web_publicado != null ? Number(r.precio_web_publicado) : null,
+    motor_sellado: Boolean(r.motor_sellado),
+    sello_respaldado_web: Boolean(r.sello_respaldado_web),
+    precio_motor_sellado:
+      r.precio_motor_sellado != null ? Number(r.precio_motor_sellado) : null,
     combinaciones: Number(r.combinaciones) || 0,
     sin_precio: r.lpn == null || r.precio_web_calculado == null,
   }));
 }
 
-/** Publica precio_web calculado en lista WEB por combinación con stock */
-export async function publicarPreciosWeb(): Promise<{
+export type ModoPublicacion = "nuevo" | "publicado";
+
+type ComboPubRow = {
+  combinacion_id: number;
+  linea_id: number;
+  referencia_id: number;
+  material_id: number;
+  linea: string;
+  referencia: string;
+  material_codigo: string | null;
+  lpn: number;
+  caso_precio: string;
+  precio_calc: number;
+  precio_publicado: number | null;
+  precio_sellado: number | null;
+};
+
+async function loadCombosPublicables(
+  client: import("pg").PoolClient,
+): Promise<ComboPubRow[]> {
+  const { rows } = await client.query<{
+    combinacion_id: number;
+    linea_id: number;
+    referencia_id: number;
+    material_id: number;
+    linea: string;
+    referencia: string;
+    material_codigo: string | null;
+    lpn: number;
+    caso_precio: string;
+    precio_calc: number;
+    precio_publicado: number | null;
+    precio_sellado: number | null;
+  }>(
+    `
+    WITH det AS (
+      SELECT
+        c.id AS combinacion_id,
+        l.id AS linea_id,
+        r.id AS referencia_id,
+        COALESCE(mat.id, 0) AS material_id,
+        l.codigo_proveedor::text AS linea,
+        r.codigo_proveedor::text AS referencia,
+        mat.codigo_proveedor::text AS material_codigo,
+        ${LPN_CASO_SELECT},
+        SUM(md.cantidad * md.signo) AS stock
+      FROM movimiento_detalle md
+      JOIN movimiento m ON m.id = md.movimiento_id
+      JOIN traspaso tr ON tr.numero_registro = m.documento_ref
+      JOIN combinacion c ON c.id = md.combinacion_id
+      JOIN linea l ON l.id = c.linea_id
+      JOIN referencia r ON r.id = c.referencia_id
+      LEFT JOIN material mat ON mat.id = c.material_id
+      LEFT JOIN pedido_proveedor pp ON pp.id = NULLIF(tr.snapshot_json->>'id_pp', '')::int
+      LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
+      ${LPN_CASO_LATERAL_SQL}
+      WHERE m.almacen_destino_id = $1
+        AND m.estado = 'CONFIRMADO'
+        AND m.tipo = 'INGRESO_COMPRA'
+      GROUP BY c.id, l.id, r.id, mat.id, l.codigo_proveedor, r.codigo_proveedor, mat.codigo_proveedor,
+               ${LPN_CASO_GROUP_BY}
+      HAVING SUM(md.cantidad * md.signo) > 0
+    )
+    SELECT
+      combinacion_id,
+      linea_id,
+      referencia_id,
+      material_id,
+      linea,
+      referencia,
+      material_codigo,
+      lpn::float AS lpn,
+      caso_precio,
+      fn_precio_venta_web(lpn, caso_precio)::float AS precio_calc,
+      (
+        SELECT p.valor::float
+        FROM precio p
+        JOIN lista_precio lp ON lp.id = p.lista_id
+        WHERE p.combinacion_id = det.combinacion_id
+          AND p.fecha_hasta IS NULL
+          AND lp.tipo = 'WEB'
+          AND lp.activa = true
+        ORDER BY p.id DESC
+        LIMIT 1
+      ) AS precio_publicado,
+      (
+        SELECT s.precio_sellado::float
+        FROM motor_precio_sello s
+        WHERE s.almacen_id = $1
+          AND s.linea_id = det.linea_id
+          AND s.referencia_id = det.referencia_id
+          AND s.material_id = det.material_id
+        LIMIT 1
+      ) AS precio_sellado
+    FROM det
+    WHERE lpn IS NOT NULL AND caso_precio IS NOT NULL
+    `,
+    [ALM_WEB_BAZAR],
+  );
+  return rows.map((r) => ({
+    combinacion_id: Number(r.combinacion_id),
+    linea_id: Number(r.linea_id),
+    referencia_id: Number(r.referencia_id),
+    material_id: Number(r.material_id) || 0,
+    linea: r.linea,
+    referencia: r.referencia,
+    material_codigo: r.material_codigo,
+    lpn: Number(r.lpn),
+    caso_precio: r.caso_precio,
+    precio_calc: Number(r.precio_calc),
+    precio_publicado: r.precio_publicado != null ? Number(r.precio_publicado) : null,
+    precio_sellado: r.precio_sellado != null ? Number(r.precio_sellado) : null,
+  }));
+}
+
+function skuKeyCombo(r: Pick<ComboPubRow, "linea" | "referencia" | "material_codigo">): string {
+  return `${r.linea}|${r.referencia}|${r.material_codigo ?? ""}`;
+}
+
+async function escribirPrecioCombo(
+  client: import("pg").PoolClient,
+  listaId: number,
+  combinacionId: number,
+  precio: number,
+): Promise<void> {
+  await client.query(
+    `UPDATE precio SET fecha_hasta = NOW()
+     WHERE combinacion_id = $1 AND lista_id = $2 AND fecha_hasta IS NULL`,
+    [combinacionId, listaId],
+  );
+  await client.query(
+    `INSERT INTO precio (combinacion_id, lista_id, valor, fecha_desde)
+     VALUES ($1, $2, $3, NOW())`,
+    [combinacionId, listaId, precio],
+  );
+}
+
+/**
+ * Publica por selección L+R+Mat · 2.5.1.22
+ * - nuevo: escribe precio calculado (actualiza vitrina)
+ * - publicado: mantiene/reafirma precio ya publicado (stock nuevo al precio vigente)
+ */
+export async function publicarPreciosWebSeleccion(
+  keys: string[],
+  modo: ModoPublicacion = "nuevo",
+): Promise<{
   ok: boolean;
   publicados: number;
   omitidos: number;
   error?: string;
 }> {
+  const keySet = new Set(keys.map((k) => k.trim()).filter(Boolean));
+  if (!keySet.size) {
+    return { ok: false, publicados: 0, omitidos: 0, error: "Sin SKUs seleccionados." };
+  }
+
   const pool = getRimecPool();
   const client = await pool.connect();
   try {
@@ -280,71 +462,61 @@ export async function publicarPreciosWeb(): Promise<{
       return { ok: false, publicados: 0, omitidos: 0, error: "No hay lista_precio WEB activa." };
     }
 
-    const { rows: combos } = await client.query<{
-      combinacion_id: number;
-      lpn: number;
-      caso_precio: string;
-      precio: number;
-    }>(
-      `
-      WITH det AS (
-        SELECT
-          c.id AS combinacion_id,
-          ${LPN_CASO_SELECT},
-          SUM(md.cantidad * md.signo) AS stock
-        FROM movimiento_detalle md
-        JOIN movimiento m ON m.id = md.movimiento_id
-        JOIN traspaso tr ON tr.numero_registro = m.documento_ref
-        JOIN combinacion c ON c.id = md.combinacion_id
-        JOIN linea l ON l.id = c.linea_id
-        JOIN referencia r ON r.id = c.referencia_id
-        LEFT JOIN material mat ON mat.id = c.material_id
-        LEFT JOIN pedido_proveedor pp ON pp.id = NULLIF(tr.snapshot_json->>'id_pp', '')::int
-        LEFT JOIN intencion_compra_pedido icp ON icp.pedido_proveedor_id = pp.id
-        ${LPN_CASO_LATERAL_SQL}
-        WHERE m.almacen_destino_id = $1
-          AND m.estado = 'CONFIRMADO'
-          AND m.tipo = 'INGRESO_COMPRA'
-        GROUP BY c.id, ${LPN_CASO_GROUP_BY}
-        HAVING SUM(md.cantidad * md.signo) > 0
-      )
-      SELECT
-        combinacion_id,
-        lpn::float AS lpn,
-        caso_precio,
-        fn_precio_venta_web(lpn, caso_precio)::float AS precio
-      FROM det
-      WHERE lpn IS NOT NULL AND caso_precio IS NOT NULL
-      `,
-      [ALM_WEB_BAZAR],
-    );
-
+    const combos = await loadCombosPublicables(client);
     let publicados = 0;
     let omitidos = 0;
+    const sellados = new Map<string, { precio: number; caso: string; row: ComboPubRow }>();
 
     for (const row of combos) {
-      const precio = Number(row.precio);
+      if (!keySet.has(skuKeyCombo(row))) continue;
+
+      let precio: number;
+      if (modo === "publicado") {
+        /** Ley 2.5.1.22: “mantener publicado” = vitrina WEB viva, nunca sello de auditoría viejo. */
+        const vigente = row.precio_publicado ?? row.precio_sellado;
+        if (vigente == null || !(vigente > 0)) {
+          omitidos += 1;
+          continue;
+        }
+        precio = Math.round(Number(vigente));
+      } else {
+        precio = Math.round(Number(row.precio_calc));
+      }
+
       if (!Number.isFinite(precio) || precio <= 0) {
         omitidos += 1;
         continue;
       }
 
-      await client.query(
-        `
-        UPDATE precio SET fecha_hasta = NOW()
-        WHERE combinacion_id = $1 AND lista_id = $2 AND fecha_hasta IS NULL
-        `,
-        [row.combinacion_id, listaId],
-      );
-
-      await client.query(
-        `
-        INSERT INTO precio (combinacion_id, lista_id, valor, fecha_desde)
-        VALUES ($1, $2, $3, NOW())
-        `,
-        [row.combinacion_id, listaId, precio],
-      );
+      await escribirPrecioCombo(client, listaId, row.combinacion_id, precio);
       publicados += 1;
+      const tkey = `${row.linea_id}:${row.referencia_id}:${row.material_id}`;
+      sellados.set(tkey, { precio, caso: row.caso_precio, row });
+    }
+
+    for (const { precio, caso, row } of sellados.values()) {
+      await client.query(
+        `
+        INSERT INTO motor_precio_sello (
+          almacen_id, linea_id, referencia_id, material_id,
+          precio_sellado, caso_codigo, modo, publicado_en
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7, now())
+        ON CONFLICT (almacen_id, linea_id, referencia_id, material_id) DO UPDATE SET
+          precio_sellado = EXCLUDED.precio_sellado,
+          caso_codigo = EXCLUDED.caso_codigo,
+          modo = EXCLUDED.modo,
+          publicado_en = now()
+        `,
+        [
+          ALM_WEB_BAZAR,
+          row.linea_id,
+          row.referencia_id,
+          row.material_id,
+          precio,
+          caso,
+          modo,
+        ],
+      );
     }
 
     await client.query("COMMIT");
@@ -360,4 +532,87 @@ export async function publicarPreciosWeb(): Promise<{
   } finally {
     client.release();
   }
+}
+
+/** @deprecated Preferir publicarPreciosWebSeleccion — publica TODO el catálogo */
+export async function publicarPreciosWeb(): Promise<{
+  ok: boolean;
+  publicados: number;
+  omitidos: number;
+  error?: string;
+}> {
+  const rows = await getCatalogoPrecios();
+  const keys = [
+    ...new Set(
+      rows
+        .filter((r) => !r.sin_precio)
+        .map((r) => `${r.linea}|${r.referencia}|${r.material_codigo ?? ""}`),
+    ),
+  ];
+  return publicarPreciosWebSeleccion(keys, "nuevo");
+}
+
+/**
+ * Autocura segura: si vitrina WEB ya = calculado pero el sello quedó viejo,
+ * alinea el sello (auditoría) sin tocar precio de tienda.
+ * No crea sellos nuevos · no publica · no pisa conflictos reales (calc ≠ pub).
+ */
+export async function repararSellosDesfasadosAlineados(
+  rows: CatalogoPrecioRow[],
+): Promise<{ reparados: number }> {
+  const stale = rows.filter(selloMotorDesfasado);
+  if (!stale.length) return { reparados: 0 };
+
+  const pool = getRimecPool();
+  let reparados = 0;
+  for (const r of stale) {
+    if (r.linea_id == null || r.referencia_id == null) continue;
+    const precio = Math.round(Number(r.precio_web_publicado ?? r.precio_web_calculado));
+    if (!Number.isFinite(precio) || precio <= 0) continue;
+    const matId = Number(r.material_id) || 0;
+    const res = await pool.query(
+      `
+      UPDATE motor_precio_sello
+      SET precio_sellado = $5,
+          caso_codigo = COALESCE($6, caso_codigo),
+          publicado_en = now()
+      WHERE almacen_id = $1
+        AND linea_id = $2
+        AND referencia_id = $3
+        AND material_id = $4
+        AND precio_sellado IS DISTINCT FROM $5::numeric
+      `,
+      [ALM_WEB_BAZAR, r.linea_id, r.referencia_id, matId, precio, r.caso_precio],
+    );
+    reparados += res.rowCount ?? 0;
+  }
+  return { reparados };
+}
+
+/**
+ * Borra sellos sin eco en lista WEB (publicar-todo / sello fantasma).
+ * Alcance: todo el almacén WEB · no toca precios · deja 1ª PUB real.
+ */
+export async function purgarSellosHuerfanos(
+  _rows?: CatalogoPrecioRow[],
+): Promise<{ purgados: number }> {
+  const pool = getRimecPool();
+  const res = await pool.query(
+    `
+    DELETE FROM motor_precio_sello s
+    WHERE s.almacen_id = $1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM combinacion c
+        JOIN precio p ON p.combinacion_id = c.id
+        JOIN lista_precio lp ON lp.id = p.lista_id AND lp.tipo = 'WEB'
+        WHERE c.linea_id = s.linea_id
+          AND c.referencia_id = s.referencia_id
+          AND COALESCE(c.material_id, 0) = s.material_id
+          AND ROUND(p.valor) = ROUND(s.precio_sellado)
+      )
+    `,
+    [ALM_WEB_BAZAR],
+  );
+  return { purgados: res.rowCount ?? 0 };
 }

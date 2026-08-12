@@ -48,6 +48,15 @@ export type CatalogoPrecioRow = {
   precio_rimec_lpn: number | null;
   precio_web_calculado: number | null;
   precio_web_publicado: number | null;
+  /** true = fila en motor_precio_sello (puede ser huérfano). */
+  motor_sellado: boolean;
+  /**
+   * true si algún precio WEB (histórico o vivo) de la tripleta L+R+M
+   * igualó el sello — sello comercial real. false = sello huérfano (no cuenta).
+   */
+  sello_respaldado_web: boolean;
+  /** Precio del último sello Motor (null si nunca publicó por Motor). */
+  precio_motor_sellado: number | null;
   combinaciones: number;
   sin_precio: boolean;
 };
@@ -65,3 +74,47 @@ export type PublicarPrecioResult = {
   omitidos: number;
   error?: string;
 };
+
+/** Modo decisión 2.5.1.22 */
+export type ModoPublicacionMotor = "nuevo" | "publicado";
+
+export type EstadoPublicacionMotor = "pendiente_nuevo" | "pendiente_conflicto" | "publicado" | "sin_precio";
+
+/** Comparación segura en guaraníes enteros (evita falsos ≠ por float). */
+export function precioGsEq(a: number | null | undefined, b: number | null | undefined): boolean {
+  if (a == null || b == null || !Number.isFinite(Number(a)) || !Number.isFinite(Number(b))) {
+    return false;
+  }
+  return Math.round(Number(a)) === Math.round(Number(b));
+}
+
+/** Sello con fila en tabla pero sin eco en lista WEB → no es publicación Motor real. */
+export function selloMotorHuerfano(r: CatalogoPrecioRow): boolean {
+  return Boolean(r.motor_sellado) && r.sello_respaldado_web === false;
+}
+
+/**
+ * Estado comercial Motor · ley 2.5.1.22
+ * - Sin sello válido → 1ª PUB. Precio WEB de Stock Sano NO es conflicto.
+ * - Sello huérfano (nunca hubo WEB = sello) → se ignora · 1ª PUB.
+ * - Con sello respaldado → CONFLICTO solo si calculado ≠ precio WEB publicado.
+ */
+export function estadoPublicacionMotor(r: CatalogoPrecioRow): EstadoPublicacionMotor {
+  if (r.sin_precio || r.precio_web_calculado == null) return "sin_precio";
+  const selloValido = Boolean(r.motor_sellado) && r.sello_respaldado_web !== false;
+  if (!selloValido) return "pendiente_nuevo";
+  const pub = r.precio_web_publicado;
+  if (pub != null && !precioGsEq(r.precio_web_calculado, pub)) return "pendiente_conflicto";
+  return "publicado";
+}
+
+/** Sello ≠ vitrina pero calculado = publicado → metadato viejo, no pelea comercial. */
+export function selloMotorDesfasado(r: CatalogoPrecioRow): boolean {
+  if (!r.motor_sellado || r.sello_respaldado_web === false) return false;
+  if (r.precio_motor_sellado == null || r.precio_web_calculado == null) return false;
+  if (r.precio_web_publicado == null) return false;
+  return (
+    precioGsEq(r.precio_web_calculado, r.precio_web_publicado) &&
+    !precioGsEq(r.precio_motor_sellado, r.precio_web_calculado)
+  );
+}
