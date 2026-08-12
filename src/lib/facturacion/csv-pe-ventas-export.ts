@@ -4,17 +4,16 @@
  * Cliente · Cod. Oper. · F. Pedido · Lista precios · cobrador · vendedor · DEPOSITO ·
  * Des. 1–4 · Codigo Articulo · Cant. Pares · Precio con descuento · Precio sin descuento
  *
- * Orden precios (2026-08-07 hotfix Director): neto antes que bruto — Carlos aplica Des.1–4
- * de cabecera; si la col «sin descuento» va primero puede duplicar el descuento.
+ * Política Carlos (2026-08-12 · señora Carlos / Verónica): **ambas** columnas de precio =
+ * **bruto sin descuento** del tier que eligió el vendedor (`lista_precio_id` / `precio_unit`).
+ * Carlos aplica Des.1–4 de cabecera — prohibido mandar neto en cualquier columna.
  *
  * DEPOSITO = dato de CABECERA (una sola vez en la 1ª fila de datos): S00_D1 | S00_DEP2 | S00_D3
  * Cant. Pares = cantidad por artículo (columna única — NO tres columnas de depósito).
  */
 import type { Pool } from "pg";
 import {
-  brutoDesdeNeto,
   listaPrecioLabel,
-  precioNetoCascada,
 } from "@/app/aprobaciones/lib/aprobaciones-utils";
 import { resolveCodOperCarlos } from "@/lib/carlos/plazo-carlos-resolver";
 import { resolveVendedorCarlosParaCsv } from "@/lib/carlos/vendedor-carlos-resolver";
@@ -185,7 +184,12 @@ function fmtPrecioGs(n: number): string {
   return String(Math.round(n));
 }
 
-function brutoDesdePpdTier(r: FiDetRow, tier: ListadoPrecioTierId): number {
+function numPos(raw: string | null | undefined): number {
+  const v = Number(raw);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+function brutoPpdEstrictoTier(r: FiDetRow, tier: ListadoPrecioTierId): number {
   const pick = (raw: string | null | undefined): number => {
     const v = Number(raw);
     return Number.isFinite(v) && v > 0 ? v : 0;
@@ -196,48 +200,60 @@ function brutoDesdePpdTier(r: FiDetRow, tier: ListadoPrecioTierId): number {
     3: pick(r.ppd_precio_lpc03),
     4: pick(r.ppd_precio_lpc04),
   };
-  const direct = byTier[tier];
-  if (direct > 0) return direct;
-  return pick(r.ppd_precio_lpn);
+  return byTier[tier] ?? 0;
+}
+
+function brutoLpnPpd(r: FiDetRow): number {
+  return numPos(r.ppd_precio_lpn);
 }
 
 /**
- * Precios CSV = los de la FI (precio_unit / precio_neto) respetando lista_precio_id.
- * Prohibido priorizar linea_snapshot.precio_base o fid.precio_lista — suelen ser LPN.
+ * Bruto sin descuento del LP/tier de la FI — nunca precio_neto · nunca LPN si tier ≠ 1.
+ * Ley vendedor: `lista_precio_id` de cabecera manda — total control estrategia comercial.
+ */
+export function resolveBrutoLineaPeCsv(r: FiDetRow, listaPrecioId: number): number {
+  const tier = fiListaTier(listaPrecioId);
+  const tierBruto = brutoPpdEstrictoTier(r, tier);
+  const lpnBruto = brutoLpnPpd(r);
+  const unitBd = numPos(r.precio_unit);
+  const netoBd = numPos(r.precio_neto);
+
+  if (unitBd > 0) {
+    // Usuario eligió LPC02/03/04 — prohibido exportar LPN aunque precio_unit venga mal
+    if (tier !== 1 && lpnBruto > 0 && unitBd === lpnBruto && tierBruto > 0) {
+      return tierBruto;
+    }
+    // precio_unit contaminado (= neto post-descuento)
+    if (
+      netoBd > 0 &&
+      unitBd === netoBd &&
+      tierBruto > 0 &&
+      Math.abs(unitBd - tierBruto) > 1
+    ) {
+      return tierBruto;
+    }
+    return unitBd;
+  }
+
+  if (tierBruto > 0) return tierBruto;
+
+  // Reserva solo LPN (tier 1) — LPC sin tier en PPD → audit Nivel Dios bloquea export
+  if (tier === 1) {
+    const snap = numPos(r.precio_base_snap);
+    if (snap > 0) return snap;
+    return numPos(r.unit_fob_ajustado);
+  }
+
+  return 0;
+}
+
+/**
+ * CSV Carlos: ambas columnas = bruto tier (sin descuento). Neto = bruto (paridad cols).
  */
 export function resolvePreciosLineaPeCsv(r: FiDetRow, listaPrecioId: number): { bruto: string; neto: string } {
-  const d1 = Number(r.descuento_1) || 0;
-  const d2 = Number(r.descuento_2) || 0;
-  const d3 = Number(r.descuento_3) || 0;
-  const d4 = Number(r.descuento_4) || 0;
-  const hayDesc = d1 + d2 + d3 + d4 > 0;
-  const tier = fiListaTier(listaPrecioId);
-
-  const unitBd = Number(r.precio_unit);
-  const netoBd = Number(r.precio_neto);
-
-  if (Number.isFinite(unitBd) && unitBd > 0 && Number.isFinite(netoBd) && netoBd > 0) {
-    return { bruto: fmtPrecioGs(unitBd), neto: fmtPrecioGs(netoBd) };
-  }
-
-  let bruto = Number.isFinite(unitBd) && unitBd > 0 ? unitBd : brutoDesdePpdTier(r, tier);
-  if (bruto <= 0) bruto = Number(r.precio_base_snap);
-  if (bruto <= 0) bruto = Number(r.unit_fob_ajustado);
-
-  let neto = Number.isFinite(netoBd) && netoBd > 0 ? netoBd : 0;
-  if (neto <= 0 && bruto > 0 && hayDesc) {
-    neto = precioNetoCascada(bruto, d1, d2, d3, d4);
-  }
-  if (neto <= 0 && bruto > 0 && hayDesc && Number.isFinite(netoBd) && netoBd > 0) {
-    bruto = brutoDesdeNeto(netoBd, d1, d2, d3, d4);
-    neto = netoBd;
-  }
-  if (neto <= 0) neto = bruto;
-
-  return {
-    bruto: fmtPrecioGs(bruto),
-    neto: fmtPrecioGs(Number.isFinite(neto) && neto > 0 ? neto : bruto),
-  };
+  const bruto = resolveBrutoLineaPeCsv(r, listaPrecioId);
+  const s = fmtPrecioGs(bruto);
+  return { bruto: s, neto: s };
 }
 
 type CabeceraCsv = {
@@ -254,13 +270,13 @@ type CabeceraCsv = {
 };
 
 function mapDetalleRow(r: FiDetRow, cab: CabeceraCsv, listaPrecioId: number): PeVentasCsvRow {
-  const { bruto, neto } = resolvePreciosLineaPeCsv(r, listaPrecioId);
+  const bruto = fmtPrecioGs(resolveBrutoLineaPeCsv(r, listaPrecioId));
   return {
     ...cab,
     codigo_articulo: resolveCodigoArticuloCarlos(r),
     cant_pares: fmtCantidad(r.pares),
     precio_sin_descuento: bruto,
-    precio_con_descuento: neto,
+    precio_con_descuento: bruto,
     fid_id: r.fid_id,
   };
 }
