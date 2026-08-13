@@ -13,6 +13,7 @@ import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeI
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
+import { TabCostosPe } from "@/components/stock-pronta-entrega/TabCostosPe";
 import { TabResumenAsignacionPe } from "@/components/stock-pronta-entrega/TabResumenAsignacionPe";
 import {
   EMPTY_OPERATIVA_FILTERS,
@@ -405,11 +406,102 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
   );
 }
 
-function StockPeShell({ resumenInicial }: Props) {
-  const [tab, setTab] = useState<"operativa" | "articulos" | "resumen-asignacion">("operativa");
+function StockPePageHeader({
+  tab,
+  setTab,
+  resumenInicial,
+  onImportDone,
+  showImportSdrm,
+}: {
+  tab: "operativa" | "articulos" | "resumen-asignacion" | "costos";
+  setTab: (t: "operativa" | "articulos" | "resumen-asignacion" | "costos") => void;
+  resumenInicial: StockProntaEntregaResumen;
+  onImportDone: () => void;
+  showImportSdrm: boolean;
+}) {
+  return (
+    <div className="border-b border-slate-200 bg-white">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <Link href="/rimec?mundo=panel-control" className="text-sm text-rimec-azul hover:underline">
+            ← Panel de Control
+          </Link>
+          <h1 className="font-serif text-lg font-semibold uppercase tracking-wide text-slate-900">
+            STOCK PRONTA ENTREGA
+          </h1>
+          <span className="text-xs text-slate-500">batch {resumenInicial.batch_label}</span>
+        </div>
+        {showImportSdrm ? <PeImportSdrmButton onDone={onImportDone} /> : null}
+      </div>
+      <div className="mx-auto flex max-w-[1600px] gap-2 border-t border-slate-100 px-4">
+        {(
+          [
+            ["operativa", "Operativa"],
+            ["articulos", "Artículos"],
+            ["resumen-asignacion", "Resumen asignación"],
+            ["costos", "COSTOS"],
+          ] as const
+        ).map(([t, label]) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-semibold ${
+              tab === t ? "border-b-2 border-rimec-azul text-rimec-azul" : "text-slate-500"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Pestañas stock SDRM — dentro de StockPeProvider solamente. */
+function StockPeStockBody({
+  tab,
+  resumenInicial,
+}: {
+  tab: "operativa" | "articulos" | "resumen-asignacion";
+  resumenInicial: StockProntaEntregaResumen;
+}) {
   const { loading, err } = useStockPe();
+
+  if (err) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        {err}
+      </div>
+    );
+  }
+  if (loading) {
+    return <p className="text-slate-500">Cargando catálogo…</p>;
+  }
+
+  return (
+    <>
+      <div className={tab !== "operativa" ? "hidden" : undefined} aria-hidden={tab !== "operativa"}>
+        <StockPeOperativaTab batchLabel={resumenInicial.batch_label} />
+      </div>
+      <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
+        <TabArticulosPe />
+      </div>
+      <div
+        className={tab !== "resumen-asignacion" ? "hidden" : undefined}
+        aria-hidden={tab !== "resumen-asignacion"}
+      >
+        <TabResumenAsignacionPe batchLabel={resumenInicial.batch_label} />
+      </div>
+    </>
+  );
+}
+
+export function StockProntaEntregaClient({ resumenInicial }: Props) {
+  const [tab, setTab] = useState<"operativa" | "articulos" | "resumen-asignacion" | "costos">(
+    "operativa",
+  );
   const onImportDone = useCallback(() => {
-    // Refresco completo liviano: router.refresh() del PE es pesado y parece “colgado”.
     window.setTimeout(() => {
       window.location.assign("/stock-pronta-entrega");
     }, 800);
@@ -417,76 +509,22 @@ function StockPeShell({ resumenInicial }: Props) {
 
   return (
     <div className="pb-8">
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <Link href="/rimec?mundo=panel-control" className="text-sm text-rimec-azul hover:underline">
-              ← Panel de Control
-            </Link>
-            <h1 className="font-serif text-lg font-semibold uppercase tracking-wide text-slate-900">
-              STOCK PRONTA ENTREGA
-            </h1>
-            <span className="text-xs text-slate-500">batch {resumenInicial.batch_label}</span>
-          </div>
-          <PeImportSdrmButton onDone={onImportDone} />
-        </div>
-        <div className="mx-auto flex max-w-[1600px] gap-2 border-t border-slate-100 px-4">
-          {(
-            [
-              ["operativa", "Operativa"],
-              ["articulos", "Artículos"],
-              ["resumen-asignacion", "Resumen asignación"],
-            ] as const
-          ).map(([t, label]) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-semibold ${
-                tab === t
-                  ? "border-b-2 border-rimec-azul text-rimec-azul"
-                  : "text-slate-500"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
+      <StockPePageHeader
+        tab={tab}
+        setTab={setTab}
+        resumenInicial={resumenInicial}
+        onImportDone={onImportDone}
+        showImportSdrm={tab !== "costos"}
+      />
       <div className="mx-auto max-w-[1600px] px-2 pt-3 sm:px-4">
-        {err ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {err}
-          </div>
-        ) : null}
-        {loading ? (
-          <p className="text-slate-500">Cargando catálogo…</p>
+        {tab === "costos" ? (
+          <TabCostosPe />
         ) : (
-          <>
-            <div className={tab !== "operativa" ? "hidden" : undefined} aria-hidden={tab !== "operativa"}>
-              <StockPeOperativaTab batchLabel={resumenInicial.batch_label} />
-            </div>
-            <div className={tab !== "articulos" ? "hidden" : undefined} aria-hidden={tab !== "articulos"}>
-              <TabArticulosPe />
-            </div>
-            <div
-              className={tab !== "resumen-asignacion" ? "hidden" : undefined}
-              aria-hidden={tab !== "resumen-asignacion"}
-            >
-              <TabResumenAsignacionPe batchLabel={resumenInicial.batch_label} />
-            </div>
-          </>
+          <StockPeProvider>
+            <StockPeStockBody tab={tab} resumenInicial={resumenInicial} />
+          </StockPeProvider>
         )}
       </div>
     </div>
-  );
-}
-
-export function StockProntaEntregaClient({ resumenInicial }: Props) {
-  return (
-    <StockPeProvider>
-      <StockPeShell resumenInicial={resumenInicial} />
-    </StockPeProvider>
   );
 }

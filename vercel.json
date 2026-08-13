@@ -35,6 +35,9 @@
     },
     "src/app/api/stock-pronta-entrega/import-csv/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/costos-rimec/lab-hector/route.ts": {
+      "maxDuration": 60
     }
   }
 }
