@@ -24,8 +24,9 @@ const VENDEDOR_JOINS_SQL = `
   LEFT JOIN usuario_v2 vu_fi ON vu_fi.id_usuario = fi.vendedor_id`;
 
 /** Header único — sin fila instructiva (formato final Director). */
+/** CASO = caso comercial · LISTADO DE PRECIOS = evento listado (≠ col LISTA LPN · ≠ biblioteca UI). */
 const HEADER_FILA =
-  "SHOP;IC;'STYL.E;BRAND;MATERIAL CODE;MATERIAL;COLOR CODE;COLOR;GRADA;CASO;ESTILO;ABoCR;CANT PARES;PLAZO;LISTA;Desc1;Desc2;Desc3;Desc4;Vendedor;Cobrador";
+  "SHOP;IC;'STYL.E;BRAND;MATERIAL CODE;MATERIAL;COLOR CODE;COLOR;GRADA;CASO;LISTADO DE PRECIOS;ESTILO;ABoCR;CANT PARES;PLAZO;LISTA;Desc1;Desc2;Desc3;Desc4;Vendedor;Cobrador";
 
 const COBRADOR = "90";
 
@@ -107,12 +108,14 @@ export function gradaAbiertoCerrado(raw: unknown): "abierto" | "cerrado" {
   return cerrada ? "cerrado" : "abierto";
 }
 
-/** Col CASO CSV — caso comercial (BCL/PELE) + sufijo evento listado. Caso ≠ precio_lista SKU. */
-function formatoCaso(caso: string | null, eventoListado: string | null): string {
-  const c = (caso ?? "").trim();
-  const ev = (eventoListado ?? "").trim();
-  if (c && ev) return `${c} - ${ev}`;
-  return c || ev || "";
+/** Caso comercial solo (BCL/PELE). No mezclar con evento listado. */
+function cellCaso(caso: string | null): string {
+  return (caso ?? "").trim();
+}
+
+/** Evento / nombre del listado de precios (campo interno `biblioteca`). ≠ col LISTA (LPN). */
+function cellListadoPrecios(eventoListado: string | null): string {
+  return (eventoListado ?? "").trim();
 }
 
 /** Ley dos corazones: caso por línea desde biblioteca cabecera PP o PELE — nunca precio_lista. */
@@ -475,7 +478,8 @@ export function buildCsvCarlosContent(rows: CsvCarlosRow[]): string {
         r.color_code ?? "",
         r.descp_color ?? "",
         gradaFromJson(r.grades_json),
-        formatoCaso(r.caso, r.biblioteca),
+        cellCaso(r.caso),
+        cellListadoPrecios(r.biblioteca),
         r.estilo ?? "",
         r.abocr ?? resolveCsvAbocr(r.tipo_1_pilar, r.grades_json),
         r.pares ?? "0",
