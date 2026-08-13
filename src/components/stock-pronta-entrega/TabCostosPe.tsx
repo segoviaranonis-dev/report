@@ -242,14 +242,15 @@ export function TabCostosPe() {
               </p>
             </div>
             <div>
-              <p className="text-[9px] font-bold uppercase text-emerald-800">Prom. sobre costo</p>
+              <p className="text-[9px] font-bold uppercase text-emerald-800">Prom. desc. extra máx.</p>
               <p
                 className={`text-lg font-black tabular-nums ${
-                  tot.promedioSobreCosto >= 0 ? "text-emerald-900" : "text-red-700"
+                  tot.promedioDescExtraMax >= 0 ? "text-amber-900" : "text-red-700"
                 }`}
+                title="Promedio del colchón de descuento extra sobre LP c/desc"
               >
-                {tot.promedioSobreCosto >= 0 ? "+" : ""}
-                {tot.promedioSobreCosto.toFixed(1)}%
+                {tot.promedioDescExtraMax >= 0 ? "hasta −" : ""}
+                {Math.abs(tot.promedioDescExtraMax).toFixed(1)}%
               </p>
             </div>
             <div>

@@ -88,18 +88,20 @@ export function agregarPorCodigo(lineas: CostosTxtLinea[]): CostosTxtLinea[] {
 
 export function totalesMargen(filas: FilaMargenCalc[]) {
   let pares = 0;
-  let sumMargenPctCosto = 0;
+  let sumDescExtraMax = 0;
   let sumMargenPctLista = 0;
   for (const f of filas) {
     pares += f.linea.qty;
-    sumMargenPctCosto += f.margenPctCosto;
+    sumDescExtraMax += f.margenPctVenta;
     sumMargenPctLista += f.margenPctLista;
   }
   const n = filas.length || 1;
   return {
     pares,
     skus: filas.length,
-    promedioSobreCosto: sumMargenPctCosto / n,
+    promedioDescExtraMax: sumDescExtraMax / n,
     promedioGsParSobreLista: sumMargenPctLista / n,
+    /** @deprecated alias — usar promedioDescExtraMax */
+    promedioSobreCosto: sumDescExtraMax / n,
   };
 }

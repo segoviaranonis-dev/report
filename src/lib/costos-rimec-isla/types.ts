@@ -117,8 +117,9 @@ export type FilaMargenCalc = {
   /** LP tier con descuento cliente. */
   precioVentaGs: number;
   margenGsPar: number;
+  /** % descuento adicional máx. sobre LP c/desc (D1–D4 ya aplicados) antes de costo. */
   margenPctVenta: number;
-  /** % que queda sobre costo tras descuento (positivo = encima). */
+  /** @deprecated UI — reemplazado por margenPctVenta en columna gerencia. */
   margenPctCosto: number;
   /** Gs/par ÷ LP s/desc × 100 — cuánto del listado queda de margen. */
   margenPctLista: number;

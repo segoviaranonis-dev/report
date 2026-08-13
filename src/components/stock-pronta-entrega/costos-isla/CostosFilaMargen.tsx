@@ -102,15 +102,22 @@ export function CostosFilaMargen({ fila, listaLabel }: Props) {
             {formatPrecioGs(fila.precioVentaGs)}
           </p>
         </div>
-        <div className="rounded-lg bg-slate-50 px-2 py-1.5 text-center">
-          <p className="text-[8px] font-bold uppercase text-slate-500">Sobre costo</p>
+        <div
+          className={`rounded-lg border-2 px-2 py-1.5 text-center ${
+            fila.encimaCosto
+              ? "border-amber-400 bg-amber-50"
+              : "border-red-400 bg-red-50"
+          }`}
+          title="Más % que podés restar al LP c/desc (D1–D4 ya aplicados) antes de quedar bajo costo"
+        >
+          <p className="text-[8px] font-bold uppercase text-amber-900">Desc. extra máx.</p>
           <p
-            className={`text-xs font-black tabular-nums ${
-              fila.encimaCosto ? "text-emerald-800" : "text-red-700"
+            className={`text-sm font-black tabular-nums ${
+              fila.encimaCosto ? "text-amber-950" : "text-red-700"
             }`}
           >
-            {fila.margenPctCosto >= 0 ? "+" : ""}
-            {fila.margenPctCosto.toFixed(1)}%
+            {fila.encimaCosto ? "hasta −" : ""}
+            {Math.abs(fila.margenPctVenta).toFixed(1)}%
           </p>
         </div>
         <div className="rounded-lg bg-slate-50 px-2 py-1.5 text-center">
