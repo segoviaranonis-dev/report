@@ -6,7 +6,7 @@ import {
   type OperativaOpciones,
   type TrianguloMaestrasOverride,
 } from "@/lib/depositos/operativa-filters";
-import { esFilaModuloAccesorios, esRamoAccesorios, mergePeAbcrTipo1Items, peTieneSubfamiliaAccesorios } from "@/lib/filtros/modulo-accesorios";
+import { esFilaModuloAccesorios, esRamoAccesorios, mergePeAbcrTipo1Items, peAbcrSignalsFromRows, peTieneSubfamiliaAccesorios } from "@/lib/filtros/modulo-accesorios";
 import {
   parsePeTipoSelected,
   peTipoIdFromCadena,
@@ -46,7 +46,7 @@ export function buildStockPeOpciones(
   return {
     ...opciones,
     gradas: [],
-    tipo1: mergePeAbcrTipo1Items(opciones.tipo1),
+    tipo1: mergePeAbcrTipo1Items(opciones.tipo1, peAbcrSignalsFromRows(stamped)),
   };
 }
 

@@ -183,44 +183,24 @@ export function accesoriosSubtipoOpcionesSidebar(
   const byKey = new Map<string, { id: number; label: string }>();
 
   for (const t of tipos) {
-
     const u = normTipo1Token(t.label);
-
     let key: AccesoriosSubtipoKey | null = null;
-
     if (u === "CARTERAS" || u === "CARTERA") key = "CARTERAS";
-
     else if (u === "LENTES" || u.includes("ANTEOJ") || u.includes("OCUL") || u.includes("LENT")) {
-
       key = "LENTES";
-
     }
-
     if (!key || byKey.has(key)) continue;
-
     byKey.set(key, {
-
-      id: t.id,
-
+      id: t.id > 0 ? t.id : ACCESORIOS_SUBTIPO_SYNTHETIC_ID[key]!,
       label: ABCR_ACCESORIOS_SUBFILTROS.find((s) => s.key === key)!.label,
-
     });
-
   }
 
-  for (const s of ABCR_ACCESORIOS_SUBFILTROS) {
-
-    if (byKey.has(s.key)) continue;
-
-    byKey.set(s.key, { id: ACCESORIOS_SUBTIPO_SYNTHETIC_ID[s.key]!, label: s.label });
-
-  }
-
-  return ABCR_ACCESORIOS_SUBFILTROS.map((s) => byKey.get(s.key)!);
-
+  // Sin rellenar CARTERAS/LENTES fantasma — solo lo que vino en `tipos` (stock).
+  return ABCR_ACCESORIOS_SUBFILTROS.map((s) => byKey.get(s.key)).filter(
+    (x): x is { id: number; label: string } => Boolean(x),
+  );
 }
-
-
 
 const SET_LABELS = new Set<string>(MODULO_ACCESORIOS_LABELS);
 
@@ -298,7 +278,7 @@ export function tiposMetaModuloAccesorios(
 
 }
 
-export { mergePeAbcrTipo1Items, rowMatchesPeAbcrTipo1 } from "@/lib/filtros/pe-abcr-tipo1";
+export { mergePeAbcrTipo1Items, peAbcrSignalsFromRows, rowMatchesPeAbcrTipo1 } from "@/lib/filtros/pe-abcr-tipo1";
 
 export function peTieneSubfamiliaAccesorios(tipo1Ids: readonly number[]): boolean {
   // Solo Carteras/Anteojos (-1/-2). ESCOLAR (-8) no es módulo accesorios.

@@ -1,6 +1,6 @@
 /**
  * AB-CR Tipo1 PE — merge sidebar (Carteras · Anteojos · Medias · Escolar + temporada).
- * Paridad rimec-web.
+ * Solo opciones presentes en el stock / filas (filosofía Nexus · sin hardcode fantasma).
  */
 import { canonPeTipo1Valorizado } from "@/lib/filtros/pe-valorizado-tipo1";
 import {
@@ -15,8 +15,11 @@ import {
   PE_TIPO1_ESCOLAR_ID,
 } from "@/lib/filtros/pe-modulo-escolar";
 import {
+  ACCESORIOS_SUBTIPO_SYNTHETIC_ID,
   accesoriosSubtipoOpcionesSidebar,
   esLabelModuloAccesorios,
+  subtipoAccesoriosKey,
+  type AccesoriosSubtipoKey,
 } from "@/lib/filtros/modulo-accesorios";
 
 const TEMPORADA_ORDER = [
@@ -28,10 +31,85 @@ const TEMPORADA_ORDER = [
   "VERANO",
 ] as const;
 
+/** Señales detectadas en filas de stock — habilitan chips solo si hay mercadería. */
+export type PeAbcrStockSignals = {
+  hasMedias?: boolean;
+  hasEscolar?: boolean;
+  hasCarteras?: boolean;
+  hasLentes?: boolean;
+};
+
+export function peAbcrSignalsFromRows(
+  rows: ReadonlyArray<{
+    tipo_1?: string | null;
+    descp_tipo_1?: string | null;
+    sdrm_tipo1?: string | null;
+    marca?: string | null;
+    sdrm_marca?: string | null;
+    cod_grupo?: string | null;
+    linea_codigo_proveedor?: string | null;
+    estilo?: string | null;
+    descp_grupo_estilo?: string | null;
+    descp_estilo?: string | null;
+    codigo_barras?: string | null;
+    proveedor_id?: number | null;
+    referencia_codigo_proveedor?: string | null;
+    cantidad?: number | null;
+  }>,
+): PeAbcrStockSignals {
+  let hasMedias = false;
+  let hasEscolar = false;
+  let hasCarteras = false;
+  let hasLentes = false;
+  for (const r of rows) {
+    if ((r.cantidad ?? 1) <= 0) continue;
+    if (!hasMedias && esFilaMedias(r)) hasMedias = true;
+    if (!hasEscolar && esFilaEscolar(r)) hasEscolar = true;
+    const sub = subtipoAccesoriosKey(r);
+    if (sub === "CARTERAS") hasCarteras = true;
+    if (sub === "LENTES") hasLentes = true;
+    if (hasMedias && hasEscolar && hasCarteras && hasLentes) break;
+  }
+  return { hasMedias, hasEscolar, hasCarteras, hasLentes };
+}
+
 export function mergePeAbcrTipo1Items(
   tipos: { id: number; label: string }[],
+  signals?: PeAbcrStockSignals | null,
 ): { id: number; label: string }[] {
-  const acc = accesoriosSubtipoOpcionesSidebar([]);
+  const sig = signals ?? {};
+  const accKeysWanted = new Set<AccesoriosSubtipoKey>();
+  if (sig.hasCarteras) accKeysWanted.add("CARTERAS");
+  if (sig.hasLentes) accKeysWanted.add("LENTES");
+
+  /** Solo subtipos que aparecen en `tipos` o en señales de stock (nunca catálogo fantasma). */
+  const acc = accesoriosSubtipoOpcionesSidebar(tipos).filter((a) => {
+    const u = String(a.label).trim().toUpperCase();
+    const key: AccesoriosSubtipoKey | null =
+      u === "CARTERAS" || u === "CARTERA"
+        ? "CARTERAS"
+        : u === "ANTEOJOS" || u === "LENTES" || u.includes("ANTEOJ")
+          ? "LENTES"
+          : null;
+    if (!key) return false;
+    if (accKeysWanted.has(key)) return true;
+    return tipos.some((t) => {
+      const tu = canonPeTipo1Valorizado(t.label);
+      return key === "CARTERAS"
+        ? tu === "CARTERAS" || tu === "CARTERA"
+        : tu === "LENTES" || tu.includes("ANTEOJ") || tu.includes("LENT");
+    });
+  });
+
+  // Si la señal de stock pide el chip y no vino en tipos, sintetizar
+  for (const key of accKeysWanted) {
+    if (acc.some((a) => a.id === ACCESORIOS_SUBTIPO_SYNTHETIC_ID[key] || a.label.toUpperCase().includes(key === "LENTES" ? "ANTEOJ" : "CARTER"))) {
+      continue;
+    }
+    const label = key === "LENTES" ? "ANTEOJOS" : "CARTERAS";
+    acc.push({ id: ACCESORIOS_SUBTIPO_SYNTHETIC_ID[key]!, label });
+  }
+
   const accKeys = new Set(acc.map((a) => a.label.toUpperCase()));
 
   const byLabel = new Map<string, { id: number; label: string }>();
@@ -43,13 +121,12 @@ export function mergePeAbcrTipo1Items(
     if (!byLabel.has(u)) byLabel.set(u, { id, label: u });
   }
 
-  if (!byLabel.has("MEDIAS")) {
+  if (sig.hasMedias || byLabel.has("MEDIAS")) {
     byLabel.set("MEDIAS", { ...ABCR_MEDIAS_ITEM });
-  } else {
-    byLabel.set("MEDIAS", { id: PE_TIPO1_MEDIAS_ID, label: "MEDIAS" });
   }
-
-  byLabel.set("ESCOLAR", { ...ABCR_ESCOLAR_ITEM });
+  if (sig.hasEscolar || byLabel.has("ESCOLAR")) {
+    byLabel.set("ESCOLAR", { ...ABCR_ESCOLAR_ITEM });
+  }
 
   const upper = (label: string) =>
     canonPeTipo1Valorizado(label) || String(label).trim().toUpperCase();
@@ -67,9 +144,14 @@ export function mergePeAbcrTipo1Items(
     .map(([, v]) => ({ ...v, label: upper(v.label) }))
     .sort((a, b) => a.label.localeCompare(b.label, "es"));
 
+  const mediasChip =
+    sig.hasMedias || byLabel.has("MEDIAS")
+      ? [{ id: PE_TIPO1_MEDIAS_ID, label: "MEDIAS" as const }]
+      : [];
+
   return [
     ...acc.map((t) => ({ ...t, label: upper(t.label) })),
-    { id: PE_TIPO1_MEDIAS_ID, label: "MEDIAS" },
+    ...mediasChip,
     ...temporada,
     ...rest,
   ];
