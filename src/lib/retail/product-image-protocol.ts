@@ -30,12 +30,15 @@ export function inferProtocolFromProductCodes(input: {
   linea?: string | number | null;
   referencia?: string | number | null;
 }): ProductImageProtocol {
+  // tipo_v2 / proveedor explícitos mandan (Admin Pilares · catálogos) — no mezclar 638↔654
+  // por un nombre de archivo con guiones (legacy Kyly a veces trae '-').
+  const p = Number(input.proveedorImportacionId);
+  const t = Number(input.tipoV2Id);
+  if (p === PROVEEDOR_CONFECCIONES_KYLY || t === TIPO_V2_CONFECCIONES) return "638";
+  if (p === PROVEEDOR_CALZADO || t === TIPO_V2_CALZADO) return "654";
+
   const fromName = detectProtocolFromFileStem(input.imagenNombre);
   if (fromName) return fromName;
-
-  const p = input.proveedorImportacionId;
-  const t = input.tipoV2Id;
-  if (p === PROVEEDOR_CONFECCIONES_KYLY || t === TIPO_V2_CONFECCIONES) return "638";
 
   const mat = String(input.material ?? "").trim();
   const linea = String(input.linea ?? "").trim();
@@ -82,15 +85,24 @@ function canonNumSegment(v: string | number | null | undefined): string {
   return /^\d+\.0$/.test(t) ? t.slice(0, -2) : t;
 }
 
+/** Token stem 638: K#### / dígitos. Rechaza PRETO, AZUL MARINHO. */
+export function isValid638ColorStemToken(
+  color: string | number | null | undefined,
+): boolean {
+  const raw = String(color ?? "").trim();
+  if (!raw || /\s/.test(raw)) return false;
+  return /^\d+$/.test(raw.replace(/^k/i, ""));
+}
+
 export function color638StemVariants(color: string | number | null | undefined): string[] {
   const raw = String(color ?? "").trim();
-  if (!raw) return [];
+  if (!isValid638ColorStemToken(raw)) return [];
   const noK = raw.replace(/^k/i, "");
   const out = new Set<string>();
   out.add(noK);
   const stripped = noK.replace(/^0+/, "");
   if (stripped) out.add(stripped);
-  if (/^\d+$/.test(noK)) out.add(noK.padStart(4, "0"));
+  out.add(noK.padStart(4, "0"));
   return [...out].filter(Boolean);
 }
 
@@ -144,7 +156,11 @@ export function productImagePrimaryStem(input: {
 }): string | null {
   const protocol = input.protocol ?? resolveProductImageProtocol(input);
   if (protocol === "638") {
-    return stems638(input.linea, input.imagenColorExcel ?? input.color)[0] ?? null;
+    for (const c of [input.imagenColorExcel, input.color]) {
+      const stem = stems638(input.linea, c)[0];
+      if (stem) return stem;
+    }
+    return null;
   }
   return stem654(input.linea, input.referencia, input.material, input.color);
 }

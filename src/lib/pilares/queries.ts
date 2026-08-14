@@ -1164,17 +1164,27 @@ export async function loadColores(
     }>(
       `
       WITH img_codes AS (
-        SELECT DISTINCT btrim(s.excel_color_code::text) AS code
-        FROM public.registro_st_vt_rc_reposicion s
-        WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
-          AND NULLIF(btrim(s.excel_color_code::text), '') IS NOT NULL
-          AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
-        UNION
+        -- Solo códigos del proveedor activo + retail del tipo_v2 (no cruzar 638↔654)
         SELECT DISTINCT trim(col.codigo_proveedor::text) AS code
         FROM public.registro_st_vt_rc_reposicion s
         INNER JOIN public.color col
           ON col.id = s.color_id AND col.proveedor_id = $1
         WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
+          AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+        UNION
+        SELECT DISTINCT trim(c.codigo_proveedor::text) AS code
+        FROM public.color c
+        INNER JOIN public.registro_st_vt_rc_reposicion s
+          ON (
+            NULLIF(btrim(s.excel_color_code::text), '') = trim(c.codigo_proveedor::text)
+            OR (
+              NULLIF(btrim(c.nombre), '') IS NOT NULL
+              AND lower(btrim(s.excel_color_code::text)) = lower(btrim(c.nombre))
+            )
+          )
+        WHERE c.proveedor_id = $1
+          AND c.activo = true
+          AND ($2::int IS NULL OR s.tipo_v2_id = $2)
           AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
       )
       SELECT c.id, c.codigo_proveedor::text, c.nombre, c.tono_canon
@@ -1243,6 +1253,7 @@ export async function loadPrimeraImagenPorColorCode(
     referencia_codigo: string;
     material_code: string;
     imagen_nombre: string | null;
+    excel_color_code: string | null;
   }>(
     `
     WITH codes AS (
@@ -1271,7 +1282,8 @@ export async function loadPrimeraImagenPorColorCode(
           END,
           ''
         ) AS material_code,
-        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre
+        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
+        NULLIF(btrim(s.excel_color_code::text), '') AS excel_color_code
       FROM mapped m
       INNER JOIN public.registro_st_vt_rc_reposicion s
         ON s.color_id = m.color_id
@@ -1301,10 +1313,20 @@ export async function loadPrimeraImagenPorColorCode(
           END,
           ''
         ) AS material_code,
-        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre
+        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
+        NULLIF(btrim(s.excel_color_code::text), '') AS excel_color_code
       FROM missing m
+      INNER JOIN public.color col
+        ON trim(col.codigo_proveedor::text) = m.color_code
+       AND ($3::int IS NULL OR col.proveedor_id = $3)
       INNER JOIN public.registro_st_vt_rc_reposicion s
-        ON NULLIF(btrim(s.excel_color_code::text), '') = m.color_code
+        ON (
+          NULLIF(btrim(s.excel_color_code::text), '') = m.color_code
+          OR (
+            NULLIF(btrim(col.nombre), '') IS NOT NULL
+            AND lower(btrim(s.excel_color_code::text)) = lower(btrim(col.nombre))
+          )
+        )
       LEFT JOIN public.material mat ON mat.id = s.material_id
       WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
       ORDER BY
@@ -1326,6 +1348,7 @@ export async function loadPrimeraImagenPorColorCode(
       referencia_codigo: r.referencia_codigo ?? "",
       material_code: r.material_code ?? "",
       imagen_nombre: r.imagen_nombre,
+      excel_color_code: r.excel_color_code,
     });
   }
   return out;

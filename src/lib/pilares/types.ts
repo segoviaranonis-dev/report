@@ -125,13 +125,15 @@ export type LineaReferenciaProblemasEstiloResumen = {
   sin_imagen: number;
 };
 
-/** Preview retail: 1ª fila con imagen para el código de color exacto (654 L-R-M-C). */
+/** Preview retail: 1ª fila con imagen para el código de color (654 L-R-M-C · 638 L_C / excel). */
 export interface ColorThumb {
   linea_codigo: string;
   referencia_codigo: string;
   material_code: string;
   color_code: string;
   imagen_nombre: string | null;
+  /** Excel color (Kyly K#### / OTR) — stem 638. */
+  excel_color_code?: string | null;
 }
 
 export interface ColorRow {

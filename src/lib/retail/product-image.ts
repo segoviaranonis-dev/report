@@ -63,8 +63,41 @@ export function stripProductImageTier(path: string): string {
     .replace(/^\/+/, "");
 }
 
+/**
+ * `v_stock_web.imagen_url` a veces llega como URL absoluta Storage.
+ * Si se usa cruda como `imagen_nombre`, ensucia candidatos (garbage path)
+ * y la miniatura prueba 4 URLs rotas antes del stem L-R-M-C.
+ */
+export function coerceImagenNombreField(raw: string | null | undefined): {
+  basename: string | null;
+  absoluteUrl: string | null;
+} {
+  const s = String(raw ?? "").trim();
+  if (!s) return { basename: null, absoluteUrl: null };
+
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const u = new URL(s);
+      const path = decodeURIComponent(u.pathname);
+      const m = path.match(/\/productos\/(?:(?:sm|md|lg|thumbs)\/)?(.+)$/i);
+      const file = m?.[1] ? stripProductImageTier(m[1]) : (path.split("/").pop() ?? "");
+      const basename = file ? stripProductImageTier(file) : null;
+      return {
+        basename: basename || null,
+        absoluteUrl: s.split("?")[0] || s,
+      };
+    } catch {
+      return { basename: null, absoluteUrl: s.split("?")[0] || s };
+    }
+  }
+
+  return { basename: stripProductImageTier(s) || null, absoluteUrl: null };
+}
+
 function normalizeImageFileName(raw: string): string | null {
-  const base = stripProductImageTier(raw);
+  const { basename } = coerceImagenNombreField(raw);
+  if (!basename) return null;
+  const base = stripProductImageTier(basename);
   if (!base) return null;
   return /\.(jpe?g|png|webp)$/i.test(base) ? base : `${base}.jpg`;
 }
@@ -129,10 +162,22 @@ export function productImageCandidates(
   const protocol = ctx ? resolveCtxProtocol({ ...ctx, imagenNombre: ctx.imagenNombre }) : "654";
 
   if (protocol === "638") {
-    const colorFor638 = ctx?.imagenColorExcel ?? colorCode;
+    // Excel/F9 (K0001 · id_color) primero; color_code pilar de respaldo.
+    // Nombres descriptivos («PRETO») con espacios → Storage 400 — se omiten.
+    const colorKeys = [ctx?.imagenColorExcel, colorCode]
+      .map((c) => String(c ?? "").trim())
+      .filter((c) => {
+        if (!c || /\s/.test(c)) return false;
+        return /^\d+$/.test(c.replace(/^k/i, ""));
+      });
     const urls: string[] = [];
-    for (const stem of stems638(lineaCodigo, colorFor638)) {
-      for (const u of stemCandidates(stem, variant)) pushUnique(urls, u);
+    const seenStem = new Set<string>();
+    for (const colorKey of colorKeys) {
+      for (const stem of stems638(lineaCodigo, colorKey)) {
+        if (seenStem.has(stem)) continue;
+        seenStem.add(stem);
+        for (const u of stemCandidates(stem, variant)) pushUnique(urls, u);
+      }
     }
     return urls;
   }
@@ -195,11 +240,16 @@ export function imagenNombreToCandidates(
   imagenNombre: string | null | undefined,
   variant: ImageVariant = "thumb",
 ): string[] {
-  const raw = String(imagenNombre ?? "").trim();
-  if (!raw) return [];
-
-  const base = stripProductImageTier(raw);
+  const { basename, absoluteUrl } = coerceImagenNombreField(imagenNombre);
   const urls: string[] = [];
+
+  // URL absoluta válida primero (v_stock_web / vistas) — evita cascada onError
+  if (absoluteUrl) pushUnique(urls, absoluteUrl);
+
+  if (!basename) return urls;
+
+  const base = stripProductImageTier(basename);
+  if (!base) return urls;
 
   if (/\.(jpe?g|png|webp)$/i.test(base)) {
     for (const u of tieredStorageCandidates(base, variant)) pushUnique(urls, u);
@@ -212,6 +262,24 @@ export function imagenNombreToCandidates(
   return urls;
 }
 
+/**
+ * Si el archivo/URL ya trae stem 654 L-R-M-C, esos códigos mandan para la cascada
+ * (ALM post-compra a menudo tiene otro material_code que Storage — ley 2.01.04.021).
+ */
+export function parseStem654FromImagenNombre(
+  imagenNombre: string | null | undefined,
+): { linea: string; referencia: string; material: string; color: string } | null {
+  const { basename } = coerceImagenNombreField(imagenNombre);
+  if (!basename) return null;
+  const stem = stripProductImageTier(basename).replace(/\.(jpe?g|png|webp)$/i, "");
+  const parts = stem.split("-").filter(Boolean);
+  if (parts.length < 4) return null;
+  const [linea, referencia, material, color] = parts;
+  if (!linea || !referencia || !material || !color) return null;
+  if (/\s/.test(material) || /\s/.test(color)) return null;
+  return { linea, referencia, material, color };
+}
+
 export function productImageCandidatesForRow(
   lineaCodigo: string,
   referenciaCodigo: string,
@@ -221,14 +289,41 @@ export function productImageCandidatesForRow(
   variant: ImageVariant = "thumb",
   ctx?: ProductImageContext,
 ): string[] {
+  const { basename } = coerceImagenNombreField(imagenNombre);
+  const imagenNombreCanon = basename ?? imagenNombre;
   const fromExcel = imagenNombreToCandidates(imagenNombre, variant);
+  const protocol = resolveCtxProtocol({ ...ctx, imagenNombre: imagenNombreCanon });
+
+  // 638: no reinterpretar el archivo como L-R-M-C (guiones legacy Kyly).
+  if (protocol === "638") {
+    const fromMolecule = productImageCandidates(
+      lineaCodigo,
+      referenciaCodigo,
+      materialCode,
+      colorCode,
+      variant,
+      {
+        ...ctx,
+        tipoV2Id: ctx?.tipoV2Id ?? 2,
+        imagenNombre: imagenNombreCanon,
+        imagenColorExcel: ctx?.imagenColorExcel ?? null,
+      },
+    );
+    const out = [...fromExcel];
+    for (const u of fromMolecule) {
+      if (!out.includes(u)) out.push(u);
+    }
+    return out;
+  }
+
+  const stem654 = parseStem654FromImagenNombre(imagenNombre);
   const fromMolecule = productImageCandidates(
-    lineaCodigo,
-    referenciaCodigo,
-    materialCode,
-    colorCode,
+    stem654?.linea ?? lineaCodigo,
+    stem654?.referencia ?? referenciaCodigo,
+    stem654?.material ?? materialCode,
+    stem654?.color ?? colorCode,
     variant,
-    { ...ctx, imagenNombre },
+    { ...ctx, imagenNombre: imagenNombreCanon },
   );
   const out = [...fromExcel];
   for (const u of fromMolecule) {

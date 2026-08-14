@@ -422,8 +422,9 @@ export function ColorAdminClient() {
             <> · universo {resumen.total.toLocaleString("es-PY")}</>
           )}
           <span className="mt-1 block text-xs text-neutral-500">
-            Orden: 1) sin tono · sin foto → 2) sin tono · con foto → 3) con tono · sin foto → 4) con tono ·
-            con foto
+            Proveedor aislado: {tipoV2Id === 1 ? "654 calzado (L-R-M-C)" : "638 Kyly (L_C / excel color)"} · no
+            se mezclan bolsas. Orden: 1) sin tono · sin foto → 2) sin tono · con foto → 3) con tono · sin foto →
+            4) con tono · con foto
           </span>
         </p>
       )}
@@ -452,6 +453,7 @@ export function ColorAdminClient() {
                   key={row.id}
                   row={row}
                   catalog={catalog}
+                  tipoV2Id={tipoV2Id}
                   saving={
                     savingKey != null &&
                     (row.predominante.trim()
@@ -479,11 +481,13 @@ export function ColorAdminClient() {
 function ColorRowEditor({
   row,
   catalog,
+  tipoV2Id,
   saving,
   onApply,
 }: {
   row: ColorRow;
   catalog: ColorEstandar[];
+  tipoV2Id: 1 | 2;
   saving: boolean;
   onApply: (std: ColorEstandar | null) => void;
 }) {
@@ -499,14 +503,24 @@ function ColorRowEditor({
   const [paletteRect, setPaletteRect] = useState<DOMRect | null>(null);
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
 
+  const imgCtx = {
+    tipoV2Id,
+    imagenColorExcel: row.thumb?.excel_color_code ?? null,
+  };
+  const colorForStem =
+    row.thumb?.excel_color_code?.trim() ||
+    row.thumb?.color_code ||
+    row.codigo_proveedor;
+
   const thumbCandidates = row.thumb?.linea_codigo
     ? productImageCandidatesForRow(
         row.thumb.linea_codigo,
         row.thumb.referencia_codigo,
         row.thumb.material_code ?? "",
-        row.thumb.color_code || row.codigo_proveedor,
+        colorForStem,
         row.thumb.imagen_nombre,
         "thumb",
+        imgCtx,
       )
     : [];
   const heroCandidates = row.thumb?.linea_codigo
@@ -514,9 +528,10 @@ function ColorRowEditor({
         row.thumb.linea_codigo,
         row.thumb.referencia_codigo,
         row.thumb.material_code ?? "",
-        row.thumb.color_code || row.codigo_proveedor,
+        colorForStem,
         row.thumb.imagen_nombre,
         "hero",
+        imgCtx,
       )
     : [];
 
