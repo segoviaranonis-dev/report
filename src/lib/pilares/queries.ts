@@ -3,6 +3,7 @@ import { proveedorIdFromTipoV2 } from "./constants";
 import { loadEstilosForTipoV2, loadTipos1ForTipoV2 } from "./validar-maestras-pilares";
 import type {
   LineaReferenciaFilterOpts,
+  LineaReferenciaProblemasEstiloResumen,
   LineaReferenciaRow,
   LineaReferenciaThumb,
   LineaRow,
@@ -12,6 +13,25 @@ import type {
   PilaresMaestras,
   TipoV2Id,
 } from "./types";
+import { decodeCodGrupo } from "./cod-grupo-decode";
+
+/** SQL: estilo NULL o etiqueta OTROS (problema FOCO 2.3.5.5). */
+const SQL_PROBLEMA_ESTILO = `(
+  lr.grupo_estilo_id IS NULL
+  OR upper(btrim(COALESCE(ge.descp_grupo_estilo, lr.descp_grupo_estilo, ''))) = 'OTROS'
+)`;
+
+/** SQL: hay imagen_nombre en retail para el par L×R. */
+function sqlExisteImagenRetail(tipoParamIndex: number): string {
+  return `EXISTS (
+    SELECT 1
+    FROM public.registro_st_vt_rc_reposicion s
+    WHERE btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
+      AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
+      AND ($${tipoParamIndex}::int IS NULL OR s.tipo_v2_id = $${tipoParamIndex}::int)
+      AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+  )`;
+}
 
 /** Marcas válidas para un tipo_v2 vía `marca_tipo_v2`; fallback líneas del proveedor. */
 export async function loadMarcasForTipoV2(
@@ -242,60 +262,141 @@ JOIN linea l ON l.id = lr.linea_id
 JOIN referencia r ON r.id = lr.referencia_id
 JOIN proveedor_importacion pi ON pi.id = lr.proveedor_id
 LEFT JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+LEFT JOIN genero g ON g.id = l.genero_id
 LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
 LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
 `;
 
-type LrExcludeDim = "marca" | "estilo" | "tipo1" | "linea";
+type LrExcludeDim =
+  | "genero"
+  | "marca"
+  | "estilo"
+  | "tipo1"
+  | "linea"
+  | "referencia"
+  | "material"
+  | "color";
 
 function appendLrFilters(
   where: string[],
   params: unknown[],
   opts: LineaReferenciaFilterOpts,
   exclude?: LrExcludeDim,
+  extra?: { tipoV2Id?: TipoV2Id | null },
 ) {
-  if (exclude !== "linea" && opts.lineaCodigos?.length) {
-    params.push(opts.lineaCodigos);
-    where.push(`l.codigo_proveedor::text = ANY($${params.length}::text[])`);
+  if (exclude !== "linea") {
+    if (opts.lineaIds?.length) {
+      params.push(opts.lineaIds);
+      where.push(`l.id = ANY($${params.length}::int[])`);
+    } else if (opts.lineaCodigos?.length) {
+      params.push(opts.lineaCodigos);
+      where.push(`l.codigo_proveedor::text = ANY($${params.length}::text[])`);
+    }
+  }
+  if (exclude !== "referencia" && opts.referenciaIds?.length) {
+    params.push(opts.referenciaIds);
+    where.push(`r.id = ANY($${params.length}::int[])`);
+  }
+  if (opts.buscar?.trim()) {
+    params.push(`%${opts.buscar.trim().toLowerCase()}%`);
+    where.push(`(
+      lower(l.codigo_proveedor::text) LIKE $${params.length}
+      OR lower(r.codigo_proveedor::text) LIKE $${params.length}
+      OR lower(COALESCE(mv.descp_marca, '')) LIKE $${params.length}
+      OR lower(COALESCE(lr.descp_grupo_estilo, '')) LIKE $${params.length}
+    )`);
+  }
+  if (opts.depositoCodigo?.trim() || opts.origenTipo === "PRONTA_ENTREGA") {
+    params.push(extra?.tipoV2Id ?? null);
+    const tipoIdx = params.length;
+    let depClause = "";
+    if (opts.depositoCodigo?.trim()) {
+      params.push(opts.depositoCodigo.trim());
+      depClause = ` AND btrim(s.deposito_codigo::text) = $${params.length}`;
+    }
+    where.push(`EXISTS (
+      SELECT 1 FROM public.registro_st_vt_rc_reposicion s
+      WHERE btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
+        AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
+        AND ($${tipoIdx}::int IS NULL OR s.tipo_v2_id = $${tipoIdx}::int)
+        ${depClause}
+    )`);
+  }
+  if (exclude !== "genero") {
+    if (opts.generoNull) where.push("l.genero_id IS NULL");
+    else if (opts.generoIds?.length) {
+      params.push(opts.generoIds);
+      where.push(`l.genero_id = ANY($${params.length}::int[])`);
+    } else if (opts.generoId != null) {
+      params.push(opts.generoId);
+      where.push(`l.genero_id = $${params.length}`);
+    }
   }
   if (exclude !== "marca") {
-    if (opts.marca === "__null__") where.push("l.marca_id IS NULL");
-    else if (opts.marca) {
+    if (opts.marcaNull || opts.marca === "__null__") where.push("l.marca_id IS NULL");
+    else if (opts.marcaIds?.length) {
+      params.push(opts.marcaIds);
+      where.push(`l.marca_id = ANY($${params.length}::int[])`);
+    } else if (opts.marca) {
       params.push(opts.marca);
       where.push(`mv.descp_marca = $${params.length}`);
     }
   }
   if (exclude !== "estilo") {
-    if (opts.estiloNull) where.push("lr.grupo_estilo_id IS NULL");
-    else if (opts.estiloId != null) {
+    if (opts.problemasEstilo) {
+      where.push(SQL_PROBLEMA_ESTILO);
+    } else if (opts.estiloNull) {
+      where.push("lr.grupo_estilo_id IS NULL");
+    } else if (opts.estiloIds?.length) {
+      params.push(opts.estiloIds);
+      where.push(`lr.grupo_estilo_id = ANY($${params.length}::int[])`);
+    } else if (opts.estiloId != null) {
       params.push(opts.estiloId);
       where.push(`lr.grupo_estilo_id = $${params.length}`);
     }
   }
   if (exclude !== "tipo1") {
     if (opts.tipo1Null) where.push("lr.tipo_1_id IS NULL");
-    else if (opts.tipo1Id != null) {
+    else if (opts.tipo1Ids?.length) {
+      params.push(opts.tipo1Ids);
+      where.push(`lr.tipo_1_id = ANY($${params.length}::int[])`);
+    } else if (opts.tipo1Id != null) {
       params.push(opts.tipo1Id);
       where.push(`lr.tipo_1_id = $${params.length}`);
     }
   }
+  if (opts.conImagen === true || opts.conImagen === false) {
+    params.push(extra?.tipoV2Id ?? null);
+    const exists = sqlExisteImagenRetail(params.length);
+    where.push(opts.conImagen ? exists : `NOT ${exists}`);
+  }
 }
 
-function lrFilterOptsFromParams(opts: {
-  marca?: string | null;
-  estiloId?: number | null;
-  tipo1Id?: number | null;
-  estiloNull?: boolean;
-  tipo1Null?: boolean;
-  lineaCodigos?: string[] | null;
-}): LineaReferenciaFilterOpts {
+function lrFilterOptsFromParams(opts: LineaReferenciaFilterOpts): LineaReferenciaFilterOpts {
   return {
     marca: opts.marca ?? null,
+    marcaIds: opts.marcaIds ?? null,
+    marcaNull: opts.marcaNull,
+    generoId: opts.generoId ?? null,
+    generoIds: opts.generoIds ?? null,
+    generoNull: opts.generoNull,
     estiloId: opts.estiloId ?? null,
+    estiloIds: opts.estiloIds ?? null,
     tipo1Id: opts.tipo1Id ?? null,
+    tipo1Ids: opts.tipo1Ids ?? null,
     estiloNull: opts.estiloNull,
     tipo1Null: opts.tipo1Null,
     lineaCodigos: opts.lineaCodigos ?? null,
+    lineaIds: opts.lineaIds ?? null,
+    referenciaIds: opts.referenciaIds ?? null,
+    buscar: opts.buscar ?? null,
+    materialFamilias: opts.materialFamilias ?? null,
+    colorFamilias: opts.colorFamilias ?? null,
+    origenTipo: opts.origenTipo ?? null,
+    depositoCodigo: opts.depositoCodigo ?? null,
+    tipoGrupos: opts.tipoGrupos ?? null,
+    problemasEstilo: opts.problemasEstilo,
+    conImagen: opts.conImagen ?? null,
   };
 }
 
@@ -305,26 +406,44 @@ export async function loadLineaReferenciaCascada(
   opts: LineaReferenciaFilterOpts,
 ): Promise<LineaReferenciaCascada> {
   const proveedorId = proveedorIdFromTipoV2(tipoV2Id);
-  if (proveedorId == null) return { marcas: [], estilos: [], tipos1: [], lineas: [] };
+  if (proveedorId == null) {
+    return {
+      generos: [],
+      marcas: [],
+      estilos: [],
+      tipos1: [],
+      lineas: [],
+      referencias: [],
+      materiales: [],
+      colores: [],
+    };
+  }
 
   const queryDim = async (
     exclude: LrExcludeDim,
     selectSql: string,
+    limit = 50,
   ): Promise<LrCascadaItem[]> => {
     const where = ["lr.proveedor_id = $1", "l.activo = true"];
     const params: unknown[] = [proveedorId];
-    appendLrFilters(where, params, opts, exclude);
+    appendLrFilters(where, params, opts, exclude, { tipoV2Id });
     const { rows } = await pool.query<{ key: string; label: string; count: string }>(
-      `SELECT ${selectSql} ${LR_JOIN} WHERE ${where.join(" AND ")} GROUP BY 1, 2 ORDER BY COUNT(*) DESC, 2 LIMIT 50`,
+      `SELECT ${selectSql} ${LR_JOIN} WHERE ${where.join(" AND ")} GROUP BY 1, 2 ORDER BY COUNT(*) DESC, 2 LIMIT ${limit}`,
       params,
     );
     return rows.map((r) => ({ key: r.key, label: r.label, count: Number(r.count) }));
   };
 
-  const [marcas, estilos, tipos1, lineas] = await Promise.all([
+  const [generos, marcas, estilos, tipos1, lineas, referencias] = await Promise.all([
+    queryDim(
+      "genero",
+      `CASE WHEN l.genero_id IS NULL THEN '__null__' ELSE l.genero_id::text END AS key,
+       COALESCE(NULLIF(TRIM(g.descripcion), ''), '— Sin género —') AS label,
+       COUNT(*)::text AS count`,
+    ),
     queryDim(
       "marca",
-      `CASE WHEN l.marca_id IS NULL THEN '__null__' ELSE TRIM(mv.descp_marca) END AS key,
+      `CASE WHEN l.marca_id IS NULL THEN '__null__' ELSE l.marca_id::text END AS key,
        COALESCE(NULLIF(TRIM(mv.descp_marca), ''), '— Sin marca —') AS label,
        COUNT(*)::text AS count`,
     ),
@@ -342,13 +461,30 @@ export async function loadLineaReferenciaCascada(
     ),
     queryDim(
       "linea",
-      `l.codigo_proveedor::text AS key,
+      `l.id::text AS key,
        l.codigo_proveedor::text AS label,
        COUNT(*)::text AS count`,
+      80,
+    ),
+    queryDim(
+      "referencia",
+      `r.id::text AS key,
+       r.codigo_proveedor::text AS label,
+       COUNT(*)::text AS count`,
+      80,
     ),
   ]);
 
-  return { marcas, estilos, tipos1, lineas };
+  return {
+    generos,
+    marcas,
+    estilos,
+    tipos1,
+    lineas,
+    referencias,
+    materiales: [],
+    colores: [],
+  };
 }
 
 const LINEA_BASE_WHERE = `l.proveedor_id = $1 AND l.activo = true`;
@@ -447,27 +583,23 @@ export async function loadLineasResumen(pool: Pool, tipoV2Id: TipoV2Id): Promise
 export async function loadLineaReferencia(
   pool: Pool,
   tipoV2Id: TipoV2Id,
-  opts: {
-    marca?: string | null;
-    lineaCodigos?: string[] | null;
-    estiloId?: number | null;
-    tipo1Id?: number | null;
-    estiloNull?: boolean;
-    tipo1Null?: boolean;
-    limit?: number;
-    offset?: number;
-  } = {},
+  opts: LineaReferenciaFilterOpts & { limit?: number; offset?: number } = {},
 ): Promise<{ rows: LineaReferenciaRow[]; total: number }> {
   const proveedorId = proveedorIdFromTipoV2(tipoV2Id);
   if (proveedorId == null) return { rows: [], total: 0 };
 
+  const filterOpts = lrFilterOptsFromParams(opts);
   const where = ["lr.proveedor_id = $1", "l.activo = true"];
   const params: unknown[] = [proveedorId];
-  appendLrFilters(where, params, lrFilterOptsFromParams(opts));
+  appendLrFilters(where, params, filterOpts, undefined, { tipoV2Id });
 
   const whereSql = where.join(" AND ");
   const limit = Math.min(Math.max(opts.limit ?? 200, 1), 500);
   const offset = Math.max(opts.offset ?? 0, 0);
+
+  const countJoinGe = filterOpts.problemasEstilo
+    ? "LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id"
+    : "";
 
   const countRes = await pool.query<{ total: string }>(
     `
@@ -476,12 +608,20 @@ export async function loadLineaReferencia(
     JOIN linea l ON l.id = lr.linea_id
     JOIN referencia r ON r.id = lr.referencia_id
     LEFT JOIN marca_v2 mv ON mv.id_marca = l.marca_id
+    ${countJoinGe}
     WHERE ${whereSql}
     `,
     params,
   );
 
+  let orderByImg = "";
+  if (filterOpts.problemasEstilo) {
+    params.push(tipoV2Id);
+    orderByImg = `CASE WHEN ${sqlExisteImagenRetail(params.length)} THEN 0 ELSE 1 END,`;
+  }
   params.push(limit, offset);
+  const limitIdx = params.length - 1;
+  const offsetIdx = params.length;
   const { rows } = await pool.query<LineaReferenciaRow>(
     `
     SELECT
@@ -504,13 +644,106 @@ export async function loadLineaReferencia(
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
     LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
     WHERE ${whereSql}
-    ORDER BY l.codigo_proveedor::text, r.codigo_proveedor::text
-    LIMIT $${params.length - 1} OFFSET $${params.length}
+    ORDER BY
+      ${orderByImg}
+      l.codigo_proveedor::text,
+      r.codigo_proveedor::text
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
     `,
     params,
   );
 
   return { rows, total: Number(countRes.rows[0]?.total ?? 0) };
+}
+
+/** Contadores cola problemas estilo (654/638). */
+export async function loadLineaReferenciaProblemasEstiloResumen(
+  pool: Pool,
+  tipoV2Id: TipoV2Id,
+): Promise<LineaReferenciaProblemasEstiloResumen> {
+  const proveedorId = proveedorIdFromTipoV2(tipoV2Id);
+  if (proveedorId == null) return { total: 0, con_imagen: 0, sin_imagen: 0 };
+
+  const img = sqlExisteImagenRetail(2);
+  const { rows } = await pool.query<{ total: string; con_imagen: string; sin_imagen: string }>(
+    `
+    SELECT
+      COUNT(*)::text AS total,
+      COUNT(*) FILTER (WHERE ${img})::text AS con_imagen,
+      COUNT(*) FILTER (WHERE NOT ${img})::text AS sin_imagen
+    FROM linea_referencia lr
+    JOIN linea l ON l.id = lr.linea_id
+    JOIN referencia r ON r.id = lr.referencia_id
+    LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+    WHERE lr.proveedor_id = $1
+      AND l.activo = true
+      AND ${SQL_PROBLEMA_ESTILO}
+    `,
+    [proveedorId, tipoV2Id],
+  );
+  const r = rows[0];
+  return {
+    total: Number(r?.total ?? 0),
+    con_imagen: Number(r?.con_imagen ?? 0),
+    sin_imagen: Number(r?.sin_imagen ?? 0),
+  };
+}
+
+/**
+ * Sugerencia de estilo desde COD.GRUPO (retail) — solo si decode ≠ OTROS.
+ * Nunca auto-aplica; el operador confirma.
+ */
+export async function loadEstiloSugeridoLineaReferencia(
+  pool: Pool,
+  pairs: { linea_codigo: string; referencia_codigo: string }[],
+  tipoV2Id: TipoV2Id,
+  estilos: { id: number; label: string }[],
+): Promise<Map<string, { id: number; label: string }>> {
+  const out = new Map<string, { id: number; label: string }>();
+  if (!pairs.length || !estilos.length) return out;
+
+  const lineas = pairs.map((p) => p.linea_codigo);
+  const refs = pairs.map((p) => p.referencia_codigo);
+  const { rows } = await pool.query<{
+    linea_codigo: string;
+    referencia_codigo: string;
+    cod_grupo: string | null;
+  }>(
+    `
+    WITH pairs AS (
+      SELECT u.l AS linea_codigo, u.r AS referencia_codigo
+      FROM unnest($1::text[], $2::text[]) AS u(l, r)
+    )
+    SELECT DISTINCT ON (p.linea_codigo, p.referencia_codigo)
+      p.linea_codigo,
+      p.referencia_codigo,
+      NULLIF(btrim(s.cod_grupo::text), '') AS cod_grupo
+    FROM pairs p
+    INNER JOIN public.registro_st_vt_rc_reposicion s
+      ON btrim(s.linea_codigo_proveedor::text) = p.linea_codigo
+      AND btrim(s.referencia_codigo_proveedor::text) = p.referencia_codigo
+    WHERE ($3::int IS NULL OR s.tipo_v2_id = $3)
+    ORDER BY
+      p.linea_codigo,
+      p.referencia_codigo,
+      (CASE WHEN NULLIF(btrim(s.cod_grupo::text), '') IS NOT NULL THEN 0 ELSE 1 END),
+      s.id
+    `,
+    [lineas, refs, tipoV2Id],
+  );
+
+  const byLabel = new Map(estilos.map((e) => [e.label.trim().toUpperCase(), e] as const));
+
+  for (const r of rows) {
+    if (!r.cod_grupo) continue;
+    const decoded = decodeCodGrupo(r.cod_grupo);
+    const label = decoded.estiloLabel?.trim().toUpperCase() ?? "";
+    if (!label || label === "OTROS") continue;
+    const match = byLabel.get(label);
+    if (!match) continue;
+    out.set(`${r.linea_codigo}\0${r.referencia_codigo}`, match);
+  }
+  return out;
 }
 
 /** Primera fila retail (con imagen priorizada) por par linea_codigo + referencia_codigo. */
@@ -883,11 +1116,13 @@ export async function loadColores(
     etiquetas?: string[];
     limit?: number;
     offset?: number;
+    /** Para detectar imagen retail (orden FOCO tono). */
+    tipoV2Id?: TipoV2Id | null;
   },
 ): Promise<{ rows: import("./types").ColorRow[]; total: number }> {
   const { SQL_COLOR_CON_TONO, SQL_COLOR_SIN_TONO } = await import("./color-canon");
   const where: string[] = ["c.proveedor_id = $1", "c.activo = true"];
-  const params: unknown[] = [proveedorId];
+  const params: unknown[] = [proveedorId, opts.tipoV2Id ?? null];
 
   const etiquetas = (opts.etiquetas ?? []).map((e) => e.trim()).filter(Boolean);
   if (etiquetas.length > 0) {
@@ -919,6 +1154,7 @@ export async function loadColores(
   const limit = Math.min(Math.max(opts.limit ?? 200, 1), 500);
   const offset = Math.max(opts.offset ?? 0, 0);
 
+  // Orden Director: 1) sin tono sin foto · 2) sin tono con foto · 3) con tono sin foto · 4) con tono con foto
   const [listRes, countRes] = await Promise.all([
     pool.query<{
       id: number;
@@ -927,15 +1163,45 @@ export async function loadColores(
       tono_canon: Record<string, unknown> | null;
     }>(
       `
+      WITH img_codes AS (
+        SELECT DISTINCT btrim(s.excel_color_code::text) AS code
+        FROM public.registro_st_vt_rc_reposicion s
+        WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
+          AND NULLIF(btrim(s.excel_color_code::text), '') IS NOT NULL
+          AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+        UNION
+        SELECT DISTINCT trim(col.codigo_proveedor::text) AS code
+        FROM public.registro_st_vt_rc_reposicion s
+        INNER JOIN public.color col
+          ON col.id = s.color_id AND col.proveedor_id = $1
+        WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
+          AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+      )
       SELECT c.id, c.codigo_proveedor::text, c.nombre, c.tono_canon
       FROM color c
+      LEFT JOIN img_codes img ON img.code = trim(c.codigo_proveedor::text)
       WHERE ${whereSql}
-      ORDER BY c.codigo_proveedor
+      ORDER BY
+        CASE
+          WHEN ${SQL_COLOR_SIN_TONO} AND img.code IS NULL THEN 1
+          WHEN ${SQL_COLOR_SIN_TONO} AND img.code IS NOT NULL THEN 2
+          WHEN ${SQL_COLOR_CON_TONO} AND img.code IS NULL THEN 3
+          ELSE 4
+        END,
+        c.codigo_proveedor
       LIMIT ${limit} OFFSET ${offset}
       `,
       params,
     ),
-    pool.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM color c WHERE ${whereSql}`, params),
+    pool.query<{ n: string }>(
+      `
+      SELECT COUNT(*)::text AS n
+      FROM color c
+      WHERE ${whereSql}
+        AND ($2::int IS NULL OR TRUE)
+      `,
+      params,
+    ),
   ]);
 
   const { colorPredominante } = await import("./color-canon");
@@ -951,6 +1217,120 @@ export async function loadColores(
   return { rows, total: Number(countRes.rows[0]?.n ?? 0) };
 }
 
+/**
+ * Primera fila retail con imagen por código de color exacto (excel_color_code o color.codigo_proveedor).
+ * FOCO 2.3.5.5.2 — preview para asignar tono en /pilares/color.
+ */
+export async function loadPrimeraImagenPorColorCode(
+  pool: Pool,
+  colorCodes: string[],
+  tipoV2Id?: TipoV2Id,
+): Promise<Map<string, import("./types").ColorThumb>> {
+  const out = new Map<string, import("./types").ColorThumb>();
+  const codes = Array.from(
+    new Set(colorCodes.map((c) => String(c ?? "").trim()).filter(Boolean)),
+  );
+  if (!codes.length) return out;
+
+  // Join por color_id (índice) + excel solo para códigos sin FK.
+  // Evita OR EXISTS sobre registro_st_vt_rc_reposicion (15–50s con 500 códigos).
+  const proveedorId =
+    tipoV2Id === 1 || tipoV2Id === 2 ? proveedorIdFromTipoV2(tipoV2Id) : null;
+
+  const { rows } = await pool.query<{
+    color_code: string;
+    linea_codigo: string;
+    referencia_codigo: string;
+    material_code: string;
+    imagen_nombre: string | null;
+  }>(
+    `
+    WITH codes AS (
+      SELECT DISTINCT btrim(u) AS color_code
+      FROM unnest($1::text[]) AS u
+      WHERE NULLIF(btrim(u), '') IS NOT NULL
+    ),
+    mapped AS (
+      SELECT c.color_code, col.id AS color_id
+      FROM codes c
+      INNER JOIN public.color col
+        ON trim(col.codigo_proveedor::text) = c.color_code
+       AND ($3::int IS NULL OR col.proveedor_id = $3)
+    ),
+    by_fk AS (
+      SELECT DISTINCT ON (m.color_code)
+        m.color_code,
+        btrim(s.linea_codigo_proveedor::text) AS linea_codigo,
+        btrim(s.referencia_codigo_proveedor::text) AS referencia_codigo,
+        COALESCE(
+          NULLIF(btrim(s.excel_material_code::text), ''),
+          CASE
+            WHEN mat.id IS NULL THEN NULL
+            WHEN mat.codigo_proveedor = -999001::bigint THEN NULL
+            ELSE trim(mat.codigo_proveedor::text)
+          END,
+          ''
+        ) AS material_code,
+        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre
+      FROM mapped m
+      INNER JOIN public.registro_st_vt_rc_reposicion s
+        ON s.color_id = m.color_id
+      LEFT JOIN public.material mat ON mat.id = s.material_id
+      WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
+      ORDER BY
+        m.color_code,
+        (CASE WHEN NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL THEN 0 ELSE 1 END),
+        s.id
+    ),
+    missing AS (
+      SELECT c.color_code
+      FROM codes c
+      WHERE NOT EXISTS (SELECT 1 FROM by_fk f WHERE f.color_code = c.color_code)
+    ),
+    by_excel AS (
+      SELECT DISTINCT ON (m.color_code)
+        m.color_code,
+        btrim(s.linea_codigo_proveedor::text) AS linea_codigo,
+        btrim(s.referencia_codigo_proveedor::text) AS referencia_codigo,
+        COALESCE(
+          NULLIF(btrim(s.excel_material_code::text), ''),
+          CASE
+            WHEN mat.id IS NULL THEN NULL
+            WHEN mat.codigo_proveedor = -999001::bigint THEN NULL
+            ELSE trim(mat.codigo_proveedor::text)
+          END,
+          ''
+        ) AS material_code,
+        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre
+      FROM missing m
+      INNER JOIN public.registro_st_vt_rc_reposicion s
+        ON NULLIF(btrim(s.excel_color_code::text), '') = m.color_code
+      LEFT JOIN public.material mat ON mat.id = s.material_id
+      WHERE ($2::int IS NULL OR s.tipo_v2_id = $2)
+      ORDER BY
+        m.color_code,
+        (CASE WHEN NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL THEN 0 ELSE 1 END),
+        s.id
+    )
+    SELECT * FROM by_fk
+    UNION ALL
+    SELECT * FROM by_excel
+    `,
+    [codes, tipoV2Id ?? null, proveedorId],
+  );
+
+  for (const r of rows) {
+    out.set(r.color_code, {
+      color_code: r.color_code,
+      linea_codigo: r.linea_codigo ?? "",
+      referencia_codigo: r.referencia_codigo ?? "",
+      material_code: r.material_code ?? "",
+      imagen_nombre: r.imagen_nombre,
+    });
+  }
+  return out;
+}
+
 export async function patchColorTono(
   pool: Pool,
   id: number,
@@ -960,6 +1340,28 @@ export async function patchColorTono(
   const res = await pool.query(
     `UPDATE color SET tono_canon = $3::jsonb WHERE id = $1 AND proveedor_id = $2`,
     [id, proveedorId, tonoCanon ? JSON.stringify(tonoCanon) : null],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/** Nombre proveedor — solo si aporta texto; no vacía nombre existente (no inverso). */
+export async function patchColorNombre(
+  pool: Pool,
+  id: number,
+  proveedorId: number,
+  nombre: string,
+): Promise<boolean> {
+  const n = nombre.trim();
+  if (!n) return false;
+  const res = await pool.query(
+    `
+    UPDATE color
+    SET nombre = $3
+    WHERE id = $1
+      AND proveedor_id = $2
+      AND (nombre IS NULL OR btrim(nombre) = '')
+    `,
+    [id, proveedorId, n],
   );
   return (res.rowCount ?? 0) > 0;
 }
@@ -1142,7 +1544,59 @@ export async function seedColorTonoEstandarIfEmpty(pool: Pool, proveedorId: numb
   }
 }
 
-/** Sincroniza hex/aliases canónicos y recalcula orden (dominante primero). */
+/** Lectura liviana del catálogo + uso en memoria (sin INSERT/UPDATE masivos). */
+export async function loadColoresEstandar(
+  pool: Pool,
+  proveedorId: number,
+): Promise<import("./colores-estandar").ColorEstandar[]> {
+  await ensureColorTonoEstandarTable(pool);
+  await seedColorTonoEstandarIfEmpty(pool, proveedorId);
+
+  const { COLORES_ESTANDAR_DEFAULT, computeUsoPorEstandar, ordenarCatalogoPorUso, rowToColorEstandar } =
+    await import("./colores-estandar");
+
+  const [allColors, catRes] = await Promise.all([
+    pool.query<{ nombre: string | null; tono_canon: Record<string, unknown> | null }>(
+      `SELECT nombre, tono_canon FROM color WHERE proveedor_id = $1 AND activo = true`,
+      [proveedorId],
+    ),
+    pool.query<{
+      etiqueta: string;
+      hex: string;
+      aliases: unknown;
+      orden: number;
+      uso_count: number;
+    }>(
+      `
+      SELECT etiqueta, hex, aliases, orden, uso_count
+      FROM color_tono_estandar
+      WHERE proveedor_id = $1 AND activo = true
+      ORDER BY orden, etiqueta
+      `,
+      [proveedorId],
+    ),
+  ]);
+
+  let catalog = catRes.rows.map(rowToColorEstandar);
+  if (!catalog.length) {
+    catalog = COLORES_ESTANDAR_DEFAULT.map((c, i) => ({ ...c, orden: (i + 1) * 10, uso_count: 0 }));
+  }
+  const uso = computeUsoPorEstandar(allColors.rows, catalog);
+  const sorted = ordenarCatalogoPorUso(catalog, uso);
+
+  return sorted.map((c, i) => {
+    const def = COLORES_ESTANDAR_DEFAULT.find((d) => d.etiqueta === c.etiqueta);
+    return {
+      ...c,
+      multicolor: def?.multicolor,
+      swatches: def?.swatches,
+      orden: i + 1,
+      uso_count: uso.get(c.etiqueta) ?? 0,
+    };
+  });
+}
+
+/** Persistencia pesada de hex/aliases/orden — solo cuando hace falta sincronizar canónicos. */
 export async function loadAndRecalcColoresEstandar(
   pool: Pool,
   proveedorId: number,

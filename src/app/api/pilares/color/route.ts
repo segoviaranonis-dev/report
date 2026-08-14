@@ -5,10 +5,12 @@ import { estandarToTono, findColorEstandarInCatalog, type ColorEstandar } from "
 import { parseTonoCanon, tonoPaleta, tonoSolido } from "@/lib/pilares/color-canon";
 import {
   ensureTonoCanonColumn,
-  loadAndRecalcColoresEstandar,
   loadColores,
+  loadColoresEstandar,
   loadColoresResumen,
+  loadPrimeraImagenPorColorCode,
   patchColorByPredominante,
+  patchColorNombre,
   patchColorRango,
   patchColorTono,
 } from "@/lib/pilares/queries";
@@ -32,8 +34,9 @@ export async function GET(req: NextRequest) {
   try {
     const pool = getRimecPool();
     await ensureTonoCanonColumn(pool);
-    const [catalog, { rows, total }, resumen] = await Promise.all([
-      loadAndRecalcColoresEstandar(pool, proveedorId),
+    const withThumbs = sp.get("thumbs") !== "0";
+    const [catalog, { rows: colorRows, total }, resumen] = await Promise.all([
+      loadColoresEstandar(pool, proveedorId),
       loadColores(pool, proveedorId, {
         q: sp.get("q"),
         sinTono: sp.get("sin_tono") === "1",
@@ -46,9 +49,22 @@ export async function GET(req: NextRequest) {
           .filter(Boolean),
         limit: Number(sp.get("limit") ?? 500),
         offset: Number(sp.get("offset") ?? 0),
+        tipoV2Id,
       }),
       loadColoresResumen(pool, proveedorId),
     ]);
+    // FOCO 2.3.5.5.2 — thumbs opcionales (thumbs=0 = grilla rápida)
+    const thumbs = withThumbs
+      ? await loadPrimeraImagenPorColorCode(
+          pool,
+          colorRows.map((r) => r.codigo_proveedor),
+          tipoV2Id,
+        )
+      : null;
+    const rows = colorRows.map((r) => ({
+      ...r,
+      thumb: thumbs?.get(String(r.codigo_proveedor).trim()) ?? null,
+    }));
     return NextResponse.json({
       configured: true,
       tipo_v2_id: tipoV2Id,
@@ -57,6 +73,7 @@ export async function GET(req: NextRequest) {
       total,
       resumen,
       estandar: catalog,
+      thumbs: withThumbs,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al listar color";
@@ -101,9 +118,9 @@ export async function PATCH(req: NextRequest) {
 
     const pool = getRimecPool();
     await ensureTonoCanonColumn(pool);
-    const catalog = await loadAndRecalcColoresEstandar(pool, proveedorId);
 
     if (body.rango) {
+      const catalog = await loadColoresEstandar(pool, proveedorId);
       const desde = String(body.desde ?? "").trim();
       const hasta = String(body.hasta ?? "").trim();
       if (!desde || !hasta) {
@@ -143,8 +160,9 @@ export async function PATCH(req: NextRequest) {
         tono = null;
       } else if (body.tono_canon != null) {
         tono = parseTonoCanon(body.tono_canon) as Record<string, unknown> | null;
-        if (!tono) tono = buildTonoFromBody(body, catalog);
-      } else {
+      }
+      if (!body.clear_tono && !tono) {
+        const catalog = await loadColoresEstandar(pool, proveedorId);
         tono = buildTonoFromBody(body, catalog);
       }
       if (!body.clear_tono && !tono) {
@@ -155,24 +173,75 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, updated, predominante });
     }
 
+    // Lote por ids ciegos (sin predominante) — tono + nombre provisional
+    if (Array.isArray(body.ids) && body.ids.length) {
+      const ids = body.ids.map((x: unknown) => Number(x)).filter((n: number) => Number.isFinite(n));
+      if (!ids.length) {
+        return NextResponse.json({ ok: false, error: "ids inválidos" }, { status: 400 });
+      }
+      let tono: Record<string, unknown> | null = null;
+      if (body.clear_tono) tono = null;
+      else if (body.tono_canon != null) {
+        tono = parseTonoCanon(body.tono_canon) as Record<string, unknown> | null;
+      }
+      if (!body.clear_tono && !tono) {
+        return NextResponse.json({ ok: false, error: "tono_canon inválido" }, { status: 400 });
+      }
+      let updated = 0;
+      for (const id of ids) {
+        if (await patchColorTono(pool, id, proveedorId, tono)) updated += 1;
+        if (tono) {
+          const et = String((tono as { etiqueta?: string }).etiqueta ?? "").trim().toUpperCase();
+          if (et) await patchColorNombre(pool, id, proveedorId, et);
+        }
+      }
+      return NextResponse.json({ ok: true, updated });
+    }
+
     const id = Number(body.id);
     if (!Number.isFinite(id)) {
       return NextResponse.json({ ok: false, error: "ID inválido" }, { status: 400 });
     }
 
+    // Solo enriquecer nombre (ciego → texto proveedor / provisional)
+    if (body.nombre != null && body.tono_canon == null && !body.clear_tono) {
+      const okNombre = await patchColorNombre(pool, id, proveedorId, String(body.nombre));
+      if (!okNombre) {
+        return NextResponse.json(
+          { ok: false, error: "No se pudo guardar nombre (vacío o ya tenía texto)" },
+          { status: 400 },
+        );
+      }
+      return NextResponse.json({ ok: true, nombre: String(body.nombre).trim() });
+    }
+
     let tono: Record<string, unknown> | null = null;
     if (body.clear_tono) {
       tono = null;
+    } else if (body.tono_canon != null) {
+      tono = parseTonoCanon(body.tono_canon) as Record<string, unknown> | null;
     } else {
+      const catalog = await loadColoresEstandar(pool, proveedorId);
       tono = buildTonoFromBody(body, catalog);
-      if (tono === null && !body.clear_tono) {
-        return NextResponse.json({ ok: false, error: "tono_canon inválido" }, { status: 400 });
-      }
+    }
+    if (tono === null && !body.clear_tono) {
+      return NextResponse.json({ ok: false, error: "tono_canon inválido" }, { status: 400 });
     }
 
     const ok = await patchColorTono(pool, id, proveedorId, tono);
     if (!ok) return NextResponse.json({ ok: false, error: "Fila no encontrada" }, { status: 404 });
-    return NextResponse.json({ ok: true });
+
+    // Ciego: al asignar tono, completar nombre vacío con etiqueta (paridad BLANCO/MARINO)
+    let nombreEscrito: string | null = null;
+    if (tono && body.nombre != null) {
+      const n = String(body.nombre).trim();
+      if (n && (await patchColorNombre(pool, id, proveedorId, n))) nombreEscrito = n;
+    } else if (tono) {
+      const et = String((tono as { etiqueta?: string }).etiqueta ?? "").trim().toUpperCase();
+      if (et && (await patchColorNombre(pool, id, proveedorId, et))) nombreEscrito = et;
+    }
+
+    return NextResponse.json({ ok: true, nombre: nombreEscrito });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al actualizar color";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

@@ -19,6 +19,31 @@ import { ColorImportPanel } from "./ColorImportPanel";
 import { DatosGeneralesColor, type ColorAdminFilterKey } from "./DatosGeneralesColor";
 import { ColorSwatchButton, PaletaColoresEstandar } from "./PaletaColoresEstandar";
 import { TipoV2Selector, useTipoV2FromUrl } from "./TipoV2Selector";
+import { ProductThumbFrame } from "@/components/product/ProductThumbFrame";
+import { ImagenAmpliadaOverlay } from "@/components/stock-pronta-entrega/ImagenAmpliadaOverlay";
+import { productImageCandidatesForRow } from "@/lib/retail/product-image";
+
+/** Orden Director: sin tono/sin foto → sin tono/con foto → con tono/sin foto → con tono/con foto */
+function sortColoresTrabajo(rows: ColorRow[]): ColorRow[] {
+  const rank = (r: ColorRow) => {
+    const sinTono = !parseTonoCanon(r.tono_canon);
+    const conImg = Boolean(
+      r.thumb?.linea_codigo ||
+        (typeof r.thumb?.imagen_nombre === "string" && r.thumb.imagen_nombre.trim()),
+    );
+    if (sinTono && !conImg) return 1;
+    if (sinTono && conImg) return 2;
+    if (!sinTono && !conImg) return 3;
+    return 4;
+  };
+  return [...rows].sort((a, b) => {
+    const d = rank(a) - rank(b);
+    if (d !== 0) return d;
+    return String(a.codigo_proveedor).localeCompare(String(b.codigo_proveedor), undefined, {
+      numeric: true,
+    });
+  });
+}
 
 export type ColorAdminFilters = {
   sinNombre: boolean;
@@ -104,7 +129,8 @@ export function ColorAdminClient() {
   const [resumen, setResumen] = useState<ColoresResumen | null>(null);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<ColorAdminFilters>(EMPTY_FILTERS);
-  const [savingPredominante, setSavingPredominante] = useState<string | null>(null);
+  /** `pred:<texto>` o `id:<n>` — evita bloquear todas las filas sin nombre. */
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<ColorEstandar[]>(COLORES_ESTANDAR_DEFAULT);
 
   const hasActiveFilters = useMemo(
@@ -122,11 +148,14 @@ export function ColorAdminClient() {
     setLoading(true);
     setError(null);
     try {
-      const p = new URLSearchParams({ tipo_v2_id: String(tipoV2Id), limit: "500" });
-      if (q.trim()) p.set("q", q.trim());
-      applyFiltersToParams(p, filters);
+      const base = new URLSearchParams({ tipo_v2_id: String(tipoV2Id), limit: "500" });
+      if (q.trim()) base.set("q", q.trim());
+      applyFiltersToParams(base, filters);
 
-      const r = await fetch(`/api/pilares/color?${p}`);
+      // 1) Grilla rápida sin thumbs (reacción inmediata)
+      const pFast = new URLSearchParams(base);
+      pFast.set("thumbs", "0");
+      const r = await fetch(`/api/pilares/color?${pFast}`);
       const data = await readJsonResponse<{
         configured?: boolean;
         error?: string;
@@ -143,10 +172,32 @@ export function ColorAdminClient() {
         return;
       }
       setConfigured(true);
-      setRows(data.rows ?? []);
+      const loadedRows = sortColoresTrabajo(data.rows ?? []);
+      setRows(loadedRows);
       setTotal(data.total ?? 0);
       setResumen(data.resumen ?? null);
       setCatalog(Array.isArray(data.estandar) && data.estandar.length ? data.estandar : COLORES_ESTANDAR_DEFAULT);
+      setLoading(false);
+
+      // 2) Hidratar miniaturas (endpoint liviano — solo retail por color_code)
+      const codes = loadedRows.map((row) => String(row.codigo_proveedor).trim()).filter(Boolean);
+      if (!codes.length) return;
+      const r2 = await fetch("/api/pilares/color/thumbs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo_v2_id: tipoV2Id, codes }),
+      });
+      if (!r2.ok) return;
+      const data2 = await readJsonResponse<{ thumbs?: Record<string, ColorRow["thumb"]> }>(r2);
+      const map = data2.thumbs ?? {};
+      setRows((prev) =>
+        sortColoresTrabajo(
+          prev.map((row) => {
+            const key = String(row.codigo_proveedor).trim();
+            return key in map ? { ...row, thumb: map[key] ?? null } : row;
+          }),
+        ),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
       setRows([]);
@@ -166,25 +217,105 @@ export function ColorAdminClient() {
   }, [tipoV2Id]);
 
   const applyByPredominante = async (row: ColorRow, std: ColorEstandar | null) => {
-    const pred = row.predominante?.trim();
-    if (!pred) {
-      setError("Sin predominante — no se puede sincronizar el lote.");
-      return;
+    const pred = row.predominante?.trim() ?? "";
+    const predKey = pred.toLowerCase();
+    const key = predKey ? `pred:${predKey}` : `id:${row.id}`;
+    const tono = std ? (estandarToTono(std) as Record<string, unknown>) : null;
+    const nombreProv = std && !row.nombre?.trim() ? std.etiqueta.trim().toUpperCase() : null;
+    const prevEtiqueta =
+      parseTonoCanon(row.tono_canon)?.etiqueta?.trim().toLowerCase() ?? "";
+    const nextEtiqueta = std?.etiqueta?.trim().toLowerCase() ?? "";
+
+    setSavingKey(key);
+    setError(null);
+
+    // UI inmediata — tono_canon en BD es la ley (RIMEC Web / Tablet leen color.tono_canon)
+    setRows((prev) => {
+      const mapped = prev.map((r) => {
+        const match = predKey
+          ? r.predominante.trim().toLowerCase() === predKey
+          : r.id === row.id;
+        if (!match) return r;
+        const nextNombre = !r.nombre?.trim() && nombreProv ? nombreProv : r.nombre;
+        return {
+          ...r,
+          tono_canon: tono,
+          nombre: nextNombre,
+          predominante: nextNombre ? nextNombre.split(/[/,\-–|\s]+/)[0] ?? nextNombre : r.predominante,
+        };
+      });
+      let next = mapped;
+      if (filters.sinTono && tono) {
+        next = mapped.filter((r) => {
+          const match = predKey
+            ? r.predominante.trim().toLowerCase() === predKey
+            : r.id === row.id;
+          return !match;
+        });
+      } else if (filters.conTono && !tono) {
+        next = mapped.filter((r) => {
+          const match = predKey
+            ? r.predominante.trim().toLowerCase() === predKey
+            : r.id === row.id;
+          return !match;
+        });
+      }
+      return sortColoresTrabajo(next);
+    });
+    setResumen((prev) => {
+      if (!prev) return prev;
+      const delta = predKey
+        ? rows.filter((r) => r.predominante.trim().toLowerCase() === predKey).length || 1
+        : 1;
+      const hadTono = Boolean(row.tono_canon);
+      const hasTono = Boolean(tono);
+      let sin_tono = prev.sin_tono;
+      let con_tono = prev.con_tono;
+      if (!hadTono && hasTono) {
+        sin_tono = Math.max(0, sin_tono - delta);
+        con_tono += delta;
+      } else if (hadTono && !hasTono) {
+        con_tono = Math.max(0, con_tono - delta);
+        sin_tono += delta;
+      }
+      const por_etiqueta = prev.por_etiqueta.map((e) => {
+        let count = e.count;
+        if (prevEtiqueta && e.etiqueta.trim().toLowerCase() === prevEtiqueta) {
+          count = Math.max(0, count - delta);
+        }
+        if (nextEtiqueta && e.etiqueta.trim().toLowerCase() === nextEtiqueta) {
+          count += delta;
+        }
+        return { ...e, count };
+      });
+      if (nextEtiqueta && !por_etiqueta.some((e) => e.etiqueta.trim().toLowerCase() === nextEtiqueta)) {
+        por_etiqueta.push({ etiqueta: std!.etiqueta, count: delta });
+      }
+      return { ...prev, sin_tono, con_tono, por_etiqueta };
+    });
+    if (std) {
+      setCatalog((prev) =>
+        prev.map((c) =>
+          c.etiqueta === std.etiqueta
+            ? { ...c, uso_count: (c.uso_count ?? 0) + (predKey ? Math.max(1, rows.filter((r) => r.predominante.trim().toLowerCase() === predKey).length) : 1) }
+            : prevEtiqueta && c.etiqueta.trim().toLowerCase() === prevEtiqueta
+              ? { ...c, uso_count: Math.max(0, (c.uso_count ?? 0) - 1) }
+              : c,
+        ),
+      );
     }
 
-    setSavingPredominante(pred.toLowerCase());
-    setError(null);
     try {
-      const body: Record<string, unknown> = {
-        tipo_v2_id: tipoV2Id,
-        sync_predominante: true,
-        predominante: pred,
-      };
-      if (std) {
-        body.tono_canon = estandarToTono(std);
+      const body: Record<string, unknown> = { tipo_v2_id: tipoV2Id };
+      if (pred) {
+        body.sync_predominante = true;
+        body.predominante = pred;
       } else {
-        body.clear_tono = true;
+        body.id = row.id;
+        if (nombreProv) body.nombre = nombreProv;
       }
+      if (std) body.tono_canon = tono;
+      else body.clear_tono = true;
 
       const res = await fetch("/api/pilares/color", {
         method: "PATCH",
@@ -193,11 +324,11 @@ export function ColorAdminClient() {
       });
       const data = await readJsonResponse<{ ok?: boolean; error?: string; updated?: number }>(res);
       if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo guardar");
-      await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
+      await load();
     } finally {
-      setSavingPredominante(null);
+      setSavingKey(null);
     }
   };
 
@@ -290,6 +421,10 @@ export function ColorAdminClient() {
           {resumen && total !== resumen.total && (
             <> · universo {resumen.total.toLocaleString("es-PY")}</>
           )}
+          <span className="mt-1 block text-xs text-neutral-500">
+            Orden: 1) sin tono · sin foto → 2) sin tono · con foto → 3) con tono · sin foto → 4) con tono ·
+            con foto
+          </span>
         </p>
       )}
 
@@ -304,6 +439,9 @@ export function ColorAdminClient() {
                 <th className="px-3 py-3">Nombre proveedor</th>
                 <th className="px-3 py-3">Predominante</th>
                 <th className="px-3 py-3">Etiqueta filtro</th>
+                <th className="px-3 py-3" title="1ª foto retail con este color_code exacto">
+                  Vista
+                </th>
                 <th className="px-3 py-3">Tono</th>
                 <th className="px-3 py-3 w-16" />
               </tr>
@@ -315,15 +453,17 @@ export function ColorAdminClient() {
                   row={row}
                   catalog={catalog}
                   saving={
-                    savingPredominante != null &&
-                    row.predominante.trim().toLowerCase() === savingPredominante
+                    savingKey != null &&
+                    (row.predominante.trim()
+                      ? savingKey === `pred:${row.predominante.trim().toLowerCase()}`
+                      : savingKey === `id:${row.id}`)
                   }
                   onApply={(std) => applyByPredominante(row, std)}
                 />
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-neutral-500">
+                  <td colSpan={7} className="px-3 py-8 text-center text-neutral-500">
                     Sin colores para este proveedor / filtros.
                   </td>
                 </tr>
@@ -357,6 +497,28 @@ function ColorRowEditor({
       : stdFromTono?.hex ?? findColorEstandarInCatalog(etiqueta, catalog)?.hex ?? "";
   const sinAsignar = !tono;
   const [paletteRect, setPaletteRect] = useState<DOMRect | null>(null);
+  const [zoomSrc, setZoomSrc] = useState<string | null>(null);
+
+  const thumbCandidates = row.thumb?.linea_codigo
+    ? productImageCandidatesForRow(
+        row.thumb.linea_codigo,
+        row.thumb.referencia_codigo,
+        row.thumb.material_code ?? "",
+        row.thumb.color_code || row.codigo_proveedor,
+        row.thumb.imagen_nombre,
+        "thumb",
+      )
+    : [];
+  const heroCandidates = row.thumb?.linea_codigo
+    ? productImageCandidatesForRow(
+        row.thumb.linea_codigo,
+        row.thumb.referencia_codigo,
+        row.thumb.material_code ?? "",
+        row.thumb.color_code || row.codigo_proveedor,
+        row.thumb.imagen_nombre,
+        "hero",
+      )
+    : [];
 
   const stdSelected = etiqueta ? findColorEstandarInCatalog(etiqueta, catalog) : undefined;
   const swatchStyle =
@@ -387,8 +549,27 @@ function ColorRowEditor({
   return (
     <tr className={`border-b border-neutral-100 hover:bg-rimec-celeste-bg/20 ${sinAsignar ? "bg-neutral-50/80" : ""}`}>
       <td className="px-3 py-2 font-mono font-semibold">{row.codigo_proveedor}</td>
-      <td className="max-w-xs truncate px-3 py-2 text-neutral-600" title={row.nombre ?? ""}>
-        {row.nombre ?? "—"}
+      <td className="max-w-xs px-3 py-2 text-neutral-600">
+        {row.nombre?.trim() ? (
+          <span className="truncate block" title={row.nombre}>
+            {row.nombre}
+          </span>
+        ) : (
+          <div className="space-y-0.5">
+            <span className="text-amber-800 text-xs font-semibold">ciego (sin nombre proveedor)</span>
+            {row.thumb?.linea_codigo ? (
+              <div
+                className="font-mono text-[10px] text-rimec-azul"
+                title="Artículo retail · 1ª coincidencia color_code"
+              >
+                {row.thumb.linea_codigo}-{row.thumb.referencia_codigo}-
+                {row.thumb.material_code || "?"}-{row.thumb.color_code || row.codigo_proveedor}
+              </div>
+            ) : (
+              <div className="text-[10px] text-neutral-400">sin artículo retail</div>
+            )}
+          </div>
+        )}
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-1">
@@ -400,6 +581,13 @@ function ColorRowEditor({
           )}
           {!sugerido && row.predominante && (
             <span className="text-[10px] text-amber-700">sin match — paleta</span>
+          )}
+          {/* Solo si AÚN no hay tono — no confundir con falta de nombre */}
+          {sinAsignar && !row.predominante && row.thumb?.linea_codigo && (
+            <span className="text-[10px] text-rimec-azul">asigná tono → completa nombre</span>
+          )}
+          {!sinAsignar && !row.nombre?.trim() && (
+            <span className="text-[10px] text-amber-700">tono OK · falta nombre proveedor</span>
           )}
         </div>
       </td>
@@ -418,6 +606,32 @@ function ColorRowEditor({
             </option>
           ))}
         </select>
+      </td>
+      <td className="px-2 py-2">
+        {row.thumb?.linea_codigo ? (
+          <div
+            title={`Clic para ampliar · ${row.thumb.linea_codigo}-${row.thumb.referencia_codigo}-${row.thumb.material_code}-${row.thumb.color_code}`}
+          >
+            <ProductThumbFrame
+              alt={`color ${row.codigo_proveedor}`}
+              candidates={thumbCandidates}
+              size={80}
+              onClick={() => setZoomSrc(heroCandidates[0] ?? thumbCandidates[0] ?? null)}
+            />
+          </div>
+        ) : (
+          <span
+            className="inline-flex h-20 w-20 items-center justify-center rounded border border-dashed border-neutral-300 text-[9px] text-neutral-400"
+            title="Sin foto retail con este color_code"
+          >
+            sin foto
+          </span>
+        )}
+        <ImagenAmpliadaOverlay
+          src={zoomSrc}
+          alt={`color ${row.codigo_proveedor}`}
+          onClose={() => setZoomSrc(null)}
+        />
       </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
