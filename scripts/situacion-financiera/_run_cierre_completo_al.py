@@ -19,6 +19,7 @@ def run(script: str) -> None:
 def main():
     run("_gen_molecular_al.py")
     run("_gen_ola2_cuadro_guido.py")
+    run("_gen_ola3_pv_prog_guido.py")
     run("_audit_mapa_excel_txt.py")
     run("_cerrar_inventario_al.py")
     run("_export_corte_cerrado_lab.py")

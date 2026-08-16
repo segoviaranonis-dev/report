@@ -19,6 +19,7 @@ EXCEL = ROOT / "src/lib/situacion-financiera/excel-al-0308.json"
 MOL = ROOT / "src/lib/situacion-financiera/molecular-al-0308.json"
 OUT = ROOT / "src/lib/situacion-financiera/audit-mapa-al-0308.json"
 OLA2 = ROOT / "src/lib/situacion-financiera/ola2-cuadro-0308.json"
+OLA3 = ROOT / "src/lib/situacion-financiera/ola3-pv-prog-0308.json"
 
 sys.path.insert(0, str(PIPE))
 from parsers import mes_desde_nombre_cheques, parse_cheques_vencer  # noqa: E402
@@ -113,10 +114,26 @@ def load_ola2_gs() -> dict[str, float]:
         return {}
 
 
+def load_ola3_gs() -> dict[str, float]:
+    """Ola 3 Guido — PV Y PROG → mol_key pv:{ym} → Gs."""
+    if not OLA3.exists():
+        return {}
+    try:
+        data = json.loads(OLA3.read_text(encoding="utf-8"))
+        return {
+            k: float(v["gs"])
+            for k, v in (data.get("metricas") or {}).items()
+            if v.get("gs") is not None
+        }
+    except Exception:
+        return {}
+
+
 def main():
     excel = json.loads(EXCEL.read_text(encoding="utf-8"))
     mol = json.loads(MOL.read_text(encoding="utf-8"))
     ola2_gs = load_ola2_gs()
+    ola3_gs = load_ola3_gs()
     fac = json.loads((STAGING / "sf_saldo_factura.json").read_text(encoding="utf-8"))
     pv = json.loads((STAGING / "sf_pv_prog.json").read_text(encoding="utf-8"))
 
@@ -210,6 +227,10 @@ def main():
                 txt_gs = ola2_gs[f"mercaderia:{ym}"]
                 origen = "ola2_cuadro"
                 archivo = "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR"
+            elif "PV" in u and f"pv:{ym}" in ola3_gs:
+                txt_gs = ola3_gs[f"pv:{ym}"]
+                origen = "ola3_pv_prog"
+                archivo = "08.SITUACION FINANCIERA 01082026.xlsx · Situacion · PV Y PROG"
         elif "LUISITO" in u:
             concepto = "luisito"
             ym = mes_desde_label(lab) or ctx
@@ -294,6 +315,15 @@ def main():
                 estado = "ola2_pendiente"
             if txt_gs is not None:
                 canon = float(txt_gs)
+        elif origen == "ola3_pv_prog":
+            if txt_gs is not None and excel_gs is not None and abs(float(excel_gs) - float(txt_gs)) <= 1:
+                estado = "ola3_ok"
+            elif txt_gs is not None:
+                estado = "ola3_descuadre"
+            else:
+                estado = "ola3_pendiente"
+            if txt_gs is not None:
+                canon = float(txt_gs)
 
         # SF AL = contexto de grilla (errores conocidos) — NO es Excel de comparativa.
         # Comparativa oficial = canones Z:\hector\SF\07… y 08… (UI alerta-inconsistencia).
@@ -351,6 +381,8 @@ def main():
         "excel_prevision": sum(1 for f in filas if f["estado"] == "excel_prevision"),
         "ola2_ok": sum(1 for f in filas if f["estado"] == "ola2_ok"),
         "ola2_descuadre": sum(1 for f in filas if f["estado"] == "ola2_descuadre"),
+        "ola3_ok": sum(1 for f in filas if f["estado"] == "ola3_ok"),
+        "ola3_descuadre": sum(1 for f in filas if f["estado"] == "ola3_descuadre"),
         "calc": sum(1 for f in filas if f["estado"] == "calc"),
     }
 

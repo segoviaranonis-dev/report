@@ -25,7 +25,16 @@ SF = ROOT / "src/lib/situacion-financiera"
 MOL = SF / "molecular-al-0308.json"
 OUT = SF / "ola2-cuadro-0308.json"
 
-EXCEL_GUIDO = Path(r"Z:\hector\SF\08.SITUACION FINANCIERA 01082026.xlsx")
+EXCEL_GUIDO = None  # resuelto en main()
+
+
+def _excel() -> Path:
+    global EXCEL_GUIDO
+    if EXCEL_GUIDO is None:
+        from _guido_excel_path import resolver_excel_guido_08
+
+        EXCEL_GUIDO = resolver_excel_guido_08()
+    return EXCEL_GUIDO
 TASA = 5970.96
 
 FILAS = ("A ENTREGAR", "OK", "LUISITO")
@@ -174,21 +183,22 @@ def parchear_molecular(cuadro: dict) -> dict[str, float]:
 
 
 def main() -> None:
-    if not EXCEL_GUIDO.exists():
-        print("FAIL: Excel Guido no encontrado:", EXCEL_GUIDO, file=sys.stderr)
+    excel = _excel()
+    if not excel.exists():
+        print("FAIL: Excel Guido no encontrado:", excel, file=sys.stderr)
         raise SystemExit(1)
     if not MOL.exists():
         print("FAIL: molecular ausente — correr _gen_molecular_al.py primero", file=sys.stderr)
         raise SystemExit(1)
 
-    cuadro = extraer_cuadro_excel(EXCEL_GUIDO)
+    cuadro = extraer_cuadro_excel(excel)
     aplicados = parchear_molecular(cuadro)
 
     payload = {
         "corte": "AL-03-08-26",
         "ola": 2,
         "actualizado": "2026-08-12",
-        "excel_canon": str(EXCEL_GUIDO),
+        "excel_canon": str(excel),
         "pipeline": "TXT → Detalle → TIPO COBRO → Cuadro → Sit Fin verdes",
         "metricas": cuadro["metricas"],
         "aplicados_molecular": aplicados,

@@ -1,10 +1,10 @@
 {
   "meta": {
     "version": 2,
-    "modulo": "2.3.1.50.31",
-    "actualizado": "2026-08-12",
-    "esperandoRespuestaGuido": false,
-    "observacionFinal": "Ola 2 desplegada 2026-08-12 · Cuadro Guido 08 → molecular + comparación. PV Y PROG pendiente (Guido: LO VEREMOS LUEGO).",
+    "modulo": "2.3.1.50.33",
+    "actualizado": "2026-08-16",
+    "esperandoRespuestaGuido": true,
+    "observacionFinal": "Ola 3 desplegada 2026-08-16 · PV Y PROG canon · fidelidad 14/14 · esperando validación Guido.",
     "notaDistincion": "Reclamo = canon financiero Guido (Sit Fin). No confundir con bug técnico (protocolo_errores · 4.xx.xx)."
   },
   "reclamos": [
@@ -113,13 +113,13 @@
       "textoReclamo": "Total cuadra con TXT pero mal ordenado; cuotas por Fecha Entrega + plazo.",
       "evidencia": "Comentario General fila 7 · LO VEREMOS LUEGO",
       "reglaCanon": "G4 · explosión cuotas desde saldo det",
-      "nexusAntes": "parse_pv_prog TSV cols 10+",
-      "nexusDespues": "Sin cambio · fuera Ola 2",
-      "respuestaNexus": "Guido: LO VEREMOS LUEGO — no bloquea Ola 2",
-      "accionNexus": "Ola 3 · pendiente",
-      "estado": "diferido",
-      "docChusar": "2.3.1.50.32",
-      "commitDeploy": null,
+      "nexusAntes": "5.825.010.035 Gs · TSV cols 10+ mal bucket",
+      "nexusDespues": "245.430.928 Gs · canon Sit Fin ago-26",
+      "respuestaNexus": "Ola 3 · celda PV al canon Guido · _gen_ola3_pv_prog_guido.py",
+      "accionNexus": "Ola 3 cableada 2026-08-16",
+      "estado": "cerrado",
+      "docChusar": "2.3.1.50.33",
+      "commitDeploy": "254b7ed",
       "naturaleza": "reclamo"
     },
     {

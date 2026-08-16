@@ -1,0 +1,50 @@
+{
+  "corte": "AL-03-08-26",
+  "ola": 3,
+  "actualizado": "2026-08-16",
+  "reclamo": "SF-REC-006",
+  "excel_canon": "C:\\Users\\hecto\\Nexus_Core\\report\\scripts\\situacion-financiera\\intake\\guido-20260812\\08.SITUACION FINANCIERA 01082026.xlsx",
+  "hoja": "Situacion",
+  "comentario_guido_pv": "LO VEREMOS LUEGO (metodología) · valor celda sí entregado",
+  "pipeline": "Excel tercera respuesta Guido → celda PV Y PROG → molecular",
+  "metricas": {
+    "pv:2026-08": {
+      "gs": 245430928.0,
+      "regla": "G4 · PV/PROG · celda Situacion · tercera respuesta Guido",
+      "fuente_hoja": "Situacion",
+      "mes_ctx": "2026-08"
+    },
+    "pv:2026-09": {
+      "gs": 1528708448.1666665,
+      "regla": "G4 · PV/PROG · celda Situacion · tercera respuesta Guido",
+      "fuente_hoja": "Situacion",
+      "mes_ctx": "2026-09"
+    },
+    "pv:2026-10": {
+      "gs": 4315165025.583333,
+      "regla": "G4 · PV/PROG · celda Situacion · tercera respuesta Guido",
+      "fuente_hoja": "Situacion",
+      "mes_ctx": "2026-10"
+    },
+    "pv:2026-11": {
+      "gs": 3942903790.0833344,
+      "regla": "G4 · PV/PROG · celda Situacion · tercera respuesta Guido",
+      "fuente_hoja": "Situacion",
+      "mes_ctx": "2026-11"
+    },
+    "pv:2026-12": {
+      "gs": 3408244977.750001,
+      "regla": "G4 · PV/PROG · celda Situacion · tercera respuesta Guido",
+      "fuente_hoja": "Situacion",
+      "mes_ctx": "2026-12"
+    }
+  },
+  "aplicados_molecular": {
+    "pv:2026-08": 245430928.0,
+    "pv:2026-09": 1528708448.1666665,
+    "pv:2026-10": 4315165025.583333,
+    "pv:2026-11": 3942903790.0833344,
+    "pv:2026-12": 3408244977.750001
+  },
+  "nota": "Detalle+Cuadro en mismo archivo · motor explotar_cuotas PV pendiente"
+}
