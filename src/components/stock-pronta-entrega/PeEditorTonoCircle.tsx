@@ -39,7 +39,9 @@ export function PeEditorTonoCircle({
   const sinAsignar = !etiqueta;
   const swatchStyle = std
     ? std.multicolor
-      ? tonoCircleStyle(tonoPaleta(std.etiqueta, std.swatches?.length ? std.swatches : OTROS_MULTICOLOR_SWATCHES))
+      ? tonoCircleStyle(
+          tonoPaleta(std.etiqueta, std.swatches?.length ? std.swatches : OTROS_MULTICOLOR_SWATCHES),
+        )
       : tonoCircleStyle(estandarToTono(std))
     : undefined;
 
@@ -62,12 +64,16 @@ export function PeEditorTonoCircle({
           : { id: colorId, tipo_v2_id: tv2, tono_canon: estandarToTono(stdSel) };
       const res = await fetch("/api/pilares/color", {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!res.ok || !json?.ok) {
-        setErr(json?.error ?? `HTTP ${res.status}`);
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
+      if (!res.ok || json?.ok === false) {
+        const msg = json?.error ?? `HTTP ${res.status}`;
+        setErr(msg);
         return;
       }
       onPatched(colorId, stdSel?.etiqueta ?? null);
@@ -80,12 +86,13 @@ export function PeEditorTonoCircle({
   };
 
   return (
-    <>
+    <span className="relative inline-flex items-center gap-0.5">
       <button
         ref={btnRef}
         type="button"
         disabled={!colorId || busy}
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           openPaleta();
         }}
@@ -95,7 +102,7 @@ export function PeEditorTonoCircle({
             : `TONO ${etiqueta} — clic para cambiar`
         }
         aria-label={sinAsignar ? "Asignar TONO" : `TONO ${etiqueta}`}
-        className={`relative h-4 w-4 shrink-0 rounded-full border-2 transition hover:scale-110 disabled:opacity-40 ${
+        className={`relative h-7 w-7 shrink-0 rounded-full border-2 transition hover:scale-110 disabled:opacity-40 ${
           sinAsignar
             ? "border-dashed border-slate-400 bg-white"
             : "border-slate-700 shadow-sm"
@@ -103,8 +110,11 @@ export function PeEditorTonoCircle({
         style={sinAsignar ? undefined : swatchStyle}
       />
       {err ? (
-        <span className="max-w-[4.5rem] truncate text-[8px] font-medium text-red-600" title={err}>
-          !
+        <span
+          className="absolute left-0 top-full z-[210] mt-0.5 max-w-[10rem] rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-semibold leading-tight text-white shadow"
+          title={err}
+        >
+          {err}
         </span>
       ) : null}
       <PaletaColoresEstandar
@@ -116,6 +126,6 @@ export function PeEditorTonoCircle({
         onClose={() => setOpen(false)}
         onClear={() => void patch(null)}
       />
-    </>
+    </span>
   );
 }
