@@ -35,7 +35,11 @@ import {
 import { calcValorInventario } from "@/lib/depositos/precio-venta";
 import { COLORES_ESTANDAR_DEFAULT, type ColorEstandar } from "@/lib/pilares/colores-estandar";
 import { fetchMaestrasFiltroTriangulo } from "@/lib/pilares/fetch-maestras-filtro-client";
-import { loadPeProductosPrefetch } from "@/lib/panel-control/prefetch-grilla-apis";
+import {
+  loadPeProductosPrefetch,
+  readPeProductosSession,
+  writePeProductosSession,
+} from "@/lib/panel-control/prefetch-grilla-apis";
 import {
   applyStockPeFilters,
   buildStockPeOpciones,
@@ -118,7 +122,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setErr(null);
     try {
-      const j = await loadPeProductosPrefetch();
+      const j = await loadPeProductosPrefetch({ fresh: true });
       setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Error");
@@ -128,25 +132,77 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
+    const stale = readPeProductosSession();
+    if (stale?.productos && Array.isArray(stale.productos) && stale.productos.length > 0) {
+      setRows((stale.productos as DepositoRow[]).map((p) => normalizeDepositoRow(p)));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setErr(null);
-    Promise.all([
-      loadPeProductosPrefetch(),
+
+    /** Tono no bloquea la grilla. */
+    void Promise.all([
       fetch("/api/pilares/color?tipo_v2_id=1&limit=1", { cache: "no-store" }),
       fetch("/api/pilares/color?tipo_v2_id=2&limit=1", { cache: "no-store" }),
     ])
-      .then(async ([j, tono1Res, tono2Res]) => {
+      .then(async ([tono1Res, tono2Res]) => {
+        if (cancelled) return;
         const t1 = await tono1Res.json().catch(() => null);
         const t2 = await tono2Res.json().catch(() => null);
-        setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
         const map = new Map<string, ColorEstandar>();
         for (const c of [...(t1?.estandar ?? []), ...(t2?.estandar ?? [])] as ColorEstandar[]) {
           if (c?.etiqueta && !map.has(c.etiqueta)) map.set(c.etiqueta, c);
         }
         if (map.size) setTonoCatalog([...map.values()]);
       })
-      .catch((e) => setErr(e instanceof Error ? e.message : "Error"))
-      .finally(() => setLoading(false));
+      .catch(() => {});
+
+    /** Pintar calzado primero (~mitad) · luego merge confecciones — perceived < cold full. */
+    const pCalz = loadPeProductosPrefetch({ tipo_v2: 1 });
+    const pConf = loadPeProductosPrefetch({ tipo_v2: 2 });
+
+    void pCalz
+      .then((j) => {
+        if (cancelled) return;
+        const prods = ((j as { productos?: DepositoRow[] }).productos ?? []).map((p) =>
+          normalizeDepositoRow(p),
+        );
+        setRows((prev) => {
+          if (stale?.productos && prev.length > prods.length) return prev;
+          return prods;
+        });
+        setLoading(false);
+      })
+      .catch(() => {});
+
+    void Promise.all([pCalz, pConf])
+      .then(([a, b]) => {
+        if (cancelled) return;
+        const merged = [
+          ...(((a as { productos?: DepositoRow[] }).productos ?? []) as DepositoRow[]),
+          ...(((b as { productos?: DepositoRow[] }).productos ?? []) as DepositoRow[]),
+        ].map((p) => normalizeDepositoRow(p));
+        setRows(merged);
+        writePeProductosSession({
+          ok: true,
+          productos: merged,
+          cajas: merged.length,
+          pares: merged.reduce((s, r) => s + (r.cantidad || 0), 0),
+        });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        if (!stale?.productos) setErr(e instanceof Error ? e.message : "Error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filtradas = useMemo(

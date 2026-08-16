@@ -3,6 +3,7 @@ import { requireMotorPreciosAdmin } from "@/lib/motor-precios/auth-api";
 import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
 import { SDRM_FILENAME_REGEX } from "@/lib/deposito-rimec/rimec-csv-sdrm";
 import { runPeSdrmPipeline } from "@/lib/stock-pronta-entrega/pe-sdrm-pipeline";
+import { invalidarCachePeProductos } from "@/lib/stock-pronta-entrega/queries-productos-cached";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -46,6 +47,10 @@ export async function POST(req: Request) {
       replacePeUniverse: replace && !dryRun,
       dryRun,
     });
+
+    if (result.ok && !dryRun) {
+      invalidarCachePeProductos();
+    }
 
     return NextResponse.json(result);
   } catch (e) {

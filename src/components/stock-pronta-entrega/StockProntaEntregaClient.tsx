@@ -525,6 +525,11 @@ export function StockProntaEntregaClient({ resumenInicial }: Props) {
     "operativa",
   );
   const onImportDone = useCallback(() => {
+    try {
+      sessionStorage.removeItem("nexus:pe-productos:v2");
+    } catch {
+      /* ignore */
+    }
     window.setTimeout(() => {
       window.location.assign("/stock-pronta-entrega");
     }, 800);

@@ -235,7 +235,7 @@ export async function listImportadoProductos(
       NULLIF(TRIM(col.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
       NULLIF(
         regexp_replace(
-          COALESCE(pe_img.excel_color_code, col.nombre, ppd.descp_color, ''),
+          COALESCE(pe_stg.excel_color_code, col.nombre, ppd.descp_color, ''),
           '^[Kk]',
           ''
         ),
@@ -261,24 +261,17 @@ export async function listImportadoProductos(
     LEFT JOIN referencia r ON r.codigo_proveedor::text = ppd.referencia AND r.linea_id = l.id
     LEFT JOIN material mat ON mat.codigo_proveedor::text = ppd.material_code AND mat.proveedor_id = pp.proveedor_importacion_id
     LEFT JOIN color col ON col.codigo_proveedor::text = ppd.color_code AND col.proveedor_id = pp.proveedor_importacion_id
-    LEFT JOIN LATERAL (
-      SELECT NULLIF(btrim(s.excel_color_code), '') AS excel_color_code
-      FROM stock_pe_staging_migrated m
-      JOIN stock_pronta_entrega_rimec s ON s.id = m.staging_id
-      WHERE m.ppd_id = ppd.id
-      ORDER BY s.id
-      LIMIT 1
-    ) pe_img ON true
-    LEFT JOIN LATERAL (
-      SELECT
+    /** Staging 1× (DISTINCT ON) en vez de LATERAL por fila — perf grilla PE. */
+    LEFT JOIN (
+      SELECT DISTINCT ON (m.ppd_id)
+        m.ppd_id,
+        NULLIF(btrim(s.excel_color_code), '') AS excel_color_code,
         NULLIF(btrim(s.codigo_barras), '') AS codigo_barras,
         NULLIF(btrim(s.cod_grupo), '') AS cod_grupo
       FROM stock_pe_staging_migrated m
       JOIN stock_pronta_entrega_rimec s ON s.id = m.staging_id
-      WHERE m.ppd_id = ppd.id
-      ORDER BY s.id
-      LIMIT 1
-    ) pe_stg ON true
+      ORDER BY m.ppd_id, s.id
+    ) pe_stg ON pe_stg.ppd_id = ppd.id
     LEFT JOIN sdrm_articulo_comercial sac
       ON lower(btrim(sac.batch_label)) = lower(btrim(pp.numero_proforma))
      AND btrim(sac.codigo_barras) = btrim(pe_stg.codigo_barras)

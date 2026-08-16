@@ -1,26 +1,17 @@
 import { DepositoRimecShell } from "@/app/deposito-rimec/components/DepositoRimecShell";
 import { StockProntaEntregaClient } from "@/components/stock-pronta-entrega/StockProntaEntregaClient";
-import {
-  EMPTY_STOCK_PE_RESUMEN,
-  getStockProntaEntregaResumen,
-} from "@/lib/stock-pronta-entrega/queries-resumen";
-import { getRimecPool, isRimecDatabaseConfigured } from "@/lib/rimec/pool";
+import { EMPTY_STOCK_PE_RESUMEN } from "@/lib/stock-pronta-entrega/queries-resumen";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Resumen SSR vacío a propósito: no bloquea TTFB con query pesada.
+ * KPIs se refrescan en cliente; grilla = /api/.../productos (cache 90s + SWR).
+ */
 export default async function StockProntaEntregaPage() {
-  let resumen = EMPTY_STOCK_PE_RESUMEN;
-  if (isRimecDatabaseConfigured()) {
-    try {
-      resumen = await getStockProntaEntregaResumen(getRimecPool(), {});
-    } catch (e) {
-      console.error("[stock-pronta-entrega] resumen SSR", e);
-    }
-  }
-
   return (
-    <DepositoRimecShell footer={`Stock Pronta Entrega · batch ${resumen.batch_label} · Alejandro Magno`}>
-      <StockProntaEntregaClient resumenInicial={resumen} />
+    <DepositoRimecShell footer="Stock Pronta Entrega · Alejandro Magno">
+      <StockProntaEntregaClient resumenInicial={EMPTY_STOCK_PE_RESUMEN} />
     </DepositoRimecShell>
   );
 }
