@@ -9,6 +9,7 @@ import { PeImportSdrmButton } from "@/components/stock-pronta-entrega/PeImportSd
 import { PeAsignacionDescuentoPanel } from "@/components/stock-pronta-entrega/PeAsignacionDescuentoPanel";
 import { PeDiccionarioWebControlBar } from "@/components/stock-pronta-entrega/PeDiccionarioWebControlBar";
 import { DiccionarioPeBar } from "@/components/stock-pronta-entrega/DiccionarioPeBar";
+import { FiltroTonoOperativa } from "@/app/depositos-bazzar/components/operativa/FiltroTonoOperativa";
 import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
@@ -93,6 +94,7 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
     filtradas,
     depositoLegal,
     setDepositoLegal,
+    tonoCatalog,
   } = useStockPe();
 
   const peTipoSelected = useMemo(
@@ -382,6 +384,27 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
             claveActiva={diccionarioActivo}
             onClaveChange={onDiccionarioChange}
           />
+
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+              <span className="w-14 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Tono
+              </span>
+              <FiltroTonoOperativa
+                embedded
+                catalog={tonoCatalog}
+                tonos={filtros.tonos}
+                sinTono={filtros.sinTono}
+                onChange={(patch) =>
+                  setFiltros((prev) => ({
+                    ...prev,
+                    tonos: patch.tonos ?? prev.tonos,
+                    sinTono: patch.sinTono ?? prev.sinTono,
+                  }))
+                }
+              />
+            </div>
+          </div>
 
           {modoAsignacion && !areaCargada ? (
             <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">

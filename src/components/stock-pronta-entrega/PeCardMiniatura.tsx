@@ -17,7 +17,9 @@ import { GradaImportadoraAcordeon } from "./GradaImportadoraAcordeon";
 import { ImagenAmpliadaOverlay } from "./ImagenAmpliadaOverlay";
 import { PeLiqBadge } from "./PeLiqBadge";
 import { PeProBadge } from "./PeProBadge";
+import { PeEditorTonoCircle } from "./PeEditorTonoCircle";
 import { descpColorUiPe, descpMaterialUiPe } from "@/lib/stock-pronta-entrega/pe-filtro-pilar-638";
+import type { ColorEstandar } from "@/lib/pilares/colores-estandar";
 
 type Props = {
   card: PeImportadoraCard;
@@ -30,6 +32,10 @@ type Props = {
   showLlegada?: boolean;
   /** Tránsito / programado — vendido + saldo en tarjeta */
   showVentas?: boolean;
+  /** Edición TONO · una verdad pilares */
+  enableTonoEdit?: boolean;
+  tonoCatalog?: ColorEstandar[];
+  onTonoPatched?: (colorId: number, etiqueta: string | null) => void;
 };
 
 function Dato({ label, value }: { label: string; value: string | null | undefined }) {
@@ -49,6 +55,9 @@ export function PeCardMiniatura({
   descuentoPct = null,
   showLlegada = false,
   showVentas = false,
+  enableTonoEdit = false,
+  tonoCatalog,
+  onTonoPatched,
 }: Props) {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const p = card.producto;
@@ -93,6 +102,17 @@ export function PeCardMiniatura({
   }, [p, imageCtx]);
 
   const stockPos = shell === "liquidacion" ? "bottom-1.5" : "top-1.5";
+
+  const precios638 = useMemo(() => {
+    if (!esConf) return [] as number[];
+    return [
+      ...new Set(
+        card.gradas
+          .map((g) => (g.lpn != null && Number(g.lpn) > 0 ? Number(g.lpn) : null))
+          .filter((n): n is number => n != null),
+      ),
+    ].sort((a, b) => a - b);
+  }, [esConf, card.gradas]);
 
   const stockBadge = showVentas ? (
     card.totalPares > 0 ? (
@@ -157,6 +177,15 @@ export function PeCardMiniatura({
           <div className="flex min-h-[14px] items-start justify-between gap-1">
             <div className="flex min-w-0 items-center gap-1">
               <p className="min-w-0 truncate text-[10px] font-bold uppercase text-rimec-azul">{p.marca}</p>
+              {enableTonoEdit && tonoCatalog && onTonoPatched && p.color_id > 0 ? (
+                <PeEditorTonoCircle
+                  colorId={p.color_id}
+                  tipoV2Id={p.tipo_v2_id}
+                  tonoEtiqueta={p.tono_etiqueta}
+                  catalog={tonoCatalog}
+                  onPatched={onTonoPatched}
+                />
+              ) : null}
               {shell === "promo" ? <PeProBadge /> : null}
             </div>
             {showLlegada ? (
@@ -196,7 +225,16 @@ export function PeCardMiniatura({
           )}
 
           <p className="flex min-h-[16px] flex-wrap items-baseline gap-x-1.5 truncate text-xs font-bold tabular-nums text-bazzar-naranja-dark">
-            {card.precioVenta != null ? (
+            {precios638.length > 1 ? (
+              <>
+                {formatPrecioGs(precios638[0])}
+                <span className="text-[9px] font-semibold text-slate-400">–</span>
+                {formatPrecioGs(precios638[precios638.length - 1])}
+                <span className="text-[9px] font-semibold text-violet-700">
+                  / prenda · {precios638.length} precios
+                </span>
+              </>
+            ) : card.precioVenta != null ? (
               <>
                 {formatPrecioGs(card.precioVenta)}
                 <span className="text-[9px] font-semibold text-slate-500">

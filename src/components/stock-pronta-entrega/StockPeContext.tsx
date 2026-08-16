@@ -48,6 +48,8 @@ type StockPeContextValue = {
   err: string | null;
   ente: string;
   tonoCatalog: ColorEstandar[];
+  /** Actualiza tono_etiqueta en todas las filas del color_id (post-PATCH pilares). */
+  applyTonoLocal: (colorId: number, etiqueta: string | null) => void;
   filtros: OperativaFilterState;
   setFiltros: Dispatch<SetStateAction<OperativaFilterState>>;
   depositoLegal: string;
@@ -131,11 +133,17 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     Promise.all([
       loadPeProductosPrefetch(),
       fetch("/api/pilares/color?tipo_v2_id=1&limit=1", { cache: "no-store" }),
+      fetch("/api/pilares/color?tipo_v2_id=2&limit=1", { cache: "no-store" }),
     ])
-      .then(async ([j, tonoRes]) => {
-        const tonoData = await tonoRes.json().catch(() => null);
+      .then(async ([j, tono1Res, tono2Res]) => {
+        const t1 = await tono1Res.json().catch(() => null);
+        const t2 = await tono2Res.json().catch(() => null);
         setRows(((j as { productos?: DepositoRow[] }).productos ?? []).map((p) => normalizeDepositoRow(p)));
-        if (tonoData?.estandar?.length) setTonoCatalog(tonoData.estandar);
+        const map = new Map<string, ColorEstandar>();
+        for (const c of [...(t1?.estandar ?? []), ...(t2?.estandar ?? [])] as ColorEstandar[]) {
+          if (c?.etiqueta && !map.has(c.etiqueta)) map.set(c.etiqueta, c);
+        }
+        if (map.size) setTonoCatalog([...map.values()]);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : "Error"))
       .finally(() => setLoading(false));
@@ -187,6 +195,17 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     [confeccionesFiltrado],
   );
 
+  const applyTonoLocal = useCallback((colorId: number, etiqueta: string | null) => {
+    if (!colorId) return;
+    setRows((prev) =>
+      prev.map((r) =>
+        r.color_id === colorId
+          ? { ...r, tono_etiqueta: etiqueta?.trim() ? etiqueta.trim() : null }
+          : r,
+      ),
+    );
+  }, []);
+
   const value = useMemo(
     () => ({
       rows,
@@ -194,6 +213,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       err,
       ente: "RIMEC PE",
       tonoCatalog,
+      applyTonoLocal,
       filtros,
       setFiltros,
       depositoLegal,
@@ -220,6 +240,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       loading,
       err,
       tonoCatalog,
+      applyTonoLocal,
       filtros,
       depositoLegal,
       filtradas,

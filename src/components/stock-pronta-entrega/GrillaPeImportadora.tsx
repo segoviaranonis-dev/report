@@ -7,6 +7,7 @@ import { agruparPeImportadora } from "@/lib/depositos/agrupar-pe-importadora";
 import type { GrillaLoteModo } from "@/lib/panel-control/grilla-carga-lotes";
 import { useGrillaLoteScroll } from "@/components/panel-control/useGrillaLoteScroll";
 import { PeCardMiniatura } from "./PeCardMiniatura";
+import { useStockPe } from "./StockPeContext";
 
 type Props = {
   productos: DepositoRow[];
@@ -32,6 +33,7 @@ export function GrillaPeImportadora({
   showDiccionarioBadge = false,
   descuentoPctPorMol = null,
 }: Props) {
+  const { tonoCatalog, applyTonoLocal } = useStockPe();
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
     () =>
@@ -91,6 +93,9 @@ export function GrillaPeImportadora({
             showLlegada={showLlegada}
             showVentas={showVentas}
             descuentoPct={descuentoPctPorMol?.get(card.key) ?? null}
+            enableTonoEdit
+            tonoCatalog={tonoCatalog}
+            onTonoPatched={applyTonoLocal}
           />
         ))}
       </div>

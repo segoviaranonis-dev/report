@@ -16,9 +16,19 @@ interface Props {
   anchorRect: DOMRect | null;
   onSelect: (color: ColorEstandar) => void;
   onClose: () => void;
+  /** Quitar tono_canon (Sin asignar) */
+  onClear?: () => void;
 }
 
-export function PaletaColoresEstandar({ open, catalog, selectedEtiqueta, anchorRect, onSelect, onClose }: Props) {
+export function PaletaColoresEstandar({
+  open,
+  catalog,
+  selectedEtiqueta,
+  anchorRect,
+  onSelect,
+  onClose,
+  onClear,
+}: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,6 +67,19 @@ export function PaletaColoresEstandar({ open, catalog, selectedEtiqueta, anchorR
         Colores estándar · dominante primero
       </p>
       <div className="flex flex-wrap gap-1.5">
+        {onClear ? (
+          <button
+            type="button"
+            title="Sin asignar — quitar tono"
+            onClick={() => {
+              onClear();
+              onClose();
+            }}
+            className="h-7 rounded-sm border border-dashed border-neutral-500 px-2 text-[10px] font-semibold uppercase text-neutral-300 hover:border-amber-400 hover:text-amber-200"
+          >
+            Sin asignar
+          </button>
+        ) : null}
         {items.map((c) => {
           const active = selected === c.etiqueta;
           const swatchStyle = c.multicolor
@@ -119,7 +142,7 @@ export function ColorSwatchButton({
         const rect = btnRef.current?.getBoundingClientRect();
         if (rect) onOpenPalette(rect);
       }}
-      className={`${dim} shrink-0 rounded-full transition hover:ring-2 hover:ring-rimec-azul/60 ${
+      className={`${dim} shrink-0 rounded-sm transition hover:ring-2 hover:ring-rimec-azul/60 ${
         empty
           ? "border-2 border-dashed border-neutral-300 bg-neutral-100"
           : "ring-1 ring-neutral-300"
