@@ -22,8 +22,9 @@ const SQL_PROBLEMA_ESTILO = `(
 )`;
 
 /**
- * SQL: hay imagen retail (o CP en 638).
- * 654 = L×R exacto · 638 = solo línea (retail o v_stock_rimec.imagen_url).
+ * SQL: hay imagen usable en Admin L×R.
+ * 654 = retail L×R **o** molécula PPD (material+color → stem Storage, ley 2.01.04.021).
+ * 638 = solo línea (retail o v_stock_rimec.imagen_url).
  */
 function sqlExisteImagenRetail(tipoParamIndex: number, matchByLineaOnly = false): string {
   if (matchByLineaOnly) {
@@ -43,13 +44,25 @@ function sqlExisteImagenRetail(tipoParamIndex: number, matchByLineaOnly = false)
       )
     )`;
   }
-  return `EXISTS (
-    SELECT 1
-    FROM public.registro_st_vt_rc_reposicion s
-    WHERE btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
-      AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
-      AND ($${tipoParamIndex}::int IS NULL OR s.tipo_v2_id = $${tipoParamIndex}::int)
-      AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+  return `(
+    EXISTS (
+      SELECT 1
+      FROM public.registro_st_vt_rc_reposicion s
+      WHERE btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
+        AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
+        AND ($${tipoParamIndex}::int IS NULL OR s.tipo_v2_id = $${tipoParamIndex}::int)
+        AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.pedido_proveedor_detalle ppd
+      JOIN public.linea ll ON ll.id = ppd.linea_id
+      JOIN public.referencia rr ON rr.id = ppd.referencia_id
+      WHERE btrim(ll.codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
+        AND btrim(rr.codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
+        AND NULLIF(btrim(ppd.material_code::text), '') IS NOT NULL
+        AND NULLIF(btrim(ppd.color_code::text), '') IS NOT NULL
+    )
   )`;
 }
 
@@ -1071,8 +1084,9 @@ export async function loadEstiloSugeridoLineaReferencia(
 }
 
 /**
- * Primera fila retail con imagen.
- * 654 = match exacto L×R · 638 = solo línea (1ª foto de esa línea; ref retail suele ser K ≠ LR).
+ * Primera molécular con imagen usable para Admin L×R.
+ * 654 = retail L×R · si no → PPD material+color (stem Storage · misma ley Magno).
+ * 638 = solo línea (retail; si no → v_stock_rimec.imagen_url).
  */
 export async function loadPrimeraImagenLineaReferencia(
   pool: Pool,
@@ -1234,6 +1248,61 @@ export async function loadPrimeraImagenLineaReferencia(
       color_code: r.color_code ?? "",
     });
   }
+
+  /** 654 · sin retail (ej. solo PROGRAMADO): stem L-R-M-C desde PPD = misma foto que Magno. */
+  const missing654 = pairs.filter(
+    (p) => {
+      const t = out.get(`${p.linea_codigo}\0${p.referencia_codigo}`);
+      if (!t) return true;
+      const hasName = Boolean(t.imagen_nombre?.trim());
+      const hasMol = Boolean(t.material_code?.trim() && t.color_code?.trim());
+      return !hasName && !hasMol;
+    },
+  );
+  if (missing654.length && tipoV2Id !== 2) {
+    const lineasM = missing654.map((p) => p.linea_codigo);
+    const refsM = missing654.map((p) => p.referencia_codigo);
+    const { rows: ppdRows } = await pool.query<{
+      linea_codigo: string;
+      referencia_codigo: string;
+      material_code: string;
+      color_code: string;
+    }>(
+      `
+      WITH pairs AS (
+        SELECT u.l AS linea_codigo, u.r AS referencia_codigo
+        FROM unnest($1::text[], $2::text[]) AS u(l, r)
+      )
+      SELECT DISTINCT ON (p.linea_codigo, p.referencia_codigo)
+        p.linea_codigo,
+        p.referencia_codigo,
+        NULLIF(btrim(ppd.material_code::text), '') AS material_code,
+        NULLIF(btrim(ppd.color_code::text), '') AS color_code
+      FROM pairs p
+      JOIN public.linea l ON btrim(l.codigo_proveedor::text) = p.linea_codigo
+      JOIN public.referencia r ON btrim(r.codigo_proveedor::text) = p.referencia_codigo
+      JOIN public.pedido_proveedor_detalle ppd
+        ON ppd.linea_id = l.id AND ppd.referencia_id = r.id
+      WHERE NULLIF(btrim(ppd.material_code::text), '') IS NOT NULL
+        AND NULLIF(btrim(ppd.color_code::text), '') IS NOT NULL
+      ORDER BY
+        p.linea_codigo,
+        p.referencia_codigo,
+        ppd.id
+      `,
+      [lineasM, refsM],
+    );
+    for (const r of ppdRows) {
+      const key = `${r.linea_codigo}\0${r.referencia_codigo}`;
+      if (out.has(key) && out.get(key)?.imagen_nombre) continue;
+      out.set(key, {
+        imagen_nombre: null,
+        material_code: r.material_code ?? "",
+        color_code: r.color_code ?? "",
+      });
+    }
+  }
+
   return out;
 }
 

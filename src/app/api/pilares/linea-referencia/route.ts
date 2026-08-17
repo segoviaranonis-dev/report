@@ -213,7 +213,9 @@ export async function GET(req: NextRequest) {
     const rowsWithThumb = rows.map((r) => {
       const key = `${r.linea_codigo}\0${r.referencia_codigo}`;
       const thumb = thumbMap.get(key) ?? null;
-      const tieneImagen = Boolean(thumb?.imagen_nombre?.trim());
+      const tieneImagen =
+        Boolean(thumb?.imagen_nombre?.trim()) ||
+        Boolean(thumb?.material_code?.trim() && thumb?.color_code?.trim());
       const labelEstilo = String(r.descp_grupo_estilo ?? "").trim().toUpperCase();
       const esProblema =
         r.grupo_estilo_id == null || labelEstilo === "OTROS";
