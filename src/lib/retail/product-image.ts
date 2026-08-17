@@ -32,9 +32,12 @@ const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
 function normCodigo(v: string | number | null | undefined): string {
   if (v == null) return "";
-  const n = Number(v);
+  // "" → Number("") === 0 en JS → stems falsos L-R-0-0 (Admin L×R sin thumb).
+  const raw = String(v).trim();
+  if (!raw) return "";
+  const n = Number(raw);
   if (Number.isFinite(n) && n === Math.floor(n)) return String(Math.floor(n));
-  return String(v).trim().replace(/\s+/g, "");
+  return raw.replace(/\s+/g, "");
 }
 
 function isSentinelCodigoProveedor(norm: string): boolean {
@@ -189,8 +192,9 @@ export function productImageCandidates(
   if (!L || !R) return [];
 
   const urls: string[] = [];
-  const stem4 = joinPillarStem([L, R, M, C]);
-  if (stem4) {
+  // Ley 654: stem completo solo con 4 pilares reales (no inventar 0-0).
+  if (M && C) {
+    const stem4 = joinPillarStem([L, R, M, C]);
     for (const u of stemCandidates(stem4, variant)) pushUnique(urls, u);
   }
   const stemLr = joinPillarStem([L, R]);
