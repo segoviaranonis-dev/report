@@ -154,10 +154,10 @@
       "nexusAntes": "clientes:2026-09 = 6.817.427.272 proxy TXT · SALEMMA 1323 visible",
       "nexusDespues": "431.759.488 Gs · Cuadro OK sept-26 · sin SALEMMA en árbol",
       "respuestaNexus": "Ola 4 · _gen_ola2_cuadro_guido.py extendido · todos los meses Cuadro + Detalle",
-      "accionNexus": "Local 2026-08-17 · pendiente deploy prod",
+      "accionNexus": "Deploy prod 2026-08-17 · b90963c",
       "estado": "cerrado",
       "docChusar": "2.3.1.50.34",
-      "commitDeploy": null,
+      "commitDeploy": "b90963c",
       "naturaleza": "reclamo"
     }
   ]
