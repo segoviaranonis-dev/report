@@ -25,7 +25,24 @@ export const SDRM_GENERO_TIPO2_CALZADO: Record<string, string> = {
   FEM: "DAMAS",
 };
 
-/** TIPO2 calzado → grupo_estilo_v2 (solo valores estructurales). */
+/**
+ * Ley Director 2026-08-17 · **2.3.5.16**
+ * Toda línea **VIZZANO** es **DAMAS** (calzado, carteras, anteojos/lentes, medias…).
+ * COD.GRUPO no aporta género en CARTERAS/LENTES → el mapa no debe dejar NULL.
+ */
+export const MARCA_VIZZANO_ID = 2;
+export const MARCA_VIZZANO_GENERO_LEY = "DAMAS";
+
+export function isMarcaVizzano(
+  marcaId: number | null | undefined,
+  marcaLabel?: string | null,
+): boolean {
+  if (marcaId === MARCA_VIZZANO_ID) return true;
+  const n = normLabel(marcaLabel);
+  return n === "VIZZANO" || n.startsWith("VIZZANO ");
+}
+
+/** Resuelve género pilares desde fila SDRM según ramo (fallback labels). */
 export const SDRM_ESTILO_TIPO2_CALZADO: Record<string, string> = {
   BOTA: "BOTAS",
   NADA: "OTROS",
@@ -118,15 +135,19 @@ export function resolvePilaresFromCodGrupo(input: {
   const ramo: SdrmRamo =
     decoded.ok ? decoded.ramo : input.ramoHint === "CONFECCIONES" ? "CONFECCIONES" : "CALZADOS";
 
-  const genero_codigo =
+  const marca_id = decoded.marcaId;
+  const marca_label = decoded.marcaLabelEsperado ?? (input.marca ? normLabel(input.marca) : null);
+  let genero_codigo =
     decoded.generoCodigo ??
     generoCodigoFromSdrm(ramo, input.tipo0 ?? "", input.tipo2 ?? "");
+  // Ley 2.3.5.16 · VIZZANO = DAMAS siempre (carteras/anteojos sin dígito género).
+  if (isMarcaVizzano(marca_id, marca_label ?? input.marca)) {
+    genero_codigo = MARCA_VIZZANO_GENERO_LEY;
+  }
   const estilo_label =
     decoded.estiloLabel ?? estiloLabelFromSdrm(ramo, input.tipo0 ?? "", input.tipo2 ?? "");
   const tipo1_label =
     decoded.tipo1Label ?? tipo1LabelFromSdrm(ramo, input.tipo0 ?? "", input.tipo1 ?? "");
-  const marca_id = decoded.marcaId;
-  const marca_label = decoded.marcaLabelEsperado ?? (input.marca ? normLabel(input.marca) : null);
   const cadena_comercial =
     decoded.cadenaComercial ??
     (input.cadena ? normLabel(input.cadena) : null) ??
@@ -164,6 +185,7 @@ export function mapaResumenPorProveedor(tipoV2Id: TipoV2Id) {
       { excel: "COD.GRUPO d05–06 NORMAL/PROMO/LIQ", pilares: "Tipo · cadena_comercial" },
       { excel: "COD.GRUPO d07–08 BOTA/NADA…", pilares: "Estilo (grupo_estilo_id)" },
       { excel: "Labels TIPO0/1/2", pilares: "Control (dígito gana si conflicto)" },
+      { excel: "Ley marca VIZZANO", pilares: "Género = DAMAS siempre (2.3.5.16 · carteras/anteojos)" },
     ],
   };
 }
