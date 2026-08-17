@@ -171,7 +171,7 @@ export function PeRevisarDescuentoPanel({
     const pool = base.filter((m) => matchesFiltrosRevisar(m, filtroState, "tipo"));
     const m = contarPorLabel(pool, (x) => x.labels.tipoCadena);
     return PE_TIPO_DICCIONARIO_OPCIONES.map((o) => {
-      const cad = o.cadena === "REGULAR" ? "NORMAL" : o.cadena;
+      const cad = o.label;
       return { cadena: cad, label: o.label, n: m.get(cad) ?? 0 };
     }).filter((t) => t.n > 0);
   }, [base, filtroState]);

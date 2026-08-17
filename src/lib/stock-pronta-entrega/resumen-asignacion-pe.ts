@@ -143,7 +143,7 @@ export function labelsMoleculaPe(row: DepositoRow): MoleculaVerificacionPe["labe
   const cadena = cadenaPeCanonico(row);
   const tipoCadena = cadena === "REGULAR" ? "NORMAL" : cadena;
   const tipoOpt = PE_TIPO_DICCIONARIO_OPCIONES.find(
-    (o) => o.cadena === cadena || (cadena === "REGULAR" && o.id === "normal"),
+    (o) => o.label === tipoCadena || (cadena === "REGULAR" && o.id === "normal"),
   );
   const abcrRaw = canonPeTipo1Valorizado(row.tipo_1 ?? "");
   return {

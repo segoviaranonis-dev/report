@@ -1,10 +1,10 @@
 {
   "meta": {
-    "version": 2,
-    "modulo": "2.3.1.50.33",
-    "actualizado": "2026-08-16",
-    "esperandoRespuestaGuido": true,
-    "observacionFinal": "Ola 3 desplegada 2026-08-16 · PV Y PROG canon · fidelidad 14/14 · esperando validación Guido.",
+    "version": 3,
+    "modulo": "2.3.1.50.34",
+    "actualizado": "2026-08-17",
+    "esperandoRespuestaGuido": false,
+    "observacionFinal": "Ola 4 · proyección Cuadro todos los meses + Detalle OK · Guido 13/08 validado local.",
     "notaDistincion": "Reclamo = canon financiero Guido (Sit Fin). No confundir con bug técnico (protocolo_errores · 4.xx.xx)."
   },
   "reclamos": [
@@ -138,6 +138,25 @@
       "accionNexus": "Ola 2 desplegada 2026-08-12",
       "estado": "cerrado",
       "docChusar": "2.3.1.50.32",
+      "commitDeploy": null,
+      "naturaleza": "reclamo"
+    },
+    {
+      "code": "SF-REC-008",
+      "numero": 8,
+      "fecha": "2026-08-13",
+      "loteId": "excel-08-observacion-guido-1308",
+      "conceptoSitFin": "SALDO DE CLIENTES · proyección sept+",
+      "origen": "guido_excel",
+      "textoReclamo": "Agosto OK pero sept SALDO DE CLIENTES no coincide. Report incluye SALEMMA/DIFICIL/BAZZAR en clientes:2026-09 — debe ser solo TIPO COBRO OK por cuota (Cuadro × Detalle).",
+      "evidencia": "Comentario General B123–B137 · observación 13/08/2026 · captura 1323 SALEMMA 711M en molecular sept",
+      "reglaCanon": "G4 · saldo_cli:{YM} = Cuadro OK × col · árbol Detalle FILA_CUADRO=OK",
+      "nexusAntes": "clientes:2026-09 = 6.817.427.272 proxy TXT · SALEMMA 1323 visible",
+      "nexusDespues": "431.759.488 Gs · Cuadro OK sept-26 · sin SALEMMA en árbol",
+      "respuestaNexus": "Ola 4 · _gen_ola2_cuadro_guido.py extendido · todos los meses Cuadro + Detalle",
+      "accionNexus": "Local 2026-08-17 · pendiente deploy prod",
+      "estado": "cerrado",
+      "docChusar": "2.3.1.50.34",
       "commitDeploy": null,
       "naturaleza": "reclamo"
     }

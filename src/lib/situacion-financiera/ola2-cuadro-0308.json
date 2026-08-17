@@ -1,8 +1,8 @@
 {
   "corte": "AL-03-08-26",
-  "ola": 2,
-  "actualizado": "2026-08-12",
-  "excel_canon": "Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx",
+  "ola": "2+4",
+  "actualizado": "2026-08-17",
+  "excel_canon": "C:\\Users\\hecto\\Nexus_Core\\report\\scripts\\situacion-financiera\\intake\\guido-20260812\\08.SITUACION FINANCIERA 01082026.xlsx",
   "pipeline": "TXT → Detalle → TIPO COBRO → Cuadro → Sit Fin verdes",
   "metricas": {
     "clientes:2026-08": {
@@ -17,6 +17,102 @@
       "fila_cuadro": "A ENTREGAR",
       "columna": "ago-26"
     },
+    "luisito:2026-08": {
+      "gs": 521838248.0,
+      "regla": "G8 · LUISITO × ago-26",
+      "fila_cuadro": "LUISITO",
+      "columna": "ago-26"
+    },
+    "dificil:2026-08": {
+      "gs": 313222216.0,
+      "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × ago-26",
+      "fila_cuadro": "DIFICIL+SALEMMA",
+      "columna": "ago-26"
+    },
+    "clientes:2026-09": {
+      "gs": 431759488.0,
+      "regla": "G4 · OK × sept-26",
+      "fila_cuadro": "OK",
+      "columna": "sept-26"
+    },
+    "mercaderia:2026-09": {
+      "gs": 65349539.0,
+      "regla": "G7 · A ENTREGAR × sept-26",
+      "fila_cuadro": "A ENTREGAR",
+      "columna": "sept-26"
+    },
+    "luisito:2026-09": {
+      "gs": 427093684.0,
+      "regla": "G8 · LUISITO × sept-26",
+      "fila_cuadro": "LUISITO",
+      "columna": "sept-26"
+    },
+    "dificil:2026-09": {
+      "gs": 143153925.0,
+      "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × sept-26",
+      "fila_cuadro": "DIFICIL+SALEMMA",
+      "columna": "sept-26"
+    },
+    "clientes:2026-10": {
+      "gs": 300009522.0,
+      "regla": "G4 · OK × oct-26",
+      "fila_cuadro": "OK",
+      "columna": "oct-26"
+    },
+    "mercaderia:2026-10": {
+      "gs": 259805646.0,
+      "regla": "G7 · A ENTREGAR × oct-26",
+      "fila_cuadro": "A ENTREGAR",
+      "columna": "oct-26"
+    },
+    "dificil:2026-10": {
+      "gs": 95183757.0,
+      "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × oct-26",
+      "fila_cuadro": "DIFICIL+SALEMMA",
+      "columna": "oct-26"
+    },
+    "clientes:2026-11": {
+      "gs": 119165166.0,
+      "regla": "G4 · OK × nov-26",
+      "fila_cuadro": "OK",
+      "columna": "nov-26"
+    },
+    "mercaderia:2026-11": {
+      "gs": 434945836.0,
+      "regla": "G7 · A ENTREGAR × nov-26",
+      "fila_cuadro": "A ENTREGAR",
+      "columna": "nov-26"
+    },
+    "dificil:2026-11": {
+      "gs": 54585062.0,
+      "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × nov-26",
+      "fila_cuadro": "DIFICIL+SALEMMA",
+      "columna": "nov-26"
+    },
+    "clientes:2026-12": {
+      "gs": 33110836.0,
+      "regla": "G4 · OK × dic-26",
+      "fila_cuadro": "OK",
+      "columna": "dic-26"
+    },
+    "mercaderia:2026-12": {
+      "gs": 337661703.0,
+      "regla": "G7 · A ENTREGAR × dic-26",
+      "fila_cuadro": "A ENTREGAR",
+      "columna": "dic-26"
+    },
+    "dificil:2026-12": {
+      "gs": 2900616.0,
+      "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × dic-26",
+      "fila_cuadro": "DIFICIL+SALEMMA",
+      "columna": "dic-26"
+    },
+    "mercaderia:2026-01": {
+      "gs": 290629763.0,
+      "regla": "G7 · A ENTREGAR × ene-27",
+      "fila_cuadro": "A ENTREGAR",
+      "columna": "ene-27"
+    },
     "aging:v30": {
       "gs": 747227807.0,
       "regla": "venc30 · {OK,LUISITO} × jul-26",
@@ -28,20 +124,30 @@
       "regla": "venc60 · {OK,LUISITO} × jun-26",
       "fila_cuadro": "OK+LUISITO",
       "columna": "jun-26"
-    },
-    "luisito:2026-08": {
-      "gs": 521838248.0,
-      "regla": "G8 · LUISITO × ago-26",
-      "fila_cuadro": "LUISITO",
-      "columna": "ago-26"
     }
   },
   "aplicados_molecular": {
     "clientes:2026-08": 850641935.0,
     "mercaderia:2026-08": 43753616.0,
+    "luisito:2026-08": 521838248.0,
+    "dificil:2026-08": 313222216.0,
+    "clientes:2026-09": 431759488.0,
+    "mercaderia:2026-09": 65349539.0,
+    "luisito:2026-09": 427093684.0,
+    "dificil:2026-09": 143153925.0,
+    "clientes:2026-10": 300009522.0,
+    "mercaderia:2026-10": 259805646.0,
+    "dificil:2026-10": 95183757.0,
+    "clientes:2026-11": 119165166.0,
+    "mercaderia:2026-11": 434945836.0,
+    "dificil:2026-11": 54585062.0,
+    "clientes:2026-12": 33110836.0,
+    "mercaderia:2026-12": 337661703.0,
+    "dificil:2026-12": 2900616.0,
+    "mercaderia:2026-01": 290629763.0,
     "aging:v30": 747227807.0,
-    "aging:v60": 264450447.0,
-    "luisito:2026-08": 521838248.0
+    "aging:v60": 264450447.0
   },
-  "nota": "PV Y PROG fuera de Ola 2 (Guido: LO VEREMOS LUEGO)"
+  "nota": "Ola 4 · proyección todos los meses Cuadro + árbol Detalle (Guido 13/08)",
+  "observacion_guido": "SALDO CLIENTES sept solo OK — excluir SALEMMA/DIFICIL/BAZZAR"
 }
