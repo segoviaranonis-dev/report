@@ -173,7 +173,11 @@ export function ReposicionArticuloCard({
     return [...rest, ...pp, ...pe];
   }, [a.stock]);
 
-  const hasVentas = a.ventasCp.length > 0 || a.ventasProgramado.length > 0;
+  const programadoSaldo = a.programadoSaldo ?? [];
+  const hasVentas =
+    a.ventasCp.length > 0 || a.ventasProgramado.length > 0 || programadoSaldo.length > 0;
+  const progVendido = a.ventasProgramado.reduce((s, b) => s + Math.round(b.pares), 0);
+  const progSaldo = programadoSaldo.reduce((s, b) => s + Math.round(b.pares), 0);
   const esLiq = esLiquidacionRow(a);
   const esPromo = !esLiq && esCasoPromo(a.caso_precio);
   const tienePe = a.totales.peDisponible > 0;
@@ -350,27 +354,55 @@ export function ReposicionArticuloCard({
                 <p className="mb-2 text-sm font-black uppercase tracking-wide text-emerald-700">
                   PROGRAMADO
                 </p>
-                {listOrEmpty(a.ventasProgramado, "Sin programado")}
-                <div className="space-y-2">
-                  {a.ventasProgramado.map((b) => (
-                    <PillQty
-                      key={`pg-${b.label}`}
-                      label={b.label}
-                      preventa={b.preventa}
-                      quincena={b.quincena}
-                      pares={b.pares}
-                      badgeClass="bg-emerald-600"
-                      pillBorderClass="border-rimec-azul/50"
-                      showP={false}
-                      esConfecciones={esConfecciones}
-                    />
-                  ))}
-                </div>
+                {listOrEmpty(
+                  [...programadoSaldo, ...a.ventasProgramado],
+                  "Sin programado",
+                )}
+                {programadoSaldo.length > 0 ? (
+                  <div className="mb-2 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                      Saldo pendiente
+                    </p>
+                    {programadoSaldo.map((b) => (
+                      <PillQty
+                        key={`pgs-${b.label}`}
+                        label={b.label}
+                        preventa={b.preventa}
+                        quincena={b.quincena}
+                        pares={b.pares}
+                        badgeClass="bg-amber-600"
+                        pillBorderClass="border-amber-500/60"
+                        showP={false}
+                        esConfecciones={esConfecciones}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {a.ventasProgramado.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                      Vendido
+                    </p>
+                    {a.ventasProgramado.map((b) => (
+                      <PillQty
+                        key={`pgv-${b.label}`}
+                        label={b.label}
+                        preventa={b.preventa}
+                        quincena={b.quincena}
+                        pares={b.pares}
+                        badgeClass="bg-emerald-600"
+                        pillBorderClass="border-rimec-azul/50"
+                        showP={false}
+                        esConfecciones={esConfecciones}
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </div>
               {hasVentas ? (
                 <p className="border-t border-emerald-200 pt-2 text-[10px] font-bold tabular-nums text-emerald-800">
                   Σ ventas {Math.round(a.totales.cpVendido + a.totales.programado)} p · CP vend.{" "}
-                  {Math.round(a.totales.cpVendido)} · Prog. {Math.round(a.totales.programado)}
+                  {Math.round(a.totales.cpVendido)} · Prog. saldo {progSaldo} · vend. {progVendido}
                 </p>
               ) : null}
             </div>

@@ -52,16 +52,19 @@ export type ReposicionArticulo = {
   caso_id: number | null;
   cadena_comercial: string | null;
   es_liquidacion: boolean | null;
-  /** STOCK's: PE disponible + CP disponible por quincena */
+  /** STOCK's: PE disponible + CP disponible + PP abierto — NUNCA programado */
   stock: ReposicionBucket[];
   /** VENTAS · Compra previa ejecutada por quincena */
   ventasCp: ReposicionBucket[];
-  /** VENTAS · PROGRAMADO (pares vendidos / cantidad programada) por quincena */
+  /** PROGRAMADO · pares vendidos por quincena */
   ventasProgramado: ReposicionBucket[];
+  /** PROGRAMADO · saldo pendiente (cat. 3) — bloque PROGRAMADO, no STOCK's */
+  programadoSaldo: ReposicionBucket[];
   totales: {
     peDisponible: number;
     cpDisponible: number;
     cpVendido: number;
+    /** Vendido programado + saldo programado (KPI · nunca CP) */
     programado: number;
     ppAbierto: number;
   };
@@ -175,6 +178,8 @@ type Acc = {
   ventasCpMeta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>;
   ventasProgramado: Map<string, number>;
   ventasProgramadoMeta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>;
+  programadoSaldo: Map<string, number>;
+  programadoSaldoMeta: Map<string, Pick<ReposicionBucket, "preventa" | "quincena">>;
 };
 
 function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
@@ -217,6 +222,8 @@ function ensure(acc: Map<string, Acc>, row: DepositoRow): Acc {
       ventasCpMeta: new Map(),
       ventasProgramado: new Map(),
       ventasProgramadoMeta: new Map(),
+      programadoSaldo: new Map(),
+      programadoSaldoMeta: new Map(),
     };
     acc.set(key, a);
   } else {
@@ -283,12 +290,12 @@ export function mergeReposicionArticulos(input: {
     const bucket = cpBucketFromRow(r, "Programado");
     const vend = Number(r.pares_vendidos) || 0;
     const saldo = Number(r.cantidad) || 0;
-    // Rigor bancario: VENTAS = solo vendido. Saldo pendiente → STOCK (no inflar ventas).
+    // Ley AM: programado ≠ STOCK's / ≠ CP. Saldo + vendido → bloque PROGRAMADO.
     if (vend > 0) {
       addBucket(a.ventasProgramado, a.ventasProgramadoMeta, bucket.label, vend, bucket);
     }
     if (saldo > 0) {
-      addBucket(a.stock, a.stockMeta, bucket.label, saldo, bucket);
+      addBucket(a.programadoSaldo, a.programadoSaldoMeta, bucket.label, saldo, bucket);
     }
   }
 
@@ -302,7 +309,8 @@ export function mergeReposicionArticulos(input: {
     const stock = bucketsFromMap(a.stock, a.stockMeta);
     const ventasCp = bucketsFromMap(a.ventasCp, a.ventasCpMeta);
     const ventasProgramado = bucketsFromMap(a.ventasProgramado, a.ventasProgramadoMeta);
-    const totales = calcularTotalesDesdeBuckets(stock, ventasCp, ventasProgramado);
+    const programadoSaldo = bucketsFromMap(a.programadoSaldo, a.programadoSaldoMeta);
+    const totales = calcularTotalesDesdeBuckets(stock, ventasCp, ventasProgramado, programadoSaldo);
     const { peDisponible, cpDisponible, cpVendido, programado, ppAbierto } = totales;
     if (peDisponible + cpDisponible + cpVendido + programado + ppAbierto <= 0) continue;
     out.push({
@@ -338,6 +346,7 @@ export function mergeReposicionArticulos(input: {
       stock,
       ventasCp,
       ventasProgramado,
+      programadoSaldo,
       totales,
     });
   }

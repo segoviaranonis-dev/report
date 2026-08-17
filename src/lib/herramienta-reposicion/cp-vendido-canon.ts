@@ -78,7 +78,15 @@ export function aplicarCpVendidoCanon(
     const ventasCp = canon.get(a.key);
     if (!ventasCp) return a;
     const next = { ...a, ventasCp };
-    return { ...next, totales: calcularTotalesDesdeBuckets(next.stock, next.ventasCp, next.ventasProgramado) };
+    return {
+      ...next,
+      totales: calcularTotalesDesdeBuckets(
+        next.stock,
+        next.ventasCp,
+        next.ventasProgramado,
+        next.programadoSaldo ?? [],
+      ),
+    };
   });
 
   for (const [key, ventasCp] of canon) {
@@ -120,6 +128,7 @@ export function aplicarCpVendidoCanon(
       stock: [],
       ventasCp,
       ventasProgramado: [],
+      programadoSaldo: [],
       totales: {
         peDisponible: 0,
         cpDisponible: 0,

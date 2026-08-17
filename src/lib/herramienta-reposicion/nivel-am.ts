@@ -1,4 +1,5 @@
 import type { ReposicionArticulo } from "@/lib/herramienta-reposicion/merge-reposicion";
+import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 
 /** Nivel 0 = sin señal AM · 1 = completo · 2 = incompleto · 3 = monocategoría */
 export type NivelAm = 0 | 1 | 2 | 3;
@@ -9,10 +10,14 @@ const PE_LABEL = /^pronta\s*entrega$/i;
 export type NivelAmMap = ReadonlyMap<string, NivelAm>;
 
 export function ejesPresentes(a: ReposicionArticulo): boolean[] {
-  const cpStock = a.stock.some((b) => !PE_LABEL.test(b.label) && b.pares > 0);
   const peStock = a.stock.some((b) => PE_LABEL.test(b.label) && b.pares > 0);
+  const cpStock = a.stock.some(
+    (b) => !PE_LABEL.test(b.label) && b.label !== PP_ABIERTO_LABEL && b.pares > 0,
+  );
   const ventaCp = a.ventasCp.some((b) => b.pares > 0);
-  const programado = a.ventasProgramado.some((b) => b.pares > 0);
+  const programado =
+    a.ventasProgramado.some((b) => b.pares > 0) ||
+    (a.programadoSaldo ?? []).some((b) => b.pares > 0);
   return [cpStock, peStock, ventaCp, programado];
 }
 

@@ -28,11 +28,16 @@ export type IntegridadIssue = {
   enBuckets: number;
 };
 
-/** Totales canónicos = suma de pills/buckets por molécula (L+R+material+color). */
+/**
+ * Totales canónicos = suma de pills/buckets por molécula.
+ * STOCK's → pe / cpDisponible / ppAbierto.
+ * PROGRAMADO (vendido + saldo) → programado — nunca suma a cpDisponible.
+ */
 export function calcularTotalesDesdeBuckets(
   stock: ReposicionBucket[],
   ventasCp: ReposicionBucket[],
   ventasProgramado: ReposicionBucket[],
+  programadoSaldo: ReposicionBucket[] = [],
 ): ReposicionArticulo["totales"] {
   let peDisponible = 0;
   let cpDisponible = 0;
@@ -47,6 +52,7 @@ export function calcularTotalesDesdeBuckets(
   for (const b of ventasCp) cpVendido += enteroPares(b.pares);
   let programado = 0;
   for (const b of ventasProgramado) programado += enteroPares(b.pares);
+  for (const b of programadoSaldo) programado += enteroPares(b.pares);
   return { peDisponible, cpDisponible, cpVendido, programado, ppAbierto };
 }
 
@@ -54,7 +60,12 @@ export function calcularTotalesDesdeBuckets(
 export function recalcularTotalesArticulo(a: ReposicionArticulo): ReposicionArticulo {
   return {
     ...a,
-    totales: calcularTotalesDesdeBuckets(a.stock, a.ventasCp, a.ventasProgramado),
+    totales: calcularTotalesDesdeBuckets(
+      a.stock,
+      a.ventasCp,
+      a.ventasProgramado,
+      a.programadoSaldo ?? [],
+    ),
   };
 }
 
@@ -99,7 +110,12 @@ export function paresTotalesAmDesdeArticulo(a: ReposicionArticulo): number {
 /** Cada `totales.*` debe coincidir con la suma de pills visibles en la tarjeta. */
 export function auditarIntegridadArticulo(a: ReposicionArticulo): IntegridadIssue[] {
   const issues: IntegridadIssue[] = [];
-  const canon = calcularTotalesDesdeBuckets(a.stock, a.ventasCp, a.ventasProgramado);
+  const canon = calcularTotalesDesdeBuckets(
+    a.stock,
+    a.ventasCp,
+    a.ventasProgramado,
+    a.programadoSaldo ?? [],
+  );
   const checks: Array<{
     campo: IntegridadIssue["campo"];
     enTotales: number;
