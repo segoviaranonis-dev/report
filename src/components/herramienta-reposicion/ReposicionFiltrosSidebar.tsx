@@ -19,8 +19,8 @@ import {
   toggleMaterialCascadaOp,
 } from "@/lib/depositos/operativa-cascada";
 import {
-  PE_TIPO_DICCIONARIO_OPCIONES,
   parsePeTipoSelected,
+  peTipoOpcionesVisibles,
   togglePeTipoDiccionario,
   type PeTipoDiccionarioId,
 } from "@/lib/stock-pronta-entrega/filtro-tipo-pe-diccionario";
@@ -39,6 +39,11 @@ import {
   toggleFamiliaKey,
   type FamiliaPilarItem,
 } from "@/lib/pilares/agrupar-etiqueta-pilar";
+import {
+  ENTIDAD_AM_OPCIONES,
+  toggleEntidadAm,
+  type EntidadAmFiltro,
+} from "@/lib/herramienta-reposicion/clasificacion-am";
 import { RIMEC_SDRM_DEPOSIT_MAP } from "@/lib/deposito-rimec/rimec-csv-sdrm";
 import type { OperativaRamoTipo } from "@/lib/depositos/operativa-filters";
 
@@ -62,10 +67,13 @@ type Props = {
   onSoloConStockChange?: (v: boolean) => void;
   trailing?: React.ReactNode;
   className?: string;
-  /** `pe` = Stock / Depósito / Categoría segmentados (paridad RIMEC Web). */
+  /** `pe` = Stock PE fijo · `am` = PE|CP|PRG (cat. 1·2·3) Magno. */
   variant?: "default" | "pe" | "am";
   depositoLegal?: string;
   onDepositoLegalChange?: (v: string) => void;
+  /** Solo variant am · vacío = todas las entidades */
+  entidadesAm?: Array<"pe" | "cp" | "prg">;
+  onEntidadesAmChange?: (v: Array<"pe" | "cp" | "prg">) => void;
 };
 
 function cap(s: string) {
@@ -192,40 +200,58 @@ function PeTipoDiccionarioMultiSelectGroup({
   selected,
   onToggle,
   onClear,
+  ramoTipo,
 }: {
   selected: PeTipoDiccionarioId[];
   onToggle: (id: PeTipoDiccionarioId) => void;
   onClear: () => void;
+  ramoTipo?: string | null;
 }) {
   const n = selected.length;
+  const opciones = peTipoOpcionesVisibles(ramoTipo);
   return (
     <details className="group rounded-lg border border-slate-200/90 bg-white">
       <AcordeonHeader title="Tipo" count={n} onClear={onClear} />
       <div className="border-t border-slate-100 p-1.5">
         <p className="px-1 pb-1 text-[10px] uppercase tracking-wide text-slate-500">
-          Diccionario pronta entrega · COD.GRUPO
+          Casos · diccionario PE · COD.GRUPO
         </p>
-        <ul className="max-h-36 space-y-0.5 overflow-y-auto" role="group" aria-label="Tipo · diccionario PE">
-          {PE_TIPO_DICCIONARIO_OPCIONES.map((item) => {
+        <p className="px-1 pb-1.5 text-[9px] leading-snug text-slate-400">
+          LIQUIDACION y COMUN = herencia SDRM (sin fila BCL 654). Filtro CHINELO · badge CHI (como LIQ/PRO).
+        </p>
+        <ul className="max-h-40 space-y-0.5 overflow-y-auto" role="group" aria-label="Casos (filtro Tipo) · diccionario PE">
+          {opciones.map((item) => {
             const on = selected.includes(item.id);
+            const isChi = item.id === "chi";
             return (
               <li key={item.id}>
                 <label
                   className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
-                    on
-                      ? "bg-rimec-azul/10 font-semibold text-rimec-azul-dark"
-                      : "text-slate-700 hover:bg-slate-50"
+                    isChi
+                      ? on
+                        ? "bg-sky-100/90 font-semibold text-sky-900 shadow-[0_0_0_1px_rgba(14,165,233,0.45)]"
+                        : "text-sky-800/90 hover:bg-sky-50"
+                      : on
+                        ? "bg-rimec-azul/10 font-semibold text-rimec-azul-dark"
+                        : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={on}
                     onChange={() => onToggle(item.id)}
-                    className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-rimec-azul focus:ring-rimec-azul/30"
+                    className={`h-3.5 w-3.5 shrink-0 rounded border-slate-300 focus:ring-rimec-azul/30 ${
+                      isChi ? "text-sky-600" : "text-rimec-azul"
+                    }`}
                   />
                   <span className="min-w-0 flex-1 truncate" title={item.label}>
                     {item.label}
                   </span>
+                  {isChi ? (
+                    <span className="shrink-0 rounded px-1 py-0.5 text-[7px] font-black tracking-wider text-sky-900 bg-sky-100 border border-sky-300">
+                      CHI
+                    </span>
+                  ) : null}
                 </label>
               </li>
             );
@@ -435,10 +461,14 @@ export function ReposicionFiltrosSidebar({
   variant = "default",
   depositoLegal = "",
   onDepositoLegalChange,
+  entidadesAm = [],
+  onEntidadesAmChange,
 }: Props) {
   const [bloqueDimOpen, setBloqueDimOpen] = useState(true);
   const [bloqueMolOpen, setBloqueMolOpen] = useState(true);
-  const esPe = variant === "pe" || variant === "am";
+  const esPe = variant === "pe";
+  const esAm = variant === "am";
+  const esPeOAm = esPe || esAm;
 
   const patch = (p: Partial<OperativaFilterState>) =>
     onChange((prev) => ({ ...prev, ...p }));
@@ -446,7 +476,8 @@ export function ReposicionFiltrosSidebar({
   const dirty =
     hayFiltrosActivos(filtros) ||
     JSON.stringify(filtros) !== JSON.stringify(emptyFilters) ||
-    (esPe && !!depositoLegal);
+    (esPe && !!depositoLegal) ||
+    (esAm && entidadesAm.length > 0);
 
   const setRamo = (next: OperativaRamoTipo) => {
     const clear = filtros.ramoTipo === next;
@@ -476,7 +507,8 @@ export function ReposicionFiltrosSidebar({
     filtros.marcaIds.length +
     (esPe ? peTipoSelected.length : filtros.tipoGrupos.length) +
     filtros.generoIds.length +
-    (esPe && depositoLegal ? 1 : 0);
+    (esPe && depositoLegal ? 1 : 0) +
+    (esAm ? entidadesAm.length : 0);
 
   const badgeMol =
     filtros.grupoEstiloIds.length +
@@ -505,6 +537,7 @@ export function ReposicionFiltrosSidebar({
               onClick={() => {
                 onChange(emptyFilters);
                 onDepositoLegalChange?.("");
+                onEntidadesAmChange?.([]);
               }}
               className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[10px] font-bold text-red-700 hover:bg-red-50"
             >
@@ -512,6 +545,39 @@ export function ReposicionFiltrosSidebar({
             </button>
           ) : null}
         </div>
+
+        {esAm && onEntidadesAmChange ? (
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              Entidad AM · cat. 1 · 2 · 3
+            </span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {ENTIDAD_AM_OPCIONES.map((o) => {
+                const on = entidadesAm.includes(o.id);
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    title={o.title}
+                    onClick={() =>
+                      onEntidadesAmChange(
+                        toggleEntidadAm(entidadesAm as EntidadAmFiltro[], o.id),
+                      )
+                    }
+                    className={`${SEG_BTN} ${on ? SEG_ON : SEG_OFF}`}
+                    aria-pressed={on}
+                  >
+                    {o.label}
+                    <span className="ml-1 text-[9px] opacity-80">{o.cat}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-slate-500">
+              Vacío = todas · PE=1 · CP=2 · PRG=3 (siamese Magno)
+            </p>
+          </div>
+        ) : null}
 
         {esPe ? (
           <div className="space-y-1.5">
@@ -617,7 +683,7 @@ export function ReposicionFiltrosSidebar({
           onClear={() =>
             onChange((prev) => ({ ...prev, ...cascadaDimensionesOperativa({ tipo1Ids: [] }) }))
           }
-          defaultOpen={esPe}
+          defaultOpen={esPeOAm}
         />
 
         <MultiSelectGroup
@@ -638,9 +704,10 @@ export function ReposicionFiltrosSidebar({
           maxH="max-h-44"
         />
 
-        {esPe ? (
+        {esPeOAm ? (
           <PeTipoDiccionarioMultiSelectGroup
             selected={peTipoSelected}
+            ramoTipo={filtros.ramoTipo}
             onToggle={(id) =>
               onChange((prev) => ({
                 ...prev,
@@ -698,7 +765,7 @@ export function ReposicionFiltrosSidebar({
           }
         />
 
-        {!esPe && onSoloConStockChange ? (
+        {!esPeOAm && onSoloConStockChange ? (
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700">
             <input
               type="checkbox"

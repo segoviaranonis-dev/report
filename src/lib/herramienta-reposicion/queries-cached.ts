@@ -12,7 +12,7 @@ import {
  */
 type CacheEntry = { ts: number; gen: string; data: HerramientaReposicionPayload };
 
-const CACHE_GEN = "cp-lote-v2";
+const CACHE_GEN = "am-prog-no-stock-v3";
 
 const g = globalThis as typeof globalThis & {
   __herramientaReposicionCache?: CacheEntry;

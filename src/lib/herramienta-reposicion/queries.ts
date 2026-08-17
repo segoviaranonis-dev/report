@@ -16,6 +16,7 @@ import {
   kpisDesdeArticulos,
   recalcularTotalesArticulo,
 } from "@/lib/herramienta-reposicion/totales-reposicion";
+import { sanearArticulosAm } from "@/lib/herramienta-reposicion/clasificacion-am";
 
 export type HerramientaReposicionPayload = {
   articulos: ReposicionArticulo[];
@@ -39,14 +40,16 @@ export async function getHerramientaReposicion(pool: Pool): Promise<HerramientaR
     fetchCpVendidoCanonPorMol(pool),
   ]);
 
-  const articulosRaw = aplicarCpVendidoCanon(
-    mergeReposicionArticulos({
-      pe: pe.productos,
-      compraPrevia: cp.productos,
-      programado: prog.productos,
-      ppAbierto: ppAbierto.productos,
-    }),
-    cpVendidoCanon,
+  const articulosRaw = sanearArticulosAm(
+    aplicarCpVendidoCanon(
+      mergeReposicionArticulos({
+        pe: pe.productos,
+        compraPrevia: cp.productos,
+        programado: prog.productos,
+        ppAbierto: ppAbierto.productos,
+      }),
+      cpVendidoCanon,
+    ),
   );
 
   const articulos = articulosRaw.map(recalcularTotalesArticulo);

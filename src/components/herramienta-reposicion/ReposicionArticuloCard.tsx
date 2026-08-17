@@ -163,15 +163,30 @@ export function ReposicionArticuloCard({
 
   const nombreFotoDisplay = nombreFoto?.replace(/\.jpe?g$/i, "") ?? null;
 
-  /** STOCK: CP por quincena · PP abierto · PE al final */
+  /** STOCK: solo PE + CP real + PP · Magno: nunca labels/preventas de PROGRAMADO */
   const stockSorted = useMemo(() => {
-    const pe = a.stock.filter((b) => /^pronta\s*entrega$/i.test(b.label));
-    const pp = a.stock.filter((b) => b.label === PP_ABIERTO_LABEL);
-    const rest = a.stock.filter(
+    const progLabels = new Set(
+      [...(a.programadoSaldo ?? []), ...a.ventasProgramado].map((b) => b.label),
+    );
+    const progPrev = new Set(
+      [...(a.programadoSaldo ?? []), ...a.ventasProgramado]
+        .map((b) => String(b.preventa ?? "").trim())
+        .filter(Boolean),
+    );
+    const limpio = a.stock.filter((b) => {
+      if (/^pronta\s*entrega$/i.test(b.label) || b.label === PP_ABIERTO_LABEL) return true;
+      const prev = String(b.preventa ?? "").trim();
+      if (progLabels.has(b.label)) return false;
+      if (prev && progPrev.has(prev)) return false;
+      return true;
+    });
+    const pe = limpio.filter((b) => /^pronta\s*entrega$/i.test(b.label));
+    const pp = limpio.filter((b) => b.label === PP_ABIERTO_LABEL);
+    const rest = limpio.filter(
       (b) => !/^pronta\s*entrega$/i.test(b.label) && b.label !== PP_ABIERTO_LABEL,
     );
     return [...rest, ...pp, ...pe];
-  }, [a.stock]);
+  }, [a.stock, a.programadoSaldo, a.ventasProgramado]);
 
   const programadoSaldo = a.programadoSaldo ?? [];
   const hasVentas =
@@ -306,9 +321,20 @@ export function ReposicionArticuloCard({
             )}
             {stockSorted.length > 0 ? (
               <p className="mt-2 border-t border-rimec-azul/15 pt-2 text-[10px] font-bold tabular-nums text-rimec-azul-dark">
-                Σ stock {Math.round(a.totales.peDisponible + a.totales.cpDisponible + a.totales.ppAbierto)} p · PE{" "}
-                {Math.round(a.totales.peDisponible)} · CP {Math.round(a.totales.cpDisponible)} · PP{" "}
-                {Math.round(a.totales.ppAbierto)}
+                Σ stock{" "}
+                {Math.round(
+                  stockSorted.reduce((s, b) => s + b.pares, 0),
+                )}{" "}
+                p · PE {Math.round(a.totales.peDisponible)} · CP{" "}
+                {Math.round(
+                  stockSorted
+                    .filter(
+                      (b) =>
+                        !/^pronta\s*entrega$/i.test(b.label) && b.label !== PP_ABIERTO_LABEL,
+                    )
+                    .reduce((s, b) => s + b.pares, 0),
+                )}{" "}
+                · PP {Math.round(a.totales.ppAbierto)}
               </p>
             ) : null}
           </div>

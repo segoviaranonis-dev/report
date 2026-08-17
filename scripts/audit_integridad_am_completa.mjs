@@ -118,9 +118,9 @@ const caso4117 = mol4117
       ok_no_stock_prog: !(mol4117.programadoSaldo ?? []).some((ps) =>
         mol4117.stock.some((s) => s.label === ps.label),
       ),
-      ok_4117_en_programado: (mol4117.programadoSaldo ?? []).some((b) =>
-        String(b.label).includes("4117"),
-      ),
+      ok_4117_en_programado:
+        (mol4117.programadoSaldo ?? []).some((b) => String(b.label).includes("4117")) ||
+        mol4117.ventasProgramado.some((b) => String(b.label).includes("4117")),
     }
   : { key: "7230-100-29516-83517", ausente: true };
 

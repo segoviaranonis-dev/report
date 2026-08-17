@@ -62,6 +62,11 @@ const REPOSICION_FILTROS_INICIAL: OperativaFilterState = {
   tipoV2Ids: [TIPO_V2_CALZADO],
 };
 import {
+  filtrarPorEntidadesAm,
+  sanearArticulosAm,
+  type EntidadAmFiltro,
+} from "@/lib/herramienta-reposicion/clasificacion-am";
+import {
   borrarCacheReposicionCliente,
   guardarCacheReposicionCliente,
   leerCacheReposicionCliente,
@@ -121,6 +126,7 @@ export function HerramientaReposicionClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [soloConStock, setSoloConStock] = useState(false);
+  const [entidadesAm, setEntidadesAm] = useState<EntidadAmFiltro[]>([]);
   const [filtros, setFiltros] = useState<OperativaFilterState>(REPOSICION_FILTROS_INICIAL);
   const filtrosRef = useRef(filtros);
   const [filtroFeedback, setFiltroFeedback] = useState<{ id: number; filtro: string } | null>(null);
@@ -195,7 +201,7 @@ export function HerramientaReposicionClient() {
     if (!fresh) {
       const cached = leerCacheReposicionCliente();
       if (cached?.length) {
-        setArticulos(cached);
+        setArticulos(sanearArticulosAm(cached));
         setLoading(false);
       } else {
         setLoading(true);
@@ -210,7 +216,7 @@ export function HerramientaReposicionClient() {
       const res = await fetch(`/api/herramienta-reposicion${qs}`, { credentials: "include" });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Error al cargar");
-      const next = (data.articulos ?? []) as ReposicionArticulo[];
+      const next = sanearArticulosAm((data.articulos ?? []) as ReposicionArticulo[]);
       setArticulos(next);
       guardarCacheReposicionCliente(next);
     } catch (e) {
@@ -232,9 +238,14 @@ export function HerramientaReposicionClient() {
   }, []);
 
   const baseArticulos = useMemo(() => {
-    if (!soloConStock) return articulos;
-    return articulos.filter((a) => a.totales.peDisponible + a.totales.cpDisponible + a.totales.ppAbierto > 0);
-  }, [articulos, soloConStock]);
+    let list = articulos;
+    if (soloConStock) {
+      list = list.filter(
+        (a) => a.totales.peDisponible + a.totales.cpDisponible + a.totales.ppAbierto > 0,
+      );
+    }
+    return filtrarPorEntidadesAm(list, entidadesAm);
+  }, [articulos, soloConStock, entidadesAm]);
 
   const asRows = useMemo(
     () => stampFamiliaPilares(baseArticulos.map(reposicionArticuloToDepositoRow)),
@@ -318,7 +329,8 @@ export function HerramientaReposicionClient() {
     soloConStock ||
     soloSinImagen ||
     filtroNivel !== "all" ||
-    filtroSoloPpAbierto;
+    filtroSoloPpAbierto ||
+    entidadesAm.length > 0;
 
   const totalParesStock = useMemo(
     () => filtradosOrdenados.reduce((s, a) => s + paresStockDesdeArticulo(a), 0),
@@ -675,12 +687,15 @@ export function HerramientaReposicionClient() {
                   </summary>
                   <div className="border-t border-slate-100 p-2">
                     <ReposicionFiltrosSidebar
+                      variant="am"
                       filtros={filtros}
                       onChange={aplicarFiltros}
                       opciones={opciones}
                       emptyFilters={REPOSICION_FILTROS_INICIAL}
                       soloConStock={soloConStock}
                       onSoloConStockChange={setSoloConStock}
+                      entidadesAm={entidadesAm}
+                      onEntidadesAmChange={setEntidadesAm}
                       trailing={
                         <SinImagenCabeceraChip
                           productos={rowsParaChip}
@@ -694,12 +709,15 @@ export function HerramientaReposicionClient() {
                 </details>
                 <div className="hidden lg:block">
                   <ReposicionFiltrosSidebar
+                    variant="am"
                     filtros={filtros}
                     onChange={aplicarFiltros}
                     opciones={opciones}
                     emptyFilters={REPOSICION_FILTROS_INICIAL}
                     soloConStock={soloConStock}
                     onSoloConStockChange={setSoloConStock}
+                    entidadesAm={entidadesAm}
+                    onEntidadesAmChange={setEntidadesAm}
                     trailing={
                       <SinImagenCabeceraChip
                         productos={rowsParaChip}

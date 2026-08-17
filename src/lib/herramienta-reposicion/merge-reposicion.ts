@@ -5,6 +5,7 @@
 import type { DepositoRow } from "@/app/api/depositos/[cliente_id]/route";
 import { moleculeKeyVentas } from "@/lib/clientes/etiqueta-comprador";
 import { calcularTotalesDesdeBuckets } from "@/lib/herramienta-reposicion/totales-reposicion";
+import { sanearClasificacionAm } from "@/lib/herramienta-reposicion/clasificacion-am";
 import { PP_ABIERTO_LABEL } from "@/lib/herramienta-reposicion/queries-pp-abierto";
 import { esLiquidacionRow } from "@/lib/filtros/filtro-tipo-canonico";
 import { etiquetaDatoDuroCp, partesDatoDuroCp } from "@/lib/pedido-proveedor/dato-duro-cabecera";
@@ -351,7 +352,9 @@ export function mergeReposicionArticulos(input: {
     });
   }
 
-  out.sort((x, y) => {
+  const saneados = out.map(sanearClasificacionAm);
+
+  saneados.sort((x, y) => {
     const tx =
       x.totales.peDisponible +
       x.totales.cpDisponible +
@@ -367,5 +370,5 @@ export function mergeReposicionArticulos(input: {
     if (ty !== tx) return ty - tx;
     return `${x.linea}.${x.referencia}`.localeCompare(`${y.linea}.${y.referencia}`, "es");
   });
-  return out;
+  return saneados;
 }
