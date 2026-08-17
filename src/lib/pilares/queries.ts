@@ -1259,7 +1259,7 @@ export async function loadPrimeraImagenLineaReferencia(
       return !hasName && !hasMol;
     },
   );
-  if (missing654.length && tipoV2Id !== 2) {
+  if (missing654.length) {
     const lineasM = missing654.map((p) => p.linea_codigo);
     const refsM = missing654.map((p) => p.referencia_codigo);
     const { rows: ppdRows } = await pool.query<{
