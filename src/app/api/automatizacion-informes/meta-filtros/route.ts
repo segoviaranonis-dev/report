@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       tipos_dpe: PE_TIPO_DICCIONARIO_OPCIONES.map((o) => ({
         id: o.id,
         label: o.label,
-        ramos: o.ramos,
+        cadena: o.cadena,
       })),
       marcas: marcasQ.rows.map((r) => ({ label: r.marca, n: Number(r.n) })),
       abcr: abcrMerged.map((a) => ({ id: a.id, label: a.label })),

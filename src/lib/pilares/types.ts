@@ -92,6 +92,8 @@ export interface LineaReferenciaCascada {
 export type LineaReferenciaFilterOpts = {
   /** legacy single label */
   marca?: string | null;
+  /** legacy single label (descripción género) */
+  genero?: string | null;
   /** multi OR · siames W */
   marcaIds?: number[] | null;
   marcaNull?: boolean;

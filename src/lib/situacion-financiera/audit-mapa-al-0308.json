@@ -45,16 +45,16 @@
   "pv_staging_sum": 15008183796.0,
   "resumen": {
     "ok": 0,
-    "descuadre": 17,
-    "excel_cero_txt_tiene": 4,
+    "descuadre": 16,
+    "excel_cero_txt_tiene": 2,
     "sin_txt": 1,
     "manual": 0,
     "pendiente": 0,
     "excel_prevision": 6,
-    "ola2_ok": 0,
-    "ola2_descuadre": 15,
-    "ola3_ok": 0,
-    "ola3_descuadre": 5,
+    "ola2_ok": 18,
+    "ola2_descuadre": 0,
+    "ola3_ok": 5,
+    "ola3_descuadre": 0,
     "calc": 5
   },
   "filas": [
@@ -92,7 +92,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK × mes",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 13,
@@ -110,7 +110,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 14,
@@ -128,7 +128,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK+LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 15,
@@ -146,7 +146,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK+LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 17,
@@ -164,7 +164,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Situacion · PV Y PROG",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola3_descuadre"
+      "estado": "ola3_ok"
     },
     {
       "r": 18,
@@ -182,7 +182,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 23,
@@ -236,7 +236,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK × mes",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 26,
@@ -254,7 +254,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 28,
@@ -272,7 +272,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 29,
@@ -290,7 +290,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Situacion · PV Y PROG",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola3_descuadre"
+      "estado": "ola3_ok"
     },
     {
       "r": 34,
@@ -344,7 +344,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK × mes",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 37,
@@ -362,7 +362,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 39,
@@ -370,17 +370,17 @@
       "mes_ctx": "2026-10",
       "mes_label": null,
       "concepto": "luisito",
-      "origen": "txt",
+      "origen": "ola2_cuadro",
       "mol_key": "luisito:2026-10",
       "excel_gs": 113173716.0,
-      "txt_gs": 2015617848.0,
-      "mol_gs": 2015617848.0,
-      "canon_gs": 2015617848.0,
-      "delta_excel_minus_txt": -1902444132.0,
-      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
+      "txt_gs": 0.0,
+      "mol_gs": 0.0,
+      "canon_gs": 0.0,
+      "delta_excel_minus_txt": 113173716.0,
+      "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 40,
@@ -398,7 +398,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Situacion · PV Y PROG",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola3_descuadre"
+      "estado": "ola3_ok"
     },
     {
       "r": 45,
@@ -452,7 +452,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK × mes",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 48,
@@ -470,7 +470,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 50,
@@ -478,17 +478,17 @@
       "mes_ctx": "2026-11",
       "mes_label": null,
       "concepto": "luisito",
-      "origen": "txt",
+      "origen": "ola2_cuadro",
       "mol_key": "luisito:2026-11",
       "excel_gs": null,
-      "txt_gs": 2015617848.0,
-      "mol_gs": 2015617848.0,
-      "canon_gs": 2015617848.0,
+      "txt_gs": 0.0,
+      "mol_gs": 0.0,
+      "canon_gs": 0.0,
       "delta_excel_minus_txt": null,
-      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
+      "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "excel_cero_txt_tiene"
+      "estado": "ola2_ok"
     },
     {
       "r": 51,
@@ -506,7 +506,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Situacion · PV Y PROG",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola3_descuadre"
+      "estado": "ola3_ok"
     },
     {
       "r": 56,
@@ -560,7 +560,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · OK × mes",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 59,
@@ -578,7 +578,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 61,
@@ -586,17 +586,17 @@
       "mes_ctx": "2026-12",
       "mes_label": null,
       "concepto": "luisito",
-      "origen": "txt",
+      "origen": "ola2_cuadro",
       "mol_key": "luisito:2026-12",
       "excel_gs": null,
-      "txt_gs": 2015617848.0,
-      "mol_gs": 2015617848.0,
-      "canon_gs": 2015617848.0,
+      "txt_gs": 0.0,
+      "mol_gs": 0.0,
+      "canon_gs": 0.0,
       "delta_excel_minus_txt": null,
-      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
+      "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
-      "estado": "excel_cero_txt_tiene"
+      "estado": "ola2_ok"
     },
     {
       "r": 62,
@@ -614,7 +614,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Situacion · PV Y PROG",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola3_descuadre"
+      "estado": "ola3_ok"
     },
     {
       "r": 67,
@@ -704,7 +704,7 @@
       "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · A ENTREGAR",
       "archivo_excel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivo_txt": null,
-      "estado": "ola2_descuadre"
+      "estado": "ola2_ok"
     },
     {
       "r": 77,

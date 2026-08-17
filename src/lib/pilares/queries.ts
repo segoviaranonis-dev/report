@@ -202,6 +202,9 @@ function appendLineaAdminFilters(
   } else if (opts.generoId != null) {
     params.push(opts.generoId);
     where.push(`l.genero_id = $${params.length}`);
+  } else if (opts.genero) {
+    params.push(opts.genero);
+    where.push(`g.descripcion = $${params.length}`);
   }
 
   const lrBits: string[] = ["lr.linea_id = l.id"];
@@ -594,6 +597,9 @@ function appendLrFilters(
     } else if (opts.generoId != null) {
       params.push(opts.generoId);
       where.push(`l.genero_id = $${params.length}`);
+    } else if (opts.genero) {
+      params.push(opts.genero);
+      where.push(`g.descripcion = $${params.length}`);
     }
   }
   if (exclude !== "marca") {

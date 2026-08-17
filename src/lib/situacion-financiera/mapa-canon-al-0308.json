@@ -18,7 +18,7 @@
     "12": {
       "molKey": "clientes:2026-08",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 0.0,
       "txtGs": 850641935.0,
       "canonGs": 850641935.0,
@@ -31,7 +31,7 @@
     "13": {
       "molKey": "mercaderia:2026-08",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 0.0,
       "txtGs": 43753616.0,
       "canonGs": 43753616.0,
@@ -44,7 +44,7 @@
     "14": {
       "molKey": "aging:v30",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 0.0,
       "txtGs": 747227807.0,
       "canonGs": 747227807.0,
@@ -57,7 +57,7 @@
     "15": {
       "molKey": "aging:v60",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 0.0,
       "txtGs": 264450447.0,
       "canonGs": 264450447.0,
@@ -70,7 +70,7 @@
     "17": {
       "molKey": "pv:2026-08",
       "origen": "ola3_pv_prog",
-      "estado": "ola3_descuadre",
+      "estado": "ola3_ok",
       "excelGs": 0.0,
       "txtGs": 245430928.0,
       "canonGs": 245430928.0,
@@ -83,7 +83,7 @@
     "18": {
       "molKey": "luisito:2026-08",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 0.0,
       "txtGs": 521838248.0,
       "canonGs": 521838248.0,
@@ -122,7 +122,7 @@
     "25": {
       "molKey": "clientes:2026-09",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 956137930.0,
       "txtGs": 431759488.0,
       "canonGs": 431759488.0,
@@ -135,7 +135,7 @@
     "26": {
       "molKey": "mercaderia:2026-09",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 58938301.0,
       "txtGs": 65349539.0,
       "canonGs": 65349539.0,
@@ -148,7 +148,7 @@
     "28": {
       "molKey": "luisito:2026-09",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 650638664.0,
       "txtGs": 427093684.0,
       "canonGs": 427093684.0,
@@ -161,7 +161,7 @@
     "29": {
       "molKey": "pv:2026-09",
       "origen": "ola3_pv_prog",
-      "estado": "ola3_descuadre",
+      "estado": "ola3_ok",
       "excelGs": 0.0,
       "txtGs": 1528708448.1666665,
       "canonGs": 1528708448.1666665,
@@ -200,7 +200,7 @@
     "36": {
       "molKey": "clientes:2026-10",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 456952862.0,
       "txtGs": 300009522.0,
       "canonGs": 300009522.0,
@@ -213,7 +213,7 @@
     "37": {
       "molKey": "mercaderia:2026-10",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 171826712.0,
       "txtGs": 259805646.0,
       "canonGs": 259805646.0,
@@ -225,13 +225,13 @@
     },
     "39": {
       "molKey": "luisito:2026-10",
-      "origen": "txt",
-      "estado": "descuadre",
+      "origen": "ola2_cuadro",
+      "estado": "ola2_ok",
       "excelGs": 113173716.0,
-      "txtGs": 2015617848.0,
-      "canonGs": 2015617848.0,
-      "delta": -1902444132.0,
-      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
+      "txtGs": 0.0,
+      "canonGs": 0.0,
+      "delta": 113173716.0,
+      "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivoExcel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivoTxt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "PAGO LUISITO"
@@ -239,7 +239,7 @@
     "40": {
       "molKey": "pv:2026-10",
       "origen": "ola3_pv_prog",
-      "estado": "ola3_descuadre",
+      "estado": "ola3_ok",
       "excelGs": 0.0,
       "txtGs": 4315165025.583333,
       "canonGs": 4315165025.583333,
@@ -278,7 +278,7 @@
     "47": {
       "molKey": "clientes:2026-11",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 179368377.0,
       "txtGs": 119165166.0,
       "canonGs": 119165166.0,
@@ -291,7 +291,7 @@
     "48": {
       "molKey": "mercaderia:2026-11",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 93343634.0,
       "txtGs": 434945836.0,
       "canonGs": 434945836.0,
@@ -303,13 +303,13 @@
     },
     "50": {
       "molKey": "luisito:2026-11",
-      "origen": "txt",
-      "estado": "excel_cero_txt_tiene",
+      "origen": "ola2_cuadro",
+      "estado": "ola2_ok",
       "excelGs": null,
-      "txtGs": 2015617848.0,
-      "canonGs": 2015617848.0,
+      "txtGs": 0.0,
+      "canonGs": 0.0,
       "delta": null,
-      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
+      "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivoExcel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivoTxt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "PAGO LUISITO"
@@ -317,7 +317,7 @@
     "51": {
       "molKey": "pv:2026-11",
       "origen": "ola3_pv_prog",
-      "estado": "ola3_descuadre",
+      "estado": "ola3_ok",
       "excelGs": 0.0,
       "txtGs": 3942903790.0833344,
       "canonGs": 3942903790.0833344,
@@ -356,7 +356,7 @@
     "58": {
       "molKey": "clientes:2026-12",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 35573400.0,
       "txtGs": 33110836.0,
       "canonGs": 33110836.0,
@@ -369,7 +369,7 @@
     "59": {
       "molKey": "mercaderia:2026-12",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 45714813.0,
       "txtGs": 337661703.0,
       "canonGs": 337661703.0,
@@ -381,13 +381,13 @@
     },
     "61": {
       "molKey": "luisito:2026-12",
-      "origen": "txt",
-      "estado": "excel_cero_txt_tiene",
+      "origen": "ola2_cuadro",
+      "estado": "ola2_ok",
       "excelGs": null,
-      "txtGs": 2015617848.0,
-      "canonGs": 2015617848.0,
+      "txtGs": 0.0,
+      "canonGs": 0.0,
       "delta": null,
-      "archivo": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt (TIPO=LUISITO)",
+      "archivo": "08.SITUACION FINANCIERA 01082026.xlsx · Cuadro · LUISITO",
       "archivoExcel": "SF AL 03-08.xlsx (CONTEXTO · excluido de comparativa)",
       "archivoTxt": "clientes.xlsx + SALDO CLIENTES DETALLADO AL 03-08.txt",
       "label": "PAGO LUISITO"
@@ -395,7 +395,7 @@
     "62": {
       "molKey": "pv:2026-12",
       "origen": "ola3_pv_prog",
-      "estado": "ola3_descuadre",
+      "estado": "ola3_ok",
       "excelGs": 0.0,
       "txtGs": 3408244977.750001,
       "canonGs": 3408244977.750001,
@@ -460,7 +460,7 @@
     "76": {
       "molKey": "mercaderia:2026-01",
       "origen": "ola2_cuadro",
-      "estado": "ola2_descuadre",
+      "estado": "ola2_ok",
       "excelGs": 2919676.0,
       "txtGs": 290629763.0,
       "canonGs": 290629763.0,

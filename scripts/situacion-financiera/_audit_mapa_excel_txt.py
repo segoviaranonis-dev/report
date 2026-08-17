@@ -307,7 +307,8 @@ def main():
             estado = "calc"
             canon = excel_gs
         elif origen == "ola2_cuadro":
-            if txt_gs is not None and excel_gs is not None and abs(float(excel_gs) - float(txt_gs)) <= 1:
+            # Canon = Cuadro Guido (txt_gs). SF AL excel_gs es grilla legacy — no manda.
+            if txt_gs is not None and mol_gs is not None and abs(float(mol_gs) - float(txt_gs)) <= 1:
                 estado = "ola2_ok"
             elif txt_gs is not None:
                 estado = "ola2_descuadre"
@@ -316,7 +317,7 @@ def main():
             if txt_gs is not None:
                 canon = float(txt_gs)
         elif origen == "ola3_pv_prog":
-            if txt_gs is not None and excel_gs is not None and abs(float(excel_gs) - float(txt_gs)) <= 1:
+            if txt_gs is not None and mol_gs is not None and abs(float(mol_gs) - float(txt_gs)) <= 1:
                 estado = "ola3_ok"
             elif txt_gs is not None:
                 estado = "ola3_descuadre"

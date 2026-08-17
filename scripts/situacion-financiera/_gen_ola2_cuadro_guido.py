@@ -48,6 +48,12 @@ MOL_PREFIX_BY_FILA: dict[str, str] = {
     "LUISITO": "luisito",
 }
 
+LABEL_BY_FILA: dict[str, str] = {
+    "OK": "SALDO DE CLIENTES · Cuadro Guido G4 · cuotas Detalle",
+    "A ENTREGAR": "MERCADERÍAS A ENTREGAR · Cuadro Guido G7 · cuotas Detalle",
+    "LUISITO": "PAGO LUISITO · Cuadro Guido G8 · cuotas Detalle",
+}
+
 
 def _excel() -> Path:
     global EXCEL_GUIDO
@@ -135,13 +141,13 @@ def extraer_cuadro_excel(path: Path) -> dict:
                 "columna": col,
             }
         gs_lui = cel("LUISITO", col)
-        if gs_lui or col == "ago-26":
-            metricas[f"luisito:{ym}"] = {
-                "gs": gs_lui,
-                "regla": f'G8 · LUISITO × {col}',
-                "fila_cuadro": "LUISITO",
-                "columna": col,
-            }
+        # Guido 17/08: LUISITO = Cuadro × mes siempre (0 incluido) — no proxy TXT stock
+        metricas[f"luisito:{ym}"] = {
+            "gs": gs_lui,
+            "regla": f'G8 · LUISITO × {col}',
+            "fila_cuadro": "LUISITO",
+            "columna": col,
+        }
         gs_dif = cel("DIFICIL", col) + cel("SALEMMA", col)
         if gs_dif:
             metricas[f"dificil:{ym}"] = {
@@ -272,18 +278,26 @@ def parchear_molecular(cuadro: dict, excel: Path) -> dict[str, float]:
         children = prev.get("children")
         fila = info.get("fila_cuadro", "")
         col = info.get("columna", "")
+        fila_base = fila.split("+")[0] if fila else ""
         if fila in MOL_PREFIX_BY_FILA and col in CUADRO_COL_TO_YM:
-            children = build_detalle_children(excel, fila, col)
+            if gs > 0:
+                children = build_detalle_children(excel, fila_base, col)
+            else:
+                children = []
             # Verificar 1323 SALEMMA no aparece en clientes OK
             if mol_key == "clientes:2026-09":
                 for ch in children:
                     if "1323" in ch.get("label", "") or "SALEMMA" in ch.get("label", "").upper():
                         raise RuntimeError("SALEMMA en árbol OK sept — revisar Detalle")
 
+        label = prev.get("label") or mol_key
+        if fila_base in LABEL_BY_FILA:
+            label = LABEL_BY_FILA[fila_base]
+
         node: dict = {
             **prev,
             "id": prev.get("id") or mol_key.replace(":", "-"),
-            "label": prev.get("label") or mol_key,
+            "label": label,
             "gs": gs,
             "usd": _usd(gs),
             "meta": (

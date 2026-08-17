@@ -4,7 +4,8 @@
     "modulo": "2.3.1.50.34",
     "actualizado": "2026-08-17",
     "esperandoRespuestaGuido": false,
-    "observacionFinal": "Ola 4 · proyección Cuadro todos los meses + Detalle OK · Guido 13/08 validado local.",
+    "intakeDoc": "2.3.1.50.34.2",
+    "observacionFinal": "Ola 4b · LUISITO oct–dic=0 · sept clientes OK · deploy 50.34.e",
     "notaDistincion": "Reclamo = canon financiero Guido (Sit Fin). No confundir con bug técnico (protocolo_errores · 4.xx.xx)."
   },
   "reclamos": [
@@ -133,12 +134,12 @@
       "evidencia": "Comentario General · Cuadro LUISITO × ago-26",
       "reglaCanon": "G8 · pago_lui = {LUISITO} × M · día >20",
       "nexusAntes": "2.015.617.848 Gs stock LUISITO total",
-      "nexusDespues": "521.838.248 Gs · Cuadro ago-26",
-      "respuestaNexus": "Ola 2 · celda mes no stock",
-      "accionNexus": "Ola 2 desplegada 2026-08-12",
+      "nexusDespues": "521.838.248 Gs ago · 427.093.684 sept · 0 oct–dic · Cuadro G8",
+      "respuestaNexus": "Ola 4b · Cuadro todos los meses · sin proxy TXT stock",
+      "accionNexus": "Deploy prod 2026-08-17 · Ola 4b LUISITO",
       "estado": "cerrado",
-      "docChusar": "2.3.1.50.32",
-      "commitDeploy": null,
+      "docChusar": "2.3.1.50.34.e",
+      "commitDeploy": "e432f54",
       "naturaleza": "reclamo"
     },
     {

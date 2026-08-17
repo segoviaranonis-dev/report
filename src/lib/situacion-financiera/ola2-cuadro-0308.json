@@ -2,7 +2,7 @@
   "corte": "AL-03-08-26",
   "ola": "2+4",
   "actualizado": "2026-08-17",
-  "excel_canon": "C:\\Users\\hecto\\Nexus_Core\\report\\scripts\\situacion-financiera\\intake\\guido-20260812\\08.SITUACION FINANCIERA 01082026.xlsx",
+  "excel_canon": "Z:\\hector\\SF\\08.SITUACION FINANCIERA 01082026.xlsx",
   "pipeline": "TXT → Detalle → TIPO COBRO → Cuadro → Sit Fin verdes",
   "metricas": {
     "clientes:2026-08": {
@@ -65,6 +65,12 @@
       "fila_cuadro": "A ENTREGAR",
       "columna": "oct-26"
     },
+    "luisito:2026-10": {
+      "gs": 0.0,
+      "regla": "G8 · LUISITO × oct-26",
+      "fila_cuadro": "LUISITO",
+      "columna": "oct-26"
+    },
     "dificil:2026-10": {
       "gs": 95183757.0,
       "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × oct-26",
@@ -81,6 +87,12 @@
       "gs": 434945836.0,
       "regla": "G7 · A ENTREGAR × nov-26",
       "fila_cuadro": "A ENTREGAR",
+      "columna": "nov-26"
+    },
+    "luisito:2026-11": {
+      "gs": 0.0,
+      "regla": "G8 · LUISITO × nov-26",
+      "fila_cuadro": "LUISITO",
       "columna": "nov-26"
     },
     "dificil:2026-11": {
@@ -101,6 +113,12 @@
       "fila_cuadro": "A ENTREGAR",
       "columna": "dic-26"
     },
+    "luisito:2026-12": {
+      "gs": 0.0,
+      "regla": "G8 · LUISITO × dic-26",
+      "fila_cuadro": "LUISITO",
+      "columna": "dic-26"
+    },
     "dificil:2026-12": {
       "gs": 2900616.0,
       "regla": "DIF.COBRO · {DIFICIL,SALEMMA} × dic-26",
@@ -111,6 +129,12 @@
       "gs": 290629763.0,
       "regla": "G7 · A ENTREGAR × ene-27",
       "fila_cuadro": "A ENTREGAR",
+      "columna": "ene-27"
+    },
+    "luisito:2026-01": {
+      "gs": 0.0,
+      "regla": "G8 · LUISITO × ene-27",
+      "fila_cuadro": "LUISITO",
       "columna": "ene-27"
     },
     "aging:v30": {
@@ -137,14 +161,18 @@
     "dificil:2026-09": 143153925.0,
     "clientes:2026-10": 300009522.0,
     "mercaderia:2026-10": 259805646.0,
+    "luisito:2026-10": 0.0,
     "dificil:2026-10": 95183757.0,
     "clientes:2026-11": 119165166.0,
     "mercaderia:2026-11": 434945836.0,
+    "luisito:2026-11": 0.0,
     "dificil:2026-11": 54585062.0,
     "clientes:2026-12": 33110836.0,
     "mercaderia:2026-12": 337661703.0,
+    "luisito:2026-12": 0.0,
     "dificil:2026-12": 2900616.0,
     "mercaderia:2026-01": 290629763.0,
+    "luisito:2026-01": 0.0,
     "aging:v30": 747227807.0,
     "aging:v60": 264450447.0
   },
