@@ -269,6 +269,36 @@ export async function PATCH(req: NextRequest) {
     const grupoEstiloId = parseOptionalId(body.grupo_estilo_id);
     const tipo1Id = parseOptionalId(body.tipo_1_id);
 
+    const id = Number(body.id);
+    if (Number.isFinite(id)) {
+      const hasGrupoEstilo = "grupo_estilo_id" in body;
+      const hasTipo1 = "tipo_1_id" in body;
+      const hasGenero = "genero_id" in body;
+      if (!hasGrupoEstilo && !hasTipo1 && !hasGenero) {
+        return NextResponse.json(
+          { ok: false, error: "Seleccioná al menos Género, Estilo o Tipo 1" },
+          { status: 400 },
+        );
+      }
+
+      const fields: { grupo_estilo_id?: number | null; tipo_1_id?: number | null } = {};
+      if (hasGrupoEstilo) {
+        fields.grupo_estilo_id = body.grupo_estilo_id == null ? null : Number(body.grupo_estilo_id);
+      }
+      if (hasTipo1) {
+        fields.tipo_1_id = body.tipo_1_id == null ? null : Number(body.tipo_1_id);
+      }
+      if (Object.keys(fields).length) {
+        const violacionRow = await assertMaestrasPermitidasParaTipoV2(pool, tipoV2Id, fields);
+        if (violacionRow) {
+          return NextResponse.json({ ok: false, error: violacionRow }, { status: 400 });
+        }
+        const ok = await patchLineaReferencia(pool, id, proveedorId, fields);
+        if (!ok) return NextResponse.json({ ok: false, error: "Fila no encontrada" }, { status: 404 });
+        return NextResponse.json({ ok: true });
+      }
+    }
+
     if (generoId == null && grupoEstiloId == null && tipo1Id == null) {
       return NextResponse.json(
         { ok: false, error: "Seleccioná al menos Género, Estilo o Tipo 1" },
@@ -304,24 +334,6 @@ export async function PATCH(req: NextRequest) {
         lrUpdated = await patchLineaReferenciaRango(pool, proveedorId, desde, hasta, lrFields);
       }
       return NextResponse.json({ ok: true, lineas_updated: lineasUpdated, lr_updated: lrUpdated });
-    }
-
-    const id = Number(body.id);
-    if (Number.isFinite(id)) {
-      const fields: { grupo_estilo_id?: number | null; tipo_1_id?: number | null } = {};
-      if ("grupo_estilo_id" in body) {
-        fields.grupo_estilo_id = body.grupo_estilo_id == null ? null : Number(body.grupo_estilo_id);
-      }
-      if ("tipo_1_id" in body) {
-        fields.tipo_1_id = body.tipo_1_id == null ? null : Number(body.tipo_1_id);
-      }
-      const violacionRow = await assertMaestrasPermitidasParaTipoV2(pool, tipoV2Id, fields);
-      if (violacionRow) {
-        return NextResponse.json({ ok: false, error: violacionRow }, { status: 400 });
-      }
-      const ok = await patchLineaReferencia(pool, id, proveedorId, fields);
-      if (!ok) return NextResponse.json({ ok: false, error: "Fila no encontrada" }, { status: 404 });
-      return NextResponse.json({ ok: true });
     }
 
     const filterOpts = filterOptsFromBody(body);

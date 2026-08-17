@@ -97,6 +97,7 @@ export async function listProcesoProductos(
     genero_id: null,
     grupo_estilo_id: null,
     tipo_1_id: null,
+    linea_referencia_id: null,
     tipo_v2_id: null,
     tono_etiqueta: null,
     tipo_1: null,
@@ -172,6 +173,7 @@ export async function listImportadoProductos(
     genero_id: string | null;
     grupo_estilo_id: string | null;
     tipo_1_id: string | null;
+    linea_referencia_id: string | null;
     batch_label: string;
     tipo_v2_id: string | null;
     tono_etiqueta: string | null;
@@ -230,6 +232,7 @@ export async function listImportadoProductos(
       l.genero_id::text AS genero_id,
       lr.grupo_estilo_id::text AS grupo_estilo_id,
       lr.tipo_1_id::text AS tipo_1_id,
+      lr.id::text AS linea_referencia_id,
       pp.numero_proforma AS batch_label,
       ${PE_TIPO_V2_EXPR}::text AS tipo_v2_id,
       NULLIF(TRIM(col.tono_canon->>'etiqueta'), '') AS tono_etiqueta,
@@ -315,6 +318,7 @@ export async function listImportadoProductos(
     genero_id: r.genero_id ? Number(r.genero_id) : null,
     grupo_estilo_id: r.grupo_estilo_id ? Number(r.grupo_estilo_id) : null,
     tipo_1_id: r.tipo_1_id ? Number(r.tipo_1_id) : null,
+    linea_referencia_id: r.linea_referencia_id ? Number(r.linea_referencia_id) : null,
     tipo_v2_id: r.tipo_v2_id ? Number(r.tipo_v2_id) : null,
     tono_etiqueta: r.tono_etiqueta,
     imagen_color_excel: r.imagen_color_excel,

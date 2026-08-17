@@ -12,6 +12,7 @@ import { DiccionarioPeBar } from "@/components/stock-pronta-entrega/DiccionarioP
 import { FiltroTonoOperativa } from "@/app/depositos-bazzar/components/operativa/FiltroTonoOperativa";
 import { GrillaPeImportadora } from "@/components/stock-pronta-entrega/GrillaPeImportadora";
 import { PeVentasRegistroBar } from "@/components/stock-pronta-entrega/PeVentasRegistroBar";
+import { PeFiltroChipsMulti } from "@/components/stock-pronta-entrega/PeFiltroChipsMulti";
 import { StockPeProvider, useStockPe } from "@/components/stock-pronta-entrega/StockPeContext";
 import { TabArticulosPe } from "@/components/stock-pronta-entrega/TabArticulosPe";
 import { TabCostosPe } from "@/components/stock-pronta-entrega/TabCostosPe";
@@ -404,6 +405,25 @@ function StockPeOperativaTab({ batchLabel }: { batchLabel: string }) {
                 }
               />
             </div>
+            <PeFiltroChipsMulti
+              label="Estilo"
+              items={opciones.estilos}
+              selectedIds={filtros.grupoEstiloIds}
+              onChange={(ids) =>
+                setFiltros((prev) => ({ ...prev, grupoEstiloIds: ids }))
+              }
+            />
+            <PeFiltroChipsMulti
+              label="Tipo 1"
+              items={opciones.tipo1.filter((t) => t.id > 0)}
+              selectedIds={filtros.tipo1Ids.filter((id) => id > 0)}
+              onChange={(ids) =>
+                setFiltros((prev) => ({
+                  ...prev,
+                  tipo1Ids: [...prev.tipo1Ids.filter((id) => id <= 0), ...ids],
+                }))
+              }
+            />
           </div>
 
           {modoAsignacion && !areaCargada ? (

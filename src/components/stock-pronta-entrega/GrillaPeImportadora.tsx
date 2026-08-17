@@ -33,7 +33,7 @@ export function GrillaPeImportadora({
   showDiccionarioBadge = false,
   descuentoPctPorMol = null,
 }: Props) {
-  const { tonoCatalog, applyTonoLocal } = useStockPe();
+  const { tonoCatalog, applyTonoLocal, applyLrLocal, opciones } = useStockPe();
   const [expandAll, setExpandAll] = useState(false);
   const cards = useMemo(
     () =>
@@ -96,6 +96,10 @@ export function GrillaPeImportadora({
             enableTonoEdit
             tonoCatalog={tonoCatalog}
             onTonoPatched={applyTonoLocal}
+            enableLrEdit
+            estiloOptions={opciones.estilos}
+            tipo1Options={opciones.tipo1.filter((t) => t.id > 0)}
+            onLrPatched={applyLrLocal}
           />
         ))}
       </div>

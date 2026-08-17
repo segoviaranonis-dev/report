@@ -124,6 +124,7 @@ export function normalizeDepositoRow(r: DepositoRow): DepositoRow {
     marca_id: normFk(r.marca_id),
     grupo_estilo_id: normFk(r.grupo_estilo_id),
     tipo_1_id: normFk(r.tipo_1_id),
+    linea_referencia_id: normFk(r.linea_referencia_id),
     tipo_v2_id: normFk(r.tipo_v2_id),
     linea_id: normFk(r.linea_id),
     referencia_id: normFk(r.referencia_id),

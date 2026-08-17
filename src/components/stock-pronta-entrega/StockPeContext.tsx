@@ -54,6 +54,15 @@ type StockPeContextValue = {
   tonoCatalog: ColorEstandar[];
   /** Actualiza tono_etiqueta en todas las filas del color_id (post-PATCH pilares). */
   applyTonoLocal: (colorId: number, etiqueta: string | null) => void;
+  applyLrLocal: (
+    lrId: number,
+    patch: {
+      grupo_estilo_id?: number | null;
+      estilo?: string | null;
+      tipo_1_id?: number | null;
+      tipo_1?: string | null;
+    },
+  ) => void;
   filtros: OperativaFilterState;
   setFiltros: Dispatch<SetStateAction<OperativaFilterState>>;
   depositoLegal: string;
@@ -262,6 +271,38 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const applyLrLocal = useCallback(
+    (
+      lrId: number,
+      patch: {
+        grupo_estilo_id?: number | null;
+        estilo?: string | null;
+        tipo_1_id?: number | null;
+        tipo_1?: string | null;
+      },
+    ) => {
+      if (!lrId) return;
+      setRows((prev) =>
+        prev.map((r) => {
+          if (r.linea_referencia_id !== lrId) return r;
+          return {
+            ...r,
+            ...patch,
+            estilo:
+              patch.estilo !== undefined
+                ? patch.estilo?.trim() || "(sin estilo)"
+                : r.estilo,
+            tipo_1:
+              patch.tipo_1 !== undefined
+                ? patch.tipo_1?.trim() || "OTROS"
+                : r.tipo_1,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       rows,
@@ -270,6 +311,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       ente: "RIMEC PE",
       tonoCatalog,
       applyTonoLocal,
+      applyLrLocal,
       filtros,
       setFiltros,
       depositoLegal,
@@ -297,6 +339,7 @@ export function StockPeProvider({ children }: { children: ReactNode }) {
       err,
       tonoCatalog,
       applyTonoLocal,
+      applyLrLocal,
       filtros,
       depositoLegal,
       filtradas,

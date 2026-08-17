@@ -18,8 +18,10 @@ import { ImagenAmpliadaOverlay } from "./ImagenAmpliadaOverlay";
 import { PeLiqBadge } from "./PeLiqBadge";
 import { PeProBadge } from "./PeProBadge";
 import { PeEditorTonoCircle } from "./PeEditorTonoCircle";
+import { PeEditorEstiloTipo1 } from "./PeEditorEstiloTipo1";
 import { descpColorUiPe, descpMaterialUiPe } from "@/lib/stock-pronta-entrega/pe-filtro-pilar-638";
 import type { ColorEstandar } from "@/lib/pilares/colores-estandar";
+import type { DepositoFilterItem } from "@/app/api/depositos/[cliente_id]/filtros/route";
 
 type Props = {
   card: PeImportadoraCard;
@@ -36,6 +38,18 @@ type Props = {
   enableTonoEdit?: boolean;
   tonoCatalog?: ColorEstandar[];
   onTonoPatched?: (colorId: number, etiqueta: string | null) => void;
+  enableLrEdit?: boolean;
+  estiloOptions?: DepositoFilterItem[];
+  tipo1Options?: DepositoFilterItem[];
+  onLrPatched?: (
+    lrId: number,
+    patch: {
+      grupo_estilo_id?: number | null;
+      estilo?: string | null;
+      tipo_1_id?: number | null;
+      tipo_1?: string | null;
+    },
+  ) => void;
 };
 
 function Dato({ label, value }: { label: string; value: string | null | undefined }) {
@@ -58,6 +72,10 @@ export function PeCardMiniatura({
   enableTonoEdit = false,
   tonoCatalog,
   onTonoPatched,
+  enableLrEdit = false,
+  estiloOptions,
+  tipo1Options,
+  onLrPatched,
 }: Props) {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const p = card.producto;
@@ -166,10 +184,10 @@ export function PeCardMiniatura({
         </button>
 
         <div className="flex min-h-0 flex-1 flex-col gap-1 p-2">
-          {esConf && nombreFotoDisplay ? (
+          {nombreFotoDisplay ? (
             <p
               className="truncate px-0.5 font-mono text-[10px] font-semibold text-slate-800"
-              title={nombreFotoDisplay}
+              title={esConf ? "Stem 638 L+C" : "Stem 654 L+R+M+C"}
             >
               {nombreFotoDisplay}
             </p>
@@ -213,8 +231,42 @@ export function PeCardMiniatura({
           ) : (
             <div className="grid grid-cols-2 gap-x-1 gap-y-px">
               <Dato label="Género" value={p.genero} />
-              <Dato label="Estilo" value={p.estilo} />
-              <Dato label="Tipo 1" value={p.tipo_1} />
+              {enableLrEdit && onLrPatched ? (
+                <PeEditorEstiloTipo1
+                  field="estilo"
+                  lineaReferenciaId={p.linea_referencia_id}
+                  tipoV2Id={p.tipo_v2_id}
+                  currentId={p.grupo_estilo_id}
+                  currentLabel={p.estilo}
+                  options={estiloOptions ?? []}
+                  onPatched={(lrId, patch) =>
+                    onLrPatched(lrId, {
+                      grupo_estilo_id: patch.id,
+                      estilo: patch.label,
+                    })
+                  }
+                />
+              ) : (
+                <Dato label="Estilo" value={p.estilo} />
+              )}
+              {enableLrEdit && onLrPatched ? (
+                <PeEditorEstiloTipo1
+                  field="tipo1"
+                  lineaReferenciaId={p.linea_referencia_id}
+                  tipoV2Id={p.tipo_v2_id}
+                  currentId={p.tipo_1_id}
+                  currentLabel={p.tipo_1}
+                  options={tipo1Options ?? []}
+                  onPatched={(lrId, patch) =>
+                    onLrPatched(lrId, {
+                      tipo_1_id: patch.id,
+                      tipo_1: patch.label,
+                    })
+                  }
+                />
+              ) : (
+                <Dato label="Tipo 1" value={p.tipo_1} />
+              )}
               <Dato label="Categoría" value={p.tipo_v2} />
               <Dato label="Material" value={matUi ?? (esConf ? null : p.material_code)} />
               <Dato label="Color" value={colUi ?? (esConf ? null : p.color_code)} />

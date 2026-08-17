@@ -31,6 +31,8 @@ export type DepositoRow = {
   genero_id: number | null;
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
+  /** PK linea_referencia — edición estilo/tipo1 desde PE. */
+  linea_referencia_id?: number | null;
   tipo_v2_id: number | null;
   tono_etiqueta: string | null;
   tipo_1: string | null;
