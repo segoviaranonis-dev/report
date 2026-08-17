@@ -21,8 +21,28 @@ const SQL_PROBLEMA_ESTILO = `(
   OR upper(btrim(COALESCE(ge.descp_grupo_estilo, lr.descp_grupo_estilo, ''))) = 'OTROS'
 )`;
 
-/** SQL: hay imagen_nombre en retail para el par L×R. */
-function sqlExisteImagenRetail(tipoParamIndex: number): string {
+/**
+ * SQL: hay imagen retail (o CP en 638).
+ * 654 = L×R exacto · 638 = solo línea (retail o v_stock_rimec.imagen_url).
+ */
+function sqlExisteImagenRetail(tipoParamIndex: number, matchByLineaOnly = false): string {
+  if (matchByLineaOnly) {
+    return `(
+      EXISTS (
+        SELECT 1
+        FROM public.registro_st_vt_rc_reposicion s
+        WHERE btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
+          AND ($${tipoParamIndex}::int IS NULL OR s.tipo_v2_id = $${tipoParamIndex}::int)
+          AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM public.v_stock_rimec v
+        WHERE btrim(v.linea_codigo::text) = btrim(l.codigo_proveedor::text)
+          AND NULLIF(btrim(v.imagen_url::text), '') IS NOT NULL
+      )
+    )`;
+  }
   return `EXISTS (
     SELECT 1
     FROM public.registro_st_vt_rc_reposicion s
@@ -136,29 +156,144 @@ export async function loadPilaresMaestras(pool: Pool, tipoV2Id?: TipoV2Id): Prom
   };
 }
 
+function appendLineaAdminFilters(
+  where: string[],
+  params: unknown[],
+  opts: LineaReferenciaFilterOpts,
+  tipoV2Id: TipoV2Id,
+) {
+  if (opts.buscar?.trim()) {
+    params.push(`%${opts.buscar.trim().toLowerCase()}%`);
+    where.push(`(
+      lower(l.codigo_proveedor::text) LIKE $${params.length}
+      OR lower(COALESCE(l.descripcion, '')) LIKE $${params.length}
+      OR lower(COALESCE(mv.descp_marca, '')) LIKE $${params.length}
+    )`);
+  }
+  if (opts.lineaIds?.length) {
+    params.push(opts.lineaIds);
+    where.push(`l.id = ANY($${params.length}::int[])`);
+  }
+  if (opts.marcaNull || opts.marca === "__null__") where.push("l.marca_id IS NULL");
+  else if (opts.marcaIds?.length) {
+    params.push(opts.marcaIds);
+    where.push(`l.marca_id = ANY($${params.length}::int[])`);
+  } else if (opts.marca) {
+    params.push(opts.marca);
+    where.push(`mv.descp_marca = $${params.length}`);
+  }
+  if (opts.generoNull) where.push("l.genero_id IS NULL");
+  else if (opts.generoIds?.length) {
+    params.push(opts.generoIds);
+    where.push(`l.genero_id = ANY($${params.length}::int[])`);
+  } else if (opts.generoId != null) {
+    params.push(opts.generoId);
+    where.push(`l.genero_id = $${params.length}`);
+  }
+
+  const lrBits: string[] = ["lr.linea_id = l.id"];
+  if (opts.estiloNull) lrBits.push("lr.grupo_estilo_id IS NULL");
+  else if (opts.problemasEstilo) {
+    lrBits.push("(lr.grupo_estilo_id IS NULL OR upper(trim(COALESCE(lr.descp_grupo_estilo, ge.descp_grupo_estilo, ''))) = 'OTROS')");
+  } else if (opts.estiloIds?.length) {
+    params.push(opts.estiloIds);
+    lrBits.push(`lr.grupo_estilo_id = ANY($${params.length}::int[])`);
+  }
+  if (opts.tipo1Null) lrBits.push("lr.tipo_1_id IS NULL");
+  else if (opts.tipo1Ids?.length) {
+    params.push(opts.tipo1Ids);
+    lrBits.push(`lr.tipo_1_id = ANY($${params.length}::int[])`);
+  }
+  if (opts.referenciaIds?.length) {
+    params.push(opts.referenciaIds);
+    lrBits.push(`lr.referencia_id = ANY($${params.length}::int[])`);
+  }
+  const needLr =
+    opts.estiloNull ||
+    opts.problemasEstilo ||
+    (opts.estiloIds?.length ?? 0) > 0 ||
+    opts.tipo1Null ||
+    (opts.tipo1Ids?.length ?? 0) > 0 ||
+    (opts.referenciaIds?.length ?? 0) > 0;
+  if (needLr) {
+    where.push(`EXISTS (
+      SELECT 1 FROM linea_referencia lr
+      LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
+      WHERE ${lrBits.join(" AND ")}
+    )`);
+  }
+
+  if (opts.origenTipo === "PRONTA_ENTREGA" || opts.depositoCodigo?.trim()) {
+    params.push(tipoV2Id);
+    const tipoIdx = params.length;
+    const proveedorPe = proveedorIdFromTipoV2(tipoV2Id);
+    params.push(proveedorPe);
+    const provIdx = params.length;
+    let dep = "";
+    if (opts.depositoCodigo?.trim()) {
+      params.push(opts.depositoCodigo.trim());
+      dep = ` AND btrim(pe.deposito_codigo::text) = $${params.length}`;
+    }
+    where.push(`EXISTS (
+      SELECT 1 FROM stock_pronta_entrega_rimec pe
+      WHERE pe.linea_id = l.id
+        AND pe.tipo_v2_id = $${tipoIdx}::int
+        AND pe.proveedor_id = $${provIdx}::int
+        ${dep}
+        AND EXISTS (
+          SELECT 1 FROM registro_st_vt_rc_reposicion s
+          WHERE s.linea_id = l.id
+            AND s.tipo_v2_id = $${tipoIdx}::int
+            AND lower(btrim(COALESCE(s.tipo_movimiento::text, ''))) = 'stock'
+            AND COALESCE(s.cantidad, 0) > 0
+        )
+    )`);
+  }
+  if (opts.origenTipo === "CP") {
+    params.push(tipoV2Id);
+    where.push(`EXISTS (
+      SELECT 1 FROM public.registro_st_vt_rc_reposicion s
+      WHERE s.linea_id = l.id
+        AND s.tipo_v2_id = $${params.length}::int
+    )`);
+  }
+
+  const tgs = (opts.tipoGrupos ?? []).map((x) => x.toLowerCase());
+  if (tgs.length) {
+    const cg = `LPAD(LEFT(regexp_replace(TRIM(s.cod_grupo::text), '[^0-9]', '', 'g'), 10), 10, '0')`;
+    const d45 = `SUBSTRING(${cg}, 5, 2)`;
+    const d67 = `SUBSTRING(${cg}, 7, 2)`;
+    const parts: string[] = [];
+    if (tipoV2Id === 1) {
+      if (tgs.includes("normal")) parts.push(`${d45} IN ('01','06','08')`);
+      if (tgs.includes("promo")) parts.push(`${d45} = '02'`);
+      if (tgs.includes("liquidacion")) parts.push(`${d45} = '04'`);
+      if (tgs.includes("comun")) parts.push(`${d45} = '06'`);
+    } else {
+      if (tgs.includes("promo")) parts.push(`${d67} = '03'`);
+      if (tgs.includes("liquidacion")) parts.push(`${d67} = '04'`);
+      if (tgs.includes("normal")) parts.push(`${d67} IN ('01','02','00')`);
+    }
+    if (parts.length) {
+      where.push(`EXISTS (
+        SELECT 1 FROM stock_pronta_entrega_rimec s
+        WHERE s.linea_id = l.id AND (${parts.join(" OR ")})
+      )`);
+    }
+  }
+}
+
 export async function loadLineas(
   pool: Pool,
   tipoV2Id: TipoV2Id,
-  opts: { marca?: string | null; genero?: string | null; limit?: number; offset?: number } = {},
+  opts: LineaReferenciaFilterOpts & { limit?: number; offset?: number } = {},
 ): Promise<{ rows: LineaRow[]; total: number }> {
   const proveedorId = proveedorIdFromTipoV2(tipoV2Id);
   if (proveedorId == null) return { rows: [], total: 0 };
 
   const where = ["l.activo = true", "l.proveedor_id = $1"];
   const params: unknown[] = [proveedorId];
-
-  if (opts.marca === "__null__") {
-    where.push("l.marca_id IS NULL");
-  } else if (opts.marca) {
-    params.push(opts.marca);
-    where.push(`mv.descp_marca = $${params.length}`);
-  }
-  if (opts.genero === "__null__") {
-    where.push("l.genero_id IS NULL");
-  } else if (opts.genero) {
-    params.push(opts.genero);
-    where.push(`g.descripcion = $${params.length}`);
-  }
+  appendLineaAdminFilters(where, params, opts, tipoV2Id);
 
   const whereSql = where.join(" AND ");
   const limit = Math.min(Math.max(opts.limit ?? 500, 1), 2000);
@@ -175,7 +310,9 @@ export async function loadLineas(
     params,
   );
 
-  params.push(limit, offset);
+  const exact = opts.buscar?.trim() || null;
+  const listParams = [...params, exact, limit, offset];
+  const n = params.length;
   const { rows } = await pool.query<LineaRow>(
     `
     SELECT
@@ -190,10 +327,16 @@ export async function loadLineas(
     LEFT JOIN marca_v2 mv ON mv.id_marca = l.marca_id
     LEFT JOIN genero g ON g.id = l.genero_id
     WHERE ${whereSql}
-    ORDER BY l.codigo_proveedor::text
-    LIMIT $${params.length - 1} OFFSET $${params.length}
+    ORDER BY
+      CASE
+        WHEN $${n + 1}::text IS NOT NULL
+         AND lower(l.codigo_proveedor::text) = lower($${n + 1}::text) THEN 0
+        ELSE 1
+      END,
+      l.codigo_proveedor::text
+    LIMIT $${n + 2} OFFSET $${n + 3}
     `,
-    params,
+    listParams,
   );
 
   return { rows, total: Number(countRes.rows[0]?.total ?? 0) };
@@ -306,22 +449,130 @@ function appendLrFilters(
       OR lower(COALESCE(lr.descp_grupo_estilo, '')) LIKE $${params.length}
     )`);
   }
+
+  const tipoV2 = extra?.tipoV2Id ?? null;
+  const byLinea638 = tipoV2 === 2;
+  const refMatchSql = byLinea638
+    ? ""
+    : `AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)`;
+
+  // PE / depósito = scope venta hoy sobre la MAESTRA L×R (no inventa FKs).
+  // Ley 2.3.5.12: linea + linea_referencia = verdad de filtros Web/AM/PE;
+  // SDRM/PE solo delimitan qué filas editar. Match por linea_id + tipo/proveedor.
   if (opts.depositoCodigo?.trim() || opts.origenTipo === "PRONTA_ENTREGA") {
-    params.push(extra?.tipoV2Id ?? null);
+    params.push(tipoV2);
     const tipoIdx = params.length;
+    const proveedorPe = tipoV2 != null ? proveedorIdFromTipoV2(tipoV2) : null;
+    params.push(proveedorPe);
+    const provIdx = params.length;
     let depClause = "";
     if (opts.depositoCodigo?.trim()) {
       params.push(opts.depositoCodigo.trim());
-      depClause = ` AND btrim(s.deposito_codigo::text) = $${params.length}`;
+      depClause = ` AND btrim(pe.deposito_codigo::text) = $${params.length}`;
     }
+    const refPe = byLinea638 ? "TRUE" : "pe.referencia_id = r.id";
+    const refSdrm = byLinea638 ? "" : "AND s.referencia_id = r.id";
     where.push(`EXISTS (
-      SELECT 1 FROM public.registro_st_vt_rc_reposicion s
-      WHERE btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
-        AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
-        AND ($${tipoIdx}::int IS NULL OR s.tipo_v2_id = $${tipoIdx}::int)
+      SELECT 1 FROM public.stock_pronta_entrega_rimec pe
+      WHERE pe.linea_id = l.id
+        AND (${refPe})
+        AND pe.tipo_v2_id = $${tipoIdx}::int
+        AND pe.proveedor_id = $${provIdx}::int
         ${depClause}
+        AND EXISTS (
+          SELECT 1 FROM public.registro_st_vt_rc_reposicion s
+          WHERE s.linea_id = l.id
+            AND s.tipo_v2_id = $${tipoIdx}::int
+            AND lower(btrim(COALESCE(s.tipo_movimiento::text, ''))) = 'stock'
+            AND COALESCE(s.cantidad, 0) > 0
+            ${refSdrm}
+        )
     )`);
   }
+
+  if (opts.origenTipo === "CP") {
+    where.push(`EXISTS (
+      SELECT 1 FROM public.v_stock_rimec v
+      WHERE v.linea_id = l.id
+        AND (${byLinea638 ? "TRUE" : "v.referencia_id = r.id"})
+        AND COALESCE(v.cantidad_pares, 0) > 0
+    )`);
+  }
+
+  const tgs = (opts.tipoGrupos ?? []).map((x) => x.toLowerCase());
+  if (tgs.length) {
+    params.push(tipoV2);
+    const tipoIdx = params.length;
+    const cg = `LPAD(LEFT(regexp_replace(TRIM(s.cod_grupo::text), '[^0-9]', '', 'g'), 10), 10, '0')`;
+    const d45 = `SUBSTRING(${cg}, 5, 2)`;
+    const d67 = `SUBSTRING(${cg}, 7, 2)`;
+    const parts: string[] = [];
+    if (tipoV2 === 2) {
+      if (tgs.includes("promo")) parts.push(`${d67} = '03'`);
+      if (tgs.includes("liquidacion")) parts.push(`${d67} = '04'`);
+      if (tgs.includes("normal")) parts.push(`${d67} IN ('01','02','00')`);
+      if (tgs.includes("actual")) parts.push(`${d67} = '01'`);
+      if (tgs.includes("anterior")) parts.push(`${d67} = '02'`);
+    } else {
+      if (tgs.includes("normal")) parts.push(`${d45} IN ('01','06','08')`);
+      if (tgs.includes("promo")) parts.push(`${d45} = '02'`);
+      if (tgs.includes("liquidacion")) parts.push(`${d45} = '04'`);
+      if (tgs.includes("comun")) parts.push(`${d45} = '06'`);
+    }
+    if (parts.length) {
+      // Match por linea_id (no código): evita cruzar gemelos 654↔638.
+      const refSdrm = byLinea638 ? "" : "AND s.referencia_id = r.id";
+      where.push(`EXISTS (
+        SELECT 1 FROM public.registro_st_vt_rc_reposicion s
+        WHERE s.linea_id = l.id
+          ${refSdrm}
+          AND s.tipo_v2_id = $${tipoIdx}::int
+          AND (${parts.join(" OR ")})
+      )`);
+    }
+  }
+
+  if (exclude !== "material" && opts.materialFamilias?.length) {
+    params.push(opts.materialFamilias.map((x) => x.trim().toUpperCase()).filter(Boolean));
+    const famIdx = params.length;
+    params.push(tipoV2);
+    const tipoIdx = params.length;
+    const refSdrm = byLinea638 ? "" : "AND s.referencia_id = r.id";
+    where.push(`EXISTS (
+      SELECT 1 FROM public.registro_st_vt_rc_reposicion s
+      LEFT JOIN public.material mat ON mat.id = s.material_id
+      WHERE s.linea_id = l.id
+        ${refSdrm}
+        AND s.tipo_v2_id = $${tipoIdx}::int
+        AND upper(btrim(COALESCE(
+          NULLIF(s.excel_material_code::text, ''),
+          NULLIF(mat.codigo_proveedor::text, ''),
+          'SIN'
+        ))) = ANY($${famIdx}::text[])
+    )`);
+  }
+
+  if (exclude !== "color" && opts.colorFamilias?.length) {
+    params.push(opts.colorFamilias.map((x) => x.trim().toUpperCase()).filter(Boolean));
+    const famIdx = params.length;
+    params.push(tipoV2);
+    const tipoIdx = params.length;
+    const refSdrm = byLinea638 ? "" : "AND s.referencia_id = r.id";
+    where.push(`EXISTS (
+      SELECT 1 FROM public.registro_st_vt_rc_reposicion s
+      LEFT JOIN public.color col ON col.id = s.color_id
+      WHERE s.linea_id = l.id
+        ${refSdrm}
+        AND s.tipo_v2_id = $${tipoIdx}::int
+        AND upper(btrim(COALESCE(
+          NULLIF(s.excel_color_code::text, ''),
+          NULLIF(col.codigo_proveedor::text, ''),
+          NULLIF(col.tono_canon->>'etiqueta', ''),
+          'SIN'
+        ))) = ANY($${famIdx}::text[])
+    )`);
+  }
+
   if (exclude !== "genero") {
     if (opts.generoNull) where.push("l.genero_id IS NULL");
     else if (opts.generoIds?.length) {
@@ -367,7 +618,8 @@ function appendLrFilters(
   }
   if (opts.conImagen === true || opts.conImagen === false) {
     params.push(extra?.tipoV2Id ?? null);
-    const exists = sqlExisteImagenRetail(params.length);
+    const byLinea = extra?.tipoV2Id === 2;
+    const exists = sqlExisteImagenRetail(params.length, byLinea);
     where.push(opts.conImagen ? exists : `NOT ${exists}`);
   }
 }
@@ -434,7 +686,8 @@ export async function loadLineaReferenciaCascada(
     return rows.map((r) => ({ key: r.key, label: r.label, count: Number(r.count) }));
   };
 
-  const [generos, marcas, estilos, tipos1, lineas, referencias] = await Promise.all([
+  const [generos, marcas, estilos, tipos1, lineas, referencias, materiales, colores] =
+    await Promise.all([
     queryDim(
       "genero",
       `CASE WHEN l.genero_id IS NULL THEN '__null__' ELSE l.genero_id::text END AS key,
@@ -452,6 +705,7 @@ export async function loadLineaReferenciaCascada(
       `CASE WHEN lr.grupo_estilo_id IS NULL THEN '__null__' ELSE lr.grupo_estilo_id::text END AS key,
        COALESCE(NULLIF(TRIM(ge.descp_grupo_estilo), ''), NULLIF(TRIM(lr.descp_grupo_estilo), ''), '— Sin estilo —') AS label,
        COUNT(*)::text AS count`,
+      80,
     ),
     queryDim(
       "tipo1",
@@ -473,6 +727,8 @@ export async function loadLineaReferenciaCascada(
        COUNT(*)::text AS count`,
       80,
     ),
+    loadLrCascadaFamilias(pool, proveedorId, tipoV2Id, opts, "material"),
+    loadLrCascadaFamilias(pool, proveedorId, tipoV2Id, opts, "color"),
   ]);
 
   return {
@@ -482,9 +738,61 @@ export async function loadLineaReferenciaCascada(
     tipos1,
     lineas,
     referencias,
-    materiales: [],
-    colores: [],
+    materiales,
+    colores,
   };
+}
+
+/** Familias M/C desde retail staging del universo filtrado. */
+async function loadLrCascadaFamilias(
+  pool: Pool,
+  proveedorId: number,
+  tipoV2Id: TipoV2Id,
+  opts: LineaReferenciaFilterOpts,
+  kind: "material" | "color",
+): Promise<LrCascadaItem[]> {
+  const where = ["lr.proveedor_id = $1", "l.activo = true"];
+  const params: unknown[] = [proveedorId];
+  appendLrFilters(where, params, opts, kind, { tipoV2Id });
+  const byLinea = tipoV2Id === 2;
+  const refJoin = byLinea
+    ? ""
+    : `AND btrim(s.referencia_codigo_proveedor::text) = btrim(r.codigo_proveedor::text)`;
+  const expr =
+    kind === "material"
+      ? `upper(btrim(COALESCE(
+          NULLIF(s.excel_material_code::text, ''),
+          NULLIF(mat.codigo_proveedor::text, ''),
+          'SIN'
+        )))`
+      : `upper(btrim(COALESCE(
+          NULLIF(s.excel_color_code::text, ''),
+          NULLIF(col.codigo_proveedor::text, ''),
+          NULLIF(col.tono_canon->>'etiqueta', ''),
+          'SIN'
+        )))`;
+  params.push(tipoV2Id);
+  const tipoIdx = params.length;
+  const { rows } = await pool.query<{ key: string; label: string; count: string }>(
+    `
+    SELECT ${expr} AS key, ${expr} AS label, COUNT(DISTINCT lr.id)::text AS count
+    ${LR_JOIN}
+    INNER JOIN public.registro_st_vt_rc_reposicion s
+      ON btrim(s.linea_codigo_proveedor::text) = btrim(l.codigo_proveedor::text)
+      ${refJoin}
+      AND ($${tipoIdx}::int IS NULL OR s.tipo_v2_id = $${tipoIdx}::int)
+    LEFT JOIN public.material mat ON mat.id = s.material_id
+    LEFT JOIN public.color col ON col.id = s.color_id
+    WHERE ${where.join(" AND ")}
+      AND ${expr} IS NOT NULL
+      AND ${expr} <> ''
+    GROUP BY 1, 2
+    ORDER BY COUNT(DISTINCT lr.id) DESC, 2
+    LIMIT 60
+    `,
+    params,
+  );
+  return rows.map((r) => ({ key: r.key, label: r.label, count: Number(r.count) }));
 }
 
 const LINEA_BASE_WHERE = `l.proveedor_id = $1 AND l.activo = true`;
@@ -617,13 +925,23 @@ export async function loadLineaReferencia(
   let orderByImg = "";
   if (filterOpts.problemasEstilo) {
     params.push(tipoV2Id);
-    orderByImg = `CASE WHEN ${sqlExisteImagenRetail(params.length)} THEN 0 ELSE 1 END,`;
+    orderByImg = `CASE WHEN ${sqlExisteImagenRetail(params.length, tipoV2Id === 2)} THEN 0 ELSE 1 END,`;
   }
   params.push(limit, offset);
   const limitIdx = params.length - 1;
   const offsetIdx = params.length;
+  /**
+   * Cola viva arriba: L×R en stock CP (v_stock_rimec) con tipo_1 vacío.
+   * 638 · Director 2026-08-16 — las 4 CP primero (JOIN, no EXISTS correlacionado).
+   */
   const { rows } = await pool.query<LineaReferenciaRow>(
     `
+    WITH cp_stock AS (
+      SELECT DISTINCT linea_id, referencia_id
+      FROM v_stock_rimec
+      WHERE proveedor_importacion_id = $1
+        AND COALESCE(cantidad_pares, 0) > 0
+    )
     SELECT
       lr.id,
       lr.proveedor_id,
@@ -643,9 +961,15 @@ export async function loadLineaReferencia(
     LEFT JOIN marca_v2 mv ON mv.id_marca = l.marca_id
     LEFT JOIN grupo_estilo_v2 ge ON ge.id_grupo_estilo = lr.grupo_estilo_id
     LEFT JOIN tipo_1 t1 ON t1.id_tipo_1 = lr.tipo_1_id
+    LEFT JOIN cp_stock cp
+      ON cp.linea_id = lr.linea_id
+     AND cp.referencia_id = lr.referencia_id
+     AND lr.tipo_1_id IS NULL
     WHERE ${whereSql}
     ORDER BY
+      CASE WHEN cp.linea_id IS NOT NULL THEN 0 ELSE 1 END,
       ${orderByImg}
+      CASE WHEN l.codigo_proveedor::text ~ '^[0-9]+$' THEN l.codigo_proveedor::numeric ELSE NULL END NULLS LAST,
       l.codigo_proveedor::text,
       r.codigo_proveedor::text
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
@@ -664,7 +988,7 @@ export async function loadLineaReferenciaProblemasEstiloResumen(
   const proveedorId = proveedorIdFromTipoV2(tipoV2Id);
   if (proveedorId == null) return { total: 0, con_imagen: 0, sin_imagen: 0 };
 
-  const img = sqlExisteImagenRetail(2);
+  const img = sqlExisteImagenRetail(2, tipoV2Id === 2);
   const { rows } = await pool.query<{ total: string; con_imagen: string; sin_imagen: string }>(
     `
     SELECT
@@ -746,7 +1070,10 @@ export async function loadEstiloSugeridoLineaReferencia(
   return out;
 }
 
-/** Primera fila retail (con imagen priorizada) por par linea_codigo + referencia_codigo. */
+/**
+ * Primera fila retail con imagen.
+ * 654 = match exacto L×R · 638 = solo línea (1ª foto de esa línea; ref retail suele ser K ≠ LR).
+ */
 export async function loadPrimeraImagenLineaReferencia(
   pool: Pool,
   pairs: { linea_codigo: string; referencia_codigo: string }[],
@@ -754,6 +1081,98 @@ export async function loadPrimeraImagenLineaReferencia(
 ): Promise<Map<string, LineaReferenciaThumb>> {
   const out = new Map<string, LineaReferenciaThumb>();
   if (!pairs.length) return out;
+
+  const byLineaOnly = tipoV2Id === 2;
+
+  if (byLineaOnly) {
+    const lineas = [...new Set(pairs.map((p) => p.linea_codigo))];
+    const { rows } = await pool.query<{
+      linea_codigo: string;
+      imagen_nombre: string | null;
+      material_code: string;
+      color_code: string;
+    }>(
+      `
+      SELECT DISTINCT ON (btrim(s.linea_codigo_proveedor::text))
+        btrim(s.linea_codigo_proveedor::text) AS linea_codigo,
+        NULLIF(btrim(s.imagen_nombre::text), '') AS imagen_nombre,
+        COALESCE(
+          NULLIF(btrim(s.excel_material_code::text), ''),
+          CASE
+            WHEN mat.id IS NULL THEN NULL
+            WHEN mat.codigo_proveedor = -999001::bigint THEN NULL
+            ELSE trim(mat.codigo_proveedor::text)
+          END,
+          ''
+        ) AS material_code,
+        COALESCE(
+          NULLIF(btrim(s.excel_color_code::text), ''),
+          CASE
+            WHEN col.id IS NULL THEN NULL
+            WHEN col.codigo_proveedor = -999001::bigint THEN NULL
+            ELSE trim(col.codigo_proveedor::text)
+          END,
+          ''
+        ) AS color_code
+      FROM public.registro_st_vt_rc_reposicion s
+      LEFT JOIN public.material mat ON mat.id = s.material_id
+      LEFT JOIN public.color col ON col.id = s.color_id
+      WHERE btrim(s.linea_codigo_proveedor::text) = ANY($1::text[])
+        AND s.tipo_v2_id = $2::int
+        AND NULLIF(btrim(s.imagen_nombre::text), '') IS NOT NULL
+      ORDER BY
+        btrim(s.linea_codigo_proveedor::text),
+        s.id
+      `,
+      [lineas, tipoV2Id ?? 2],
+    );
+
+    const byLinea = new Map<string, LineaReferenciaThumb>();
+    for (const r of rows) {
+      byLinea.set(r.linea_codigo, {
+        imagen_nombre: r.imagen_nombre,
+        material_code: r.material_code ?? "",
+        color_code: r.color_code ?? "",
+      });
+    }
+
+    const missing = lineas.filter((L) => !byLinea.has(L));
+    if (missing.length) {
+      const { rows: cpRows } = await pool.query<{
+        linea_codigo: string;
+        imagen_nombre: string | null;
+        color_code: string;
+      }>(
+        `
+        SELECT DISTINCT ON (btrim(v.linea_codigo::text))
+          btrim(v.linea_codigo::text) AS linea_codigo,
+          NULLIF(btrim(v.imagen_url::text), '') AS imagen_nombre,
+          COALESCE(NULLIF(btrim(v.color_code::text), ''), '') AS color_code
+        FROM public.v_stock_rimec v
+        JOIN public.linea l ON l.id = v.linea_id AND l.proveedor_id = 638
+        WHERE btrim(v.linea_codigo::text) = ANY($1::text[])
+          AND NULLIF(btrim(v.imagen_url::text), '') IS NOT NULL
+        ORDER BY
+          btrim(v.linea_codigo::text),
+          v.det_id
+        `,
+        [missing],
+      );
+      for (const r of cpRows) {
+        byLinea.set(r.linea_codigo, {
+          imagen_nombre: r.imagen_nombre,
+          material_code: "",
+          color_code: r.color_code ?? "",
+        });
+      }
+    }
+
+    for (const p of pairs) {
+      const thumb = byLinea.get(p.linea_codigo);
+      if (thumb) out.set(`${p.linea_codigo}\0${p.referencia_codigo}`, thumb);
+    }
+    return out;
+  }
 
   const lineas = pairs.map((p) => p.linea_codigo);
   const refs = pairs.map((p) => p.referencia_codigo);
@@ -909,7 +1328,8 @@ function buildLrScopeWhere(
 ): { whereSql: string; params: unknown[] } {
   const where = ["lr.proveedor_id = $1", "l.activo = true"];
   const params: unknown[] = [proveedorId];
-  appendLrFilters(where, params, opts);
+  const tipoV2Id = (proveedorId === 638 ? 2 : 1) as TipoV2Id;
+  appendLrFilters(where, params, opts, undefined, { tipoV2Id });
   return { whereSql: where.join(" AND "), params };
 }
 

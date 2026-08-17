@@ -80,18 +80,19 @@ Todo lo que el operador ve hoy en Motor → pestañas **Administración de Líne
 
 **Mejoras UX (sin perder datos):** búsqueda por código, contador de NULLs, indicador “pendiente enriquecer”, separación visual calzado vs confecciones, **thumb 48px** vía `ProductThumbFrame`.
 
-### Miniatura L×R (2.3.5.2 · 2026-06-19)
+### Miniatura L×R (2.3.5.2 · actualizado **2.3.5.10** 2026-08-17)
 
 | Aspecto | Detalle |
 |---------|---------|
-| **Objetivo** | Identificar visualmente el par línea+referencia mientras se edita estilo/tipo 1 |
-| **Fuente datos** | `registro_st_vt_rc_reposicion` — primera fila con match exacto L+R (prioriza `imagen_nombre`) |
-| **Resolución URL** | `productImageCandidatesForRow` — Excel → molécula L-R-M-C → stem L-R |
-| **API** | GET `/api/pilares/linea-referencia` enriquece cada fila con `thumb: { imagen_nombre, material_code, color_code } \| null` |
-| **Query SQL** | `loadPrimeraImagenLineaReferencia` en `src/lib/pilares/queries.ts` |
-| **Componente** | `LineaReferenciaAdminClient.tsx` · columna entre Ref y Marca |
+| **Objetivo** | Identificar visualmente mientras se edita estilo/tipo 1 |
+| **654** | Match exacto L×R en retail (`imagen_nombre`) |
+| **638** | Match **solo línea** (retail; si no → 1ª `v_stock_rimec.imagen_url`) — Kyly sin ref útil para foto |
+| **Estilo 638** | Catálogo `grupo_estilo_v2` col J (no whitelist CONFECCIONES/OTROS) |
+| **Resolución URL** | `productImageCandidatesForRow` + `tipoV2Id` |
+| **API / Query** | GET `/api/pilares/linea-referencia` · `loadPrimeraImagenLineaReferencia` |
+| **CHUSAR** | `2.3.5.10` [CHUSAR_ESTILO_638_COL_J_THUMB_LINEA_20260817.md](../../.claude/2_modulos/2.3_report/pilares/CHUSAR_ESTILO_638_COL_J_THUMB_LINEA_20260817.md) |
 
-CHUSAR: `.claude/2_modulos/2.3_report/pilares/CHUSAR_ADMINISTRADOR_PILARES.md`
+CHUSAR operativo: `.claude/2_modulos/2.3_report/pilares/CHUSAR_ADMINISTRADOR_PILARES.md`
 
 ---
 

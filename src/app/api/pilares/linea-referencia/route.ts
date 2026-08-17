@@ -5,9 +5,12 @@ import {
   assertMaestrasPermitidasParaTipoV2,
 } from "@/lib/pilares/validar-maestras-pilares";
 import {
+  loadEstiloSugeridoLineaReferencia,
   loadLineaReferencia,
   loadLineaReferenciaCascada,
   loadLineaReferenciaFiltros,
+  loadLineaReferenciaProblemasEstiloResumen,
+  loadPilaresMaestras,
   loadPrimeraImagenLineaReferencia,
   patchLineaGeneroByLineas,
   patchLineaGeneroByScope,
@@ -41,36 +44,132 @@ function parseLineaCodigos(raw: string | null): string[] | null {
   return codes.length ? codes : null;
 }
 
+function parseIdList(raw: string | null): number[] | null {
+  if (!raw?.trim()) return null;
+  if (raw === "__null__") return null;
+  const ids = raw
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n));
+  return ids.length ? ids : null;
+}
+
+function parseConImagen(raw: string | null): boolean | null {
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+  return null;
+}
+
 function filterOptsFromSearchParams(sp: URLSearchParams): LineaReferenciaFilterOpts {
-  const estiloRaw = sp.get("estilo_id");
-  const tipo1Raw = sp.get("tipo_1_id");
+  const estiloRaw = sp.get("estilo_ids") || sp.get("estilo_id");
+  const tipo1Raw = sp.get("tipo_1_ids") || sp.get("tipo_1_id");
+  const generoRaw = sp.get("genero_ids") || sp.get("genero_id");
+  const marcaIdsRaw = sp.get("marca_ids");
+  const marcaLegacy = sp.get("marca");
+  const problemasEstilo = sp.get("problemas_estilo") === "1";
+  const estiloNull = !problemasEstilo && estiloRaw === "__null__";
+  const estiloIds = problemasEstilo || estiloNull ? null : parseIdList(estiloRaw);
+  const origenRaw = (sp.get("origen_tipo") || "TODOS").toUpperCase();
+  const origenTipo =
+    origenRaw.includes("PRONTA")
+      ? ("PRONTA_ENTREGA" as const)
+      : origenRaw === "CP" || origenRaw.includes("PREVIA")
+        ? ("CP" as const)
+        : ("TODOS" as const);
+  const parseStrList = (raw: string | null) =>
+    raw
+      ? raw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : null;
   return {
-    marca: sp.get("marca") === "__null__" ? "__null__" : sp.get("marca") || null,
-    estiloNull: estiloRaw === "__null__",
+    marca: marcaLegacy === "__null__" ? "__null__" : !marcaIdsRaw ? marcaLegacy || null : null,
+    marcaIds: marcaLegacy === "__null__" ? null : parseIdList(marcaIdsRaw),
+    marcaNull: marcaLegacy === "__null__",
+    generoNull: generoRaw === "__null__",
+    generoIds: generoRaw === "__null__" ? null : parseIdList(generoRaw),
+    generoId: null,
+    estiloNull,
     tipo1Null: tipo1Raw === "__null__",
-    estiloId: estiloRaw === "__null__" ? null : parseOptionalInt(estiloRaw),
-    tipo1Id: tipo1Raw === "__null__" ? null : parseOptionalInt(tipo1Raw),
+    estiloIds,
+    estiloId: null,
+    tipo1Ids: tipo1Raw === "__null__" ? null : parseIdList(tipo1Raw),
+    tipo1Id: null,
     lineaCodigos: parseLineaCodigos(sp.get("linea_codigos")),
+    lineaIds: parseIdList(sp.get("linea_ids")),
+    referenciaIds: parseIdList(sp.get("referencia_ids")),
+    buscar: sp.get("q") || sp.get("buscar") || null,
+    origenTipo,
+    depositoCodigo: sp.get("deposito_codigo") || null,
+    tipoGrupos: parseStrList(sp.get("tipo_grupos")),
+    materialFamilias: parseStrList(sp.get("material_familias")),
+    colorFamilias: parseStrList(sp.get("color_familias")),
+    problemasEstilo,
+    conImagen: parseConImagen(sp.get("con_imagen")),
   };
 }
 
 function filterOptsFromBody(body: Record<string, unknown>): LineaReferenciaFilterOpts {
-  const estiloRaw = body.estilo_id;
-  const tipo1Raw = body.tipo_1_id;
+  const asStr = (v: unknown) => (typeof v === "string" ? v : v == null ? null : String(v));
+  const asIdList = (v: unknown): number[] | null => {
+    if (Array.isArray(v)) {
+      const ids = v.map((x) => Number(x)).filter((n) => Number.isFinite(n));
+      return ids.length ? ids : null;
+    }
+    if (typeof v === "string") return parseIdList(v);
+    return null;
+  };
+  const asStrList = (v: unknown): string[] | null => {
+    if (Array.isArray(v)) {
+      const xs = v.map((x) => String(x).trim()).filter(Boolean);
+      return xs.length ? xs : null;
+    }
+    if (typeof v === "string" && v.trim()) {
+      return v.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return null;
+  };
+  const estiloRaw = body.estilo_id ?? body.estilo_ids;
+  const tipo1Raw = body.tipo_1_id ?? body.tipo_1_ids;
   const lineas = Array.isArray(body.lineas)
     ? body.lineas.map((x) => String(x).trim()).filter(Boolean)
     : null;
+  const origenRaw = String(body.origen_tipo ?? "TODOS").toUpperCase();
+  const origenTipo =
+    origenRaw.includes("PRONTA")
+      ? ("PRONTA_ENTREGA" as const)
+      : origenRaw === "CP" || origenRaw.includes("PREVIA")
+        ? ("CP" as const)
+        : ("TODOS" as const);
+  const estiloNull = estiloRaw === "__null__";
+  const problemasEstilo = body.problemas_estilo === true || body.problemas_estilo === 1 || body.problemas_estilo === "1";
   return {
     marca: body.marca === "__null__" ? "__null__" : typeof body.marca === "string" ? body.marca : null,
-    estiloNull: estiloRaw === "__null__",
+    marcaIds: asIdList(body.marca_ids),
+    marcaNull: body.marca === "__null__",
+    generoIds: asIdList(body.genero_ids),
+    generoId: null,
+    estiloNull,
     tipo1Null: tipo1Raw === "__null__",
+    estiloIds: problemasEstilo || estiloNull ? null : asIdList(estiloRaw),
     estiloId:
-      estiloRaw === "__null__" || estiloRaw == null || estiloRaw === ""
-        ? null
-        : Number(estiloRaw),
-    tipo1Id:
-      tipo1Raw === "__null__" || tipo1Raw == null || tipo1Raw === "" ? null : Number(tipo1Raw),
-    lineaCodigos: lineas?.length ? lineas : null,
+      !Array.isArray(estiloRaw) && estiloRaw !== "__null__" && estiloRaw != null && estiloRaw !== ""
+        ? Number(estiloRaw)
+        : null,
+    tipo1Ids: tipo1Raw === "__null__" ? null : asIdList(tipo1Raw),
+    tipo1Id: null,
+    lineaCodigos: lineas?.length ? lineas : parseLineaCodigos(asStr(body.linea_codigos)),
+    lineaIds: asIdList(body.linea_ids),
+    referenciaIds: asIdList(body.referencia_ids),
+    buscar: asStr(body.q) || asStr(body.buscar),
+    origenTipo,
+    depositoCodigo: asStr(body.deposito_codigo),
+    tipoGrupos: asStrList(body.tipo_grupos),
+    materialFamilias: asStrList(body.material_familias),
+    colorFamilias: asStrList(body.color_familias),
+    problemasEstilo,
+    conImagen: parseConImagen(asStr(body.con_imagen)),
   };
 }
 
@@ -88,33 +187,49 @@ export async function GET(req: NextRequest) {
 
   try {
     const pool = getRimecPool();
-    const [{ rows, total }, filtros, cascada] = await Promise.all([
+    const [{ rows, total }, filtros, cascada, problemasResumen, maestras] = await Promise.all([
       loadLineaReferencia(pool, tipoV2Id, {
-        marca: filterOpts.marca,
-        estiloNull: filterOpts.estiloNull,
-        tipo1Null: filterOpts.tipo1Null,
-        estiloId: filterOpts.estiloId,
-        tipo1Id: filterOpts.tipo1Id,
-        lineaCodigos: filterOpts.lineaCodigos,
+        ...filterOpts,
         limit: Number(sp.get("limit") ?? 200),
         offset: Number(sp.get("offset") ?? 0),
       }),
       loadLineaReferenciaFiltros(pool, tipoV2Id),
       loadLineaReferenciaCascada(pool, tipoV2Id, filterOpts),
+      loadLineaReferenciaProblemasEstiloResumen(pool, tipoV2Id),
+      loadPilaresMaestras(pool, tipoV2Id),
     ]);
 
-    const thumbMap = await loadPrimeraImagenLineaReferencia(
-      pool,
-      rows.map((r) => ({
-        linea_codigo: r.linea_codigo,
-        referencia_codigo: r.referencia_codigo,
-      })),
-      tipoV2Id,
-    );
-    const rowsWithThumb = rows.map((r) => ({
-      ...r,
-      thumb: thumbMap.get(`${r.linea_codigo}\0${r.referencia_codigo}`) ?? null,
+    const pairs = rows.map((r) => ({
+      linea_codigo: r.linea_codigo,
+      referencia_codigo: r.referencia_codigo,
     }));
+    const [thumbMap, sugeridoMap] = await Promise.all([
+      loadPrimeraImagenLineaReferencia(pool, pairs, tipoV2Id),
+      filterOpts.problemasEstilo
+        ? loadEstiloSugeridoLineaReferencia(pool, pairs, tipoV2Id, maestras.estilos)
+        : Promise.resolve(new Map<string, { id: number; label: string }>()),
+    ]);
+
+    const rowsWithThumb = rows.map((r) => {
+      const key = `${r.linea_codigo}\0${r.referencia_codigo}`;
+      const thumb = thumbMap.get(key) ?? null;
+      const tieneImagen = Boolean(thumb?.imagen_nombre?.trim());
+      const labelEstilo = String(r.descp_grupo_estilo ?? "").trim().toUpperCase();
+      const esProblema =
+        r.grupo_estilo_id == null || labelEstilo === "OTROS";
+      const kind =
+        r.grupo_estilo_id == null ? "SIN_ESTILO" : labelEstilo === "OTROS" ? "OTROS" : null;
+      const sug = sugeridoMap.get(key) ?? null;
+      return {
+        ...r,
+        thumb,
+        es_problema_estilo: esProblema,
+        tiene_imagen: tieneImagen,
+        problema_estilo_kind: kind,
+        estilo_sugerido_id: sug?.id ?? null,
+        estilo_sugerido_label: sug?.label ?? null,
+      };
+    });
 
     return NextResponse.json({
       configured: true,
@@ -124,6 +239,7 @@ export async function GET(req: NextRequest) {
       total,
       filtros,
       cascada,
+      problemas_estilo: problemasResumen,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al listar linea_referencia";

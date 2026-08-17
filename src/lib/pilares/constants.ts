@@ -4,26 +4,37 @@ export const TIPO_V2_LABELS: Record<1 | 2, string> = {
   2: "Confecciones (Kyly · 638)",
 };
 
-/** Estilos permitidos por ámbito — evita mezclar calzado ↔ confecciones en filtros/edición. */
+/** Estilos de calzado — no listar ni asignar en admin 638 (col J = prenda). */
+export const ESTILOS_CALZADO_EXCLUSIVOS: readonly string[] = [
+  "BOTAS",
+  "CARTERAS",
+  "CHATITA",
+  "CROCS",
+  "PAPETTE",
+  "RASTRERAS",
+  "SANDALIA",
+  "SEMIABIERTO",
+  "STILETTO",
+  "TACO ALTO",
+  "TACO BAJO",
+  "TACO MEDIO",
+  "TENIS",
+  "ZAPATILLA",
+];
+
+/**
+ * Estilos por ámbito.
+ * 654 = lista cerrada calzado.
+ * 638 = vacío aquí: el catálogo sale de `grupo_estilo_v2` (col J · BLUSA/VESTIDO…)
+ *     excluyendo calzado — no usar solo CONFECCIONES/OTROS (error latente).
+ */
 export const ESTILOS_POR_TIPO_V2: Record<1 | 2, readonly string[]> = {
   1: [
-    "BOTAS",
-    "CARTERAS",
-    "CHATITA",
-    "CROCS",
+    ...ESTILOS_CALZADO_EXCLUSIVOS,
+    "CONFECCIONES",
     "OTROS",
-    "PAPETTE",
-    "RASTRERAS",
-    "SANDALIA",
-    "SEMIABIERTO",
-    "STILETTO",
-    "TACO ALTO",
-    "TACO BAJO",
-    "TACO MEDIO",
-    "TENIS",
-    "ZAPATILLA",
   ],
-  2: ["CONFECCIONES", "OTROS"],
+  2: [],
 };
 
 /** Tipo 1 permitido por ámbito (SDRM · pilares). */
@@ -53,7 +64,12 @@ export function normMaestraLabel(raw: string | null | undefined): string {
 
 export function estiloPermitidoParaTipoV2(tipoV2Id: 1 | 2, label: string): boolean {
   const key = normMaestraLabel(label);
-  return ESTILOS_POR_TIPO_V2[tipoV2Id].some((e) => normMaestraLabel(e) === key);
+  if (!key) return false;
+  if (tipoV2Id === 1) {
+    return ESTILOS_POR_TIPO_V2[1].some((e) => normMaestraLabel(e) === key);
+  }
+  // 638: cualquier etiqueta en maestros salvo estilos exclusivos de calzado
+  return !ESTILOS_CALZADO_EXCLUSIVOS.some((e) => normMaestraLabel(e) === key);
 }
 
 export function tipo1PermitidoParaTipoV2(tipoV2Id: 1 | 2, label: string): boolean {

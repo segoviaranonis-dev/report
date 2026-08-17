@@ -24,7 +24,7 @@ export default async function PilaresLineaReferenciaPage() {
   return (
     <div className="min-h-screen bg-app-bg pb-16 text-neutral-ink">
       <NexusHeaderZen active="pilares" />
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto w-full max-w-[1600px] px-3 py-6 sm:px-4 lg:px-6 lg:py-8">
         <Suspense fallback={<p className="text-sm text-neutral-600">Cargando…</p>}>
           <LineaReferenciaAdminClient />
         </Suspense>

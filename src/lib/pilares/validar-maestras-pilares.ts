@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import {
   estiloPermitidoParaTipoV2,
+  ESTILOS_CALZADO_EXCLUSIVOS,
   ESTILOS_POR_TIPO_V2,
   normMaestraLabel,
   tipo1PermitidoParaTipoV2,
@@ -23,7 +24,31 @@ async function loadEstilosByLabels(
     `,
     [keys],
   );
-  return rows;
+  return rows.filter((row, idx, all) => {
+    const id = Number(row.id);
+    return all.findIndex((r) => Number(r.id) === id) === idx;
+  });
+}
+
+/** 638: todo grupo_estilo_v2 menos calzado (col J comercial ya cargado en maestros). */
+async function loadEstilosConfecciones638(
+  pool: Pool,
+): Promise<{ id: number; label: string }[]> {
+  const banned = ESTILOS_CALZADO_EXCLUSIVOS.map((l) => normMaestraLabel(l));
+  const { rows } = await pool.query<{ id: number; label: string }>(
+    `
+    SELECT id_grupo_estilo AS id, TRIM(descp_grupo_estilo) AS label
+    FROM grupo_estilo_v2
+    WHERE NULLIF(TRIM(descp_grupo_estilo), '') IS NOT NULL
+      AND upper(regexp_replace(trim(descp_grupo_estilo), '\\s+', ' ', 'g')) <> ALL($1::text[])
+    ORDER BY descp_grupo_estilo
+    `,
+    [banned],
+  );
+  return rows.filter((row, idx, all) => {
+    const id = Number(row.id);
+    return all.findIndex((r) => Number(r.id) === id) === idx;
+  });
 }
 
 async function loadTipos1ByLabels(
@@ -41,15 +66,19 @@ async function loadTipos1ByLabels(
     `,
     [keys],
   );
-  return rows;
+  return rows.filter((row, idx, all) => {
+    const id = Number(row.id);
+    return all.findIndex((r) => Number(r.id) === id) === idx;
+  });
 }
 
-/** Catálogo estilo acotado al proveedor activo (654 calzado · 638 conf). */
+/** Catálogo estilo acotado al proveedor activo (654 calzado · 638 conf col J). */
 export async function loadEstilosForTipoV2(
   pool: Pool,
   tipoV2Id: TipoV2Id,
 ): Promise<{ id: number; label: string }[]> {
-  return loadEstilosByLabels(pool, ESTILOS_POR_TIPO_V2[tipoV2Id]);
+  if (tipoV2Id === 2) return loadEstilosConfecciones638(pool);
+  return loadEstilosByLabels(pool, ESTILOS_POR_TIPO_V2[1]);
 }
 
 /** Catálogo tipo 1 acotado al proveedor activo. */

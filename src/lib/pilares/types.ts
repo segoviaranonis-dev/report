@@ -28,7 +28,7 @@ export interface LineaReferenciaRow {
   descp_tipo_1: string;
   grupo_estilo_id: number | null;
   tipo_1_id: number | null;
-  /** Primera imagen retail con coincidencia exacta L×R (staging). */
+  /** Primera imagen retail: 654 = L×R · 638 = 1ª foto de la línea (sin ref). */
   thumb?: LineaReferenciaThumb | null;
   /** FOCO 2.3.5.5 — cola problemas estilo */
   es_problema_estilo?: boolean;

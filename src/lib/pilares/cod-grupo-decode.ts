@@ -72,7 +72,7 @@ const CALZ_D23_TIPO1: Record<string, string> = {
   "02": "CERRADO",
   "03": "CARTERAS",
   "04": "MEDIAS",
-  "05": "PRENDAS",
+  "05": "ACT PRENDAS",
 };
 
 /** Calzado · dígitos 05–06 → cadena Tipo. */
@@ -256,12 +256,12 @@ export function decodeCodGrupo(
   } else {
     tipo1Label = CALZ_D23_TIPO1[pos23] ?? null;
     cadenaComercial = CALZ_D45_CADENA[pos45] ?? "REGULAR";
-    if (tipo1Label === "PRENDAS") {
+    if (tipo1Label === "PRENDAS" || tipo1Label === "ACT PRENDAS") {
       generoCodigo = CALZ_D67_GENERO[pos67] ?? null;
       estiloLabel = "OTROS";
     } else {
       estiloLabel = CALZ_D67_ESTILO[pos67] ?? (pos67 === "02" ? "OTROS" : null);
-      if (pos67 === "01" && tipo1Label !== "PRENDAS") estiloLabel = "BOTAS";
+      if (pos67 === "01" && tipo1Label !== "PRENDAS" && tipo1Label !== "ACT PRENDAS") estiloLabel = "BOTAS";
       if (pos67 === "00") estiloLabel = "OTROS";
     }
 
