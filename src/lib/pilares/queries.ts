@@ -23,7 +23,7 @@ const SQL_PROBLEMA_ESTILO = `(
 
 /**
  * SQL: hay imagen usable en Admin L×R.
- * 654 = retail L×R **o** molécula PPD (material+color → stem Storage, ley 2.01.04.021).
+ * 654 = retail L×R **o** molécula PPD **o** CP `v_stock_rimec` (Web) · ley 2.3.5.19.
  * 638 = solo línea (retail o v_stock_rimec.imagen_url).
  */
 function sqlExisteImagenRetail(tipoParamIndex: number, matchByLineaOnly = false): string {
@@ -62,6 +62,19 @@ function sqlExisteImagenRetail(tipoParamIndex: number, matchByLineaOnly = false)
         AND btrim(rr.codigo_proveedor::text) = btrim(r.codigo_proveedor::text)
         AND NULLIF(btrim(ppd.material_code::text), '') IS NOT NULL
         AND NULLIF(btrim(ppd.color_code::text), '') IS NOT NULL
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.v_stock_rimec v
+      WHERE btrim(v.linea_codigo::text) = btrim(l.codigo_proveedor::text)
+        AND btrim(v.referencia_codigo::text) = btrim(r.codigo_proveedor::text)
+        AND (
+          NULLIF(btrim(v.imagen_url::text), '') IS NOT NULL
+          OR (
+            NULLIF(btrim(v.material_code::text), '') IS NOT NULL
+            AND NULLIF(btrim(v.color_code::text), '') IS NOT NULL
+          )
+        )
     )
   )`;
 }
@@ -507,6 +520,7 @@ function appendLrFilters(
   }
 
   if (opts.origenTipo === "CP") {
+    // Compra previa = universo RIMEC Web (v_stock_rimec · tránsito) · ley 2.3.5.19.
     where.push(`EXISTS (
       SELECT 1 FROM public.v_stock_rimec v
       WHERE v.linea_id = l.id
@@ -1091,7 +1105,7 @@ export async function loadEstiloSugeridoLineaReferencia(
 
 /**
  * Primera molécular con imagen usable para Admin L×R.
- * 654 = retail L×R · si no → PPD material+color (stem Storage · misma ley Magno).
+ * 654 = retail L×R · si no → PPD · si no → CP `v_stock_rimec` (RIMEC Web · 2.3.5.19).
  * 638 = solo línea (retail; si no → v_stock_rimec.imagen_url).
  */
 export async function loadPrimeraImagenLineaReferencia(
@@ -1303,6 +1317,68 @@ export async function loadPrimeraImagenLineaReferencia(
       if (out.has(key) && out.get(key)?.imagen_nombre) continue;
       out.set(key, {
         imagen_nombre: null,
+        material_code: r.material_code ?? "",
+        color_code: r.color_code ?? "",
+      });
+    }
+  }
+
+  /** 654 · Compra previa / RIMEC Web: imagen_url o L-R-M-C desde v_stock_rimec. */
+  const missingCp = pairs.filter((p) => {
+    const t = out.get(`${p.linea_codigo}\0${p.referencia_codigo}`);
+    if (!t) return true;
+    const hasName = Boolean(t.imagen_nombre?.trim());
+    const hasMol = Boolean(t.material_code?.trim() && t.color_code?.trim());
+    return !hasName && !hasMol;
+  });
+  if (missingCp.length) {
+    const lineasC = missingCp.map((p) => p.linea_codigo);
+    const refsC = missingCp.map((p) => p.referencia_codigo);
+    const { rows: cpRows } = await pool.query<{
+      linea_codigo: string;
+      referencia_codigo: string;
+      imagen_nombre: string | null;
+      material_code: string;
+      color_code: string;
+    }>(
+      `
+      WITH pairs AS (
+        SELECT u.l AS linea_codigo, u.r AS referencia_codigo
+        FROM unnest($1::text[], $2::text[]) AS u(l, r)
+      )
+      SELECT DISTINCT ON (p.linea_codigo, p.referencia_codigo)
+        p.linea_codigo,
+        p.referencia_codigo,
+        NULLIF(btrim(v.imagen_url::text), '') AS imagen_nombre,
+        COALESCE(NULLIF(btrim(v.material_code::text), ''), '') AS material_code,
+        COALESCE(NULLIF(btrim(v.color_code::text), ''), '') AS color_code
+      FROM pairs p
+      JOIN public.v_stock_rimec v
+        ON btrim(v.linea_codigo::text) = p.linea_codigo
+        AND btrim(v.referencia_codigo::text) = p.referencia_codigo
+      WHERE COALESCE(v.cantidad_pares, 0) > 0
+        AND (
+          NULLIF(btrim(v.imagen_url::text), '') IS NOT NULL
+          OR (
+            NULLIF(btrim(v.material_code::text), '') IS NOT NULL
+            AND NULLIF(btrim(v.color_code::text), '') IS NOT NULL
+          )
+        )
+      ORDER BY
+        p.linea_codigo,
+        p.referencia_codigo,
+        (CASE WHEN NULLIF(btrim(v.imagen_url::text), '') IS NOT NULL THEN 0 ELSE 1 END),
+        v.det_id
+      `,
+      [lineasC, refsC],
+    );
+    for (const r of cpRows) {
+      const key = `${r.linea_codigo}\0${r.referencia_codigo}`;
+      const prev = out.get(key);
+      if (prev?.imagen_nombre?.trim()) continue;
+      if (prev?.material_code?.trim() && prev?.color_code?.trim()) continue;
+      out.set(key, {
+        imagen_nombre: r.imagen_nombre,
         material_code: r.material_code ?? "",
         color_code: r.color_code ?? "",
       });

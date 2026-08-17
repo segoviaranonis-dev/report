@@ -166,7 +166,7 @@ export function PilaresLrFiltrosSidebar({
               <StockBtn active={esTodos} onClick={() => setOrigen("TODOS")}>
                 ⧉ Todos
               </StockBtn>
-              <StockBtn active={esCp} onClick={() => setOrigen(esCp ? "TODOS" : "CP")}>
+              <StockBtn active={esCp} onClick={() => setOrigen(esCp ? "TODOS" : "CP")} title="L×R en Compra previa / RIMEC Web (v_stock_rimec)">
                 🚢 Compra previa
               </StockBtn>
               <StockBtn
@@ -182,6 +182,13 @@ export function PilaresLrFiltrosSidebar({
                 <strong>Scope SDRM venta hoy</strong> (stock disponible ∩ PE). Estilos ordenados
                 por ese universo. Lo que edites en la grilla sigue siendo la{" "}
                 <strong>maestra L×R → FK filtros</strong>.
+              </p>
+            ) : null}
+            {esCp ? (
+              <p className="text-[10px] leading-snug text-sky-800">
+                <strong>Scope RIMEC Web / Compra previa</strong> (tránsito ·{" "}
+                <code className="text-[9px]">v_stock_rimec</code>). Miniatura vía CP — no debería
+                faltar foto. Lo que edites sigue siendo la <strong>maestra L×R → FK filtros</strong>.
               </p>
             ) : null}
           </div>
